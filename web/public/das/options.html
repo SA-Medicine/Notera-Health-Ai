@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DAS Settings</title>
+  <link rel="stylesheet" href="options.css"/>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="logo"><span class="logo-text">DAS</span></div>
+      <div>
+        <div class="page-title">DAS Settings</div>
+        <div class="page-sub">Clinical AI Scribe &mdash; API Configuration</div>
+      </div>
+    </div>
+
+    <!-- Saved Banner -->
+    <div class="saved-banner" id="savedBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+      Settings saved successfully.
+    </div>
+
+    <!-- Error Banner -->
+    <div class="error-banner" id="errorBanner"></div>
+
+    <!-- GROQ Keys Card -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Groq API Keys &mdash; Audio Transcription
+      </div>
+
+      <div class="info-box">
+        DAS uses <strong>Groq Whisper</strong> for real-time audio transcription.
+        Add up to 3 keys for automatic rate-limit cycling.
+        Get free keys at <a href="https://console.groq.com" target="_blank">console.groq.com</a>.
+      </div>
+
+      <!-- Key 1 -->
+      <div class="key-block">
+        <div class="key-label-row">
+          <label class="key-label" for="groqKey1">Key 1 <span class="required">*</span></label>
+          <span class="key-tag" id="tag_groqKey1">&mdash;</span>
+        </div>
+        <div class="key-input-row">
+          <div class="input-wrap">
+            <input type="password" id="groqKey1" placeholder="gsk_&hellip;" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="visGroqKey1" title="Show/hide" data-target="groqKey1" aria-label="Toggle visibility">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <button class="test-btn" id="testGroqKey1" data-key="groqKey1">Test</button>
+        </div>
+      </div>
+
+      <!-- Key 2 -->
+      <div class="key-block">
+        <div class="key-label-row">
+          <label class="key-label" for="groqKey2">Key 2 <span class="optional">(optional)</span></label>
+          <span class="key-tag" id="tag_groqKey2">&mdash;</span>
+        </div>
+        <div class="key-input-row">
+          <div class="input-wrap">
+            <input type="password" id="groqKey2" placeholder="gsk_&hellip; (optional)" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="visGroqKey2" title="Show/hide" data-target="groqKey2" aria-label="Toggle visibility">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <button class="test-btn" id="testGroqKey2" data-key="groqKey2">Test</button>
+        </div>
+      </div>
+
+      <!-- Key 3 -->
+      <div class="key-block">
+        <div class="key-label-row">
+          <label class="key-label" for="groqKey3">Key 3 <span class="optional">(optional)</span></label>
+          <span class="key-tag" id="tag_groqKey3">&mdash;</span>
+        </div>
+        <div class="key-input-row">
+          <div class="input-wrap">
+            <input type="password" id="groqKey3" placeholder="gsk_&hellip; (optional)" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="visGroqKey3" title="Show/hide" data-target="groqKey3" aria-label="Toggle visibility">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <button class="test-btn" id="testGroqKey3" data-key="groqKey3">Test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gemini Key Card -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Gemini API Key &mdash; Note Generation &amp; Ask DAS
+      </div>
+
+      <div class="info-box">
+        DAS uses <strong>Gemini 3.1 Pro Preview</strong> to generate clinical notes and power Ask DAS.
+        Get your free key at <a href="https://aistudio.google.com/" target="_blank">aistudio.google.com</a>.
+      </div>
+
+      <div class="key-block">
+        <div class="key-label-row">
+          <label class="key-label" for="geminiKey">Gemini API Key <span class="required">*</span></label>
+          <span class="key-tag" id="tag_geminiKey">&mdash;</span>
+        </div>
+        <div class="key-input-row">
+          <div class="input-wrap">
+            <input type="password" id="geminiKey" placeholder="AIza&hellip;" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="visGeminiKey" title="Show/hide" data-target="geminiKey" aria-label="Toggle visibility">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <button class="test-btn" id="testGeminiKey">Test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preferences Card -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Preferences
+      </div>
+
+      <div class="pref-grid">
+        <div class="field">
+          <label class="field-label" for="defaultLang">Default Language</label>
+          <select id="defaultLang">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="ar">Arabic</option>
+            <option value="zh">Chinese</option>
+            <option value="pt">Portuguese</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="defaultTemplate">Default Note Format</label>
+          <select id="defaultTemplate">
+            <option value="soap">SOAP Note</option>
+            <option value="summary">Clinical Summary</option>
+            <option value="referral">Referral Letter</option>
+            <option value="discharge">Discharge Summary</option>
+            <option value="progress">Progress Note</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-row">
+      <button class="btn btn-primary" id="btnSave">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+        Save Settings
+      </button>
+      <button class="btn btn-ghost" id="btnClear">Clear All Data</button>
+    </div>
+
+    <div class="info-box privacy-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span><strong>Privacy:</strong> API keys are stored locally in <code>chrome.storage.local</code> only.
+      Audio is sent directly to Groq and never stored. No telemetry.</span>
+    </div>
+
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

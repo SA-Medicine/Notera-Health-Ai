@@ -1,0 +1,18 @@
+# Build the backend image from the REPO ROOT context so the shared schema/ folder
+# is available to COPY (backend imports ../../../schema). Invoke from repo root:
+#   gcloud builds submit --config deploy/cloudbuild.backend.yaml .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - backend/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/scribe/backend
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/scribe/backend
+substitutions:
+  _REGION: us-central1
+options:
+  logging: CLOUD_LOGGING_ONLY

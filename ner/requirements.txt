@@ -1,0 +1,13 @@
+# Notera-Health-Ai NER sidecar — all free/open (doc 06 §3)
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.8.2
+spacy==3.7.5
+scispacy==0.5.4
+medspacy==1.1.4
+
+# Model wheels (installed explicitly in the Dockerfile so the image is reproducible):
+#   scispaCy diseases + chemicals (BC5CDR):
+#     https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz
+#   Med7 (medications: drug/dose/strength/form/frequency/route/duration):
+#     https://huggingface.co/kormilitzin/en_core_med7_lg/resolve/main/en_core_med7_lg-any-py3-none-any.whl

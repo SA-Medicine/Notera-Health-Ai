@@ -1,0 +1,22 @@
+{
+  "name": "notera-health-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notera-Health-Ai — production clinical documentation engine (Next.js + Node/Cloud Run + Python NER + Gemini + Firestore)",
+  "type": "module",
+  "workspaces": [
+    "schema",
+    "backend",
+    "eval",
+    "web"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace @notera/backend run dev",
+    "start:backend": "npm --workspace @notera/backend run start",
+    "test": "npm --workspace @notera/backend run test && npm --workspace @notera/eval run test",
+    "eval": "npm --workspace @notera/eval run eval"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

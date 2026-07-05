@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*-key.json
+service-account*.json
+
+# Build output
+.next/
+dist/
+build/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (PHI must never be committed)
+data/raw/
+data/deidentified/
+data/out/
+eval/results/
+*.wav
+*.mp3

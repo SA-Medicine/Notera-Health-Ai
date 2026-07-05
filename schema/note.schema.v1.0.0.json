@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://notera.health/schemas/note/v1.0.0",
+  "title": "Notera Clinical Note",
+  "description": "Versioned canonical clinical-note schema (doc 02 §3). Every generated note MUST validate against this. Derive fields from what gold notes actually contain; nulls are allowed to avoid forcing hallucination.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "note_type", "specialty", "subjective", "objective", "assessment", "plan", "metadata"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "note_type": { "type": "string", "description": "e.g. consultation, follow_up, medication_refill" },
+    "specialty": { "type": "string" },
+    "subjective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chief_complaint", "history_of_present_illness", "medications", "allergies"],
+      "properties": {
+        "chief_complaint": { "type": "string" },
+        "history_of_present_illness": { "type": "string" },
+        "review_of_systems": { "type": ["string", "null"] },
+        "past_medical_history": { "type": ["string", "null"] },
+        "medications": { "type": "array", "items": { "type": "string" } },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "social_history": { "type": ["string", "null"] },
+        "family_history": { "type": ["string", "null"] }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["examination"],
+      "properties": {
+        "vitals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bp": { "type": ["string", "null"] },
+            "hr": { "type": ["string", "null"] },
+            "temp": { "type": ["string", "null"] },
+            "rr": { "type": ["string", "null"] },
+            "spo2": { "type": ["string", "null"] },
+            "other": { "type": ["string", "null"] }
+          }
+        },
+        "examination": { "type": "string" },
+        "investigations": { "type": ["string", "null"] }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["impression"],
+      "properties": {
+        "impression": { "type": "string" },
+        "differentials": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["management"],
+      "properties": {
+        "management": { "type": "string" },
+        "medications_prescribed": { "type": "array", "items": { "type": "string" } },
+        "follow_up": { "type": ["string", "null"] },
+        "referrals": { "type": "array", "items": { "type": "string" } },
+        "safety_netting": { "type": ["string", "null"] }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["generated_by"],
+      "properties": {
+        "generated_by": { "type": "string", "description": "model version / pipeline version" },
+        "encounter_id": { "type": ["string", "null"] },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 },
+          "description": "per-section confidence 0-1"
+        },
+        "flags": {
+          "type": "array",
+          "description": "guardrail flags (unsupported meds/doses, missing sections, low confidence)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "field": { "type": "string" },
+              "message": { "type": "string" },
+              "severity": { "type": "string", "enum": ["info", "low", "warning", "critical"] }
+            },
+            "required": ["type", "message", "severity"]
+          }
+        }
+      }
+    }
+  }
+}

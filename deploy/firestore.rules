@@ -1,0 +1,24 @@
+rules_version = '2';
+// Notera-Health-Ai Firestore Security Rules (doc 09 §4)
+// PHI collections are backend-only: the browser NEVER reads/writes them directly.
+// The Next.js server talks to the private Cloud Run backend, which uses a service
+// account (rules do not apply to Admin SDK / service-account access).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // All PHI-bearing collections: deny every client SDK request.
+    match /consults/{document=**} { allow read, write: if false; }
+    match /deidMaps/{document=**} { allow read, write: if false; } // most sensitive
+    match /auditLog/{document=**} { allow read, write: if false; } // append-only, backend only
+
+    // Model registry: non-PHI; allow authenticated admins read-only if you ever
+    // expose it to the client. Writes stay backend-only.
+    match /models/{modelVersion} {
+      allow read: if request.auth != null && request.auth.token.role == 'admin';
+      allow write: if false;
+    }
+
+    // Default deny.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

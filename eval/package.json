@@ -1,0 +1,11 @@
+{
+  "name": "@notera/eval",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Notera-Health-Ai eval harness + metrics (doc 03 §6)",
+  "scripts": {
+    "eval": "node run_eval.mjs",
+    "test": "node --test metrics.test.mjs"
+  }
+}

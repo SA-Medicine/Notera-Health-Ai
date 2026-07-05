@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DAS — Clinical AI Scribe</title>
+  <meta name="description" content="DAS — AI Medical Scribe. Real-time clinical documentation powered by Groq Whisper and NVIDIA NIM." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LEFT SIDEBAR
+  ══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Brand -->
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2"/>
+          </svg>
+        </div>
+        <span class="brand-name">DAS</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- New Session -->
+    <div class="sidebar-section">
+      <button class="new-session-btn" id="btnNewSession" aria-label="New session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>New session</span>
+      </button>
+    </div>
+
+    <!-- Primary Nav -->
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-nav="scribe" aria-label="Scribe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z"/>
+        </svg>
+        <span>Scribe</span>
+        <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+      <div class="nav-item" data-nav="resume" aria-label="Resume session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Resume session</span>
+      </div>
+      <div class="nav-item" data-nav="logs" aria-label="Logs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+        </svg>
+        <span>Logs</span>
+      </div>
+      <div class="nav-item" data-nav="evidence" aria-label="Evidence">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>Evidence</span>
+      </div>
+      <div class="nav-item" data-nav="tasks" aria-label="Tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+        </svg>
+        <span>Tasks</span>
+      </div>
+      <div class="nav-item" data-nav="comms" aria-label="Comms">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        </svg>
+        <span>Comms</span>
+      </div>
+    </nav>
+
+    <!-- My Library -->
+    <div class="sidebar-group-label">My Library</div>
+    <nav class="sidebar-nav">
+      <div class="nav-item" data-nav="my-templates" aria-label="My Templates">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        <span>My Templates</span>
+      </div>
+      <div class="nav-item" data-nav="my-forms" aria-label="My Forms">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+        <span>My Forms</span>
+      </div>
+    </nav>
+
+    <!-- Community -->
+    <div class="sidebar-group-label">Community</div>
+    <nav class="sidebar-nav">
+      <div class="nav-item" data-nav="templates" aria-label="Templates">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
+        </svg>
+        <span>Templates</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-spacer"></div>
+
+    <!-- Lower items -->
+    <nav class="sidebar-nav sidebar-nav-lower">
+      <div class="nav-item" data-nav="team" aria-label="Team">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        <span>Team</span>
+      </div>
+      <div class="nav-item" data-nav="settings" id="navSettings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom-links">
+      <div class="bottom-link" id="btnSidebarHistory" aria-label="Dictate history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Dictate history</span>
+      </div>
+      <div class="bottom-link" aria-label="Help">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>Help</span>
+      </div>
+      <div class="bottom-link" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+        </svg>
+        <span>Notifications</span>
+      </div>
+    </div>
+
+    <!-- User Profile -->
+    <div class="user-profile">
+      <div class="user-avatar" id="userAvatar" aria-label="User avatar">DR</div>
+      <div class="user-info">
+        <div class="user-name" id="userName" contenteditable="true" spellcheck="false" title="Click to edit name">Dr. Firstname Lastname</div>
+        <div class="user-email" id="userEmail" contenteditable="true" spellcheck="false" title="Click to edit email">doctor@clinic.com</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════════════════════════ -->
+  <main class="main-content" id="mainArea">
+
+    <!-- ── Top Bar ── -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button class="trash-btn" id="btnTrash" title="Delete session" aria-label="Delete session">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+        </button>
+        <div class="session-info">
+          <div class="session-title-row">
+            <span class="session-title" id="sessionTitle" contenteditable="true" spellcheck="false" title="Click to edit patient name">Add patient details</span>
+            <div class="rec-dot" id="recDot" role="status" aria-label="Recording status"></div>
+          </div>
+          <div class="session-subtitle" id="sessionSubtitle" contenteditable="true" spellcheck="false" title="Click to edit subtitle">Confus, HIA</div>
+        </div>
+        <div class="meta-pills">
+          <div class="meta-pill" id="datePill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="datePillText">Today 08:02PM</span>
+          </div>
+          <div class="meta-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
+            </svg>
+            <select class="pill-select" id="selLang" aria-label="Language">
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ar">Arabic</option>
+              <option value="zh">Chinese</option>
+              <option value="pt">Portuguese</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="top-bar-right">
+        <button class="top-icon-btn" id="btnThemeToggle" title="Toggle Theme" aria-label="Toggle Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
+          </svg>
+        </button>
+        <button class="top-icon-btn" title="Export" aria-label="Export note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
+        <button class="top-create-btn" id="btnCreate" aria-label="Create note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Create
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <button class="top-resume-btn" id="btnResume" aria-label="Start or stop recording">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z"/>
+          </svg>
+          <span id="resumeBtnLabel">Start</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        <div class="timer-block">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span class="timer-text" id="timerEl">00:00</span>
+        </div>
+        <div class="mic-block">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" style="opacity:.7">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z"/>
+          </svg>
+          <select class="mic-select" id="micSelect" aria-label="Select microphone">
+            <option>Default – Microphone</option>
+          </select>
+          <div class="audio-bars" id="audioBars" aria-label="Audio level">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Tab Bar ── -->
+    <nav class="tab-bar">
+      <button class="main-tab" data-maintab="context" aria-label="Context tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+        </svg>
+        Context
+      </button>
+      <button class="main-tab active" data-maintab="transcript" aria-label="Transcript tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        Transcript
+      </button>
+      <button class="main-tab" data-maintab="note" aria-label="Note tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Note
+      </button>
+      <button class="main-tab" data-maintab="history" aria-label="History tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        History
+      </button>
+      <button class="main-tab tab-add" aria-label="Add tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </nav>
+
+    <!-- ══════════════════════════════════════════════════════════
+         MAIN PANELS
+    ══════════════════════════════════════════════════════════ -->
+    <div class="panels-container">
+
+      <!-- Context Panel -->
+      <div class="main-panel" id="mainPanelContext">
+        <div class="context-form">
+          <h2 class="context-form-title">Patient Context</h2>
+          <p class="context-form-sub">Details here will be injected directly into the AI to improve note accuracy.</p>
+          
+          <div class="context-form-group">
+            <label for="ctxAge">Age</label>
+            <input type="text" id="ctxAge" placeholder="e.g. 45" />
+          </div>
+          <div class="context-form-group">
+            <label for="ctxSex">Sex</label>
+            <input type="text" id="ctxSex" placeholder="e.g. Male" />
+          </div>
+          <div class="context-form-group">
+            <label for="ctxPMHx">Past Medical History (PMHx)</label>
+            <textarea id="ctxPMHx" rows="3" placeholder="e.g. Hypertension, Type 2..."></textarea>
+          </div>
+          <div class="context-form-group">
+            <label for="ctxMeds">Current Medications</label>
+            <textarea id="ctxMeds" rows="3" placeholder="e.g. Lisinopril 10mg daily..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript Panel -->
+      <div class="main-panel" id="mainPanelTranscript">
+        <div class="transcript-header">
+          <span class="transcript-label">Live Transcript</span>
+          <span class="seg-count" id="segCount"></span>
+        </div>
+        <div class="transcript-box" id="transcriptBox">
+          <div class="t-empty" id="tEmpty">
+            <!-- Empty state hero icon -->
+            <div class="t-empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28">
+                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2"/>
+              </svg>
+            </div>
+            <p class="t-empty-title">Transcript will appear here as you record</p>
+            <p class="t-empty-sub">Or paste an existing transcript below to generate a note</p>
+
+            <!-- Redesigned transcript input card -->
+            <div class="transcript-input-card" id="transcriptInputCard">
+              <div class="transcript-input-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+                <span>Paste Transcript</span>
+                <div class="transcript-input-actions">
+                  <button class="transcript-action-btn" id="btnPasteClipboard" title="Paste from clipboard" aria-label="Paste from clipboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                      <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+                      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                    </svg>
+                    Paste from Clipboard
+                  </button>
+                  <button class="transcript-action-btn transcript-clear-btn" id="btnClearTranscriptInput" title="Clear input" aria-label="Clear transcript input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <textarea
+                id="manualTranscriptInput"
+                class="transcript-input-textarea"
+                rows="6"
+                placeholder="Paste consultation transcript here… (Ctrl+V or use the button above)"
+                aria-label="Manual transcript input"
+                spellcheck="false"
+              ></textarea>
+              <div class="transcript-input-footer">
+                <span class="transcript-char-count" id="transcriptCharCount">0 characters</span>
+                <button id="btnLoadManualTranscript" class="transcript-proceed-btn" aria-label="Proceed and generate note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  Proceed &amp; Generate Note
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="transcriptLines"></div>
+        </div>
+      </div>
+
+      <!-- Note Panel -->
+      <div class="main-panel" id="mainPanelNote">
+        <!-- Editor Toolbar -->
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="format-btn active" id="fmtAuto" aria-label="Auto format">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Auto
+            </button>
+            <div class="format-sep"></div>
+            <select class="format-select" id="selTemplate" aria-label="Note format">
+              <option value="soap">SOAP Note</option>
+              <option value="summary">Clinical Summary</option>
+              <option value="referral">Referral Letter</option>
+              <option value="discharge">Discharge Summary</option>
+              <option value="progress">Progress Note</option>
+            </select>
+            <button class="format-more" aria-label="More format options" title="More options">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+              </svg>
+            </button>
+          </div>
+          <div class="editor-toolbar-right">
+            <button class="toolbar-icon-btn" title="Decrease size" aria-label="Decrease size">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polyline points="18 15 12 9 6 15"/>
+              </svg>
+            </button>
+            <button class="toolbar-icon-btn" title="Increase size" aria-label="Increase size">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <button class="toolbar-icon-btn" title="Undo" aria-label="Undo" id="btnUndoEdit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/>
+              </svg>
+            </button>
+            <button class="toolbar-icon-btn" title="Redo" aria-label="Redo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 014-4h12"/>
+              </svg>
+            </button>
+            <div class="copy-group">
+              <button class="copy-btn" id="btnCopyEMR" aria-label="Copy note for EMR" title="Copy as plain text (strips markdown)">Copy to EMR</button>
+              <button class="copy-btn" id="btnCopy" aria-label="Copy note" style="border-left: 1px solid rgba(255,255,255,0.1); border-top-left-radius: 0; border-bottom-left-radius: 0;">Copy</button>
+              <button class="copy-dropdown-btn" aria-label="Copy options">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Note Content Area -->
+        <div class="note-scroll-area" id="noteScrollArea">
+          <!-- Empty state -->
+          <div class="note-empty" id="noteEmpty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="52" height="52" opacity=".15">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <p class="empty-note-title">No note generated yet</p>
+            <p class="empty-note-sub">Start recording, then click <strong>Generate</strong></p>
+            <button class="start-hint-btn" id="btnStartHint" aria-label="Start recording">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z"/>
+              </svg>
+              Start recording
+            </button>
+          </div>
+
+          <!-- Note Content (rendered after generation) -->
+          <div class="note-content" id="noteContent" style="display:none">
+            <div class="note-body" id="noteBody" contenteditable="false" spellcheck="false" role="region" aria-label="Generated clinical note"></div>
+
+            <!-- Feedback row -->
+            <div class="feedback-row">
+              <div class="feedback-left">
+                <button class="feedback-btn" id="btnThumbUp" title="Good note" aria-label="Thumbs up">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/>
+                    <path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+                  </svg>
+                </button>
+                <button class="feedback-btn" id="btnThumbDown" title="Poor note" aria-label="Thumbs down">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/>
+                    <path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="feedback-right">
+                <label class="personalisation-toggle">
+                  <span class="toggle-label">Personalisation off</span>
+                  <div class="toggle-switch" role="switch" aria-checked="false" id="personalisationToggle" tabindex="0">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                </label>
+                <span class="generating-tasks" id="generatingTasks" style="display:none">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" class="spin-icon">
+                    <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                  Generating tasks...
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status bar overlay while recording -->
+          <div class="rec-status-bar" id="recStatusBar" style="display:none">
+            <div class="status-pill-badge" id="statusPillBadge">Idle</div>
+            <span class="status-msg-text" id="statusMsgText">Ready to start a consultation</span>
+          </div>
+
+          <!-- Generate button (inside note panel for empty state) -->
+          <div class="generate-bar" id="generateBar">
+            <select class="select-inline" id="selNoteFormatInline" aria-label="Select note format">
+              <option value="soap">SOAP Note</option>
+              <option value="summary">Clinical Summary</option>
+              <option value="referral">Referral Letter</option>
+              <option value="discharge">Discharge Summary</option>
+              <option value="progress">Progress Note</option>
+            </select>
+            <button class="btn-generate" id="btnGenerate" disabled aria-label="Generate clinical note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Generate Note
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Panel -->
+      <div class="main-panel" id="mainPanelHistory">
+        <div class="hist-header">
+          <span class="hist-title">Session History</span>
+          <button class="link-btn" id="btnClearAll" aria-label="Clear all sessions">Clear All</button>
+        </div>
+        <div id="historyList">
+          <div class="h-empty" id="histEmpty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity=".2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <p>No sessions recorded yet</p>
+          </div>
+        </div>
+      </div>
+    </div><!-- /panels-container -->
+
+    <!-- ── AI Command Bar (bottom floating) ── -->
+    <div class="ai-command-bar" id="aiCommandBar">
+      <div class="ai-bar-inner">
+
+        <!-- ── Clinical Suggestions Bar (top of AI bar, connected) ── -->
+        <div class="clinical-suggestions-bar" id="clinicalSuggestionsBar" style="display:none" aria-live="polite" aria-label="Clinical suggestions">
+          <div class="csb-header">
+            <div class="csb-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+              <span>Live Clinical Suggestions</span>
+              <span class="csb-badge" id="csbBadge" style="display:none"></span>
+            </div>
+            <div class="csb-meta" id="csbMeta">Analysing transcript…</div>
+          </div>
+          <div class="csb-chips" id="csbChips">
+            <div class="csb-loading" id="csbLoading">
+              <span class="csb-dot"></span><span class="csb-dot"></span><span class="csb-dot"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top row: mode tabs -->
+        <div class="ai-tabs-row">
+          <div class="ai-tabs">
+            <button class="ai-tab active" data-aitab="write" aria-label="Write mode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              Write
+            </button>
+            <button class="ai-tab" data-aitab="fill-form" aria-label="Fill Form mode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+              Fill Form
+            </button>
+            <button class="ai-tab" data-aitab="explain" aria-label="Explain mode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              </svg>
+              Explain
+            </button>
+            <button class="ai-tab" data-aitab="create" aria-label="Create mode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Create
+            </button>
+            <button class="ai-tab" data-aitab="clinical" aria-label="Clinical considerations">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              Clinical considerations
+              <span class="ai-tab-badge" id="clinicalBadge">5</span>
+            </button>
+          </div>
+          <div class="ai-tab-actions">
+            <button class="ai-tab-icon-btn" title="Command history" aria-label="Command history" id="btnAiHistory">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </button>
+            <button class="ai-tab-icon-btn" title="Close AI bar" aria-label="Close AI bar" id="btnAiClose">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Drawer (Ask DAS messages) -->
+        <div class="ai-messages-area" id="aiMessagesArea" style="display:none">
+          <div class="ai-quick-chips">
+            <button class="ai-chip" data-q="Summarize the key findings in 2 sentences">Key findings</button>
+            <button class="ai-chip" data-q="List all medications mentioned">Medications</button>
+            <button class="ai-chip" data-q="What follow-up actions are needed?">Follow-up</button>
+            <button class="ai-chip" data-q="Rewrite in patient-friendly language">Patient version</button>
+          </div>
+          <div class="ai-messages" id="aiMessages"></div>
+        </div>
+
+        <!-- Input Row -->
+        <div class="ai-input-row">
+          <input type="checkbox" class="ai-checkbox" id="aiCheckbox" aria-label="Enable mode" />
+          <input type="text" class="ai-input" id="askInput" placeholder="Ask, edit or create anything…" aria-label="AI command input" />
+          <button class="ai-sources-btn" id="btnSources" aria-label="Toggle sources">
+            Sources
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+              <polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/>
+            </svg>
+          </button>
+          <button class="ai-mic-btn" id="btnAiMic" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z"/>
+            </svg>
+          </button>
+          <button class="ai-send-btn" id="btnSend" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="ai-disclaimer">
+          Review your note before use to ensure it accurately represents the visit.
+        </div>
+      </div>
+    </div>
+
+    <!-- AI bar toggle (shown when bar is closed) -->
+    <button class="ai-bar-open-btn" id="btnOpenAiBar" style="display:none" aria-label="Open AI command bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      AI Commands
+    </button>
+
+  </main><!-- /main-content -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       LOGS PAGE
+  ══════════════════════════════════════════════════════════ -->
+  <main class="main-content" id="logsPage" style="display: none; flex-direction: column;">
+    <div class="top-bar" style="border-bottom: 1px solid var(--topbar-border); padding: 16px 20px; flex-shrink: 0; min-height: 62px;">
+      <h2 style="font-size: 16px; font-weight: 600; color: var(--text-primary);">Pipeline Logs</h2>
+    </div>
+    <div class="note-body" id="logsContent" style="white-space: pre-wrap; font-family: monospace; font-size: 13px; color: var(--text-muted); padding: 20px; overflow-y: auto; flex: 1;">
+      No logs generated yet.
+    </div>
+  </main>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SETTINGS MODAL
+  ══════════════════════════════════════════════════════════ -->
+  <div class="modal-backdrop" id="settingsModal" style="display:none" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          DAS Settings
+        </div>
+        <button class="modal-close" id="closeSettings" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- .env Upload Section -->
+        <div class="settings-section">
+          <div class="settings-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Import from .env File
+          </div>
+          <div class="settings-info">
+            Upload your <code>.env</code> file to auto-fill all API keys instantly.
+            Supports: <code>GROQ_KEY_1</code>, <code>GROQ_KEY_2</code>, <code>GROQ_KEY_3</code>, <code>NVIDIA_API_KEY</code>.
+          </div>
+          <label class="env-upload-label" for="envFileInput" id="envUploadLabel">
+            <div class="env-upload-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="env-upload-text">
+              <span class="env-upload-title" id="envUploadTitle">Click to upload .env file</span>
+              <span class="env-upload-sub">or drag and drop · <code>.env</code> files only</span>
+            </div>
+          </label>
+          <input type="file" id="envFileInput" accept=".env,text/plain" style="display:none" aria-label="Upload .env file" />
+          <div class="env-parse-result" id="envParseResult" style="display:none"></div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            Groq API Keys — Transcription
+          </div>
+          <div class="settings-info">
+            DAS uses <strong>Groq Whisper</strong> for real-time transcription. Add up to 3 keys for rate-limit cycling.
+            Get free keys at <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a>.
+          </div>
+          <div class="key-row"><label class="key-label" for="groqKey1">Key 1 <span class="req">*</span></label>
+            <div class="key-input-wrap">
+              <input type="password" id="groqKey1" class="key-input" placeholder="gsk_…" autocomplete="off" spellcheck="false" />
+              <button class="vis-btn" data-target="groqKey1" aria-label="Toggle visibility">👁</button>
+            </div>
+          </div>
+          <div class="key-row"><label class="key-label" for="groqKey2">Key 2</label>
+            <div class="key-input-wrap">
+              <input type="password" id="groqKey2" class="key-input" placeholder="gsk_… (optional)" autocomplete="off" spellcheck="false" />
+              <button class="vis-btn" data-target="groqKey2" aria-label="Toggle visibility">👁</button>
+            </div>
+          </div>
+          <div class="key-row"><label class="key-label" for="groqKey3">Key 3</label>
+            <div class="key-input-wrap">
+              <input type="password" id="groqKey3" class="key-input" placeholder="gsk_… (optional)" autocomplete="off" spellcheck="false" />
+              <button class="vis-btn" data-target="groqKey3" aria-label="Toggle visibility">👁</button>
+            </div>
+          </div>
+          <div class="key-row">
+            <label class="key-label"></label>
+            <button class="test-api-btn" id="btnTestGroq" aria-label="Test Groq API key">⚡ Test Groq Key</button>
+            <span class="test-result" id="groqTestResult"></span>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            Google Gemini API Key — Note Generation
+          </div>
+          <div class="settings-info">
+            DAS uses <strong>Gemini 2.5 Pro</strong> to generate clinical notes.
+            Get your key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
+          </div>
+          <div class="key-row"><label class="key-label" for="geminiKey">Gemini Key <span class="req">*</span></label>
+            <div class="key-input-wrap">
+              <input type="password" id="geminiKey" class="key-input" placeholder="AIza…" autocomplete="off" spellcheck="false" />
+              <button class="vis-btn" data-target="geminiKey" aria-label="Toggle visibility">👁</button>
+            </div>
+          </div>
+          <div class="key-row">
+            <label class="key-label"></label>
+            <button class="test-api-btn" id="btnTestNvidia" aria-label="Test Gemini API key">⚡ Test Gemini Key</button>
+            <span class="test-result" id="geminiTestResult"></span>
+          </div>
+        </div>
+        <div class="settings-privacy">
+          🔒 Keys stored locally only. Audio goes directly to Groq. No telemetry.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-save-settings" id="btnSaveSettings" aria-label="Save settings">Save Settings</button>
+        <button class="btn-cancel-settings" id="btnCancelSettings" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay" style="display:none">
+    <div class="loading-inner">
+      <div class="spinner"></div>
+      <p id="loadingMsg">Generating clinical note…</p>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="alert" aria-live="polite"></div>
+
+  <script src="marked.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
