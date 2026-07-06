@@ -1,61 +1,147 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Notera-Health-Ai — Key-safe passthrough proxy (keeps ALL API keys in .env)
 //
-// The embedded client app (web/public/das) calls these instead of Google/Groq
-// directly, so no API key ever lives in the frontend. Each route injects the
-// server-side .env key and forwards the request verbatim.
-//   POST /api/llm/generate?model=…   → Gemini generateContent
+// Verbose error handling: every upstream failure is logged in full (status, body,
+// request shape) and forwarded to the client as a detailed JSON error — NEVER a
+// bare "{}". Endpoints:
+//   POST /api/llm/generate?model=…   → Gemini generateContent (retry 5xx + schema/token fallbacks)
 //   POST /api/llm/stream?model=…      → Gemini streamGenerateContent (SSE)
 //   POST /api/asr                     → Groq Whisper transcription (multipart)
+//   GET  /api/llm/diag                → one-shot health probe (safe to call from the browser)
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
 import express from 'express';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-// One model for everything (no Pro tier). Client-sent model names are ignored so
-// stale/preview names can never cause a 404 — the .env value is the single truth.
-const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3-flash-preview';
+const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.5-flash';
 const groqKey = () => process.env.GROQ_KEY_1 || process.env.GROQ_KEY_2 || process.env.GROQ_KEY || '';
 const geminiKey = () => process.env.GEMINI_API_KEY || '';
 
-export function mountProxy(app) {
-  // Gemini — single-shot
-  app.post('/api/llm/generate', async (req, res) => {
+const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+const MAX_RETRIES = Number(process.env.LLM_PROXY_RETRIES || 2);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const rid = () => Math.random().toString(36).slice(2, 8);
+const keyTail = (k) => (k ? `…${k.slice(-4)} (${k.length})` : 'MISSING');
+
+// Low-level resilient fetch that logs each attempt in full and returns { res, text, attempts }.
+async function callGemini(url, bodyObj, { label = 'gemini', id = rid() } = {}) {
+  const bodyStr = JSON.stringify(bodyObj);
+  let attempts = 0;
+  let lastText = '', lastStatus = 0;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    attempts++;
     try {
-      const model = MODEL();
-      const r = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body || {}),
-      });
-      const text = await r.text();
-      res.status(r.status).type('application/json').send(text);
-    } catch (err) { res.status(502).json({ error: 'llm proxy: ' + err.message }); }
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
+      const text = await res.text();
+      lastText = text; lastStatus = res.status;
+      if (res.ok) return { ok: true, status: res.status, text, attempts };
+      console.error(`[proxy ${id}] ${label} attempt ${attempt + 1}/${MAX_RETRIES + 1} → ${res.status} ${res.statusText}`);
+      console.error(`[proxy ${id}]   upstream body: ${text ? text.slice(0, 600) : '(empty)'}`);
+      if (!RETRY_STATUS.has(res.status) || attempt === MAX_RETRIES) return { ok: false, status: res.status, text, attempts };
+    } catch (err) {
+      lastText = err.message; lastStatus = 0;
+      console.error(`[proxy ${id}] ${label} attempt ${attempt + 1} network error: ${err.message}`);
+      if (attempt === MAX_RETRIES) return { ok: false, status: 502, text: err.message, attempts, network: true };
+    }
+    await sleep(Math.min(500 * 2 ** attempt, 2000) + Math.random() * 150);
+  }
+  return { ok: false, status: lastStatus || 502, text: lastText, attempts };
+}
+
+// Build the error payload the client sees — always rich, never "{}".
+function errorPayload(id, model, r, extra = {}) {
+  let upstream;
+  try { upstream = r.text ? JSON.parse(r.text) : null; } catch { upstream = r.text || null; }
+  return {
+    error: `Gemini upstream ${r.status}${r.network ? ' (network)' : ''}`,
+    requestId: id,
+    model,
+    upstreamStatus: r.status,
+    attempts: r.attempts,
+    upstream: upstream || '(empty body from Gemini)',
+    hint: r.status === 500
+      ? 'Gemini returned 500 — often transient load, an oversized responseSchema, or maxOutputTokens too high. The client auto-retries without the schema and with lower tokens.'
+      : r.status === 429 ? 'Rate limited — slow down or check quota.'
+      : r.status === 404 ? 'Model not found for this key — check GEMINI_MODEL in .env.'
+      : r.status === 400 ? 'Bad request — check the model name and request size.'
+      : undefined,
+    ...extra,
+  };
+}
+
+export function mountProxy(app) {
+  // Diagnostic — safe to hit from the browser: /backend/api/llm/diag
+  app.get('/api/llm/diag', async (_req, res) => {
+    const id = rid(); const model = MODEL();
+    console.log(`[proxy ${id}] DIAG model=${model} key=${keyTail(geminiKey())}`);
+    const r = await callGemini(`${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`,
+      { contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }], generationConfig: { maxOutputTokens: 16 } },
+      { label: 'diag', id });
+    if (r.ok) return res.json({ ok: true, model, keyPresent: !!geminiKey(), sample: r.text.slice(0, 200) });
+    res.status(r.status).json({ ok: false, keyPresent: !!geminiKey(), ...errorPayload(id, model, r) });
   });
 
-  // Gemini — streaming (SSE passthrough)
+  // Gemini — single-shot with schema-drop + token-reduction fallbacks
+  app.post('/api/llm/generate', async (req, res) => {
+    const id = rid(); const model = MODEL();
+    const base = req.body || {};
+    const gc = base.generationConfig || {};
+    console.log(`[proxy ${id}] generate model=${model} key=${keyTail(geminiKey())} `
+      + `bodyKB=${(JSON.stringify(base).length / 1024).toFixed(1)} schema=${!!gc.responseSchema} maxTokens=${gc.maxOutputTokens || 'default'}`);
+
+    const url = `${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`;
+    // Attempt 1: as sent.
+    let r = await callGemini(url, base, { label: 'generate', id });
+    // Fallback A: drop responseSchema (kept JSON mode) — some models 500 on big schemas.
+    if (!r.ok && r.status === 500 && gc.responseSchema) {
+      console.warn(`[proxy ${id}] retrying generate WITHOUT responseSchema`);
+      const b = structuredClone(base); delete b.generationConfig.responseSchema;
+      r = await callGemini(url, b, { label: 'generate/no-schema', id });
+      // Fallback B: also lower maxOutputTokens.
+      if (!r.ok && r.status === 500) {
+        console.warn(`[proxy ${id}] retrying generate with maxOutputTokens=8192`);
+        b.generationConfig.maxOutputTokens = 8192;
+        r = await callGemini(url, b, { label: 'generate/low-tokens', id });
+      }
+    }
+    if (r.ok) return res.status(200).type('application/json').send(r.text);
+    console.error(`[proxy ${id}] generate FAILED after ${r.attempts} attempts → ${r.status}`);
+    res.status(r.status).json(errorPayload(id, model, r));
+  });
+
+  // Gemini — streaming SSE (retry pre-stream, detailed error on failure)
   app.post('/api/llm/stream', async (req, res) => {
+    const id = rid(); const model = MODEL();
     try {
-      const model = MODEL();
-      const upstream = await fetch(`${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${geminiKey()}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body || {}),
-      });
-      res.status(upstream.status);
+      let upstream, lastText = '', lastStatus = 0;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        upstream = await fetch(`${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${geminiKey()}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body || {}) });
+        if (upstream.ok) break;
+        lastText = await upstream.text().catch(() => ''); lastStatus = upstream.status;
+        console.error(`[proxy ${id}] stream attempt ${attempt + 1} → ${upstream.status}: ${lastText.slice(0, 400)}`);
+        if (!RETRY_STATUS.has(upstream.status) || attempt === MAX_RETRIES) {
+          return res.status(upstream.status).json(errorPayload(id, model, { status: lastStatus, text: lastText, attempts: attempt + 1 }));
+        }
+        await sleep(Math.min(500 * 2 ** attempt, 2000));
+      }
+      res.status(200);
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
-      if (!upstream.body) return res.end();
       const reader = upstream.body.getReader();
       const dec = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(dec.decode(value, { stream: true }));
-      }
+      for (;;) { const { done, value } = await reader.read(); if (done) break; res.write(dec.decode(value, { stream: true })); }
       res.end();
-    } catch (err) { res.status(502).end('llm stream proxy: ' + err.message); }
+    } catch (err) {
+      console.error(`[proxy ${id}] stream exception: ${err.message}`);
+      if (!res.headersSent) res.status(502).json({ error: 'stream proxy: ' + err.message, requestId: id }); else res.end();
+    }
   });
 
-  // Groq Whisper — multipart passthrough (raw body forwarded verbatim with .env key)
+  // Groq Whisper — multipart passthrough (raw body forwarded with .env key)
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
+    const id = rid();
     try {
       const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
@@ -63,7 +149,11 @@ export function mountProxy(app) {
         body: req.body,
       });
       const text = await r.text();
-      res.status(r.status).type('application/json').send(text);
-    } catch (err) { res.status(502).json({ error: 'asr proxy: ' + err.message }); }
+      if (!r.ok) console.error(`[proxy ${id}] asr ${r.status}: ${text.slice(0, 300)}`);
+      res.status(r.status).type('application/json').send(text || `{"error":"groq ${r.status}","requestId":"${id}"}`);
+    } catch (err) {
+      console.error(`[proxy ${id}] asr exception: ${err.message}`);
+      res.status(502).json({ error: 'asr proxy: ' + err.message, requestId: id });
+    }
   });
 }

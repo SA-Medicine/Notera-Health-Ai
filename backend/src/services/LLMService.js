@@ -22,8 +22,8 @@ const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
  * Override any of these via env without touching code.
  */
 export const MODEL_TIERS = {
-  pro:   process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_PRO || 'gemini-3-flash-preview',
-  flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3-flash-preview',
+  pro:   process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_PRO || 'gemini-3.5-flash',
+  flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.5-flash',
 };
 
 export class LLMService {
@@ -89,7 +89,7 @@ export class LLMService {
   async generateContent(systemInstruction, userPrompt, responseSchema = null, options = {}) {
     const url = this._endpoint(false);
     const timeoutMs = options.timeoutMs || 120000;
-    const retries = options.retries !== undefined ? options.retries : 1;
+    const retries = options.retries !== undefined ? Math.max(options.retries, 2) : 2;
     const maxOutputTokens = options.maxOutputTokens || 32768;
 
     const body = {
@@ -121,6 +121,13 @@ export class LLMService {
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          // A 500 while constraining to a large responseSchema → drop the schema and retry
+          // (some preview models 500 on complex structured-output schemas).
+          if (response.status === 500 && body.generationConfig.responseSchema) {
+            delete body.generationConfig.responseSchema;
+            lastErr = new Error('Gemini 500 with responseSchema — retrying without schema');
+            continue;
+          }
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
             lastErr = new Error(`Gemini API ${response.status} (retrying)`);
             continue;

@@ -13,7 +13,8 @@ const IS_EXT = typeof chrome !== 'undefined' && !!chrome?.storage?.local;
 
 // ── Config ────────────────────────────────────────────────────
 const GEMINI_BASE       = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_MODEL     = 'gemini-3-flash-preview';
+const DEFAULT_MODEL     = 'gemini-3.5-flash';
+const NOTERA_API = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) ? (window.NOTERA_BACKEND || 'http://localhost:8080') : '/backend';
 const CHUNK_INTERVAL_MS = 20_000;  // rotate recorder every 20 s → valid WebM blob
 
 // ── State ─────────────────────────────────────────────────────
@@ -428,7 +429,7 @@ async function sendBlobToWhisper(blob, isFinal) {
   form.append('response_format', 'json');
 
   try {
-    const resp = await fetch('/backend/api/asr', {
+    const resp = await fetch(NOTERA_API + '/api/asr', {
       method:  'POST',
       headers: {},
       body:    form,
@@ -817,7 +818,7 @@ async function generateNote(auto = false) {
       const runStream = async (systemPrompt, loadingMsg) => {
         setStatus('loading', loadingMsg);
         const resp = await fetch(
-          `/backend/api/llm/stream?model=${DEFAULT_MODEL}`,
+          NOTERA_API + `/api/llm/stream?model=${DEFAULT_MODEL}`,
           {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1357,7 +1358,7 @@ $('btnAiMic')?.addEventListener('click', async () => {
         form.append('file', new Blob(buf, { type: mime }), 'voice.webm');
         form.append('model', 'whisper-large-v3-turbo');
         form.append('response_format', 'json');
-        const r = await fetch('/backend/api/asr', {
+        const r = await fetch(NOTERA_API + '/api/asr', {
           method: 'POST', headers: {}, body: form,
         });
         if (r.ok) { const d = await r.json(); if (d.text) $('askInput').value = d.text.trim(); }
@@ -1401,7 +1402,7 @@ Answer the clinician's question concisely. Plain text only.`;
 
   try {
     const resp = await fetch(
-      `/backend/api/llm/stream?model=${DEFAULT_MODEL}`,
+      NOTERA_API + `/api/llm/stream?model=${DEFAULT_MODEL}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1624,7 +1625,7 @@ $('btnTestGroq')?.addEventListener('click', async () => {
     form.append('file',  new Blob([silence], { type: 'audio/webm' }), 'test.webm');
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
-    const r = await fetch('/backend/api/asr', {
+    const r = await fetch(NOTERA_API + '/api/asr', {
       method: 'POST', headers: {}, body: form,
     });
     // 400 = key works but file invalid (expected for silence) = key OK
@@ -1649,7 +1650,7 @@ $('btnTestNvidia')?.addEventListener('click', async () => {
   out.textContent = 'Testing…'; out.className = 'test-result';
   try {
     const r = await fetch(
-      `/backend/api/llm/generate?model=${DEFAULT_MODEL}`,
+      NOTERA_API + `/api/llm/generate?model=${DEFAULT_MODEL}`,
       {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },

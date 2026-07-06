@@ -146,6 +146,19 @@ function _v31Norm(s) {
 const _V31_SUBJECTIVE_PAT = /\b(reports?|complain(?:s|ing)?|denies|feels?|felt|states?|c\/o|the patient|onset|duration|worse (?:at|when|over)|since|for the last|history of|hx of)\b/i;
 // Lab / imaging RESULT phrasing that belongs in investigations, not exam.
 const _V31_LAB_PAT = /\b(a1c|hba1c|h(?:a)?emoglobin|ldl|hdl|cholesterol|glucose|sugar|sodium|potassium|creatinine|egfr|tsh|ferritin|iron studies|cbc|wbc|platelets?|bilirubin|result|mmol|mg\/dl|ng\/ml|urinalysis|x-ray|ultrasound|ct scan|mri)\b/i;
+// Interpretation/action words — if present, the line is genuine assessment, keep it.
+const _V31_INTERP = /(improv|controlled|stable|worsen|resolv|goal|tolerat|declin|due|planned|arrang|continue|start|deferr|consider|complication|acceptable|elevated|well)/i;
+// A short bare lab/result restatement (e.g. "LDL 1.59.", "eGFR 1.7.", "Hb, Na, iron all
+// normal") — these belong in Objective, not repeated in the Assessment. Interpreted lines
+// (with an _V31_INTERP word) are kept, since Heidi keeps "HbA1c 6.2 - improved from previous".
+function _v31IsBareLab(line) {
+  const t = String(line).trim();
+  if (t.length > 52) return false;
+  if (!_V31_LAB_PAT.test(t)) return false;
+  if (!/\d|normal|negativ|positiv|\bfine\b|\bgood\b|clear|pristine|fantastic/i.test(t)) return false;
+  if (_V31_INTERP.test(t)) return false;
+  return true;
+}
 
 function _v31Dedupe(arr, seen, textOf) {
   const out = [];
@@ -187,9 +200,22 @@ function dedupeV31(story) {
     story.pmh_lines = _v31Dedupe(story.pmh_lines, new Set(), (x) => (typeof x === 'string' ? x : x && x.text));
   }
 
-  // 4. Assessment & Plan — dedupe each field within each problem.
+  // 4. Assessment & Plan — the narrative is the clinician's interpretation, NOT a retelling
+  // of Subjective or a re-listing of Objective labs. Drop title-echoes, verbatim Subjective
+  // duplicates, bare lab values, and exact/subsumed duplicates within the problem.
   (story.assessment_plan || []).forEach((ap) => {
-    ap.narrative = _v31Dedupe(ap.narrative, new Set());
+    const titleN = _v31Norm(ap.title);
+    let narr = (ap.narrative || []).filter((line) => {
+      const n = _v31Norm(line);
+      if (!n) return false;
+      if (n === titleN) return false;
+      if (subjSeen.has(n)) return false;
+      if (_v31IsBareLab(line)) return false;
+      return true;
+    });
+    const seen = new Set();
+    narr = narr.filter((l) => { const n = _v31Norm(l); if (seen.has(n)) return false; seen.add(n); return true; });
+    ap.narrative = removeSubsumedFacts(narr);
     ap.investigations_planned = _v31Dedupe(ap.investigations_planned, new Set());
     ap.treatment_planned = _v31Dedupe(ap.treatment_planned, new Set());
     ap.referrals = _v31Dedupe(ap.referrals, new Set());

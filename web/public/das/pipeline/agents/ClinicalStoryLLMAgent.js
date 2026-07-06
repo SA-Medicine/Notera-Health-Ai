@@ -130,6 +130,10 @@ PROBLEMS (Assessment & Plan):
     the clinician's interpretation/impression, severity, current status, response to
     treatment, relevant results, and pertinent negatives. This is ASSESSMENT, not a retelling
     of the history: do NOT repeat the HPI mechanism/story here (that belongs in Subjective).
+    Do NOT re-list raw lab VALUES (they live in Objective) — cite a result ONLY with its
+    interpretation (e.g. "HbA1c 6.2 - improved", not a bare "LDL 1.59"). NEVER echo the
+    problem title as a narrative line. State each fact ONCE — never paraphrase the same fact
+    into a second line.
     Each line must be transcript-grounded; never invent goals/targets/values. e.g.
     diabetes: ["HbA1c 6.2 - improved from previous, well controlled", "No diabetic
     complications - no numbness/tingling in feet", "Tolerating ozempic, no nausea"];

@@ -773,62 +773,32 @@ export class TemplateAssemblyAgent {
     if (encounterType) lines.push(`*${encounterType}*`);
     if (isFallback) lines.push(`*⚠ Fallback rendering — V31 slot filler did not complete*`);
 
-    // ── SUBJECTIVE ─────────────────────────────────────────────────────────────
-    const SLOT_ORDER = [
-      'duration_timing',
-      'aggravating_relieving',
-      'progression',
-      'previous_episodes',
-      'functional_impact',
-      'associated_symptoms'
-    ];
-
-    const topicMap = new Map();
-
-    const chiefSlot = slots.chief_complaint;
-    if (chiefSlot?.lines?.length) {
-      for (const line of chiefSlot.lines) {
-        trackId(line);
-        const tc = line.topic_cluster || 'UNCLUSTERED';
-        if (!topicMap.has(tc)) topicMap.set(tc, []);
-        // Render the chief-complaint text (reasons for visit) — previously only the
-        // cluster key was created, so the chief complaint line itself never appeared.
-        if (line.text) topicMap.get(tc).push(line.text);
+    // ── SUBJECTIVE (Heidi flow-based grouping — by SLOT, not by problem) ────────
+    const collectSlot = (keys) => {
+      const out = [];
+      for (const k of keys) {
+        const slot = slots[k];
+        if (!slot?.lines?.length) continue;
+        for (const line of slot.lines) { trackId(line); if (line.text) out.push(line.text); }
       }
-    }
-
-    for (const slotKey of SLOT_ORDER) {
-      const slot = slots[slotKey];
-      if (!slot?.lines?.length) continue;
-
-      for (const line of slot.lines) {
-        trackId(line);
-        const tc = line.topic_cluster || 'UNCLUSTERED';
-        if (!topicMap.has(tc)) topicMap.set(tc, []);
-        topicMap.get(tc).push(line.text);
-      }
-    }
+      return out;
+    };
+    const sPresenting = collectSlot(['chief_complaint']);
+    const sHpi = collectSlot(['duration_timing', 'aggravating_relieving', 'progression', 'previous_episodes', 'functional_impact']);
+    const sAssoc = collectSlot(['associated_symptoms']);
 
     // MANDATORY HEADER
     lines.push('**Subjective:**');
-    if (topicMap.size > 0) {
-      for (const [topic, tcLines] of topicMap) {
-        if (topic !== 'UNCLUSTERED') {
-          const cleanTopic = topic.replace(/\*/g, '').trim();
-          lines.push(`**${cleanTopic}**`);
-        }
-        for (const l of tcLines) {
-          lines.push(l);
-        }
-        if (topic !== 'UNCLUSTERED' || topicMap.size > 1) {
-          lines.push(''); 
-        }
-      }
-    }
-    // Clean trailing empty lines
-    while (lines.length > 0 && lines[lines.length - 1] === '') {
-      lines.pop();
-    }
+    const pushSubBlock = (label, arr) => {
+      if (!arr.length) return;
+      lines.push(`**${label}:**`);
+      for (const l of arr) lines.push(l);
+      lines.push('');
+    };
+    pushSubBlock('Presenting Complaints', sPresenting);
+    pushSubBlock('History of Presenting Complaint', sHpi);
+    pushSubBlock('Associated Symptoms', sAssoc);
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
     lines.push('');
 
     // ── PAST MEDICAL HISTORY ──────────────────────────────────────────────────

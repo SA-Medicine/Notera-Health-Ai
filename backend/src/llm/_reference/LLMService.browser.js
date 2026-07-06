@@ -2,7 +2,7 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export class LLMService {
-  constructor(apiKey, model = 'gemini-3-flash-preview') {
+  constructor(apiKey, model = 'gemini-3.5-flash') {
     if (!apiKey) {
       throw new Error('Gemini API key is required');
     }
