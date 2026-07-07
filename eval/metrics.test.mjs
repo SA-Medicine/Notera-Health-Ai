@@ -26,7 +26,7 @@ test('scoreNote returns a full row for a populated v2 note', () => {
   const note = emptyNote();
   note.subjective.reason_for_visit = 'cough';
   note.objective.examination = 'chest clear';
-  note.assessment_and_plan.push({ issue: 'Bronchitis', diagnosis: 'acute bronchitis', differential_diagnoses: [], investigations_planned: '', treatment_planned: 'supportive care', referrals: '' });
+  note.assessment_and_plan.push({ issue: 'Bronchitis', diagnosis: 'acute bronchitis', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: 'supportive care', referrals: '' });
   const s = scoreNote({ note, noteText: 'cough bronchitis', goldText: 'cough bronchitis fever', entities: [] });
   assert.equal(s.schema_valid, true);
   assert.ok(s.section_coverage > 0);

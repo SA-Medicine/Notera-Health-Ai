@@ -113,7 +113,18 @@ PROBLEMS (Assessment & Plan):
   NOT promote an incidental mention, a cause/etiology, or a normal result into its own
   problem.
 
-  ETIOLOGY STAYS WITH ITS PARENT: if one finding is the cause/complication of another
+  ADMINISTRATIVE MEDICATION REFILLS: if the encounter is a pure refill / admin request
+  (no symptom assessed), create EXACTLY ONE problem titled "Medication refills for <patient
+  name>" and put the logistics in treatments: which medications, the quantity/duration
+  (e.g. "6-month supply"), and the destination pharmacy (e.g. "sent to McGregor pharmacy").
+  Never split it into fragments and never invent a symptom.
+
+  NEVER output a vague fragment as a problem title or narrative line (e.g. "The red one",
+  "Thyroid.", "The other one"). Resolve it to the actual medication/condition named in the
+  transcript, or omit it entirely. A problem title MUST be a real clinical issue or request,
+  never a generic bucket like "Other active issues".
+
+    ETIOLOGY STAYS WITH ITS PARENT: if one finding is the cause/complication of another
   (e.g. iron deficiency anaemia caused by a gastric ulcer), that is ONE problem — name it
   for the primary diagnosis and put the cause as a sub-point ("secondary to gastric ulcer").
   Never split the cause into a separate numbered problem unless the clinician is managing it

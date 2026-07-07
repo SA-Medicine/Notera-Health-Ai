@@ -16,7 +16,7 @@ import { createGeminiService } from '../services/LLMService.js';
 import { PipelineEngine } from '../pipeline/PipelineEngine.js';
 import { extractEntities } from '../ner/nerClient.js';
 import { deidentify, reidentify, mapFingerprint } from '../deid/deidentify.js';
-import { structureNote } from './structureNote.js';
+import { structureNote, storyToSchema } from './structureNote.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { store, audit } from '../firestore/store.js';
 
@@ -81,8 +81,17 @@ export async function generateNote(input, opts = {}) {
   const specialtyResolved = (!input.specialty || input.specialty === 'auto') ? (detected || specialty) : specialty;
 
   // 5. STRUCTURE → schema v2 ---------------------------------------------------
+  // Prefer the DETERMINISTIC map from the pipeline's own clinical_story (no loss).
+  // Fall back to the LLM structurer only if the pipeline produced no story.
   onProgress({ status: 'structuring', consultId });
-  let note = await structureNote(finalNote, { specialty: specialtyResolved, noteType, llm, generatedBy: PIPELINE_VERSION });
+  const story = pipeline.logs?.clinicalStory;
+  const graphForMap = pipeline.logs?.clinicalObservations || {};
+  let note;
+  if (story && (story.assessment_plan?.length || Object.keys(story.subjective_slots || {}).length || (story.pmh_lines || []).length)) {
+    note = storyToSchema(story, graphForMap, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
+  } else {
+    note = await structureNote(finalNote, { specialty: specialtyResolved, noteType, llm, generatedBy: PIPELINE_VERSION });
+  }
   note.specialty = specialtyResolved;
   note.metadata.encounter_id = consultId;
 

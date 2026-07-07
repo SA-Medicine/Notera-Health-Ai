@@ -113,7 +113,34 @@ PROBLEMS (Assessment & Plan):
   NOT promote an incidental mention, a cause/etiology, or a normal result into its own
   problem.
 
-  ETIOLOGY STAYS WITH ITS PARENT: if one finding is the cause/complication of another
+  INCIDENTAL SYMPTOM ALREADY MANAGED ELSEWHERE: if the patient mentions a symptom only in
+  passing and says it is already being handled by another clinician (e.g. "my arm is painful
+  but I'm seeing the surgeon for it"), that is context, NOT a problem for this encounter. Do
+  not create a problem, a plan, or a referral for it, and never let it displace the actual
+  reason for the visit (e.g. a refill request). Never invent a referral the clinician did not
+  make.
+
+  PRESCRIPTION / REFILL REQUESTS (even when no symptom is assessed, a refill request IS a
+  problem to render — never drop it and never invent a symptom in its place):
+  - If each medication carries its OWN clinical decision (a dose change, a switch, a new
+    request, its own destination pharmacy, or its own consideration), create ONE problem PER
+    medication. Title it for that medication/condition (e.g. "Zepbound refill", "Incontinence
+    medication", "Muscle relaxer request"). Put the specifics in treatments: the dose change
+    (e.g. "increase from 5mg to 7.5mg"), quantity/duration, and destination pharmacy
+    (e.g. "sent to Shoppers Essex").
+  - Only if it is a single BULK request with shared logistics and NO per-medication decision
+    (e.g. "refill all my pills, 6-month supply, send to McGregor pharmacy"), collapse it into
+    ONE problem titled "Medication refills for <patient name>" listing the medications, the
+    quantity/duration, and the destination pharmacy in treatments.
+  - Never split one request into vague fragments, and never fabricate a symptom or referral
+    that the transcript does not contain.
+
+  NEVER output a vague fragment as a problem title or narrative line (e.g. "The red one",
+  "Thyroid.", "The other one"). Resolve it to the actual medication/condition named in the
+  transcript, or omit it entirely. A problem title MUST be a real clinical issue or request,
+  never a generic bucket like "Other active issues".
+
+    ETIOLOGY STAYS WITH ITS PARENT: if one finding is the cause/complication of another
   (e.g. iron deficiency anaemia caused by a gastric ulcer), that is ONE problem — name it
   for the primary diagnosis and put the cause as a sub-point ("secondary to gastric ulcer").
   Never split the cause into a separate numbered problem unless the clinician is managing it

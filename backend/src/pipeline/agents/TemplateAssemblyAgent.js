@@ -527,6 +527,9 @@ export class TemplateAssemblyAgent {
     const raw = (typeof encType === 'object' && encType) ? (encType.encounter_type || '') : (encType || '');
     if (!raw) return 'Other active issues';
     const cleaned = String(raw).replace(/[_-]+/g, ' ').trim();
+    // A pure refill / medication-admin encounter gets a concrete problem title so the
+    // logistics (which meds, quantity, pharmacy) render under a real heading.
+    if (/refill|repeat\s*script|repeat\s*prescription|medication\s*(admin|request)/i.test(cleaned)) return 'Medication refills';
     // A medical SPECIALTY (gynecology, cardiology…) or generic encounter type is not a
     // valid problem title — never spawn a "Gynecology" problem.
     if (!cleaned || /general|primary|administrative|unknown|gyn(a)?ecolog|cardiolog|dermatolog|neurolog|urolog|gastro|endocrin|rheumatolog|psychiatr|orthopa|nephrolog|oncolog|specialist|consult/i.test(cleaned)) return 'Other active issues';
@@ -1040,7 +1043,10 @@ export class TemplateAssemblyAgent {
 
       // Region prefix is only meaningful for exam findings (e.g. "Right hip: tenderness").
       const showRegion = bucket === 'exam' && c.region && !/^(vitals?|labs?|imaging|exam)$/i.test(c.region) && !c.is_negative && !/^no /i.test(t);
-      buckets[bucket].push({ text: showRegion ? `${c.region}: ${clean}` : clean, fact: c.fact });
+      // Guard against a doubled label ("Gait: Gait: …"): if the text already opens
+      // with the same region label, don't prepend it again.
+      const alreadyPrefixed = showRegion && clean.toLowerCase().startsWith((c.region || '').toLowerCase() + ':');
+      buckets[bucket].push({ text: (showRegion && !alreadyPrefixed) ? `${c.region}: ${clean}` : clean, fact: c.fact });
     }
 
     const renderObjSubsection = (title, items) => {

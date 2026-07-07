@@ -31,7 +31,7 @@ export default function NoteReview({ draft, onReset }: { draft: DraftResult; onR
   function addIssue() {
     setNote((prev) => {
       const next = structuredClone(prev) as Note;
-      next.assessment_and_plan.push({ issue: '', diagnosis: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: '', referrals: '' });
+      next.assessment_and_plan.push({ issue: '', diagnosis: '', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: '', referrals: '' });
       return next;
     });
   }
@@ -120,6 +120,7 @@ export default function NoteReview({ draft, onReset }: { draft: DraftResult; onR
                   <button className="ap-remove" title="Remove issue" onClick={() => removeIssue(i)}>✕</button>
                 </div>
                 <Area label="Diagnosis (only if explicitly stated)" value={it.diagnosis} onChange={(x) => setIssue(i, 'diagnosis', x)} />
+                <Area label="Assessment" value={it.assessment} onChange={(x) => setIssue(i, 'assessment', x)} />
                 <List label="Differential diagnoses" values={it.differential_diagnoses} onChange={(x) => setIssue(i, 'differential_diagnoses', x)} />
                 <div className="field-grid2">
                   <Area label="Investigations planned" value={it.investigations_planned} onChange={(x) => setIssue(i, 'investigations_planned', x)} />

@@ -213,3 +213,102 @@ function collectMeds(note) {
   while ((m = re2.exec(text))) meds.add(m[1]);
   return [...meds];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// storyToSchema — DETERMINISTIC map from the pipeline's clinical_story (V31 slots)
+// into schema v2. Replaces the lossy 2nd Gemini pass: the pipeline already produced
+// this structured data, so we map it directly (no LLM call, no loss, free, fast).
+// ─────────────────────────────────────────────────────────────────────────────
+const _slotText = (story, key) =>
+  (story.subjective_slots?.[key]?.lines || [])
+    .map((l) => (typeof l === 'string' ? l : l?.text))
+    .filter(Boolean).join('\n');
+
+const _joinLines = (a) =>
+  (Array.isArray(a) ? a : a ? [a] : [])
+    .map((x) => (typeof x === 'string' ? x : x?.text || ''))
+    .filter(Boolean).join('\n');
+
+export function storyToSchema(story, graph = {}, meta = {}) {
+  const note = emptyNote(meta);
+  if (!story) return note;
+
+  // ── Subjective (flow slots) ──
+  note.subjective.reason_for_visit = _slotText(story, 'chief_complaint');
+  note.subjective.hpi_details = _slotText(story, 'duration_timing');
+  note.subjective.aggravating_relieving_factors = _slotText(story, 'aggravating_relieving');
+  note.subjective.symptom_progression = _slotText(story, 'progression');
+  note.subjective.previous_episodes = _slotText(story, 'previous_episodes');
+  note.subjective.functional_impact = _slotText(story, 'functional_impact');
+  note.subjective.associated_symptoms = _slotText(story, 'associated_symptoms');
+
+  // ── PMH (classify the flat pmh_lines into family / social / medical) ──
+  const pmh = (story.pmh_lines || []).map((l) => (typeof l === 'string' ? l : l?.text)).filter(Boolean);
+  const fam = [], soc = [], med = [];
+  for (const l of pmh) {
+    if (/^family\s*(history|hx)?\s*[:-]/i.test(l) || /^family history/i.test(l)) fam.push(l.replace(/^family\s*(history|hx)?\s*[:\-]\s*/i, ''));
+    else if (/\b(social|occupation|lives|living|smok|alcohol|drink|substance|tobacco)\b/i.test(l)) soc.push(l);
+    else med.push(l);
+  }
+  note.past_medical_history.medical_surgical = med.join('\n');
+  note.past_medical_history.social = soc.join('\n');
+  note.past_medical_history.family = fam.join('\n');
+
+  // ── Objective: vitals, exam (deduped + region prefix), labs ──
+  note.objective.vital_signs = (story.objective_lines?.vitals || [])
+    .map((v) => (typeof v === 'string' ? v : v?.text)).filter(Boolean).join('\n');
+
+  const examSeen = new Set(); const exam = [];
+  for (const f of (story.objective_lines?.exam_findings || [])) {
+    const text = (typeof f === 'string' ? f : f?.text || '').trim();
+    if (!text) continue;
+    const region = (typeof f === 'object' && f.objective_region_label) || '';
+    const line = region && !new RegExp('^' + region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(text) ? `${region}: ${text}` : text;
+    const n = line.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!n || examSeen.has(n)) continue; examSeen.add(n); exam.push(line);
+  }
+  note.objective.examination = exam.join('\n');
+
+  const labs = []; const labSeen = new Set();
+  const pushLab = (t) => { t = String(t || '').trim(); const n = t.toLowerCase().replace(/[^a-z0-9]/g, ''); if (t && !labSeen.has(n)) { labSeen.add(n); labs.push(t); } };
+  const VITAL = /weight|height|bmi|blood\s*pressure|\bbp\b|pulse|heart\s*rate|\bhr\b|respirat|\brr\b|temp|spo2|o2\s*sat/i;
+  for (const nd of (graph.numeric_data || [])) {
+    const label = nd.test_name || nd.label || nd.metric_type || '';
+    if (/\bage\b/i.test(label) || nd.numeric_type === 'age' || VITAL.test(label)) continue;
+    if (nd.value != null && nd.value !== '') pushLab(label ? `${label}: ${nd.value}${nd.unit ? ' ' + nd.unit : ''}` : String(nd.value));
+  }
+  for (const e of (graph.clinical_entities || [])) {
+    if ((e.category || e.entity_type) === 'lab_result') pushLab(e.display_text || e.canonical_name || '');
+  }
+  note.objective.completed_investigations = labs.join('\n');
+
+  // ── Assessment & Plan (title-echo strip + duplicate-title merge) ──
+  const _norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const _merge = (a, b) => [a, b].filter(Boolean).join('\n');
+  const apByTitle = new Map();
+  for (const p of (story.assessment_plan || [])) {
+    const title = p.title || '';
+    const titleN = _norm(title);
+    const narrative = (Array.isArray(p.narrative) ? p.narrative : p.narrative ? [p.narrative] : [])
+      .map((x) => (typeof x === 'string' ? x : x?.text || ''))
+      .filter((t) => t && _norm(t) !== titleN)
+      .join('\n');
+    const key = titleN || `__${apByTitle.size}`;
+    let issue = apByTitle.get(key);
+    if (!issue) { issue = emptyIssue(); issue.issue = title; apByTitle.set(key, issue); }
+    issue.assessment = _merge(issue.assessment, narrative);
+    if (!issue.diagnosis && p.certainty === 'confirmed' && p.diagnosis) issue.diagnosis = p.diagnosis;
+    if (Array.isArray(p.differential_diagnoses)) {
+      issue.differential_diagnoses = [...new Set([...(issue.differential_diagnoses || []), ...p.differential_diagnoses.filter(Boolean)])];
+    }
+    issue.investigations_planned = _merge(issue.investigations_planned, _joinLines(p.investigations_planned));
+    issue.treatment_planned = _merge(issue.treatment_planned, _joinLines(p.treatment_planned));
+    issue.referrals = _merge(issue.referrals, _joinLines(p.referrals));
+    const fu = _joinLines(p.follow_up);
+    if (fu) issue.treatment_planned = _merge(issue.treatment_planned, fu);
+  }
+  note.assessment_and_plan = [...apByTitle.values()];
+
+  note.metadata.medications_mentioned = collectMeds(note);
+  return note;
+}

@@ -46,7 +46,7 @@ test('crossCheckMeds flags an unsupported medication', () => {
 test('runGuardrails FLAGGED on unsupported med', () => {
   const note = emptyNote();
   note.subjective.hpi_details = 'cough';
-  note.assessment_and_plan.push({ issue: 'Cough', diagnosis: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: 'Ghostazolam 10mg', referrals: '' });
+  note.assessment_and_plan.push({ issue: 'Cough', diagnosis: '', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: 'Ghostazolam 10mg', referrals: '' });
   note.metadata.medications_mentioned = ['Ghostazolam'];
   const gr = runGuardrails(note, [{ text: 'Aspirin', label: 'DRUG' }]);
   assert.equal(gr.status, 'FLAGGED');
