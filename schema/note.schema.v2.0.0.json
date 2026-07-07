@@ -5,91 +5,242 @@
   "description": "Canonical clinical-note schema matching the required Heidi template. STRICT RULE: only populate a field if it is explicitly mentioned in the transcript/context/clinical note; otherwise leave it blank (empty string / empty array). Never infer, summarise into, or invent content.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "note_type", "specialty", "subjective", "past_medical_history", "objective", "assessment_and_plan", "metadata"],
+  "required": [
+    "schema_version",
+    "note_type",
+    "specialty",
+    "subjective",
+    "past_medical_history",
+    "objective",
+    "assessment_and_plan",
+    "metadata"
+  ],
   "properties": {
-    "schema_version": { "type": "string", "const": "2.0.0" },
-    "note_type": { "type": "string" },
-    "specialty": { "type": "string" },
-
+    "schema_version": {
+      "type": "string",
+      "const": "2.0.0"
+    },
+    "note_type": {
+      "type": "string"
+    },
+    "specialty": {
+      "type": "string"
+    },
     "subjective": {
       "type": "object",
       "additionalProperties": false,
       "description": "History of presenting complaint. Each field is free-form (use as many lines/bullets as needed); leave blank if not explicitly mentioned.",
-      "required": ["reason_for_visit", "hpi_details", "aggravating_relieving_factors", "symptom_progression", "previous_episodes", "functional_impact", "associated_symptoms"],
+      "required": [
+        "reason_for_visit",
+        "hpi_details",
+        "aggravating_relieving_factors",
+        "symptom_progression",
+        "previous_episodes",
+        "functional_impact",
+        "associated_symptoms"
+      ],
       "properties": {
-        "reason_for_visit": { "type": "string", "description": "Reasons for presentation: requests, symptom complaints, discussion points." },
-        "hpi_details": { "type": "string", "description": "Duration, timing, location, quality, severity and context of the presenting complaint." },
-        "aggravating_relieving_factors": { "type": "string", "description": "Triggers/relieving factors, self-treatment attempts and their effectiveness." },
-        "symptom_progression": { "type": "string", "description": "Changes in frequency, severity or pattern since onset." },
-        "previous_episodes": { "type": "string", "description": "Prior similar episodes: timing, frequency, management, outcomes." },
-        "functional_impact": { "type": "string", "description": "Impact on daily activities, work, school, social or self-care." },
-        "associated_symptoms": { "type": "string", "description": "Associated focal and systemic symptoms." }
+        "reason_for_visit": {
+          "type": "string",
+          "description": "Reasons for presentation: requests, symptom complaints, discussion points."
+        },
+        "hpi_details": {
+          "type": "string",
+          "description": "Duration, timing, location, quality, severity and context of the presenting complaint."
+        },
+        "aggravating_relieving_factors": {
+          "type": "string",
+          "description": "Triggers/relieving factors, self-treatment attempts and their effectiveness."
+        },
+        "symptom_progression": {
+          "type": "string",
+          "description": "Changes in frequency, severity or pattern since onset."
+        },
+        "previous_episodes": {
+          "type": "string",
+          "description": "Prior similar episodes: timing, frequency, management, outcomes."
+        },
+        "functional_impact": {
+          "type": "string",
+          "description": "Impact on daily activities, work, school, social or self-care."
+        },
+        "associated_symptoms": {
+          "type": "string",
+          "description": "Associated focal and systemic symptoms."
+        }
       }
     },
-
     "past_medical_history": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["medical_surgical", "social", "family", "exposure", "immunisation", "other"],
+      "required": [
+        "medical_surgical",
+        "social",
+        "family",
+        "exposure",
+        "immunisation",
+        "other"
+      ],
       "properties": {
-        "medical_surgical": { "type": "string", "description": "Prior diagnoses, chronic conditions, hospitalisations, surgical interventions relevant to the presentation." },
-        "social": { "type": "string", "description": "Lifestyle, occupation, living situation, substance use, social determinants." },
-        "family": { "type": "string", "description": "Genetic/familial/hereditary conditions relevant to symptoms or risk." },
-        "exposure": { "type": "string", "description": "Environmental, occupational, infectious or toxic exposures." },
-        "immunisation": { "type": "string", "description": "Relevant vaccination history and up-to-date status." },
-        "other": { "type": "string", "description": "Any other relevant patient-reported subjective information." }
+        "medical_surgical": {
+          "type": "string",
+          "description": "Prior diagnoses, chronic conditions, hospitalisations, surgical interventions relevant to the presentation."
+        },
+        "social": {
+          "type": "string",
+          "description": "Lifestyle, occupation, living situation, substance use, social determinants."
+        },
+        "family": {
+          "type": "string",
+          "description": "Genetic/familial/hereditary conditions relevant to symptoms or risk."
+        },
+        "exposure": {
+          "type": "string",
+          "description": "Environmental, occupational, infectious or toxic exposures."
+        },
+        "immunisation": {
+          "type": "string",
+          "description": "Relevant vaccination history and up-to-date status."
+        },
+        "other": {
+          "type": "string",
+          "description": "Any other relevant patient-reported subjective information."
+        }
       }
     },
-
     "objective": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["vital_signs", "examination", "completed_investigations"],
+      "required": [
+        "vital_signs",
+        "examination",
+        "completed_investigations"
+      ],
       "properties": {
-        "vital_signs": { "type": "string", "description": "Measured/reported vitals: HR, BP, temp, RR, SpO2." },
-        "examination": { "type": "string", "description": "Physical or mental state examination findings, including system-specific exams." },
-        "completed_investigations": { "type": "string", "description": "Only COMPLETED investigations with explicitly mentioned results. Do NOT include planned/ordered tests." }
+        "vital_signs": {
+          "type": "string",
+          "description": "Measured/reported vitals: HR, BP, temp, RR, SpO2."
+        },
+        "examination": {
+          "type": "string",
+          "description": "Physical or mental state examination findings, including system-specific exams."
+        },
+        "completed_investigations": {
+          "type": "string",
+          "description": "Only COMPLETED investigations with explicitly mentioned results. Do NOT include planned/ordered tests."
+        }
       }
     },
-
     "assessment_and_plan": {
       "type": "array",
       "description": "One block per issue/request/problem explicitly identified. Numbered sequentially at render time.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["issue", "diagnosis", "differential_diagnoses", "investigations_planned", "treatment_planned", "referrals"],
+        "required": [
+          "issue",
+          "diagnosis",
+          "assessment",
+          "differential_diagnoses",
+          "investigations_planned",
+          "treatment_planned",
+          "referrals"
+        ],
         "properties": {
-          "issue": { "type": "string", "description": "Issue, request, problem or condition name." },
-          "diagnosis": { "type": "string", "description": "Diagnosis ONLY if explicitly stated by the clinician. Never infer or create one." },
-          "differential_diagnoses": { "type": "array", "items": { "type": "string" }, "description": "Only if explicitly listed. Do not generate possibilities." },
-          "investigations_planned": { "type": "string", "description": "Investigations/tests the clinician stated will be arranged." },
-          "treatment_planned": { "type": "string", "description": "Therapies, medications or interventions the clinician explicitly stated will be initiated." },
-          "referrals": { "type": "string", "description": "Referrals to specialists/allied health/community services explicitly stated." }
+          "issue": {
+            "type": "string",
+            "description": "Issue, request, problem or condition name."
+          },
+          "diagnosis": {
+            "type": "string",
+            "description": "Diagnosis ONLY if explicitly stated by the clinician. Never infer or create one."
+          },
+          "assessment": {
+            "type": "string",
+            "description": "Clinician's interpretive assessment lines for this problem (status, response to treatment, key results, pertinent negatives)."
+          },
+          "differential_diagnoses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Only if explicitly listed. Do not generate possibilities."
+          },
+          "investigations_planned": {
+            "type": "string",
+            "description": "Investigations/tests the clinician stated will be arranged."
+          },
+          "treatment_planned": {
+            "type": "string",
+            "description": "Therapies, medications or interventions the clinician explicitly stated will be initiated."
+          },
+          "referrals": {
+            "type": "string",
+            "description": "Referrals to specialists/allied health/community services explicitly stated."
+          }
         }
       }
     },
-
     "metadata": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["generated_by"],
+      "required": [
+        "generated_by"
+      ],
       "properties": {
-        "generated_by": { "type": "string" },
-        "encounter_id": { "type": ["string", "null"] },
-        "confidence": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 } },
-        "medications_mentioned": { "type": "array", "items": { "type": "string" }, "description": "Medications asserted anywhere in the note (for the NER cross-check). Not rendered." },
+        "generated_by": {
+          "type": "string"
+        },
+        "encounter_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "medications_mentioned": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Medications asserted anywhere in the note (for the NER cross-check). Not rendered."
+        },
         "flags": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "type": { "type": "string" },
-              "field": { "type": "string" },
-              "message": { "type": "string" },
-              "severity": { "type": "string", "enum": ["info", "low", "warning", "critical"] }
+              "type": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "info",
+                  "low",
+                  "warning",
+                  "critical"
+                ]
+              }
             },
-            "required": ["type", "message", "severity"]
+            "required": [
+              "type",
+              "message",
+              "severity"
+            ]
           }
         }
       }

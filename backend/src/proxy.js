@@ -1,9 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Notera-Health-Ai — Key-safe passthrough proxy (keeps ALL API keys in .env)
 //
-// Verbose error handling: every upstream failure is logged in full (status, body,
-// request shape) and forwarded to the client as a detailed JSON error — NEVER a
-// bare "{}". Endpoints:
+// Verbose error handling + centralized model config. Endpoints:
 //   POST /api/llm/generate?model=…   → Gemini generateContent (retry 5xx + schema/token fallbacks)
 //   POST /api/llm/stream?model=…      → Gemini streamGenerateContent (SSE)
 //   POST /api/asr                     → Groq Whisper transcription (multipart)
@@ -18,17 +16,31 @@ const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH |
 const groqKey = () => process.env.GROQ_KEY_1 || process.env.GROQ_KEY_2 || process.env.GROQ_KEY || '';
 const geminiKey = () => process.env.GEMINI_API_KEY || '';
 
+// Centralized model config from .env so gemini-3.5-flash is used to its full capacity,
+// consistently, on every call. Fills only values the caller didn't set (maxOutputTokens
+// is raised to the env floor; temperature/thinking added if configured).
+function applyModelDefaults(body) {
+  const b = body || {};
+  b.generationConfig = b.generationConfig || {};
+  const gc = b.generationConfig;
+  const maxOut = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS || 0);
+  if (maxOut && (!gc.maxOutputTokens || gc.maxOutputTokens < maxOut)) gc.maxOutputTokens = maxOut;
+  const temp = process.env.GEMINI_TEMPERATURE;
+  if (temp !== undefined && temp !== '' && gc.temperature === undefined) gc.temperature = Number(temp);
+  // Thinking is DISABLED — do not use thinking (force budget 0 on every call).
+  gc.thinkingConfig = { thinkingBudget: 0 };
+  return b;
+}
+
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_RETRIES = Number(process.env.LLM_PROXY_RETRIES || 2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rid = () => Math.random().toString(36).slice(2, 8);
 const keyTail = (k) => (k ? `…${k.slice(-4)} (${k.length})` : 'MISSING');
 
-// Low-level resilient fetch that logs each attempt in full and returns { res, text, attempts }.
 async function callGemini(url, bodyObj, { label = 'gemini', id = rid() } = {}) {
   const bodyStr = JSON.stringify(bodyObj);
-  let attempts = 0;
-  let lastText = '', lastStatus = 0;
+  let attempts = 0, lastText = '', lastStatus = 0;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     attempts++;
     try {
@@ -49,29 +61,22 @@ async function callGemini(url, bodyObj, { label = 'gemini', id = rid() } = {}) {
   return { ok: false, status: lastStatus || 502, text: lastText, attempts };
 }
 
-// Build the error payload the client sees — always rich, never "{}".
 function errorPayload(id, model, r, extra = {}) {
   let upstream;
   try { upstream = r.text ? JSON.parse(r.text) : null; } catch { upstream = r.text || null; }
   return {
     error: `Gemini upstream ${r.status}${r.network ? ' (network)' : ''}`,
-    requestId: id,
-    model,
-    upstreamStatus: r.status,
-    attempts: r.attempts,
+    requestId: id, model, upstreamStatus: r.status, attempts: r.attempts,
     upstream: upstream || '(empty body from Gemini)',
-    hint: r.status === 500
-      ? 'Gemini returned 500 — often transient load, an oversized responseSchema, or maxOutputTokens too high. The client auto-retries without the schema and with lower tokens.'
-      : r.status === 429 ? 'Rate limited — slow down or check quota.'
+    hint: r.status === 500 ? 'Gemini 500 — transient load / oversized schema / token limit. Client auto-retries without schema + lower tokens.'
+      : r.status === 429 ? 'Rate limited — check quota.'
       : r.status === 404 ? 'Model not found for this key — check GEMINI_MODEL in .env.'
-      : r.status === 400 ? 'Bad request — check the model name and request size.'
-      : undefined,
+      : r.status === 400 ? 'Bad request — check model + request size.' : undefined,
     ...extra,
   };
 }
 
 export function mountProxy(app) {
-  // Diagnostic — safe to hit from the browser: /backend/api/llm/diag
   app.get('/api/llm/diag', async (_req, res) => {
     const id = rid(); const model = MODEL();
     console.log(`[proxy ${id}] DIAG model=${model} key=${keyTail(geminiKey())}`);
@@ -82,23 +87,18 @@ export function mountProxy(app) {
     res.status(r.status).json({ ok: false, keyPresent: !!geminiKey(), ...errorPayload(id, model, r) });
   });
 
-  // Gemini — single-shot with schema-drop + token-reduction fallbacks
   app.post('/api/llm/generate', async (req, res) => {
     const id = rid(); const model = MODEL();
-    const base = req.body || {};
+    const base = applyModelDefaults(req.body || {});
     const gc = base.generationConfig || {};
     console.log(`[proxy ${id}] generate model=${model} key=${keyTail(geminiKey())} `
       + `bodyKB=${(JSON.stringify(base).length / 1024).toFixed(1)} schema=${!!gc.responseSchema} maxTokens=${gc.maxOutputTokens || 'default'}`);
-
     const url = `${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`;
-    // Attempt 1: as sent.
     let r = await callGemini(url, base, { label: 'generate', id });
-    // Fallback A: drop responseSchema (kept JSON mode) — some models 500 on big schemas.
     if (!r.ok && r.status === 500 && gc.responseSchema) {
       console.warn(`[proxy ${id}] retrying generate WITHOUT responseSchema`);
       const b = structuredClone(base); delete b.generationConfig.responseSchema;
       r = await callGemini(url, b, { label: 'generate/no-schema', id });
-      // Fallback B: also lower maxOutputTokens.
       if (!r.ok && r.status === 500) {
         console.warn(`[proxy ${id}] retrying generate with maxOutputTokens=8192`);
         b.generationConfig.maxOutputTokens = 8192;
@@ -110,14 +110,13 @@ export function mountProxy(app) {
     res.status(r.status).json(errorPayload(id, model, r));
   });
 
-  // Gemini — streaming SSE (retry pre-stream, detailed error on failure)
   app.post('/api/llm/stream', async (req, res) => {
     const id = rid(); const model = MODEL();
     try {
       let upstream, lastText = '', lastStatus = 0;
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         upstream = await fetch(`${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${geminiKey()}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body || {}) });
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(applyModelDefaults(req.body || {})) });
         if (upstream.ok) break;
         lastText = await upstream.text().catch(() => ''); lastStatus = upstream.status;
         console.error(`[proxy ${id}] stream attempt ${attempt + 1} → ${upstream.status}: ${lastText.slice(0, 400)}`);
@@ -139,7 +138,6 @@ export function mountProxy(app) {
     }
   });
 
-  // Groq Whisper — multipart passthrough (raw body forwarded with .env key)
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
     const id = rid();
     try {

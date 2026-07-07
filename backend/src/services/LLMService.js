@@ -1,54 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Notera-Health-Ai — LLMService (Node / Cloud Run)
-//
-// Node-adapted port of the browser extension's LLMService. Same public contract
-// (generateContent / generateContentStream) so the ported multi-agent pipeline
-// runs unchanged, but the API key now comes from the environment (Secret Manager
-// at deploy time) instead of chrome.storage.
-//
-// Generation model is Gemini, always (doc 06). Two backends behind one class:
-//   - LLM_BACKEND=ai_studio  → Google AI Studio Gemini API (de-identified input only)
-//   - LLM_BACKEND=vertex     → Vertex AI (HIPAA-eligible, BAA) for full PHI production
-//
-// ⚠️ Compliance: AI Studio is NOT BAA-covered. The orchestrator de-identifies the
-// transcript BEFORE calling this service and re-identifies after (doc 02 §5, 04).
+// Node-adapted port of the browser LLMService. Key comes from env/Secret Manager.
+// Generation model is Gemini (doc 06). Thinking is DISABLED by default.
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
 const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-/**
- * Model tiers (doc 06 §2). Pro for final notes, Flash for cheap/high-volume drafts.
- * Override any of these via env without touching code.
- */
 export const MODEL_TIERS = {
   pro:   process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_PRO || 'gemini-3.5-flash',
   flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.5-flash',
 };
 
 export class LLMService {
-  /**
-   * @param {object} opts
-   * @param {string} opts.apiKey   AI Studio API key (required for ai_studio backend)
-   * @param {string} opts.model    model id (defaults to Pro tier)
-   * @param {string} opts.backend  'ai_studio' | 'vertex'
-   */
   constructor(opts = {}) {
     const {
       apiKey = process.env.GEMINI_API_KEY,
       model = MODEL_TIERS.pro,
       backend = process.env.LLM_BACKEND || 'ai_studio',
     } = opts;
-
     this.backend = backend;
     this.model = model;
-
     if (backend === 'ai_studio' && !apiKey) {
       throw new Error('GEMINI_API_KEY is missing. Set it in the environment / Secret Manager.');
     }
     this.apiKey = apiKey;
-
-    // Vertex config (used when backend === 'vertex'); wired later for full PHI prod.
     this.project = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
     this.location = process.env.VERTEX_LOCATION || 'us-central1';
   }
@@ -56,7 +32,6 @@ export class LLMService {
   _endpoint(stream = false) {
     const verb = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
     if (this.backend === 'vertex') {
-      // Vertex AI uses OAuth (Application Default Credentials); no key in the URL.
       const host = `https://${this.location}-aiplatform.googleapis.com`;
       const base = `${host}/v1/projects/${this.project}/locations/${this.location}/publishers/google/models`;
       return `${base}/${this.model}:${verb}`;
@@ -69,7 +44,6 @@ export class LLMService {
   async _authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     if (this.backend === 'vertex') {
-      // Lazy import so ai_studio deployments don't need the dependency.
       const { GoogleAuth } = await import('google-auth-library');
       const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
       const token = await auth.getAccessToken();
@@ -78,33 +52,23 @@ export class LLMService {
     return headers;
   }
 
-  /**
-   * Single-shot generation. Same signature the ported agents already call.
-   * @param {string} systemInstruction
-   * @param {string} userPrompt
-   * @param {object|null} responseSchema  Gemini structured-output schema
-   * @param {object} options  { timeoutMs, retries, maxOutputTokens, thinkingBudget }
-   * @returns {Promise<string>} model text
-   */
   async generateContent(systemInstruction, userPrompt, responseSchema = null, options = {}) {
     const url = this._endpoint(false);
     const timeoutMs = options.timeoutMs || 120000;
     const retries = options.retries !== undefined ? Math.max(options.retries, 2) : 2;
-    const maxOutputTokens = options.maxOutputTokens || 32768;
+    const maxOutputTokens = options.maxOutputTokens || Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 32768;
 
     const body = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig: { maxOutputTokens },
     };
-    if (options.thinkingBudget !== undefined) {
-      body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget };
-    }
+    // Thinking DISABLED by default (do not use thinking); callers may override.
+    body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget ?? 0 };
+    if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
     if (responseSchema) {
       body.generationConfig.responseMimeType = 'application/json';
-      if (typeof responseSchema === 'object') {
-        body.generationConfig.responseSchema = responseSchema;
-      }
+      if (typeof responseSchema === 'object') body.generationConfig.responseSchema = responseSchema;
     }
 
     const headers = await this._authHeaders();
@@ -113,16 +77,10 @@ export class LLMService {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          // A 500 while constraining to a large responseSchema → drop the schema and retry
-          // (some preview models 500 on complex structured-output schemas).
+          // A 500 while constraining to a large responseSchema → drop the schema and retry.
           if (response.status === 500 && body.generationConfig.responseSchema) {
             delete body.generationConfig.responseSchema;
             lastErr = new Error('Gemini 500 with responseSchema — retrying without schema');
@@ -141,18 +99,13 @@ export class LLMService {
           ? new Error(`Gemini request timed out after ${Math.round(timeoutMs / 1000)}s`)
           : err;
         if (attempt < retries && (err?.name === 'AbortError' || err?.name === 'TypeError' ||
-            /fetch failed|network/i.test(err?.message || ''))) {
-          continue;
-        }
+            /fetch failed|network/i.test(err?.message || ''))) continue;
         throw lastErr;
-      } finally {
-        clearTimeout(timer);
-      }
+      } finally { clearTimeout(timer); }
     }
     throw lastErr || new Error('Gemini request failed');
   }
 
-  /** Streaming generation (used for the live "chat with note" surface). */
   async* generateContentStream(systemInstruction, userPromptOrMessages) {
     const url = this._endpoint(true);
     let contents;
@@ -164,22 +117,19 @@ export class LLMService {
     } else {
       contents = [{ role: 'user', parts: [{ text: userPromptOrMessages }] }];
     }
-
     const headers = await this._authHeaders();
     const response = await fetch(url, {
-      method: 'POST',
-      headers,
+      method: 'POST', headers,
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemInstruction }] },
         contents,
-        generationConfig: {},
+        generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
       }),
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(`Gemini API Error ${response.status}: ${JSON.stringify(errorData)}`);
     }
-
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
@@ -202,18 +152,10 @@ export class LLMService {
           } catch (_) { /* ignore malformed SSE line */ }
         }
       }
-    } finally {
-      reader.releaseLock();
-    }
+    } finally { reader.releaseLock(); }
   }
 }
 
-/**
- * Factory kept for pipeline compatibility. The ported PipelineEngine calls
- * createGeminiService() with no args; we resolve the key/backend from env.
- * @param {string|null} apiKey  optional explicit key (tests)
- * @param {object} opts         optional { model, backend }
- */
 export async function createGeminiService(apiKey = null, opts = {}) {
   return new LLMService({ apiKey: apiKey || process.env.GEMINI_API_KEY, ...opts });
 }

@@ -3,6 +3,7 @@ export type Flag = { type: string; field?: string; message: string; severity: 'i
 export interface APIssue {
   issue: string;
   diagnosis: string;
+  assessment: string;
   differential_diagnoses: string[];
   investigations_planned: string;
   treatment_planned: string;

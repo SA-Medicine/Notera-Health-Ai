@@ -16,12 +16,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const GOLD_DIR = path.join(ROOT, 'data', 'gold');
-const OUT_DIR = path.join(__dirname, 'results');
+const RUN_ID = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+/, '').replace('T', '_');
+const RESULTS_ROOT = path.join(__dirname, 'results');
+const OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
 
 // .env loader (no dependency)
 (function loadEnv() {
@@ -34,18 +36,47 @@ const OUT_DIR = path.join(__dirname, 'results');
   } catch { /* no .env */ }
 })();
 
-const { generateNote } = await import(path.join(ROOT, 'backend', 'src', 'orchestrator', 'generateNote.js'));
-const { scoreNote, aggregate } = await import(path.join(__dirname, 'metrics.mjs'));
+const { generateNote } = await import(pathToFileURL(path.join(ROOT, 'backend', 'src', 'orchestrator', 'generateNote.js')).href);
+const { scoreNote, aggregate } = await import(pathToFileURL(path.join(__dirname, 'metrics.mjs')).href);
 
 function splitTranscriptAndGold(raw) {
   const idx = raw.search(/^\s*Subjective\s*:/im);
   return idx === -1 ? { transcript: raw.trim(), gold: '' } : { transcript: raw.slice(0, idx).trim(), gold: raw.slice(idx).trim() };
 }
 
+function renderSchemaMarkdown(note) {
+  const L = [];
+  const s = note.subjective, pmh = note.past_medical_history, o = note.objective;
+  const blk = (label, val) => { if (val && String(val).trim()) { L.push(`**${label}:**`); L.push(String(val)); L.push(''); } };
+  L.push('**Subjective:**');
+  blk('Presenting Complaints', s.reason_for_visit);
+  blk('History of Presenting Complaint', [s.hpi_details, s.aggravating_relieving_factors, s.symptom_progression, s.previous_episodes, s.functional_impact].filter(Boolean).join('\n'));
+  blk('Associated Symptoms', s.associated_symptoms);
+  L.push('**Past Medical History:**');
+  [pmh.medical_surgical, pmh.social && `Social history: ${pmh.social}`, pmh.family && `Family history: ${pmh.family}`, pmh.exposure, pmh.immunisation, pmh.other].filter(Boolean).forEach((x) => L.push(x));
+  L.push('');
+  L.push('**Objective:**');
+  blk('Vital Signs', o.vital_signs);
+  blk('Investigations', o.completed_investigations);
+  blk('Exam Findings', o.examination);
+  L.push('**Assessment & Plan:**');
+  (note.assessment_and_plan || []).forEach((it, i) => {
+    L.push(`${i + 1}. ${it.issue}`);
+    if (it.diagnosis) L.push(`Diagnosis: ${it.diagnosis}`);
+    if (it.assessment) L.push(it.assessment);
+    if ((it.differential_diagnoses || []).length) L.push(`Differentials: ${it.differential_diagnoses.join(', ')}`);
+    if (it.investigations_planned) L.push(`Investigations planned: ${it.investigations_planned}`);
+    if (it.treatment_planned) L.push(`Treatment planned: ${it.treatment_planned}`);
+    if (it.referrals) L.push(`Referrals: ${it.referrals}`);
+    L.push('');
+  });
+  return L.join('\n');
+}
+
 function noteToText(note) {
   const s = note.subjective || {}, pmh = note.past_medical_history || {}, o = note.objective || {};
   const ap = (note.assessment_and_plan || []).map((i) =>
-    [i.issue, i.diagnosis, (i.differential_diagnoses || []).join(' '), i.investigations_planned, i.treatment_planned, i.referrals].filter(Boolean).join(' ')
+    [i.issue, i.diagnosis, i.assessment, (i.differential_diagnoses || []).join(' '), i.investigations_planned, i.treatment_planned, i.referrals].filter(Boolean).join(' ')
   ).join('\n');
   return [
     ...Object.values(s), ...Object.values(pmh), ...Object.values(o), ap,
@@ -79,6 +110,26 @@ async function main() {
       score.id = id; score.status = result.status;
       rows.push(score);
       fs.writeFileSync(path.join(OUT_DIR, `${id}.json`), JSON.stringify({ score, note: result.note, renderedNote: result.renderedNote, flags: result.flags }, null, 2));
+      // Human/AI-readable side-by-side report for review.
+      const md = [
+        `# ${id}`,
+        ``,
+        `**Score:** schema_valid=${score.schema_valid} · section_coverage=${score.section_coverage} · similarity_to_gold=${score.similarity_to_gold} · omission_rate=${score.omission_rate} · unsupported_meds=${score.meds_unsupported.length} · status=${result.status}`,
+        score.meds_unsupported.length ? `**Unsupported meds:** ${score.meds_unsupported.join(", ")}` : ``,
+        ``,
+        `## ── GENERATED NOTE (Notera, schema-structured = what is scored) ──`,
+        ``,
+        renderSchemaMarkdown(result.note),
+        ``,
+        `## ── RAW PIPELINE RENDER (embedded webapp view) ──`,
+        ``,
+        (result.renderedNote || "(no rendered note)"),
+        ``,
+        `## ── GOLD NOTE (Heidi) ──`,
+        ``,
+        gold,
+      ].join("\n");
+      fs.writeFileSync(path.join(OUT_DIR, `${id}.md`), md);
       console.log(`schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} unsupported_meds=${score.meds_unsupported.length}`);
     } catch (e) {
       console.log('FAILED —', e.message);
@@ -90,7 +141,13 @@ async function main() {
   fs.writeFileSync(path.join(OUT_DIR, '_summary.json'), JSON.stringify({ summary, rows }, null, 2));
   console.log('\n=== SCORECARD ===');
   console.table([summary]);
-  console.log(`Results → ${path.relative(process.cwd(), OUT_DIR)}/`);
+  // Append to a cross-run history file + write a latest pointer, so runs compare easily.
+  const histLine = JSON.stringify({ runId: RUN_ID, at: new Date().toISOString(), ...summary });
+  fs.appendFileSync(path.join(RESULTS_ROOT, '_history.jsonl'), histLine + '\n');
+  fs.writeFileSync(path.join(RESULTS_ROOT, 'latest.txt'), `run_${RUN_ID}`);
+  console.log(`Results  → ${path.relative(process.cwd(), OUT_DIR)}/`);
+  console.log(`History  → eval/results/_history.jsonl  (one line per run — compare here)`);
+  console.log(`Latest   → eval/results/latest.txt`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
