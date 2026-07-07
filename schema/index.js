@@ -37,7 +37,7 @@ export function validateNote(note) {
 
 /** An empty A&P issue block. */
 export function emptyIssue() {
-  return { issue: '', diagnosis: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: '', referrals: '' };
+  return { issue: '', diagnosis: '', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: '', referrals: '' };
 }
 
 /** A minimal valid, all-blank note in the Heidi template shape. */

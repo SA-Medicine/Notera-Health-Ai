@@ -320,7 +320,7 @@ Rendering & Priority:
 
     // Extraction is the essential, heaviest call (large transcripts → long output). Give
     // it generous time + a retry so a single slow response can't crash the whole note.
-    const resultStr = await this.llm.generateContent(systemInstruction, prompt, responseSchema, { timeoutMs: 180000, retries: 1 });
+    const resultStr = await this.llm.generateContent(systemInstruction, prompt, responseSchema, { timeoutMs: 180000, retries: 1, maxOutputTokens: 65536 });
     
     try {
       const parsed = safeParseJson(resultStr);
