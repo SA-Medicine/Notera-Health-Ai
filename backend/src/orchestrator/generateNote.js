@@ -17,6 +17,9 @@ import { PipelineEngine } from '../pipeline/PipelineEngine.js';
 import { extractEntities } from '../ner/nerClient.js';
 import { deidentify, reidentify, mapFingerprint } from '../deid/deidentify.js';
 import { structureNote, storyToSchema } from './structureNote.js';
+import { narrateNote } from './heidiNarrative.js';
+import { composeStory } from './heidiStoryEngine.js';
+import { reconcileNote } from './reconcileNote.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { store, audit } from '../firestore/store.js';
 
@@ -88,12 +91,34 @@ export async function generateNote(input, opts = {}) {
   const graphForMap = pipeline.logs?.clinicalObservations || {};
   let note;
   if (story && (story.assessment_plan?.length || Object.keys(story.subjective_slots || {}).length || (story.pmh_lines || []).length)) {
-    note = storyToSchema(story, graphForMap, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
+    note = storyToSchema(story, graphForMap, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION, encounterType: detected, transcript });
   } else {
     note = await structureNote(finalNote, { specialty: specialtyResolved, noteType, llm, generatedBy: PIPELINE_VERSION });
   }
   note.specialty = specialtyResolved;
   note.metadata.encounter_id = consultId;
+
+  // 5b. HEIDI STORY ENGINE — read the full transcript and compose the complete Heidi
+  //     note (flowing prose, ranked problems, complete titles, problem-grouped objective).
+  //     The deterministic note is the grounding scaffold + fallback. If the engine is
+  //     unavailable or its guards trip, we keep the scaffold and apply the lighter
+  //     narrative polish instead. Skipped entirely when no LLM is available.
+  if (llm && story) {
+    const scaffold = note;
+    try {
+      const composed = await composeStory(scaffold, { llm, transcript, meta: { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION } });
+      note = (composed && composed !== scaffold) ? composed : await narrateNote(scaffold, { llm, transcript });
+      note.specialty = specialtyResolved;
+      note.metadata.encounter_id = consultId;
+    } catch (e) {
+      console.warn('[generateNote] story engine skipped:', e.message);
+      try { note = await narrateNote(scaffold, { llm, transcript }); } catch (_) { note = scaffold; }
+    }
+  }
+
+  // 5c. RECONCILE — deterministic placement & consistency: lab/vital values → Objective,
+  //     referrals → A&P, no normal-lab relists in A&P (fixes cross-section contradictions).
+  try { note = reconcileNote(note); } catch (e) { console.warn('[generateNote] reconcile skipped:', e.message); }
 
   // 6. GUARDRAILS (schema + NER cross-check) -----------------------------------
   const gr = runGuardrails(note, entities, { confidenceThreshold: opts.confidenceThreshold });
