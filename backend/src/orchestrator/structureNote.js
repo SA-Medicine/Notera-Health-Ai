@@ -199,7 +199,7 @@ function normalize(p, meta) {
 }
 
 // Extract candidate medication names from treatment/plan text (fallback cross-check source).
-function collectMeds(note) {
+export function collectMeds(note) {
   const text = [
     ...note.assessment_and_plan.map((i) => i.treatment_planned),
     note.past_medical_history.medical_surgical,
@@ -219,10 +219,43 @@ function collectMeds(note) {
 // into schema v2. Replaces the lossy 2nd Gemini pass: the pipeline already produced
 // this structured data, so we map it directly (no LLM call, no loss, free, fast).
 // ─────────────────────────────────────────────────────────────────────────────
-const _slotText = (story, key) =>
-  (story.subjective_slots?.[key]?.lines || [])
-    .map((l) => (typeof l === 'string' ? l : l?.text))
-    .filter(Boolean).join('\n');
+// Compose a group of short fact fragments into clean, de-duplicated lines.
+const _compose = (arr) => {
+  const seen = new Set(); const out = [];
+  for (let t of (arr || [])) {
+    t = String(t || '').trim().replace(/\s+/g, ' ');
+    if (!t) continue;
+    const n = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!n || seen.has(n)) continue;
+    seen.add(n); out.push(t);
+  }
+  return out.join('\n');
+};
+
+// Group a subjective slot's lines by topic_cluster / body_part.
+//  - 0 or 1 real cluster  → flat, composed lines.
+//  - >= 2 clusters (e.g. MSK multi-region) → each cluster is a labelled block
+//    ("Right Hip/Leg: …") so the note reads bifurcated by body part, Heidi-style.
+const _slotText = (story, key) => {
+  const lines = (story.subjective_slots?.[key]?.lines || [])
+    .map((l) => (typeof l === 'string' ? { text: l } : l))
+    .filter((l) => l && l.text);
+  if (!lines.length) return '';
+  const groups = new Map(); const order = [];
+  for (const l of lines) {
+    const c = String(l.topic_cluster || l.body_part || '').replace(/\*/g, '').trim();
+    if (!groups.has(c)) { groups.set(c, []); order.push(c); }
+    groups.get(c).push(String(l.text).trim());
+  }
+  const realClusters = order.filter(Boolean);
+  if (realClusters.length >= 2) {
+    return order.map((c) => {
+      const body = _compose(groups.get(c)).split('\n').join('; ');
+      return c ? `${c}: ${body}` : body;
+    }).filter(Boolean).join('\n');
+  }
+  return _compose(lines.map((l) => l.text));
+};
 
 const _joinLines = (a) =>
   (Array.isArray(a) ? a : a ? [a] : [])
@@ -233,7 +266,7 @@ export function storyToSchema(story, graph = {}, meta = {}) {
   const note = emptyNote(meta);
   if (!story) return note;
 
-  // ── Subjective (flow slots) ──
+  // ── Subjective (flow slots, grouped by body part where multi-region) ──
   note.subjective.reason_for_visit = _slotText(story, 'chief_complaint');
   note.subjective.hpi_details = _slotText(story, 'duration_timing');
   note.subjective.aggravating_relieving_factors = _slotText(story, 'aggravating_relieving');
@@ -250,13 +283,21 @@ export function storyToSchema(story, graph = {}, meta = {}) {
     else if (/\b(social|occupation|lives|living|smok|alcohol|drink|substance|tobacco)\b/i.test(l)) soc.push(l);
     else med.push(l);
   }
-  note.past_medical_history.medical_surgical = med.join('\n');
-  note.past_medical_history.social = soc.join('\n');
-  note.past_medical_history.family = fam.join('\n');
+  note.past_medical_history.medical_surgical = _compose(med);
+  note.past_medical_history.social = _compose(soc);
+  note.past_medical_history.family = _compose(fam);
 
-  // ── Objective: vitals, exam (deduped + region prefix), labs ──
-  note.objective.vital_signs = (story.objective_lines?.vitals || [])
-    .map((v) => (typeof v === 'string' ? v : v?.text)).filter(Boolean).join('\n');
+  // ── Objective: vitals (story slots + numeric_data), exam, labs ──
+  const VITAL = /weight|height|bmi|blood\s*pressure|\bbp\b|pulse|heart\s*rate|\bhr\b|respirat|\brr\b|temp|spo2|o2\s*sat/i;
+  const vitals = []; const vSeen = new Set();
+  const pushVital = (t) => { t = String(t || '').trim(); const n = t.toLowerCase().replace(/[^a-z0-9]/g, ''); if (t && !vSeen.has(n)) { vSeen.add(n); vitals.push(t); } };
+  for (const v of (story.objective_lines?.vitals || [])) pushVital(typeof v === 'string' ? v : v?.text);
+  for (const nd of (graph.numeric_data || [])) {
+    const label = nd.test_name || nd.label || nd.metric_type || '';
+    if (/\bage\b/i.test(label) || nd.numeric_type === 'age') continue;
+    if (VITAL.test(label) && nd.value != null && nd.value !== '') pushVital(`${label}: ${nd.value}${nd.unit ? ' ' + nd.unit : ''}`);
+  }
+  note.objective.vital_signs = vitals.join('\n');
 
   const examSeen = new Set(); const exam = [];
   for (const f of (story.objective_lines?.exam_findings || [])) {
@@ -271,7 +312,6 @@ export function storyToSchema(story, graph = {}, meta = {}) {
 
   const labs = []; const labSeen = new Set();
   const pushLab = (t) => { t = String(t || '').trim(); const n = t.toLowerCase().replace(/[^a-z0-9]/g, ''); if (t && !labSeen.has(n)) { labSeen.add(n); labs.push(t); } };
-  const VITAL = /weight|height|bmi|blood\s*pressure|\bbp\b|pulse|heart\s*rate|\bhr\b|respirat|\brr\b|temp|spo2|o2\s*sat/i;
   for (const nd of (graph.numeric_data || [])) {
     const label = nd.test_name || nd.label || nd.metric_type || '';
     if (/\bage\b/i.test(label) || nd.numeric_type === 'age' || VITAL.test(label)) continue;
@@ -308,6 +348,30 @@ export function storyToSchema(story, graph = {}, meta = {}) {
     if (fu) issue.treatment_planned = _merge(issue.treatment_planned, fu);
   }
   note.assessment_and_plan = [...apByTitle.values()];
+
+  // Safety net: a refill / administrative encounter must still surface a plan problem
+  // even if the slot-filler emitted none — otherwise the actual purpose of the visit is
+  // lost. Seed it (meds + a short assessment) so the narrative pass can enrich it with
+  // the pharmacy / duration from the transcript.
+  if (!note.assessment_and_plan.length && /refill|repeat|administrative/i.test(String(meta.encounterType || ''))) {
+    const gmeds = (graph.clinical_entities || [])
+      .filter((e) => /medication|drug/i.test(e.category || e.entity_type || ''))
+      .map((e) => e.canonical_name || e.display_text).filter(Boolean);
+    const meds = [...new Set([...collectMeds(note), ...gmeds])];
+    const issue = emptyIssue();
+    issue.issue = 'Medication refills';
+    issue.assessment = 'Medication refill request.';
+    if (meds.length) issue.treatment_planned = `Refill: ${meds.join(', ')}`;
+    // Recover the destination pharmacy and supply duration straight from the transcript.
+    const tx = String(meta.transcript || '');
+    const extras = [];
+    const dur = tx.match(/(\d+)[-\s]?(month|week|day|year)s?\s*(?:supply|worth|of\s+(?:supply|medication))?/i);
+    if (dur) extras.push(`${dur[1]}-${dur[2].toLowerCase()} supply`);
+    const ph = tx.match(/(?:sent?|send|call(?:ed)?|fax(?:ed)?)\s+(?:it\s+|them\s+|these\s+)?to\s+([A-Z][A-Za-z'&.\-]+(?:\s+[A-Z][A-Za-z'&.\-]+)?)/);
+    if (ph) extras.push(`sent to ${ph[1].trim()} pharmacy`);
+    if (extras.length) issue.treatment_planned = [issue.treatment_planned, extras.join('; ')].filter(Boolean).join(' — ');
+    note.assessment_and_plan = [issue];
+  }
 
   note.metadata.medications_mentioned = collectMeds(note);
   return note;

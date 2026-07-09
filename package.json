@@ -14,7 +14,8 @@
     "dev:backend": "npm --workspace @notera/backend run dev",
     "start:backend": "npm --workspace @notera/backend run start",
     "test": "npm --workspace @notera/backend run test && npm --workspace @notera/eval run test",
-    "eval": "npm --workspace @notera/eval run eval"
+    "eval": "npm --workspace @notera/eval run eval",
+    "admin": "node admin/server.mjs"
   },
   "engines": {
     "node": ">=20"

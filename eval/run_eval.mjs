@@ -17,6 +17,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import dns from 'node:dns';
+// Prefer IPv4: fresh node processes on networks with broken IPv6 otherwise hang at
+// connect (ENOTFOUND / UND_ERR_CONNECT_TIMEOUT) even when the host is reachable.
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -91,7 +95,9 @@ async function main() {
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   let files = fs.readdirSync(GOLD_DIR).filter((f) => f.endsWith('.txt')).sort();
-  if (args.length) files = files.filter((f) => args.some((a) => f.toLowerCase().startsWith(a.toLowerCase())));
+  // Exact (case-insensitive) basename match — NOT startsWith, else "patient1" also
+  // matches "patient10". Args are gold basenames like "Patient2", "done_Patient3".
+  if (args.length) files = files.filter((f) => args.some((a) => path.basename(f, '.txt').toLowerCase() === a.toLowerCase()));
   files = files.slice(0, limit);
 
   const rows = [];
@@ -114,8 +120,9 @@ async function main() {
       const md = [
         `# ${id}`,
         ``,
-        `**Score:** schema_valid=${score.schema_valid} · section_coverage=${score.section_coverage} · similarity_to_gold=${score.similarity_to_gold} · omission_rate=${score.omission_rate} · unsupported_meds=${score.meds_unsupported.length} · status=${result.status}`,
+        `**Score:** schema_valid=${score.schema_valid} · section_coverage=${score.section_coverage} · similarity_to_gold=${score.similarity_to_gold} · omission_rate=${score.omission_rate} · story_flow=${score.story_flow} · unsupported_meds=${score.meds_unsupported.length} · status=${result.status}`,
         score.meds_unsupported.length ? `**Unsupported meds:** ${score.meds_unsupported.join(", ")}` : ``,
+        score.omission_missed?.length ? `**Top missed gold terms:** ${score.omission_missed.join(", ")}` : ``,
         ``,
         `## ── GENERATED NOTE (Notera, schema-structured = what is scored) ──`,
         ``,
@@ -130,7 +137,7 @@ async function main() {
         gold,
       ].join("\n");
       fs.writeFileSync(path.join(OUT_DIR, `${id}.md`), md);
-      console.log(`schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} unsupported_meds=${score.meds_unsupported.length}`);
+      console.log(`schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} flow=${score.story_flow} unsupported_meds=${score.meds_unsupported.length}`);
     } catch (e) {
       console.log('FAILED —', e.message);
       rows.push({ id, error: e.message, schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] });

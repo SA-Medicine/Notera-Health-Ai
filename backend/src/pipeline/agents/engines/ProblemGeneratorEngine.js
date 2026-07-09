@@ -473,7 +473,10 @@ export class ProblemGeneratorEngine {
              return ent && ent.entity_type === 'follow_up';
           });
           
-          p.render = hasDiagnosis || supportingCount >= 2 || hasOrder || hasFollowup;
+          // A high-confidence rule match IS the encounter's primary problem (e.g.
+          // "Weight management" for a weight_loss visit) — render it even with few
+          // linked entities. Rule-based problems are deterministic, not hallucinated.
+          p.render = hasDiagnosis || supportingCount >= 1 || hasOrder || hasFollowup || p.confidence >= 0.9;
         }
       } else {
         p.render = true;

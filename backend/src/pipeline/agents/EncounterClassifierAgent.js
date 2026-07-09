@@ -31,6 +31,7 @@ Few-Shot Boundaries for Administrative Refills:
 - If a patient calls to say "I need my Zepbound, I have no side effects, I want to go up to 5mg", and the doctor says "Sent to Rexall" -> medication_refill_administrative.
 - If a daughter calls to say "My dad needs his blood pressure pills renewed, send to Shoppers" -> medication_refill_administrative.
 - If a patient calls for a refill but adds "I've been feeling dizzy on it" or "my blood pressure is 140/90" -> medication_refill (because clinical context exists).
+- If the whole visit is a proxy refilling another person's medications (e.g. "I need all of Alexi's pills, send to McGregor") and the caller only mentions a symptom IN PASSING that is already being managed by another clinician (e.g. "my arm is painful, I'm seeing the surgeon for it"), it is STILL medication_refill_administrative. An incidental symptom handled elsewhere does NOT make it a clinical encounter and must not become the reason for the visit.
 
 Output JSON only.`;
 

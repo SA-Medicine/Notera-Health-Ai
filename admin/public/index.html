@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Notera · Auto-Tester Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class', theme: { extend: {
+    colors: {
+      ink: { 900:'#0a0e14', 850:'#0d1219', 800:'#111827', 750:'#151d2b', 700:'#1c2636', 600:'#26344a' },
+      line: '#22304a', phos: { DEFAULT:'#3ddc97', dim:'#1f7a5a' }, danger:'#ff5c7c', warn:'#ffb454', good:'#3ddc97', info:'#4aa3ff'
+    },
+    fontFamily: { mono: ['ui-monospace','SFMono-Regular','Menlo','monospace'], sans: ['Inter','ui-sans-serif','system-ui'] }
+  } } };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  html,body{height:100%} body{background:#0a0e14;color:#c9d4e3}
+  *{scrollbar-width:thin;scrollbar-color:#26344a transparent}
+  *::-webkit-scrollbar{width:9px;height:9px}*::-webkit-scrollbar-thumb{background:#26344a;border-radius:6px}
+  .glow{box-shadow:0 0 0 1px #22304a, 0 8px 30px -12px rgba(61,220,151,.15)}
+  .logpane{font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.55}
+  .md h1{font-size:1.4rem;font-weight:700;margin:.5em 0 .3em;color:#eaf1fb}
+  .md h2{font-size:1.1rem;font-weight:700;margin:.9em 0 .3em;color:#dbe6f5;border-bottom:1px solid #22304a;padding-bottom:.2em}
+  .md h3{font-size:.98rem;font-weight:600;margin:.7em 0 .2em;color:#cdd9ea}
+  .md p{margin:.4em 0}.md ul,.md ol{margin:.3em 0 .3em 1.2em}.md ul{list-style:disc}.md ol{list-style:decimal}.md li{margin:.15em 0}
+  .md code{background:#151d2b;padding:.1em .35em;border-radius:4px;font-family:ui-monospace,monospace;font-size:.85em;color:#9ff0cf}
+  .md pre{background:#0d1219;border:1px solid #22304a;border-radius:8px;padding:.8em;overflow:auto;margin:.5em 0}
+  .md pre code{background:none;padding:0}
+  .md table{border-collapse:collapse;margin:.6em 0;width:100%;font-size:.85rem}
+  .md th,.md td{border:1px solid #22304a;padding:.35em .6em;text-align:left;vertical-align:top}.md th{background:#151d2b}
+  .md strong{color:#eaf1fb}.md em{color:#9fb0c6}.md blockquote{border-left:3px solid #1f7a5a;padding-left:.8em;color:#9fb0c6;margin:.4em 0}
+  .md hr{border:0;border-top:1px solid #22304a;margin:.8em 0}
+  .diff-add{background:rgba(61,220,151,.12);color:#a9f0d1}.diff-del{background:rgba(255,92,124,.12);color:#ffb3c4}
+  .fade{animation:f .25s ease}@keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+const _mdi = (typeof window!=='undefined') && (window.markdownit || window.markdownIt);
+const MD = _mdi ? _mdi({ html:false, linkify:true, breaks:true, typographer:true })
+  : { render:(t)=>'<pre style="white-space:pre-wrap">'+String(t||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</pre>' };
+const BLOCKERS = ['patient2','patient5'];
+const isBlocker = (f)=> BLOCKERS.includes(String(f||'').toLowerCase());
+const cls = (...a)=>a.filter(Boolean).join(' ');
+const stripAnsi = (s)=> s.replace(/\x1b\[[0-9;]*m/g,'');
+async function jget(u){ const r=await fetch(u); if(r.status===401) throw {unauth:true}; return r.json(); }
+async function jpost(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(r.status===401&&u!=='/api/login') throw {unauth:true}; return r.json(); }
+const fmtPct = (v)=> v==null?'—':(v*100).toFixed(1)+'%';
+const fmtNum = (v,d=3)=> v==null?'—':Number(v).toFixed(d);
+const shortId = (id)=> id.replace(/^run_/,'').replace('_',' ');
+const numOf = (name)=>{ const m=String(name).match(/(\d+)/); return m?Number(m[1]):null; };
+
+// split an eval .md into its named sections (Generated / Raw / Gold + head)
+function splitNoteMd(md){
+  const lines=(md||'').split('\n'); const secs=[]; let cur={title:'_head',body:[]};
+  for(const ln of lines){ const m=ln.match(/──\s*(.+?)\s*──/); if(m){ secs.push(cur); cur={title:m[1],body:[]}; } else cur.body.push(ln); }
+  secs.push(cur);
+  const find=(rx)=>{ const s=secs.find(x=>rx.test(x.title)); return s?s.body.join('\n').trim():''; };
+  return { head:secs[0].body.join('\n').trim(), generated:find(/generated/i), raw:find(/raw pipeline|embedded/i), gold:find(/gold/i) };
+}
+
+const DEF_TH = { section_coverage:[0.8,0.6], similarity_to_gold:[0.4,0.28], story_flow:[0.85,0.65], omission_rate:[0.45,0.6] };
+function loadTh(){ try{return {...DEF_TH,...JSON.parse(localStorage.getItem('notera_th')||'{}')}}catch{return DEF_TH} }
+function metricColor(key,v,th){ if(v==null) return 'text-slate-500'; const t=th[key]; if(!t) return 'text-slate-200';
+  const inv = key==='omission_rate'; const [g,a]=t;
+  if(inv){ if(v<=g) return 'text-good'; if(v<=a) return 'text-warn'; return 'text-danger'; }
+  if(v>=g) return 'text-good'; if(v>=a) return 'text-warn'; return 'text-danger'; }
+
+function Pill({status}){
+  const map={idle:['Idle','bg-ink-700 text-slate-300'],running:['Running','bg-info/20 text-info animate-pulse'],passed:['Passed','bg-good/15 text-good'],failed:['Failed','bg-danger/15 text-danger'],killed:['Killed','bg-warn/15 text-warn'],error:['Error','bg-danger/15 text-danger'],interrupted:['Interrupted','bg-warn/15 text-warn']};
+  const [t,c]=map[status]||map.idle; return <span className={cls('px-2.5 py-1 rounded-full text-xs font-semibold',c)}>{t}</span>;
+}
+function Badge({passed}){ return passed===null? <span className="text-slate-500 text-xs">—</span> :
+  <span className={cls('px-2 py-.5 rounded text-[11px] font-bold', passed?'bg-good/15 text-good':'bg-danger/15 text-danger')}>{passed?'PASS':'FAIL'}</span>; }
+function Md({text}){ return <div className="md" dangerouslySetInnerHTML={{__html:MD.render(text||'')}}/>; }
+
+function Login({onOk}){
+  const [pw,setPw]=useState(''); const [err,setErr]=useState('');
+  const go=async()=>{ const r=await jpost('/api/login',{password:pw}); if(r.ok) onOk(); else setErr('Wrong password'); };
+  return <div className="h-screen flex items-center justify-center">
+    <div className="w-80 bg-ink-800 glow rounded-2xl p-7">
+      <div className="text-phos font-mono text-sm mb-1">notera://</div>
+      <h1 className="text-xl font-bold text-slate-100 mb-1">Auto-Tester Admin</h1>
+      <p className="text-slate-400 text-sm mb-5">Internal regression console.</p>
+      <input type="password" value={pw} autoFocus onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}
+        placeholder="password" className="w-full bg-ink-900 border border-line rounded-lg px-3 py-2 text-sm outline-none focus:border-phos-dim"/>
+      {err&&<div className="text-danger text-xs mt-2">{err}</div>}
+      <button onClick={go} className="w-full mt-4 bg-phos text-ink-900 font-semibold rounded-lg py-2 text-sm hover:brightness-110">Enter</button>
+    </div></div>;
+}
+
+const NAV=[['overview','Overview','▦'],['run','Run','▶'],['results','Results','☰'],['metrics','Metrics','📈'],['judge','Gates & Judge','⚖']];
+function Sidebar({tab,setTab,onLogout,collapsed}){
+  return <div className={cls('shrink-0 bg-ink-850 border-r border-line flex flex-col transition-all', collapsed?'w-14':'w-52')}>
+    <div className="px-4 py-4 border-b border-line overflow-hidden whitespace-nowrap">
+      <div className="text-phos font-mono text-[13px]">notera://</div>
+      {!collapsed&&<div className="text-slate-200 font-semibold text-sm">Auto-Tester</div>}
+    </div>
+    <nav className="flex-1 p-2 space-y-1">
+      {NAV.map(([id,label,ic])=>
+        <button key={id} onClick={()=>setTab(id)} title={label} className={cls('w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition',
+          tab===id?'bg-ink-700 text-slate-100 glow':'text-slate-400 hover:bg-ink-800 hover:text-slate-200')}>
+          <span className="w-4 text-center opacity-80">{ic}</span>{!collapsed&&label}</button>)}
+    </nav>
+    <button onClick={onLogout} className="m-2 px-3 py-2 text-xs text-slate-500 hover:text-slate-300 text-left">{collapsed?'⎋':'Sign out'}</button>
+  </div>;
+}
+
+// ── Run tab (preset + range) ──────────────────────────────────
+function RunTab({global}){
+  const [presets,setPresets]=useState([]); const [mode,setMode]=useState('all');
+  const [sel,setSel]=useState(''); const [from,setFrom]=useState(1); const [to,setTo]=useState(5);
+  const [runId,setRunId]=useState(null); const [status,setStatus]=useState('idle');
+  const [lines,setLines]=useState([]); const [filter,setFilter]=useState('');
+  const [history,setHistory]=useState([]); const esRef=useRef(null); const paneRef=useRef(null);
+  const fixtures=presets.filter(p=>p.id!=='all').map(p=>p.id);
+  const numOf=(f)=>{const m=String(f).match(/(\d+)/);return m?+m[1]:null;};
+  const lo=Math.min(from,to), hi=Math.max(from,to);
+  const rangeSel=fixtures.filter(f=>{const n=numOf(f);return n!=null&&n>=lo&&n<=hi;});
+  const loadHist=useCallback(()=>jget('/api/runs').then(setHistory).catch(()=>{}),[]);
+  useEffect(()=>{ jget('/api/scripts').then(d=>{setPresets(d.presets||[]); const f=(d.presets||[]).find(x=>x.id!=='all'); if(f)setSel(f.id);}).catch(()=>{}); loadHist(); },[]);
+  useEffect(()=>{ const el=paneRef.current; if(el) el.scrollTop=el.scrollHeight; },[lines]);
+  const attach=(id)=>{ setLines([]); if(esRef.current) esRef.current.close();
+    const es=new EventSource('/api/runs/'+id+'/stream'); esRef.current=es;
+    es.onmessage=(e)=>{ const d=JSON.parse(e.data);
+      if(d.type==='line') setLines(L=>[...L,{stream:d.stream,line:stripAnsi(d.line)}]);
+      else if(d.type==='status'){ setStatus(d.status); global.setStatus(d.status); if(d.status!=='running'){ es.close(); loadHist(); } } };
+    es.onerror=()=>{ es.close(); };
+  };
+  const chosen=()=> mode==='all'?[] : mode==='one'?(sel?[sel]:[]) : rangeSel;
+  const start=async()=>{ const fx=chosen(); const r=await jpost('/api/runs',{fixtures:fx});
+    setRunId(r.runId); setStatus('running'); global.setStatus('running'); attach(r.runId); loadHist(); };
+  const stop=async()=>{ if(runId){ await jpost('/api/runs/'+runId+'/kill',{}); } };
+  const openHist=(h)=>{ setRunId(h.id); setStatus(h.status); attach(h.id); };
+  const download=()=>{ const blob=new Blob([lines.map(l=>l.line).join('\n')],{type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(runId||'run')+'.log'; a.click(); };
+  const shown=lines.filter(l=>!filter||l.line.toLowerCase().includes(filter.toLowerCase()));
+  const Mbtn=(id,label)=><button onClick={()=>setMode(id)} className={cls('px-3 py-1.5 rounded-lg text-sm border',mode===id?'border-phos-dim bg-ink-700 text-slate-100':'border-line bg-ink-800 text-slate-400 hover:text-slate-200')}>{label}</button>;
+  const willRun= mode==='all'?fixtures.length:(mode==='one'?(sel?1:0):rangeSel.length);
+  return <div className="p-6 fade">
+    <div className="flex items-center gap-2 mb-3">{Mbtn('all','All')}{Mbtn('one','Single')}{Mbtn('range','Range')}</div>
+    <div className="flex items-center gap-3 mb-4 flex-wrap">
+      {mode==='one'&&<select value={sel} onChange={e=>setSel(e.target.value)} className="bg-ink-800 border border-line rounded-lg px-3 py-2 text-sm outline-none focus:border-phos-dim">
+        {fixtures.map(f=><option key={f} value={f}>{f}</option>)}</select>}
+      {mode==='range'&&<div className="flex items-center gap-2 text-sm text-slate-400">
+        <span>Patient</span>
+        <input type="number" min="1" value={from} onChange={e=>setFrom(+e.target.value)} className="w-16 bg-ink-800 border border-line rounded-lg px-2 py-2 outline-none focus:border-phos-dim"/>
+        <span>to</span>
+        <input type="number" min="1" value={to} onChange={e=>setTo(+e.target.value)} className="w-16 bg-ink-800 border border-line rounded-lg px-2 py-2 outline-none focus:border-phos-dim"/>
+      </div>}
+      {status!=='running'
+        ? <button onClick={start} disabled={willRun===0} className={cls('font-semibold px-4 py-2 rounded-lg text-sm',willRun===0?'bg-ink-700 text-slate-500':'bg-phos text-ink-900 hover:brightness-110')}>▶ Run {willRun>0?`(${willRun})`:''}</button>
+        : <button onClick={stop} className="bg-danger/90 text-white font-semibold px-4 py-2 rounded-lg text-sm">■ Stop</button>}
+      <Pill status={status}/>
+      <div className="flex-1"/>
+      <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="filter logs…" className="bg-ink-800 border border-line rounded-lg px-3 py-2 text-sm w-48 outline-none focus:border-phos-dim"/>
+      <button onClick={download} className="text-slate-400 hover:text-slate-200 text-sm border border-line rounded-lg px-3 py-2">⭳ Log</button>
+    </div>
+    {mode==='range'&&<div className="mb-3 text-xs text-slate-500">Will run: {rangeSel.length? rangeSel.join(', ') : <span className="text-warn">no fixtures match Patient {lo}–{hi}</span>}</div>}
+    <div ref={paneRef} className="logpane bg-ink-900 border border-line rounded-xl h-[50vh] overflow-auto p-3">
+      {shown.length===0 && <div className="text-slate-600 text-sm">No output yet. Choose fixtures and hit Run — stdout streams here live.</div>}
+      {shown.map((l,i)=><div key={i} className={cls('whitespace-pre-wrap', l.stream==='err'?'text-danger':'text-slate-300')}>{l.line}</div>)}
+    </div>
+    <div className="mt-4">
+      <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Recent runs</div>
+      <div className="flex gap-2 flex-wrap">
+        {history.slice(0,8).map(h=>
+          <button key={h.id} onClick={()=>openHist(h)} className={cls('flex items-center gap-2 px-3 py-2 rounded-lg border text-xs',
+            runId===h.id?'border-phos-dim bg-ink-700':'border-line bg-ink-800 hover:bg-ink-700')}>
+            <Pill status={h.status}/><span className="font-mono text-slate-400">{(h.command||'').replace('node eval/run_eval.mjs','eval').trim()||'eval'}</span>
+          </button>)}
+        {history.length===0&&<span className="text-slate-600 text-sm">No runs yet.</span>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ── Results tab (collapsible selector + 2-pane Generated | Gold) ──
+function NotePane({title,tone,md,raw,onClose,closable}){
+  return <div className="flex-1 min-w-0 flex flex-col border border-line rounded-xl bg-ink-850 overflow-hidden">
+    <div className="flex items-center gap-2 px-3 py-2 border-b border-line">
+      <span className={cls('w-2 h-2 rounded-full',tone==='gold'?'bg-warn':'bg-phos')}/>
+      <span className="text-sm font-semibold text-slate-200">{title}</span>
+      <div className="flex-1"/>
+      {closable&&<button onClick={onClose} title="close pane" className="text-slate-500 hover:text-slate-200 text-sm px-1">✕</button>}
+    </div>
+    <div className="flex-1 overflow-auto p-4">
+      {raw ? <pre className="logpane whitespace-pre-wrap text-slate-300">{md}</pre>
+           : md.trim() ? <div className="md" dangerouslySetInnerHTML={{__html:MD.render(md)}}/>
+                       : <div className="text-slate-600 text-sm">(empty)</div>}
+    </div>
+  </div>;
+}
+function ResultsTab(){
+  const [runs,setRuns]=useState([]); const [dir,setDir]=useState(''); const [files,setFiles]=useState([]);
+  const [file,setFile]=useState(''); const [content,setContent]=useState(''); const [raw,setRaw]=useState(false);
+  const [diffB,setDiffB]=useState(''); const [diffMode,setDiffMode]=useState(false); const [diffData,setDiffData]=useState(null);
+  const [sideOpen,setSideOpen]=useState(true); const [showGen,setShowGen]=useState(true); const [showGold,setShowGold]=useState(true);
+  useEffect(()=>{ jget('/api/results/runs').then(r=>{ setRuns(r); if(r[0]) setDir(r[0].dir); }).catch(()=>{}); },[]);
+  useEffect(()=>{ if(dir) jget('/api/results/'+dir+'/files').then(f=>{ setFiles(f); if(f[0]){setFile(f[0].file);} }).catch(()=>{}); },[dir]);
+  useEffect(()=>{ if(dir&&file&&!diffMode) jget('/api/results/file?dir='+dir+'&name='+encodeURIComponent(file)).then(d=>setContent(d.content||'')).catch(()=>{}); },[dir,file,diffMode]);
+  useEffect(()=>{ if(diffMode&&dir&&diffB&&file) jget(`/api/results/diff?a=${diffB}&b=${dir}&name=${encodeURIComponent(file)}`).then(setDiffData).catch(()=>{}); },[diffMode,dir,diffB,file]);
+  const parsed=useMemo(()=>splitNoteMd(content),[content]);
+  const diffLines=useMemo(()=>diffData?computeDiff(diffData.a,diffData.b):[],[diffData]);
+  const copy=()=>navigator.clipboard.writeText(content);
+  const genOpen=showGen||!showGold; const goldOpen=showGold||!showGen;
+  const tbtn=(on,set,label)=><button onClick={()=>set(!on)} className={cls('text-xs border rounded px-2 py-1',on?'border-phos-dim text-slate-200':'border-line text-slate-500 hover:text-slate-300')}>{label}</button>;
+  return <div className="p-6 fade flex gap-4 h-[calc(100vh-56px)]">
+    {sideOpen && <div className="w-60 shrink-0 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wide text-slate-500">Run</span>
+        <button onClick={()=>setSideOpen(false)} title="collapse sidebar" className="text-slate-500 hover:text-slate-200 text-xs">◀ hide</button>
+      </div>
+      <select value={dir} onChange={e=>setDir(e.target.value)} className="w-full bg-ink-800 border border-line rounded-lg px-2 py-2 text-sm outline-none">
+        {runs.map(r=><option key={r.dir} value={r.dir}>{shortId(r.dir)}</option>)}</select>
+      <label className="flex items-center gap-2 text-sm text-slate-400">
+        <input type="checkbox" checked={diffMode} onChange={e=>{setDiffMode(e.target.checked); if(e.target.checked)setDiffB(runs.find(r=>r.dir!==dir)?.dir||'');}}/> Diff vs another run</label>
+      {diffMode&&<select value={diffB} onChange={e=>setDiffB(e.target.value)} className="w-full bg-ink-800 border border-line rounded-lg px-2 py-2 text-sm">
+        {runs.filter(r=>r.dir!==dir).map(r=><option key={r.dir} value={r.dir}>{shortId(r.dir)}</option>)}</select>}
+      <div className="text-xs uppercase tracking-wide text-slate-500 mt-1">Fixtures</div>
+      <div className="flex-1 overflow-auto space-y-1 pr-1">
+        {files.map(f=>
+          <button key={f.file} onClick={()=>setFile(f.file)} className={cls('w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-sm',
+            file===f.file?'bg-ink-700 text-slate-100':'text-slate-400 hover:bg-ink-800')}>
+            <span className="truncate">{isBlocker(f.fixture)&&<span className="text-warn mr-1" title="release blocker">★</span>}{f.fixture}</span>
+            <Badge passed={f.passed}/></button>)}
+      </div>
+    </div>}
+    <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {!sideOpen&&<button onClick={()=>setSideOpen(true)} className="text-xs border border-line rounded px-2 py-1 text-slate-400 hover:text-slate-200">▶ files</button>}
+        <span className="font-mono text-sm text-slate-300 truncate">{file}</span>
+        {isBlocker(file.replace(/\.md$/,''))&&<span className="text-warn text-xs">★ blocker</span>}
+        <div className="flex-1"/>
+        {!diffMode&&<>
+          {tbtn(showGen,setShowGen,'Notera')}
+          {tbtn(showGold,setShowGold,'Heidi')}
+          {tbtn(raw,setRaw,'Raw')}
+          <button onClick={copy} className="text-xs border border-line rounded px-2 py-1 text-slate-400 hover:text-slate-200">Copy</button>
+        </>}
+        {diffMode&&<span className="text-xs text-slate-500">{shortId(diffB)} → {shortId(dir)}</span>}
+      </div>
+      {diffMode
+        ? <div className="flex-1 overflow-auto bg-ink-850 border border-line rounded-xl p-4 logpane">{diffLines.map((d,i)=><div key={i} className={cls('whitespace-pre-wrap px-1', d.t==='+'&&'diff-add', d.t==='-'&&'diff-del')}>{d.t} {d.line}</div>)}</div>
+        : <div className="flex-1 flex gap-4 min-h-0">
+            {genOpen&&<NotePane title="Notera — generated" tone="gen" md={parsed.generated||content} raw={raw} closable={goldOpen} onClose={()=>setShowGen(false)}/>}
+            {goldOpen&&<NotePane title="Heidi — gold" tone="gold" md={parsed.gold} raw={raw} closable={genOpen} onClose={()=>setShowGold(false)}/>}
+          </div>}
+    </div>
+  </div>;
+}
+function computeDiff(a,b){ const A=(a||'').split('\n'),B=(b||'').split('\n'); const n=A.length,m=B.length;
+  const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=A[i]===B[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  const out=[]; let i=0,j=0;
+  while(i<n&&j<m){ if(A[i]===B[j]){out.push({t:' ',line:A[i]});i++;j++;} else if(dp[i+1][j]>=dp[i][j+1]){out.push({t:'-',line:A[i]});i++;} else {out.push({t:'+',line:B[j]});j++;} }
+  while(i<n)out.push({t:'-',line:A[i++]}); while(j<m)out.push({t:'+',line:B[j++]});
+  return out.filter(d=>d.t!==' '||d.line.trim()); }
+
+// ── Metrics tab ───────────────────────────────────────────────
+const METRICS=[['avg_section_coverage','Coverage','section_coverage','pct'],['avg_similarity_to_gold','Similarity','similarity_to_gold','num'],['avg_story_flow','Story/Flow','story_flow','num'],['avg_omission_rate','Omission','omission_rate','pct']];
+function MetricsTab(){
+  const [runs,setRuns]=useState([]); const [hist,setHist]=useState([]); const [expand,setExpand]=useState(null);
+  const [rows,setRows]=useState({}); const [cmpA,setCmpA]=useState(''); const [cmpB,setCmpB]=useState(''); const [cmp,setCmp]=useState(null);
+  const th=loadTh(); const chartRef=useRef(null); const chartObj=useRef(null);
+  useEffect(()=>{ jget('/api/metrics/history').then(setHist).catch(()=>{}); jget('/api/results/runs').then(r=>{setRuns(r); if(r[1])setCmpA(r[1].dir); if(r[0])setCmpB(r[0].dir);}).catch(()=>{}); },[]);
+  useEffect(()=>{ if(!chartRef.current||!hist.length) return; const ctx=chartRef.current.getContext('2d');
+    const labels=hist.map(h=>String(h.runId).slice(5)||h.runId);
+    const ds=(key,color)=>({label:key.replace('avg_',''),data:hist.map(h=>h[key]??null),borderColor:color,backgroundColor:color+'22',tension:.3,spanGaps:true,pointRadius:3});
+    if(chartObj.current)chartObj.current.destroy();
+    chartObj.current=new Chart(ctx,{type:'line',data:{labels,datasets:[ds('avg_section_coverage','#3ddc97'),ds('avg_similarity_to_gold','#4aa3ff'),ds('avg_story_flow','#c77dff'),ds('avg_omission_rate','#ff5c7c')]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#9fb0c6',boxWidth:12}}},scales:{x:{ticks:{color:'#5b6b82',maxRotation:0,autoSkip:true},grid:{color:'#151d2b'}},y:{ticks:{color:'#5b6b82'},grid:{color:'#151d2b'},min:0,max:1}}}});
+  },[hist]);
+  const toggle=(d)=>{ if(expand===d){setExpand(null);return;} setExpand(d); if(!rows[d]) jget('/api/metrics/run/'+d).then(x=>setRows(r=>({...r,[d]:x.rows||[]}))).catch(()=>{}); };
+  const runCompare=()=>{ if(cmpA&&cmpB) jget(`/api/metrics/compare?a=${cmpA}&b=${cmpB}`).then(setCmp).catch(()=>{}); };
+  return <div className="p-6 fade space-y-6">
+    <div className="bg-ink-850 border border-line rounded-xl p-4">
+      <div className="text-sm text-slate-300 mb-3 font-semibold">Quality trend across runs</div>
+      <div className="h-56"><canvas ref={chartRef}></canvas></div>
+    </div>
+    <div className="bg-ink-850 border border-line rounded-xl overflow-hidden">
+      <table className="w-full text-sm"><thead className="bg-ink-800 text-slate-400 text-xs uppercase"><tr>
+        <th className="text-left px-4 py-2.5">Run</th><th className="px-3">Fixtures</th>
+        {METRICS.map(m=><th key={m[0]} className="px-3">{m[1]}</th>)}<th className="px-3">Unsupp. meds</th><th></th></tr></thead>
+        <tbody>{runs.map(r=>{const s=r.summary; return <React.Fragment key={r.dir}>
+          <tr className="border-t border-line hover:bg-ink-800 cursor-pointer" onClick={()=>toggle(r.dir)}>
+            <td className="px-4 py-2.5 font-mono text-slate-300">{shortId(r.dir)}</td>
+            <td className="text-center text-slate-300">{s?s.count:'—'}</td>
+            {METRICS.map(m=>{const v=s?s[m[0]]:null; return <td key={m[0]} className={cls('text-center font-mono',metricColor(m[2],v,th))}>{m[3]==='pct'?fmtPct(v):fmtNum(v)}</td>;})}
+            <td className={cls('text-center font-mono',(s?.total_unsupported_meds)?'text-danger':'text-slate-400')}>{s?(s.total_unsupported_meds||0):'—'}</td>
+            <td className="px-3 text-slate-500">{expand===r.dir?'▾':'▸'}</td></tr>
+          {expand===r.dir&&<tr><td colSpan={8} className="bg-ink-900 px-4 py-3"><FixtureBreakdown rows={rows[r.dir]} th={th}/></td></tr>}
+        </React.Fragment>;})}</tbody></table>
+    </div>
+    <div className="bg-ink-850 border border-line rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm font-semibold text-slate-300">Compare runs</span>
+        <select value={cmpA} onChange={e=>setCmpA(e.target.value)} className="bg-ink-800 border border-line rounded px-2 py-1 text-sm">{runs.map(r=><option key={r.dir} value={r.dir}>{shortId(r.dir)}</option>)}</select>
+        <span className="text-slate-500">→</span>
+        <select value={cmpB} onChange={e=>setCmpB(e.target.value)} className="bg-ink-800 border border-line rounded px-2 py-1 text-sm">{runs.map(r=><option key={r.dir} value={r.dir}>{shortId(r.dir)}</option>)}</select>
+        <button onClick={runCompare} className="bg-phos text-ink-900 font-semibold px-3 py-1 rounded text-sm">Compare</button>
+      </div>
+      {cmp&&<CompareView cmp={cmp} th={th}/>}
+    </div>
+  </div>;
+}
+function FixtureBreakdown({rows,th}){
+  if(!rows) return <div className="text-slate-500 text-sm">Loading…</div>;
+  if(!rows.length) return <div className="text-slate-500 text-sm">No per-fixture summary saved for this run.</div>;
+  return <table className="w-full text-xs"><thead className="text-slate-500"><tr>
+    <th className="text-left py-1">Fixture</th><th>Status</th><th>Schema</th><th>Coverage</th><th>Similarity</th><th>Story/Flow</th><th>Omission</th><th>Unsupp. meds</th></tr></thead>
+    <tbody>{rows.map(r=><tr key={r.id} className="border-t border-ink-700">
+      <td className="py-1.5 text-slate-300">{isBlocker(r.id)&&<span className="text-warn mr-1">★</span>}{r.id}</td>
+      <td className="text-center"><Badge passed={r.status!=='FLAGGED'&&r.status!=='INVALID'&&r.schema_valid!==false}/></td>
+      <td className={cls('text-center font-mono',r.schema_valid?'text-good':'text-danger')}>{r.schema_valid?'✓':'✗'}</td>
+      <td className={cls('text-center font-mono',metricColor('section_coverage',r.section_coverage,th))}>{fmtNum(r.section_coverage,2)}</td>
+      <td className={cls('text-center font-mono',metricColor('similarity_to_gold',r.similarity_to_gold,th))}>{fmtNum(r.similarity_to_gold)}</td>
+      <td className={cls('text-center font-mono',metricColor('story_flow',r.story_flow,th))}>{fmtNum(r.story_flow)}</td>
+      <td className={cls('text-center font-mono',metricColor('omission_rate',r.omission_rate,th))}>{fmtNum(r.omission_rate)}</td>
+      <td className={cls('text-center font-mono',(r.meds_unsupported?.length)?'text-danger':'text-slate-500')}>{r.meds_unsupported?.length||0}</td>
+    </tr>)}</tbody></table>;
+}
+function CompareView({cmp,th}){
+  const delta=(k)=>{const a=cmp.a?.[k],b=cmp.b?.[k]; if(a==null||b==null)return null; return b-a;};
+  return <div>
+    <div className="grid grid-cols-4 gap-3 mb-4">
+      {METRICS.map(m=>{const d=delta(m[0]); const inv=m[2]==='omission_rate'; const good=d!=null&&(inv?d<0:d>0);
+        return <div key={m[0]} className="bg-ink-800 border border-line rounded-lg p-3">
+          <div className="text-xs text-slate-500">{m[1]}</div>
+          <div className="font-mono text-lg text-slate-200">{m[3]==='pct'?fmtPct(cmp.b?.[m[0]]):fmtNum(cmp.b?.[m[0]])}</div>
+          <div className={cls('text-xs font-mono',d==null?'text-slate-500':good?'text-good':'text-danger')}>{d==null?'—':(d>0?'▲ +':'▼ ')+(m[3]==='pct'?(d*100).toFixed(1)+'%':d.toFixed(3))}</div></div>;})}
+    </div>
+    <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Fixture flips</div>
+    <div className="flex flex-wrap gap-2">
+      {cmp.fixtures.map(f=>{const pa=f.a?(f.a.status!=='FLAGGED'&&f.a.schema_valid!==false):null; const pb=f.b?(f.b.status!=='FLAGGED'&&f.b.schema_valid!==false):null; const flip=pa!==pb;
+        return <div key={f.id} className={cls('px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-2',flip?(pb?'border-good/40 bg-good/10':'border-danger/40 bg-danger/10'):'border-line bg-ink-800')}>
+          {isBlocker(f.id)&&<span className="text-warn">★</span>}<span className="text-slate-300">{f.id}</span>{flip&&<span className={pb?'text-good':'text-danger'}>{pb?'→ PASS':'→ FAIL'}</span>}</div>;})}
+    </div>
+  </div>;
+}
+
+function JudgeTab(){
+  const [th,setTh]=useState(loadTh()); const save=(k,i,v)=>{const n={...th,[k]:th[k].map((x,j)=>j===i?Number(v):x)}; setTh(n); localStorage.setItem('notera_th',JSON.stringify(n));};
+  const GATES=[['schema_valid','Schema validity','note validates against Heidi schema v2'],['section_coverage','Section coverage','how many core SOAP sections are populated'],['similarity_to_gold','Similarity to gold','token overlap with the reference note'],['story_flow','Story / Flow','prose reads as connected clinical narrative, not fragments'],['omission_rate','Omission','share of gold key-terms missing (lower is better)'],['meds_unsupported','Fabrication scan','medications in the note not grounded by NER — highest severity']];
+  return <div className="p-6 fade max-w-3xl space-y-5">
+    <div className="bg-ink-850 border border-line rounded-xl p-5">
+      <div className="text-slate-200 font-semibold mb-1">Grading gates</div>
+      <p className="text-slate-400 text-sm mb-4">This harness scores deterministically (no LLM judge yet), so the "gates" are the metrics computed in <code className="text-phos">eval/metrics.mjs</code>. Fabrication scan is the highest-severity class and gets its own red badge across the UI.</p>
+      <div className="space-y-2">{GATES.map(g=><div key={g[0]} className="flex items-center gap-3 bg-ink-800 border border-line rounded-lg px-3 py-2">
+        <span className={cls('w-2 h-2 rounded-full',g[0]==='meds_unsupported'?'bg-danger':'bg-phos')}/>
+        <div className="flex-1"><div className="text-sm text-slate-200">{g[1]}</div><div className="text-xs text-slate-500">{g[2]}</div></div>
+        {g[0]==='meds_unsupported'&&<span className="text-[11px] bg-danger/15 text-danger px-2 py-.5 rounded font-bold">SEV-1</span>}</div>)}</div>
+    </div>
+    <div className="bg-ink-850 border border-line rounded-xl p-5">
+      <div className="text-slate-200 font-semibold mb-3">Colour thresholds (green ≥ / amber ≥)</div>
+      <div className="grid grid-cols-2 gap-3">{Object.entries(th).map(([k,v])=><div key={k} className="bg-ink-800 border border-line rounded-lg p-3">
+        <div className="text-xs text-slate-400 mb-2">{k}{k==='omission_rate'&&' (lower better)'}</div>
+        <div className="flex gap-2"><input type="number" step="0.01" value={v[0]} onChange={e=>save(k,0,e.target.value)} className="w-20 bg-ink-900 border border-line rounded px-2 py-1 text-sm"/>
+          <input type="number" step="0.01" value={v[1]} onChange={e=>save(k,1,e.target.value)} className="w-20 bg-ink-900 border border-line rounded px-2 py-1 text-sm"/></div></div>)}</div>
+    </div>
+  </div>;
+}
+
+function Overview({setTab}){
+  const [runs,setRuns]=useState([]); const [hist,setHist]=useState([]);
+  useEffect(()=>{ jget('/api/results/runs').then(setRuns).catch(()=>{}); jget('/api/metrics/history').then(setHist).catch(()=>{}); },[]);
+  const withS=runs.filter(r=>r.summary); const latest=withS[0], prev=withS[1];
+  const card=(label,key,fmt)=>{const v=latest?.summary?.[key]; const p=prev?.summary?.[key]; const d=(v!=null&&p!=null)?v-p:null; const inv=key==='avg_omission_rate';
+    return <div className="bg-ink-850 border border-line rounded-xl p-4"><div className="text-xs text-slate-500">{label}</div>
+      <div className="text-2xl font-mono text-slate-100 mt-1">{fmt(v)}</div>
+      <div className={cls('text-xs font-mono mt-1',d==null?'text-slate-600':(inv?d<0:d>0)?'text-good':'text-danger')}>{d==null?'first run':(d>0?'▲ +':'▼ ')+fmt(Math.abs(d))}</div></div>;};
+  return <div className="p-6 fade space-y-5">
+    <div className="grid grid-cols-4 gap-4">
+      {card('Section coverage','avg_section_coverage',fmtPct)}{card('Similarity to gold','avg_similarity_to_gold',v=>fmtNum(v))}
+      {card('Story / Flow','avg_story_flow',v=>fmtNum(v))}{card('Omission rate','avg_omission_rate',fmtPct)}</div>
+    <div className="grid grid-cols-2 gap-4">
+      <button onClick={()=>setTab('run')} className="bg-ink-850 border border-line rounded-xl p-5 text-left hover:bg-ink-800"><div className="text-phos text-sm font-mono mb-1">▶ Run</div><div className="text-slate-300 text-sm">Trigger the tester (preset or patient range) and watch logs stream live.</div></button>
+      <button onClick={()=>setTab('results')} className="bg-ink-850 border border-line rounded-xl p-5 text-left hover:bg-ink-800"><div className="text-info text-sm font-mono mb-1">☰ Results</div><div className="text-slate-300 text-sm">Generated vs Gold side-by-side, run-vs-run diff.</div></button></div>
+    <div className="bg-ink-850 border border-line rounded-xl p-4"><div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Runs recorded</div>
+      <div className="text-slate-300 text-sm">{runs.length} result set{runs.length===1?'':'s'} · {hist.length} scored in history · release blockers ★ patient2, patient5</div></div>
+  </div>;
+}
+
+function App(){
+  const [authed,setAuthed]=useState(null); const [tab,setTab]=useState('overview'); const [status,setStatus]=useState('idle'); const [navOpen,setNavOpen]=useState(true);
+  useEffect(()=>{ jget('/api/session').then(d=>setAuthed(d.authed)).catch(()=>setAuthed(false)); },[]);
+  useEffect(()=>{ const h=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault(); setTab('run');} }; window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h); },[]);
+  if(authed===null) return <div className="h-screen flex items-center justify-center text-slate-500">…</div>;
+  if(!authed) return <Login onOk={()=>setAuthed(true)}/>;
+  const logout=async()=>{ await jpost('/api/logout',{}); setAuthed(false); };
+  return <div className="flex h-screen">
+    <Sidebar tab={tab} setTab={setTab} onLogout={logout} collapsed={!navOpen}/>
+    <div className="flex-1 flex flex-col min-w-0">
+      <div className="h-14 shrink-0 border-b border-line bg-ink-850 flex items-center gap-3 px-4">
+        <button onClick={()=>setNavOpen(o=>!o)} title="toggle sidebar" className="text-slate-400 hover:text-slate-200 w-8 h-8 rounded-lg hover:bg-ink-800">☰</button>
+        <div className="text-slate-200 font-semibold capitalize">{NAV.find(n=>n[0]===tab)?.[1]}</div>
+        <Pill status={status}/><div className="flex-1"/>
+        <span className="text-xs text-slate-500 font-mono">env: local · ⌘K → Run</span>
+      </div>
+      <div className="flex-1 overflow-auto">
+        {tab==='overview'&&<Overview setTab={setTab}/>}
+        {tab==='run'&&<RunTab global={{setStatus}}/>}
+        {tab==='results'&&<ResultsTab/>}
+        {tab==='metrics'&&<MetricsTab/>}
+        {tab==='judge'&&<JudgeTab/>}
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

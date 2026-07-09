@@ -53,9 +53,32 @@ export class LLMService {
   }
 
   async generateContent(systemInstruction, userPrompt, responseSchema = null, options = {}) {
-    const url = this._endpoint(false);
+    // When GEMINI_PROXY_URL is set, route through the SAME backend proxy the website uses
+    // (POST /api/llm/generate) instead of calling Gemini directly — identical response
+    // shape, plus the proxy's retry + schema/token fallbacks. This makes the auto-tester
+    // succeed whenever the backend does (same key, same working network path).
+    const proxyBase = (process.env.GEMINI_PROXY_URL || process.env.LLM_PROXY_URL || '').replace(/\/+$/, '');
+    // Ordered endpoints to try: the backend proxy on BOTH loopback families (the backend
+    // may listen on 127.0.0.1 OR ::1), then a direct Gemini call as last resort. Advance
+    // to the next only on a CONNECTION error, so the fast reliable proxy is always used
+    // when the backend is up on either family.
+    const proxyVariants = (b) => {
+      if (!b) return [];
+      const set = new Set([b]);
+      if (/127\.0\.0\.1/.test(b)) set.add(b.replace('127.0.0.1', '[::1]'));
+      else if (/\[::1\]/.test(b)) set.add(b.replace('[::1]', '127.0.0.1'));
+      else if (/localhost/i.test(b)) { set.add(b.replace(/localhost/i, '127.0.0.1')); set.add(b.replace(/localhost/i, '[::1]')); }
+      return [...set];
+    };
+    const targets = [
+      ...proxyVariants(proxyBase).map((b) => ({ proxy: true, url: `${b}/api/llm/generate?model=${encodeURIComponent(this.model)}` })),
+      { proxy: false, url: this._endpoint(false) },
+    ];
+    let ti = 0;
+    let usingProxy = targets[ti].proxy;
+    let url = targets[ti].url;
     const timeoutMs = options.timeoutMs || 120000;
-    const retries = options.retries !== undefined ? Math.max(options.retries, 2) : 2;
+    const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
     const maxOutputTokens = options.maxOutputTokens || Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 32768;
 
     const body = {
@@ -71,7 +94,7 @@ export class LLMService {
       if (typeof responseSchema === 'object') body.generationConfig.responseSchema = responseSchema;
     }
 
-    const headers = await this._authHeaders();
+    let headers = usingProxy ? { 'Content-Type': 'application/json' } : await this._authHeaders();
     let lastErr;
     for (let attempt = 0; attempt <= retries; attempt++) {
       const controller = new AbortController();
@@ -95,9 +118,19 @@ export class LLMService {
         const data = await response.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       } catch (err) {
+        const connErr = err?.name === 'TypeError' || !!err?.cause?.code || /fetch failed|ECONNREFUSED|ECONNRESET|EAI_AGAIN|ENOTFOUND|network/i.test(err?.message || '');
+        // Local proxy unreachable (e.g. backend on ::1 not 127.0.0.1)? Fall back to
+        // calling Gemini directly with the key — the machine can reach Gemini.
+        if (connErr && ti < targets.length - 1) {
+          ti++; usingProxy = targets[ti].proxy; url = targets[ti].url;
+          headers = usingProxy ? { 'Content-Type': 'application/json' } : await this._authHeaders();
+          console.warn(`[LLMService] endpoint unreachable (${err?.cause?.code || err?.message}); trying ${usingProxy ? 'proxy ' + url : 'direct Gemini'}`);
+          lastErr = err; continue;
+        }
+        const where = usingProxy ? `proxy ${url}` : 'Gemini API';
         lastErr = err && err.name === 'AbortError'
-          ? new Error(`Gemini request timed out after ${Math.round(timeoutMs / 1000)}s`)
-          : err;
+          ? new Error(`${where} timed out after ${Math.round(timeoutMs / 1000)}s`)
+          : new Error(`${where} request failed: ${err?.message || err} (cause: ${err?.cause?.code || 'n/a'})`);
         if (attempt < retries && (err?.name === 'AbortError' || err?.name === 'TypeError' ||
             /fetch failed|network/i.test(err?.message || ''))) continue;
         throw lastErr;
