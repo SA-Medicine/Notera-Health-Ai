@@ -1,0 +1,412 @@
+[
+  {
+    "id": 1,
+    "heidi_session_id": "317245843171838655570920140775815103315",
+    "patient_name_fallback": "M",
+    "subtitle": "Patient 1",
+    "session_title": "M",
+    "session_date": null,
+    "session_time": "16:06:00",
+    "language": null,
+    "duration": null,
+    "tags": [],
+    "internal_identifier": "",
+    "source_url": "https://scribe.heidihealth.com/en/scribe/session/317245843171838655570920140775815103315",
+    "transcript": {
+      "id": 1,
+      "session_id": 1,
+      "raw_text": "Patient 2 started 2004-02-26\n\n0:00\n\nHi, doctor. My name is Patient 1, and I live in [LOCATION], and I would like to please don't come.\n\n0:12\n\nAnd I would like to describe my issue. I'm having a stomach pains. It's a cramps, and I'm not feeling well. And I would like to get some medicine to test it. Thank you.\n\nTranscript ended 2002-07-25",
+      "clean_text": "Patient 2 started 1986-06-30\n\n0:00\n\nHi, doctor. My name is Patient 1, and I live in [LOCATION], and I would like to please don't come.\n\n0:12\n\nAnd I would like to describe my issue. I'm having a stomach pains. It's a cramps, and I'm not feeling well. And I would like to get some medicine to test it. Thank you.\n\nTranscript ended 2006-11-13",
+      "word_count": null,
+      "sha256": "61e478d24559111a4fd39398c9f088854db1d363c670cfacda8e52b84594d94b",
+      "created_at": "2026-07-02T14:50:24.111942+00:00"
+    },
+    "soap_note": {
+      "id": 1,
+      "session_id": 1,
+      "soap_note": "Subjective:\n\nPatient 1 presents with stomach pain and cramps. Reports not feeling well. Requests medication for symptom relief.\n\n\n\n\nObjective:\n\n\n\n\nAssessment:\n\n\n\n\nPlan:",
+      "assessment": null,
+      "plan": null,
+      "summary": null,
+      "hash": "e8ae11d9a61558de287fb9e9c9a85fc9bf40f302dcb692b784e3a3ebbcd0a44e",
+      "created_at": "2026-07-02T14:50:31.202111+00:00"
+    },
+    "artifacts": [
+      {
+        "id": 1,
+        "session_id": 1,
+        "type": "overview",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:20.360629+00:00"
+      },
+      {
+        "id": 2,
+        "session_id": 1,
+        "type": "transcript",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:24.090713+00:00"
+      },
+      {
+        "id": 3,
+        "session_id": 1,
+        "type": "note",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:31.182142+00:00"
+      }
+    ],
+    "audits": [
+      {
+        "id": 1,
+        "session_id": 1,
+        "status": "success",
+        "validation_status": "passed_with_warnings",
+        "retries_used": 0,
+        "error_message": null,
+        "started_at": "2026-07-02T14:50:04.097089+00:00",
+        "completed_at": "2026-07-02T14:50:31.401622+00:00"
+      }
+    ],
+    "created_at": "2026-07-02T14:49:34.472196+00:00",
+    "updated_at": "2026-07-02T14:50:04.090892+00:00"
+  },
+  {
+    "id": 2,
+    "heidi_session_id": "15986957309609963956302177610604220243",
+    "patient_name_fallback": "Hair fall, tests",
+    "subtitle": "1988-04-29",
+    "session_title": "Hair fall, tests",
+    "session_date": null,
+    "session_time": "17:27:00",
+    "language": null,
+    "duration": null,
+    "tags": [],
+    "internal_identifier": "",
+    "source_url": "https://scribe.heidihealth.com/en/scribe/session/15986957309609963956302177610604220243",
+    "transcript": {
+      "id": 2,
+      "session_id": 2,
+      "raw_text": "Patient 2 started 1981-01-29\n\n0:00\n\nHi, patient. Uh, I have a complaint about an hair fall, and this has been happening from past\n\n0:11\n\n1977-03-24, uh, and most probably 2009-02-01, and it's like a huge hair fall. And I have done my blood test, and I have also done my hormonal changes test, but I'm getting a big, uh, no improvement at all. Please suggest me some medicine.\n\n0:33\n\nOkay. Uh, that's fine. It normally happens after the age of, uh, around fifty, so you should go and get an iron dose. Before that, I would suggest some blood test and some more sugar test, and also iron test for deficiency. Uh, once the test results are there, we can go ahead and get the medicine for it. Thank you. Stop. Stop.\n\nTranscript ended 2010-12-02",
+      "clean_text": "Patient 2 started 2024-02-01\n\n0:00\n\nHi, patient. Uh, I have a complaint about an hair fall, and this has been happening from past\n\n0:11\n\n2013-08-14, uh, and most probably 2020-07-08, and it's like a huge hair fall. And I have done my blood test, and I have also done my hormonal changes test, but I'm getting a big, uh, no improvement at all. Please suggest me some medicine.\n\n0:33\n\nOkay. Uh, that's fine. It normally happens after the age of, uh, around fifty, so you should go and get an iron dose. Before that, I would suggest some blood test and some more sugar test, and also iron test for deficiency. Uh, once the test results are there, we can go ahead and get the medicine for it. Thank you. Stop. Stop.\n\nTranscript ended 2011-11-28",
+      "word_count": null,
+      "sha256": "37b29407a06a34fc533e507f3fad4d878f27a8efa61f274df4644b17e5249006",
+      "created_at": "2026-07-02T14:50:51.560947+00:00"
+    },
+    "soap_note": {
+      "id": 2,
+      "session_id": 2,
+      "soap_note": "Subjective:\n\n- Hair fall for 2008-10-18, occurring 1976-07-18 with significant volume\n\n- Blood tests and hormonal tests completed previously with no improvement noted\n\n\n\n\nPast Medical History:\n\n\n\n\nObjective:\n\n\n\n\nAssessment:\n\n\n\n\nPlan:\n\n- Blood tests, sugar test, and iron deficiency test ordered\n\n- Iron supplementation to be considered once results are available\n\n- Medication for hair fall to be prescribed following review of test results",
+      "assessment": null,
+      "plan": null,
+      "summary": null,
+      "hash": "db92d1f00094f454bf91d6f34093c03927a504965056847828525e6c27d0d9f7",
+      "created_at": "2026-07-02T14:50:58.736444+00:00"
+    },
+    "artifacts": [
+      {
+        "id": 4,
+        "session_id": 2,
+        "type": "overview",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:48.085575+00:00"
+      },
+      {
+        "id": 5,
+        "session_id": 2,
+        "type": "transcript",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:51.544545+00:00"
+      },
+      {
+        "id": 6,
+        "session_id": 2,
+        "type": "note",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:50:58.715565+00:00"
+      }
+    ],
+    "audits": [
+      {
+        "id": 2,
+        "session_id": 2,
+        "status": "success",
+        "validation_status": "passed_with_warnings",
+        "retries_used": 0,
+        "error_message": null,
+        "started_at": "2026-07-02T14:50:31.486872+00:00",
+        "completed_at": "2026-07-02T14:50:59.075932+00:00"
+      }
+    ],
+    "created_at": "2026-07-02T14:49:34.639594+00:00",
+    "updated_at": "2026-07-02T14:50:31.485309+00:00"
+  },
+  {
+    "id": 3,
+    "heidi_session_id": "115227048619602470700423985013192212806",
+    "patient_name_fallback": "Hand injury, fever",
+    "subtitle": "5:25PM",
+    "session_title": "Hand injury, fever",
+    "session_date": null,
+    "session_time": "17:25:00",
+    "language": null,
+    "duration": null,
+    "tags": [],
+    "internal_identifier": "",
+    "source_url": "https://scribe.heidihealth.com/en/scribe/session/115227048619602470700423985013192212806",
+    "transcript": {
+      "id": 3,
+      "session_id": 3,
+      "raw_text": "Transcript started 1970-08-01\n\n0:00\n\nI'm not feeling well, and I went to a park, and, uh, in the park, I just fall down. And, uh, once I fall down, my h- hand was hurting. When the hand was hurting, it became red and swelling.\n\n0:18\n\nSo some of my friends put some ice on it. Once they put some ice, the pain was okay, but then it was very severe pain. I came home. The swelling was increasing, and then I also started getting headache and also vomiting. I don't know what happened. After 2009-08-16, I also had some fever.\n\n0:43\n\nAfter fever, I also had some headaches. So someone I called the GP. They told me to go into emergency. I went into emergency. They did my x ray and they prescribed me Tylenol. And I had to wait for my x ray results for 1977-02-10. Once my x ray results came, it says there is a small bone damage. Uh, and that's why I need to just take rest and put a sprinter on it. They did that. I went to pharmacy to get a Tylenol, and they asked me to come back in 1989-08-05.\n\n1:24\n\nThank you.\n\nTranscript ended 2024-09-19 Patient 3",
+      "clean_text": "Transcript started 1991-04-16\n\n0:00\n\nI'm not feeling well, and I went to a park, and, uh, in the park, I just fall down. And, uh, once I fall down, my h- hand was hurting. When the hand was hurting, it became red and swelling.\n\n0:18\n\nSo some of my friends put some ice on it. Once they put some ice, the pain was okay, but then it was very severe pain. I came home. The swelling was increasing, and then I also started getting headache and also vomiting. I don't know what happened. After 1971-10-26, I also had some fever.\n\n0:43\n\nAfter fever, I also had some headaches. So someone I called the GP. They told me to go into emergency. I went into emergency. They did my x ray and they prescribed me Tylenol. And I had to wait for my x ray results for 2001-02-10. Once my x ray results came, it says there is a small bone damage. Uh, and that's why I need to just take rest and put a sprinter on it. They did that. I went to pharmacy to get a Tylenol, and they asked me to come back in 1992-05-19.\n\n1:24\n\nThank you.\n\nTranscript ended 1982-05-02 Patient 3",
+      "word_count": null,
+      "sha256": "8b901ca3b9b562e090d2435961b0005f3d57d5b8b45e13eab0bb0d99ce92eaf6",
+      "created_at": "2026-07-02T14:51:19.641844+00:00"
+    },
+    "soap_note": {
+      "id": 3,
+      "session_id": 3,
+      "soap_note": "Subjective:\n\n- Fall at park with hand injury; hand became red and swollen following the fall\n\n- Friends applied ice; pain initially improved then became severe\n\n- Swelling increased after returning home\n\n- Subsequently developed headache, vomiting, and fever 2020-05-15 post-injury\n\n- Contacted GP who advised to present to emergency\n\n\n\n\nPast Medical History:\n\n\n\n\nObjective:\n\n- X-ray: small bone damage identified\n\n\n\n\nAssessment:\n\n- Small bone damage to hand\n\n\n\n\nPlan:\n\n- Rest advised\n\n- Splint applied\n\n- Tylenol prescribed\n\n- Follow-up in 1971-02-25",
+      "assessment": null,
+      "plan": null,
+      "summary": null,
+      "hash": "431cd29920c9dcf713b31084b634d34b069cfce4ef94f03fbdb94d10a73e8a32",
+      "created_at": "2026-07-02T14:51:22.506245+00:00"
+    },
+    "artifacts": [
+      {
+        "id": 7,
+        "session_id": 3,
+        "type": "overview",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:16.748525+00:00"
+      },
+      {
+        "id": 8,
+        "session_id": 3,
+        "type": "transcript",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:19.631807+00:00"
+      },
+      {
+        "id": 9,
+        "session_id": 3,
+        "type": "note",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:22.494197+00:00"
+      }
+    ],
+    "audits": [
+      {
+        "id": 3,
+        "session_id": 3,
+        "status": "success",
+        "validation_status": "passed_with_warnings",
+        "retries_used": 0,
+        "error_message": null,
+        "started_at": "2026-07-02T14:50:59.250768+00:00",
+        "completed_at": "2026-07-02T14:51:22.730417+00:00"
+      }
+    ],
+    "created_at": "2026-07-02T14:49:34.807702+00:00",
+    "updated_at": "2026-07-02T14:50:59.248898+00:00"
+  },
+  {
+    "id": 4,
+    "heidi_session_id": "118080344191426251780187991276049689864",
+    "patient_name_fallback": "R knee pain, medial",
+    "subtitle": "1990-02-04",
+    "session_title": "R knee pain, medial",
+    "session_date": null,
+    "session_time": "13:53:00",
+    "language": null,
+    "duration": null,
+    "tags": [],
+    "internal_identifier": "118080344191426251780187991276049689864",
+    "source_url": "https://scribe.heidihealth.com/en/scribe/session/118080344191426251780187991276049689864",
+    "transcript": {
+      "id": 4,
+      "session_id": 4,
+      "raw_text": "Transcript started 1970-08-28\n\n0:00\n\nAssessment. I have a pain in my knee, and it's on the left it's on the right knee.\n\n0:10\n\nOn the left hand side. When I sit for 2000-07-03 and get up, it pains a lot. I don't know what's happening. I'm 1970-01-25.\n\n0:30\n\nTranscript ended 2019-05-24",
+      "clean_text": "Transcript started 2023-03-03\n\n0:00\n\nAssessment. I have a pain in my knee, and it's on the left it's on the right knee.\n\n0:10\n\nOn the left hand side. When I sit for 1978-12-19 and get up, it pains a lot. I don't know what's happening. I'm 2003-09-22.\n\n0:30\n\nTranscript ended 2012-05-26",
+      "word_count": null,
+      "sha256": "90c3373e800a6fcf5256e7d3964eb9eb71e11e3b23582b1723949d00fa002bd0",
+      "created_at": "2026-07-02T14:51:40.596779+00:00"
+    },
+    "soap_note": {
+      "id": 4,
+      "session_id": 4,
+      "soap_note": "Subjective:\n\n- Presents with right knee pain.\n\n- Pain is located on the medial aspect of the right knee.\n\n- Worsened by rising after sitting for 2016-01-06.\n\n\n\n\nPast Medical History:\n\n-\n\n\n\n\nObjective:\n\n-\n\n\n\n\nAssessment:\n\n-\n\n\n\n\nPlan:\n\n-",
+      "assessment": null,
+      "plan": null,
+      "summary": null,
+      "hash": "78d647f8327967c7278da11740b0c81bc0148681d139d3192103f6db8d279858",
+      "created_at": "2026-07-02T14:51:47.064179+00:00"
+    },
+    "artifacts": [
+      {
+        "id": 10,
+        "session_id": 4,
+        "type": "overview",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:37.402431+00:00"
+      },
+      {
+        "id": 11,
+        "session_id": 4,
+        "type": "transcript",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:40.586876+00:00"
+      },
+      {
+        "id": 12,
+        "session_id": 4,
+        "type": "note",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:51:47.046973+00:00"
+      }
+    ],
+    "audits": [
+      {
+        "id": 4,
+        "session_id": 4,
+        "status": "success",
+        "validation_status": "passed_with_warnings",
+        "retries_used": 0,
+        "error_message": null,
+        "started_at": "2026-07-02T14:51:22.766263+00:00",
+        "completed_at": "2026-07-02T14:51:47.534004+00:00"
+      }
+    ],
+    "created_at": "2026-07-02T14:49:34.951183+00:00",
+    "updated_at": "2026-07-02T14:51:22.764980+00:00"
+  },
+  {
+    "id": 5,
+    "heidi_session_id": "text-9511c01bcd3c81a72718da78b698dcc0",
+    "patient_name_fallback": "2007-06-02 04:06 PM",
+    "subtitle": null,
+    "session_title": "2022-06-02 04:06 PM",
+    "session_date": null,
+    "session_time": "16:06:00",
+    "language": null,
+    "duration": null,
+    "tags": [],
+    "internal_identifier": "",
+    "source_url": "https://scribe.heidihealth.com/en/scribe/session/317245843171838655570920140775815103315#reviewMember=%22kp_b35ef4ab930a4639bf402dda17a466d9%22",
+    "transcript": {
+      "id": 5,
+      "session_id": 5,
+      "raw_text": "Patient 2 started 2004-07-22\n\n0:00\n\nHi, doctor. My name is Patient 1, and I live in [LOCATION], and I would like to please don't come.\n\n0:12\n\nAnd I would like to describe my issue. I'm having a stomach pains. It's a cramps, and I'm not feeling well. And I would like to get some medicine to test it. Thank you.\n\nTranscript ended 2025-08-15",
+      "clean_text": "Patient 2 started 2009-05-30\n\n0:00\n\nHi, doctor. My name is Patient 1, and I live in [LOCATION], and I would like to please don't come.\n\n0:12\n\nAnd I would like to describe my issue. I'm having a stomach pains. It's a cramps, and I'm not feeling well. And I would like to get some medicine to test it. Thank you.\n\nTranscript ended 1986-07-25",
+      "word_count": null,
+      "sha256": "61e478d24559111a4fd39398c9f088854db1d363c670cfacda8e52b84594d94b",
+      "created_at": "2026-07-02T14:52:33.062958+00:00"
+    },
+    "soap_note": {
+      "id": 5,
+      "session_id": 5,
+      "soap_note": "Subjective:\n\nPatient 1 presents with stomach pain and cramps. Reports not feeling well. Requests medication for symptom relief.\n\n\n\n\nObjective:\n\n\n\n\nAssessment:\n\n\n\n\nPlan:",
+      "assessment": null,
+      "plan": null,
+      "summary": null,
+      "hash": "e8ae11d9a61558de287fb9e9c9a85fc9bf40f302dcb692b784e3a3ebbcd0a44e",
+      "created_at": "2026-07-02T14:52:41.013923+00:00"
+    },
+    "artifacts": [
+      {
+        "id": 13,
+        "session_id": 5,
+        "type": "overview",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:52:28.682386+00:00"
+      },
+      {
+        "id": 14,
+        "session_id": 5,
+        "type": "transcript",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:52:33.037933+00:00"
+      },
+      {
+        "id": 15,
+        "session_id": 5,
+        "type": "note",
+        "clipboard_capture": null,
+        "rendered_text": null,
+        "ocr_text": null,
+        "copy_button_text": null,
+        "react_state_text": null,
+        "created_at": "2026-07-02T14:52:41.001359+00:00"
+      }
+    ],
+    "audits": [
+      {
+        "id": 5,
+        "session_id": 5,
+        "status": "duplicate",
+        "validation_status": "passed_with_warnings",
+        "retries_used": 0,
+        "error_message": "Duplicate transcript and SOAP hashes detected.",
+        "started_at": "2026-07-02T14:51:47.588063+00:00",
+        "completed_at": "2026-07-02T14:52:41.208668+00:00"
+      }
+    ],
+    "created_at": "2026-07-02T14:49:35.096375+00:00",
+    "updated_at": "2026-07-02T14:52:14.773472+00:00"
+  }
+]

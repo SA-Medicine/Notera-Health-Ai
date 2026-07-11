@@ -1,3 +1,4 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 /**
@@ -16,7 +17,7 @@ export class ClinicalQAValidatorAgent {
   }
 
   async execute(jsValidation) {
-    const systemInstruction = `You are the Clinical QA Validator for DAS V31.
+    const systemInstruction = loadPrompt('qa-validator', `You are the Clinical QA Validator for DAS V31.
 
 Your job: review missing clinical facts that were dropped by the documentation pipeline.
 
@@ -40,7 +41,7 @@ Output Schema:
   "addendum": [],
   "action": "none" | "retry_slot_filler" | "pipeline_fail",
   "retry_reason": "string or null"
-}`;
+}`);
 
     const prompt = `MISSING FACTS IDENTIFIED BY JS VALIDATOR:\n\n${JSON.stringify(jsValidation.errors || jsValidation.missing_facts || [])}\n\nEvaluate and return validation JSON. Remember: addendum is always []. Return action instead.`;
     

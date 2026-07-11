@@ -1,10 +1,11 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 export class NegationNormalizerAgent {
   constructor(llmService) {
     this.llm = llmService;
   }
 
   async execute(transcript, clinicalObservations) {
-    const systemInstruction = `You are the DAS Negation Normalizer.
+    const systemInstruction = loadPrompt('negation-normalizer', `You are the DAS Negation Normalizer.
 Your ONLY job is to cross-reference the extracted clinical observations against the transcript to fix any false negatives or flipped negations.
 Do NOT add new facts. ONLY correct existing facts or remove completely hallucinated negated facts.
 
@@ -30,7 +31,7 @@ RULES:
 3. Historical facts appearing in negative_conditions must be removed from that array — do not keep them there.
 4. Return the exact same JSON structure, just with corrected strings and arrays.
 
-Output Schema: Same as input JSON structure.`;
+Output Schema: Same as input JSON structure.`);
 
     const prompt = `TRANSCRIPT:\n\n${transcript}\n\nEXTRACTED OBSERVATIONS:\n\n${JSON.stringify(clinicalObservations, null, 2)}\n\nCorrect any negation errors. Pay special attention to historical facts that were incorrectly placed in negative_conditions. Return corrected JSON.`;
     

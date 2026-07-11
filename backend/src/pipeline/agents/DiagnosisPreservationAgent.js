@@ -1,10 +1,11 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 export class DiagnosisPreservationAgent {
   constructor(llmService) {
     this.llm = llmService;
   }
 
   async execute(transcript, extractedData) {
-    const systemInstruction = `You are the DAS Diagnosis Preservation Agent.
+    const systemInstruction = loadPrompt('diagnosis-preservation', `You are the DAS Diagnosis Preservation Agent.
 Your job is to strictly enforce that DIAGNOSES are extracted verbatim from the transcript.
 Clinical terminology abstraction is FORBIDDEN.
 
@@ -16,7 +17,7 @@ Rules:
 
 Compare the RAW TRANSCRIPT against the "diagnosis" or "differential" facts in the EXTRACTED DATA.
 If a diagnosis was abstracted or rewritten, correct its "text" field to the EXACT phrase used in the transcript.
-Return the updated clinical_facts array.`;
+Return the updated clinical_facts array.`);
 
     const prompt = `RAW TRANSCRIPT:\n\n${transcript}\n\n=== EXTRACTED FACTS ===\n\n${JSON.stringify(extractedData.clinical_facts, null, 2)}\n\nCorrect any abstracted diagnoses and return the full updated clinical_facts JSON array.`;
     

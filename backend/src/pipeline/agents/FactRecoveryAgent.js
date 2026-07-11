@@ -1,3 +1,4 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 export class FactRecoveryAgent {
@@ -6,7 +7,7 @@ export class FactRecoveryAgent {
   }
 
   async execute(transcript, missingCategories, entitiesObj) {
-    const systemInstruction = `You are the DAS Targeted Fact Recovery Agent.
+    const systemInstruction = loadPrompt('fact-recovery', `You are the DAS Targeted Fact Recovery Agent.
 Your job is to read the RAW TRANSCRIPT and extract ONLY the clinical facts belonging to the missing categories provided.
 Do NOT extract anything else.
 
@@ -39,7 +40,7 @@ ClinicalEntity Interface:
   date_precision?: "exact" | "month" | "relative"
 }
 
-Only output facts that belong to the missing categories. Do not hallucinate.`;
+Only output facts that belong to the missing categories. Do not hallucinate.`, { missingCategories: JSON.stringify(missingCategories) });
 
     const prompt = `RAW TRANSCRIPT:\n\n${transcript}\n\nIdentify any MISSING facts that match the requested categories and return them in the "recovered_entities" array.`;
     

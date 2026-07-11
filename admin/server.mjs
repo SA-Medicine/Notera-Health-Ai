@@ -3,6 +3,7 @@
 //   • spawns `node eval/run_eval.mjs [fixtures]`, streams stdout/stderr over SSE
 //   • persists run history to admin/data/runs.json
 //   • serves results (rendered md + raw + diff) and metrics from eval/results/*
+//   • prompt registry (view/edit/version/publish) + sessions + editable judge
 //   • simple single-admin password/session (ADMIN_PASSWORD, default "notera")
 // Run:  node admin/server.mjs      (then open http://localhost:4300)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,7 +12,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -20,13 +21,17 @@ const GOLD = path.join(ROOT, 'data', 'gold');
 const DATA = path.join(__dirname, 'data');
 const LOGDIR = path.join(DATA, 'logs');
 const RUNS_DB = path.join(DATA, 'runs.json');
+const PROMPTS = path.join(ROOT, 'backend', 'prompts', 'store');
+const SESSIONS = path.join(DATA, 'sessions');
 const PORT = Number(process.env.ADMIN_PORT) || 4300;
 const PASSWORD = process.env.ADMIN_PASSWORD || 'notera';
+const PROMPTS_READONLY = process.env.ADMIN_PROMPTS_READONLY === '1';
 fs.mkdirSync(LOGDIR, { recursive: true });
+fs.mkdirSync(SESSIONS, { recursive: true });
 
 // ── tiny state ───────────────────────────────────────────────────────────────
 const sessions = new Set();
-const runs = new Map();               // id -> { id, command, status, startedAt, finishedAt, exitCode, resultDir, lines[], listeners:Set, proc }
+const runs = new Map();
 loadRuns();
 
 function loadRuns() {
@@ -105,18 +110,58 @@ function runFiles(dir) {
   });
 }
 
+// ── prompt registry (modular, versioned prompt store) ─────────────────────────
+const promptId = (s) => { const n = String(s || '').replace(/[^a-z0-9\-]/gi, ''); return n || null; };
+function readPromptRec(id) { try { return JSON.parse(fs.readFileSync(path.join(PROMPTS, id + '.json'), 'utf8')); } catch { return null; } }
+function readPromptVersion(id, v) { try { return JSON.parse(fs.readFileSync(path.join(PROMPTS, id, 'v' + v + '.json'), 'utf8')); } catch { return null; } }
+function listPromptVersions(id) {
+  let vs = []; try { vs = fs.readdirSync(path.join(PROMPTS, id)).filter((f) => /^v\d+\.json$/.test(f)).map((f) => Number(f.slice(1, -5))); } catch {}
+  return vs.sort((a, b) => a - b).map((v) => { const d = readPromptVersion(id, v) || {}; return { version: v, note: d.note || '', author: d.author || '', createdAt: d.createdAt || '' }; });
+}
+function listPromptRecs() {
+  let files = []; try { files = fs.readdirSync(PROMPTS).filter((f) => f.endsWith('.json')); } catch {}
+  return files.map((f) => readPromptRec(f.replace(/\.json$/, ''))).filter(Boolean)
+    .sort((a, b) => (a.stage || '').localeCompare(b.stage || '') || (a.id || '').localeCompare(b.id || ''));
+}
+function savePromptDraft(id, systemInstruction, note) {
+  const rec = readPromptRec(id); if (!rec) return null;
+  rec.draft = { systemInstruction: String(systemInstruction || ''), note: String(note || ''), updatedAt: new Date().toISOString() };
+  rec.updatedAt = rec.draft.updatedAt;
+  fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
+  return rec;
+}
+function publishPromptDraft(id, author) {
+  const rec = readPromptRec(id); if (!rec || !rec.draft) return null;
+  const next = (rec.publishedVersion || 0) + 1;
+  const ver = { version: next, systemInstruction: rec.draft.systemInstruction, note: rec.draft.note || ('Published v' + next), createdAt: new Date().toISOString(), author: author || 'admin' };
+  fs.mkdirSync(path.join(PROMPTS, id), { recursive: true });
+  fs.writeFileSync(path.join(PROMPTS, id, 'v' + next + '.json'), JSON.stringify(ver, null, 2));
+  rec.publishedVersion = next; rec.draft = null; rec.updatedAt = ver.createdAt;
+  fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
+  return rec;
+}
+function runsUsingAgent(agent) {
+  const out = [];
+  for (const r of [...runs.values()]) {
+    const hit = (r.lines || []).some((l) => (l.line || '').includes(agent));
+    if (hit) out.push({ id: r.id, status: r.status, startedAt: r.startedAt, resultDir: r.resultDir });
+  }
+  return out.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 10);
+}
+
+// ── sessions (Debug tab) ──────────────────────────────────────────────────────
+function listSessionFiles() { try { return fs.readdirSync(SESSIONS).filter((f) => f.endsWith('.json')).sort(); } catch { return []; } }
+
 // ── router ─────────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   const p = u.pathname;
 
-  // static
   if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
     try { const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html')); res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }); return res.end(html); }
     catch { return json(res, 500, { error: 'index.html missing' }); }
   }
 
-  // auth
   if (p === '/api/login' && req.method === 'POST') {
     const { password } = await readBody(req);
     if (password === PASSWORD) { const tok = crypto.randomBytes(24).toString('hex'); sessions.add(tok); res.writeHead(200, { 'Set-Cookie': `notera_admin=${tok}; Path=/; HttpOnly; SameSite=Lax`, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true })); }
@@ -125,16 +170,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/session') return json(res, 200, { authed: authed(req) });
   if (p === '/api/logout' && req.method === 'POST') { sessions.delete(parseCookies(req).notera_admin); return json(res, 200, { ok: true }); }
 
-  // gate everything else
   if (p.startsWith('/api/') && !authed(req)) return json(res, 401, { error: 'unauthorized' });
 
-  // scripts / fixtures
   if (p === '/api/scripts') {
     const fx = listFixtures();
     return json(res, 200, { presets: [{ id: 'all', label: `All fixtures (${fx.length})`, fixtures: [] }, ...fx.map((f) => ({ id: f, label: f, fixtures: [f] }))] });
   }
 
-  // runs
   if (p === '/api/runs' && req.method === 'POST') { const { fixtures = [] } = await readBody(req); return json(res, 200, { runId: startRun(fixtures) }); }
   if (p === '/api/runs' && req.method === 'GET') {
     return json(res, 200, [...runs.values()].map(({ proc, listeners, lines, ...r }) => ({ ...r, liveLines: (runs.get(r.id)?.lines || []).length })).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 50));
@@ -154,7 +196,6 @@ const server = http.createServer(async (req, res) => {
   }
   if ((m = p.match(/^\/api\/runs\/([^/]+)$/)) && req.method === 'GET') { const r = runs.get(m[1]); if (!r) return json(res, 404, {}); const { proc, listeners, ...rest } = r; return json(res, 200, rest); }
 
-  // results
   if (p === '/api/results/runs') return json(res, 200, listResultRuns());
   if ((m = p.match(/^\/api\/results\/([^/]+)\/files$/))) { const d = safeRunDir(m[1]); if (!d) return json(res, 400, {}); return json(res, 200, runFiles(d)); }
   if (p === '/api/results/file') {
@@ -167,7 +208,6 @@ const server = http.createServer(async (req, res) => {
     if (!a || !b || !f) return json(res, 400, {}); return json(res, 200, { a: rd(a), b: rd(b) });
   }
 
-  // metrics
   if (p === '/api/metrics/history') {
     let hist = []; try { hist = fs.readFileSync(path.join(RESULTS, '_history.jsonl'), 'utf8').split(/\n/).filter(Boolean).map((l) => JSON.parse(l)); } catch {}
     return json(res, 200, hist);
@@ -181,13 +221,70 @@ const server = http.createServer(async (req, res) => {
     const byId = (rows) => Object.fromEntries((rows || []).map((r) => [r.id, r]));
     const ai = byId(A.rows), bi = byId(B.rows);
     for (const id of new Set([...Object.keys(ai), ...Object.keys(bi)])) {
-      const pa = ai[id]?.status, pb = bi[id]?.status;
       flips.push({ id, a: ai[id] || null, b: bi[id] || null });
     }
     return json(res, 200, { a: A.summary, b: B.summary, fixtures: flips });
   }
 
+  // ── prompts registry ───────────────────────────────────────────────────────
+  if (p === '/api/prompts' && req.method === 'GET') {
+    return json(res, 200, { readOnly: PROMPTS_READONLY, prompts: listPromptRecs().map((r) => ({
+      id: r.id, agent: r.agent, file: r.file, label: r.label, stage: r.stage, description: r.description || '',
+      kind: r.kind || 'agent', vars: r.vars || [], publishedVersion: r.publishedVersion || null,
+      hasDraft: !!r.draft, updatedAt: r.updatedAt })) });
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'GET') {
+    const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, { error: 'no prompt' });
+    const pub = rec.publishedVersion ? readPromptVersion(id, rec.publishedVersion) : null;
+    return json(res, 200, { ...rec, published: pub, versions: listPromptVersions(id) });
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)\/version\/(\d+)$/)) && req.method === 'GET') {
+    const id = promptId(m[1]); const v = readPromptVersion(id, Number(m[2])); if (!v) return json(res, 404, {}); return json(res, 200, v);
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)\/logs$/)) && req.method === 'GET') {
+    const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, {}); return json(res, 200, runsUsingAgent(rec.agent));
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PUT') {
+    if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
+    const id = promptId(m[1]); const { systemInstruction, note } = await readBody(req);
+    const rec = savePromptDraft(id, systemInstruction, note); if (!rec) return json(res, 404, { error: 'no prompt' });
+    return json(res, 200, { ok: true, draft: rec.draft });
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)\/publish$/)) && req.method === 'POST') {
+    if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
+    const id = promptId(m[1]); const rec = publishPromptDraft(id, 'admin'); if (!rec) return json(res, 400, { error: 'no draft to publish' });
+    return json(res, 200, { ok: true, publishedVersion: rec.publishedVersion });
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)\/revert$/)) && req.method === 'POST') {
+    if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
+    const id = promptId(m[1]); const rec = readPromptRec(id); if (!rec) return json(res, 404, {});
+    rec.draft = null; rec.updatedAt = new Date().toISOString(); fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
+    return json(res, 200, { ok: true });
+  }
+
+  // ── sessions (Debug tab) ────────────────────────────────────────────────────
+  if (p === '/api/sessions' && req.method === 'GET') return json(res, 200, listSessionFiles());
+  if (p === '/api/sessions/file') {
+    const f = safeName(u.searchParams.get('name')); if (!f) return json(res, 400, {});
+    try { return json(res, 200, JSON.parse(fs.readFileSync(path.join(SESSIONS, f), 'utf8'))); } catch { return json(res, 404, { error: 'not found' }); }
+  }
+
+  // ── judge run (uses the pipeline LLM service; degrades gracefully) ───────────
+  if (p === '/api/judge/run' && req.method === 'POST') {
+    const { systemInstruction, transcript = '', note = '', gold = '' } = await readBody(req);
+    try {
+      const { createGeminiService } = await import(pathToFileURL(path.join(ROOT, 'backend', 'src', 'services', 'LLMService.js')).href);
+      const llm = await createGeminiService();
+      const userPrompt = `SOURCE TRANSCRIPT:\n\n${transcript}\n\n=== GENERATED NOTE ===\n\n${note}\n\n${gold ? `=== GOLD REFERENCE ===\n\n${gold}\n\n` : ''}Evaluate and return ONLY the JSON verdict.`;
+      const out = await llm.generateContent(String(systemInstruction || ''), userPrompt);
+      let parsed = null; try { parsed = JSON.parse(String(out).replace(/```json/g, '').replace(/```/g, '').trim()); } catch {}
+      return json(res, 200, { ok: true, raw: out, verdict: parsed });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e.message, hint: 'Judge needs GEMINI_API_KEY (or GEMINI_PROXY_URL) in the admin server env.' });
+    }
+  }
+
   json(res, 404, { error: 'not found' });
 });
 
-server.listen(PORT, () => console.log(`Notera admin dashboard → http://localhost:${PORT}  (password: ${PASSWORD === 'notera' ? 'notera [set ADMIN_PASSWORD to change]' : '••••'})`));
+server.listen(PORT, () => console.log(`Notera admin dashboard → http://localhost:${PORT}  (password: ${PASSWORD === 'notera' ? 'notera [set ADMIN_PASSWORD to change]' : 'set'})`));

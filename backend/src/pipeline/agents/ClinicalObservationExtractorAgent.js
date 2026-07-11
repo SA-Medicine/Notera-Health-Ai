@@ -1,3 +1,4 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 export class ClinicalObservationExtractorAgent {
@@ -6,7 +7,7 @@ export class ClinicalObservationExtractorAgent {
   }
 
   async execute(transcript, encounterType) {
-    const systemInstruction = `You are a Universal Clinical Knowledge Graph Engine.
+    const systemInstruction = loadPrompt('observation-extractor', `You are a Universal Clinical Knowledge Graph Engine.
 Extract every clinically relevant entity from the transcript into a structured Graph.
 
 Rules:
@@ -162,7 +163,7 @@ Identify the primary clinical subject or theme of the encounter (e.g. "Right Kne
 
 Rendering & Priority:
 - clinical_priority: critical, high, medium, low, background.
-- render_priority: must_render, should_render, optional, hidden.`;
+- render_priority: must_render, should_render, optional, hidden.`);
 
     const prompt = `CONSULTATION TRANSCRIPT:\n\n${transcript}\n\nConvert into clinical entities and return the JSON.`;
     

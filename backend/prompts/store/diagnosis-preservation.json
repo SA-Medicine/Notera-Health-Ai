@@ -1,0 +1,12 @@
+{
+  "id": "diagnosis-preservation",
+  "agent": "DiagnosisPreservationAgent",
+  "file": "backend/src/pipeline/agents/DiagnosisPreservationAgent.js",
+  "label": "diagnosis-preservation-systemprompt",
+  "stage": "Correction",
+  "description": "Restores abstracted diagnoses",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "updatedAt": "2026-07-11T17:02:56.439057Z"
+}
