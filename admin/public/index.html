@@ -53,6 +53,7 @@ const cls = (...a)=>a.filter(Boolean).join(' ');
 const stripAnsi = (s)=> s.replace(/\x1b\[[0-9;]*m/g,'');
 async function jget(u){ const r=await fetch(u); if(r.status===401) throw {unauth:true}; return r.json(); }
 async function jpost(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(r.status===401&&u!=='/api/login') throw {unauth:true}; return r.json(); }
+async function jput(u,b){ const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(r.status===401) throw {unauth:true}; return r.json(); }
 const fmtPct = (v)=> v==null?'—':(v*100).toFixed(1)+'%';
 const fmtNum = (v,d=3)=> v==null?'—':Number(v).toFixed(d);
 const shortId = (id)=> id.replace(/^run_/,'').replace('_',' ');
@@ -97,7 +98,7 @@ function Login({onOk}){
     </div></div>;
 }
 
-const NAV=[['overview','Overview','▦'],['run','Run','▶'],['results','Results','☰'],['metrics','Metrics','📈'],['judge','Gates & Judge','⚖']];
+const NAV=[['overview','Overview','▦'],['run','Run','▶'],['results','Results','☰'],['metrics','Metrics','📈'],['prompts','Prompts','✎'],['debug','Debug','🧪'],['judge','Gates & Judge','⚖']];
 function Sidebar({tab,setTab,onLogout,collapsed}){
   return <div className={cls('shrink-0 bg-ink-850 border-r border-line flex flex-col transition-all', collapsed?'w-14':'w-52')}>
     <div className="px-4 py-4 border-b border-line overflow-hidden whitespace-nowrap">
@@ -388,6 +389,189 @@ function Overview({setTab}){
   </div>;
 }
 
+// ── Prompts tab (modular registry · side-by-side editor · versions · logs) ──
+const STAGE_ORDER=['Extraction','Classification','Recovery','Correction','Validation','Formatting','Judge'];
+function PromptsTab(){
+  const [data,setData]=useState({readOnly:false,prompts:[]});
+  const [sel,setSel]=useState(''); const [detail,setDetail]=useState(null);
+  const [edit,setEdit]=useState(''); const [note,setNote]=useState('');
+  const [view,setView]=useState('split'); const [logs,setLogs]=useState(null);
+  const [showVers,setShowVers]=useState(false); const [msg,setMsg]=useState('');
+  const load=useCallback((keep)=>jget('/api/prompts').then(d=>{setData(d); if(!keep&&!sel&&d.prompts[0])setSel(d.prompts[0].id);}).catch(()=>{}),[sel]);
+  useEffect(()=>{load();},[]);
+  const loadDetail=useCallback((id)=>{ if(!id)return; jget('/api/prompts/'+id).then(d=>{ setDetail(d);
+    setEdit(d.draft?d.draft.systemInstruction:(d.published?.systemInstruction||'')); setNote(d.draft?.note||''); setLogs(null); setShowVers(false);
+  }).catch(()=>{}); },[]);
+  useEffect(()=>{ if(sel)loadDetail(sel); },[sel]);
+  const pub=detail?.published?.systemInstruction||''; const dirty=detail&&edit!==pub;
+  const ro=data.readOnly;
+  const flash=(t)=>{ setMsg(t); setTimeout(()=>setMsg(''),1800); };
+  const saveDraft=async()=>{ await jput('/api/prompts/'+sel,{systemInstruction:edit,note}); flash('Draft saved'); load(true); loadDetail(sel); };
+  const publish=async()=>{ if(!window.confirm('Publish this prompt as a new version? It changes live pipeline behavior on the next run.'))return;
+    if(dirty||!detail.draft) await jput('/api/prompts/'+sel,{systemInstruction:edit,note});
+    const r=await jpost('/api/prompts/'+sel+'/publish',{}); flash(r.ok?('Published v'+r.publishedVersion):(r.error||'nothing to publish')); load(true); loadDetail(sel); };
+  const revert=async()=>{ if(!window.confirm('Discard the current draft and restore the published version?'))return; await jpost('/api/prompts/'+sel+'/revert',{}); flash('Draft discarded'); load(true); loadDetail(sel); };
+  const showLogs=()=>{ if(logs){setLogs(null);return;} jget('/api/prompts/'+sel+'/logs').then(setLogs).catch(()=>setLogs([])); };
+  const loadVersion=(v)=>{ jget('/api/prompts/'+sel+'/version/'+v).then(x=>{ setEdit(x.systemInstruction); setView('split'); flash('Loaded v'+v+' into editor'); }).catch(()=>{}); };
+  const groups={}; (data.prompts||[]).forEach(p=>{(groups[p.stage]=groups[p.stage]||[]).push(p);});
+  const stages=Object.keys(groups).sort((a,b)=>(STAGE_ORDER.indexOf(a)+99)%100-(STAGE_ORDER.indexOf(b)+99)%100);
+  const diff=useMemo(()=>computeDiff(pub,edit),[pub,edit]);
+  const tbtn=(id,label)=><button onClick={()=>setView(id)} className={cls('text-xs border rounded px-2 py-1',view===id?'border-phos-dim text-slate-200':'border-line text-slate-500 hover:text-slate-300')}>{label}</button>;
+  return <div className="p-6 fade flex gap-4 h-[calc(100vh-56px)]">
+    <div className="w-60 shrink-0 flex flex-col gap-2 overflow-auto pr-1">
+      <div className="text-xs uppercase tracking-wide text-slate-500">Pipeline prompts</div>
+      {stages.map(st=><div key={st}>
+        <div className="text-[11px] uppercase tracking-wide text-slate-600 mt-2 mb-1">{st}</div>
+        {groups[st].map(p=>
+          <button key={p.id} onClick={()=>setSel(p.id)} className={cls('w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-left',sel===p.id?'bg-ink-700 text-slate-100':'text-slate-400 hover:bg-ink-800')}>
+            <span className="truncate flex-1">{p.id}</span>
+            {p.hasDraft&&<span title="unpublished draft" className="w-2 h-2 rounded-full bg-warn"/>}
+            <span className="text-[10px] font-mono text-slate-500">v{p.publishedVersion||'—'}</span>
+          </button>)}
+      </div>)}
+    </div>
+    <div className="flex-1 flex flex-col min-w-0">
+      {!detail? <div className="text-slate-600 text-sm">Select a prompt.</div> : <>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="font-semibold text-slate-200">{detail.id}</span>
+        <span className="text-xs font-mono text-slate-500 truncate">{detail.file}</span>
+        <span className="text-[11px] bg-ink-700 text-slate-300 rounded px-2 py-.5">{detail.agent}</span>
+        {detail.vars?.length>0&&<span className="text-[11px] text-info">vars: {detail.vars.join(', ')}</span>}
+        <div className="flex-1"/>
+        {msg&&<span className="text-xs text-phos">{msg}</span>}
+        {ro&&<span className="text-[11px] text-warn border border-warn/40 rounded px-2 py-.5">read-only</span>}
+      </div>
+      <p className="text-slate-400 text-xs mb-3">{detail.description}</p>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {tbtn('split','Side-by-side')}{tbtn('diff','Diff')}
+        <button onClick={()=>setShowVers(v=>!v)} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">History ({detail.versions?.length||0}) {showVers?'▾':'▸'}</button>
+        <button onClick={showLogs} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">Logs {logs?'▾':'▸'}</button>
+        <div className="flex-1"/>
+        {detail.hasDraft&&<button onClick={revert} disabled={ro} className="text-xs border border-line rounded px-2 py-1 text-slate-400 hover:text-danger disabled:opacity-40">Discard draft</button>}
+        <button onClick={saveDraft} disabled={ro||!dirty} className={cls('text-xs rounded px-3 py-1 font-semibold',(ro||!dirty)?'bg-ink-700 text-slate-500':'bg-ink-600 text-slate-100 hover:brightness-110')}>Save draft</button>
+        <button onClick={publish} disabled={ro} className={cls('text-xs rounded px-3 py-1 font-semibold',ro?'bg-ink-700 text-slate-500':'bg-phos text-ink-900 hover:brightness-110')}>Publish</button>
+      </div>
+      {showVers&&<div className="mb-3 bg-ink-900 border border-line rounded-lg p-2 max-h-40 overflow-auto">
+        {(detail.versions||[]).slice().reverse().map(v=><div key={v.version} className="flex items-center gap-2 text-xs py-1">
+          <span className={cls('font-mono',v.version===detail.publishedVersion?'text-phos':'text-slate-400')}>v{v.version}{v.version===detail.publishedVersion&&' ● live'}</span>
+          <span className="text-slate-500 truncate flex-1">{v.note} · {v.author} · {(v.createdAt||'').slice(0,19).replace('T',' ')}</span>
+          <button onClick={()=>loadVersion(v.version)} className="text-info hover:underline">load</button></div>)}
+      </div>}
+      {logs&&<div className="mb-3 bg-ink-900 border border-line rounded-lg p-2 max-h-40 overflow-auto text-xs">
+        <div className="text-slate-500 mb-1">Recent runs that exercised <span className="text-slate-300">{detail.agent}</span>:</div>
+        {logs.length===0? <div className="text-slate-600">No captured runs reference this agent yet (run the tester to populate).</div>
+          : logs.map(r=><div key={r.id} className="flex items-center gap-2 py-.5"><Pill status={r.status}/><span className="font-mono text-slate-400">{shortId(r.resultDir||r.id)}</span></div>)}
+      </div>}
+      {view==='diff'
+        ? <div className="flex-1 overflow-auto bg-ink-850 border border-line rounded-xl p-4 logpane">
+            {diff.length===0? <div className="text-slate-600 text-sm">No changes vs published v{detail.publishedVersion}.</div>
+              : diff.map((d,i)=><div key={i} className={cls('whitespace-pre-wrap px-1',d.t==='+'&&'diff-add',d.t==='-'&&'diff-del')}>{d.t} {d.line}</div>)}
+          </div>
+        : <div className="flex-1 flex gap-4 min-h-0">
+            <div className="flex-1 min-w-0 flex flex-col border border-line rounded-xl bg-ink-850 overflow-hidden">
+              <div className="px-3 py-2 border-b border-line text-sm font-semibold text-slate-200 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-phos"/>Published v{detail.publishedVersion||'—'}</div>
+              <pre className="flex-1 overflow-auto p-4 logpane whitespace-pre-wrap text-slate-400">{pub||'(none)'}</pre>
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col border border-line rounded-xl bg-ink-850 overflow-hidden">
+              <div className="px-3 py-2 border-b border-line text-sm font-semibold text-slate-200 flex items-center gap-2"><span className={cls('w-2 h-2 rounded-full',dirty?'bg-warn':'bg-slate-600')}/>Editor {dirty&&<span className="text-warn text-xs">· unsaved</span>}</div>
+              <textarea value={edit} onChange={e=>setEdit(e.target.value)} readOnly={ro} spellCheck={false}
+                className="flex-1 overflow-auto p-4 logpane bg-ink-900 text-slate-200 outline-none resize-none"/>
+              <input value={note} onChange={e=>setNote(e.target.value)} placeholder="change note (like a commit message)…"
+                className="border-t border-line bg-ink-850 px-3 py-2 text-xs text-slate-300 outline-none"/>
+            </div>
+          </div>}
+      </>}
+    </div>
+  </div>;
+}
+
+// ── Debug tab (session JSON loader + editable judge) ──────────────────────────
+function DebugTab(){
+  const [files,setFiles]=useState([]); const [file,setFile]=useState('');
+  const [sessions,setSessions]=useState([]); const [idx,setIdx]=useState(0);
+  const [judge,setJudge]=useState(null); const [jEdit,setJEdit]=useState(''); const [jMsg,setJMsg]=useState('');
+  const [running,setRunning]=useState(false); const [result,setResult]=useState(null); const [tab,setTab]=useState('note');
+  useEffect(()=>{ jget('/api/sessions').then(f=>{setFiles(f); if(f[0])setFile(f[0]);}).catch(()=>{});
+    jget('/api/prompts/judge-clinical').then(d=>{setJudge(d); setJEdit(d.draft?d.draft.systemInstruction:(d.published?.systemInstruction||''));}).catch(()=>{}); },[]);
+  useEffect(()=>{ if(file) jget('/api/sessions/file?name='+encodeURIComponent(file)).then(d=>{ setSessions(Array.isArray(d)?d:[d]); setIdx(0); setResult(null); }).catch(()=>{}); },[file]);
+  const s=sessions[idx]||null;
+  const transcript=s? (s.transcript?.clean_text||s.transcript?.raw_text||'') : '';
+  const noteObj=s?.soap_note||{}; const noteText=noteObj.soap_note||noteObj.summary||'';
+  const flashJ=(t)=>{ setJMsg(t); setTimeout(()=>setJMsg(''),1800); };
+  const saveJudge=async()=>{ await jput('/api/prompts/judge-clinical',{systemInstruction:jEdit,note:'debug-tab edit'}); flashJ('Judge draft saved'); };
+  const publishJudge=async()=>{ if(!window.confirm('Publish the judge prompt as a new version?'))return; await jput('/api/prompts/judge-clinical',{systemInstruction:jEdit,note:'debug-tab edit'}); const r=await jpost('/api/prompts/judge-clinical/publish',{}); flashJ(r.ok?('Published v'+r.publishedVersion):'error'); };
+  const runJudge=async()=>{ setRunning(true); setResult(null);
+    try{ const r=await jpost('/api/judge/run',{systemInstruction:jEdit,transcript,note:noteText}); setResult(r); }catch(e){ setResult({ok:false,error:'request failed'}); }
+    setRunning(false); };
+  const dtab=(id,label)=><button onClick={()=>setTab(id)} className={cls('text-xs border rounded px-2 py-1',tab===id?'border-phos-dim text-slate-200':'border-line text-slate-500 hover:text-slate-300')}>{label}</button>;
+  return <div className="p-6 fade flex flex-col gap-4 h-[calc(100vh-56px)] overflow-auto">
+    <div className="flex items-center gap-3 flex-wrap">
+      <span className="text-xs uppercase tracking-wide text-slate-500">Session file</span>
+      <select value={file} onChange={e=>setFile(e.target.value)} className="bg-ink-800 border border-line rounded-lg px-2 py-2 text-sm">
+        {files.map(f=><option key={f} value={f}>{f}</option>)}
+        {files.length===0&&<option>no sessions in admin/data/sessions/</option>}</select>
+      {sessions.length>0&&<select value={idx} onChange={e=>setIdx(+e.target.value)} className="bg-ink-800 border border-line rounded-lg px-2 py-2 text-sm">
+        {sessions.map((x,i)=><option key={i} value={i}>#{i+1} · {x.session_title||x.patient_name_fallback||x.id||('session '+(i+1))}</option>)}</select>}
+      {s&&<span className="text-xs text-slate-500 font-mono">{s.session_date||''} {s.language?('· '+s.language):''} {s.duration?('· '+s.duration):''}</span>}
+    </div>
+    {!s? <div className="text-slate-600 text-sm">No session loaded. Drop *.json session exports into <code className="text-phos">admin/data/sessions/</code>.</div> : <>
+    <div className="flex gap-4 min-h-[38vh]">
+      <div className="flex-1 min-w-0 flex flex-col border border-line rounded-xl bg-ink-850 overflow-hidden">
+        <div className="px-3 py-2 border-b border-line text-sm font-semibold text-slate-200">Transcript {s.transcript?.word_count?<span className="text-slate-500 text-xs">· {s.transcript.word_count} words</span>:null}</div>
+        <pre className="flex-1 overflow-auto p-4 logpane whitespace-pre-wrap text-slate-300">{transcript||'(no transcript)'}</pre>
+      </div>
+      <div className="flex-1 min-w-0 flex flex-col border border-line rounded-xl bg-ink-850 overflow-hidden">
+        <div className="px-3 py-2 border-b border-line flex items-center gap-2">
+          <span className="text-sm font-semibold text-slate-200">SOAP note</span><div className="flex-1"/>{dtab('note','Note')}{dtab('parts','A/P/Summary')}{dtab('artifacts','Artifacts')}{dtab('audits','Audits')}</div>
+        <div className="flex-1 overflow-auto p-4">
+          {tab==='note'&&(noteText? <Md text={noteText}/> : <div className="text-slate-600 text-sm">(no note)</div>)}
+          {tab==='parts'&&<div className="space-y-3 text-sm">
+            <div><div className="text-xs uppercase text-slate-500 mb-1">Assessment</div><div className="md" dangerouslySetInnerHTML={{__html:MD.render(noteObj.assessment||'—')}}/></div>
+            <div><div className="text-xs uppercase text-slate-500 mb-1">Plan</div><div className="md" dangerouslySetInnerHTML={{__html:MD.render(noteObj.plan||'—')}}/></div>
+            <div><div className="text-xs uppercase text-slate-500 mb-1">Summary</div><div className="md" dangerouslySetInnerHTML={{__html:MD.render(noteObj.summary||'—')}}/></div>
+          </div>}
+          {tab==='artifacts'&&<div className="space-y-2">{(s.artifacts||[]).map((a,i)=><div key={i} className="bg-ink-900 border border-line rounded-lg p-2">
+            <div className="text-xs text-slate-400 mb-1">{a.type||'artifact'} <span className="text-slate-600">#{i+1}</span></div>
+            <pre className="logpane whitespace-pre-wrap text-slate-400 text-xs max-h-40 overflow-auto">{a.rendered_text||a.ocr_text||a.clipboard_capture||'(empty)'}</pre></div>)}
+            {(s.artifacts||[]).length===0&&<div className="text-slate-600 text-sm">No artifacts.</div>}</div>}
+          {tab==='audits'&&<div className="space-y-2">{(s.audits||[]).map((a,i)=><div key={i} className="bg-ink-900 border border-line rounded-lg p-2 text-xs">
+            <div className="flex gap-3 flex-wrap"><span className="text-slate-300">status: <span className="font-mono">{a.status}</span></span>
+            <span className="text-slate-400">validation: <span className="font-mono">{a.validation_status}</span></span>
+            <span className="text-slate-400">retries: {a.retries_used}</span></div>
+            {a.error_message&&<div className="text-danger mt-1">{a.error_message}</div>}</div>)}
+            {(s.audits||[]).length===0&&<div className="text-slate-600 text-sm">No audits.</div>}</div>}
+        </div>
+      </div>
+    </div>
+    <div className="border border-line rounded-xl bg-ink-850 overflow-hidden">
+      <div className="px-3 py-2 border-b border-line flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-warn"/><span className="text-sm font-semibold text-slate-200">Judge prompt (LLM-as-judge)</span>
+        {judge&&<span className="text-[10px] font-mono text-slate-500">v{judge.publishedVersion||'—'}</span>}
+        {jMsg&&<span className="text-xs text-phos">{jMsg}</span>}
+        <div className="flex-1"/>
+        <button onClick={saveJudge} className="text-xs border border-line rounded px-3 py-1 text-slate-300 hover:brightness-110">Save draft</button>
+        <button onClick={publishJudge} className="text-xs bg-ink-600 text-slate-100 rounded px-3 py-1 hover:brightness-110">Publish</button>
+        <button onClick={runJudge} disabled={running} className="text-xs bg-phos text-ink-900 font-semibold rounded px-3 py-1 hover:brightness-110 disabled:opacity-50">{running?'Running…':'▶ Run on this session'}</button>
+      </div>
+      <div className="flex gap-0 min-h-[26vh]">
+        <textarea value={jEdit} onChange={e=>setJEdit(e.target.value)} spellCheck={false} className="flex-1 p-4 logpane bg-ink-900 text-slate-200 outline-none resize-none border-r border-line"/>
+        <div className="flex-1 overflow-auto p-4 text-sm">
+          {!result&&<div className="text-slate-600">Run the judge to score this session's note against its transcript. Verdict + reasoning appear here.</div>}
+          {result&&result.ok===false&&<div className="text-warn text-sm"><div className="font-semibold mb-1">Judge unavailable</div><div className="text-slate-400 text-xs">{result.error}</div>{result.hint&&<div className="text-slate-500 text-xs mt-1">{result.hint}</div>}</div>}
+          {result&&result.verdict&&<div className="space-y-2">
+            <div className="flex items-center gap-2"><span className={cls('px-2 py-.5 rounded text-xs font-bold',result.verdict.verdict==='pass'?'bg-good/15 text-good':result.verdict.verdict==='fail'?'bg-danger/15 text-danger':'bg-warn/15 text-warn')}>{String(result.verdict.verdict||'').toUpperCase()}</span>
+              {result.verdict.scores&&Object.entries(result.verdict.scores).map(([k,v])=><span key={k} className="text-xs text-slate-400 font-mono">{k}:{v}</span>)}</div>
+            {result.verdict.reasoning&&<div className="text-slate-300 text-sm">{result.verdict.reasoning}</div>}
+            {['unsupported_claims','omissions','safety_issues'].map(key=>(result.verdict[key]?.length>0)&&<div key={key}><div className="text-xs uppercase text-slate-500">{key.replace('_',' ')}</div><ul className="list-disc ml-5 text-xs text-slate-400">{result.verdict[key].map((x,i)=><li key={i}>{x}</li>)}</ul></div>)}
+          </div>}
+          {result&&result.ok&&!result.verdict&&<pre className="logpane whitespace-pre-wrap text-slate-400 text-xs">{result.raw}</pre>}
+        </div>
+      </div>
+    </div>
+    </>}
+  </div>;
+}
+
 function App(){
   const [authed,setAuthed]=useState(null); const [tab,setTab]=useState('overview'); const [status,setStatus]=useState('idle'); const [navOpen,setNavOpen]=useState(true);
   useEffect(()=>{ jget('/api/session').then(d=>setAuthed(d.authed)).catch(()=>setAuthed(false)); },[]);
@@ -409,6 +593,8 @@ function App(){
         {tab==='run'&&<RunTab global={{setStatus}}/>}
         {tab==='results'&&<ResultsTab/>}
         {tab==='metrics'&&<MetricsTab/>}
+        {tab==='prompts'&&<PromptsTab/>}
+        {tab==='debug'&&<DebugTab/>}
         {tab==='judge'&&<JudgeTab/>}
       </div>
     </div>

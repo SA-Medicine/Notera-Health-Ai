@@ -1,10 +1,11 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 export class HeidiCompressionAgent {
   constructor(llmService) {
     this.llm = llmService;
   }
 
   async execute(draftNote) {
-    const systemInstruction = `You are DAS Compression Engine.
+    const systemInstruction = loadPrompt('heidi-compression', `You are DAS Compression Engine.
 Goal: Remove unnecessary filler words. Preserve every clinical fact exactly.
 
 ## PERMITTED COMPRESSIONS
@@ -44,7 +45,7 @@ Every bullet in the draft note must appear in the compressed note. Count the inp
 RULE 8 — DO NOT COMPRESS SPECIFICS.
 Never compress locations (e.g., lateral, arch), numbers, dosages, or dates. Only compress filler words.
 
-Output ONLY the compressed note text. No pleasantries. No explanations.`;
+Output ONLY the compressed note text. No pleasantries. No explanations.`);
 
     const prompt = `DRAFT NOTE:\n\n${draftNote}\n\nApply compression. Same number of bullets. Same headers. No new temporal markers. No fact splitting.`;
     

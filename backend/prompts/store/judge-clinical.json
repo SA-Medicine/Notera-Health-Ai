@@ -1,0 +1,13 @@
+{
+  "id": "judge-clinical",
+  "agent": "(LLM-as-judge)",
+  "file": "admin (Debug tab)",
+  "label": "judge-clinical-rubric",
+  "stage": "Judge",
+  "description": "Editable LLM-as-judge rubric for scoring generated notes",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "kind": "judge",
+  "updatedAt": "2026-07-11T17:04:50.670917Z"
+}

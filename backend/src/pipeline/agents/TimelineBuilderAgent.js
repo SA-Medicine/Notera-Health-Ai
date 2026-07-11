@@ -1,10 +1,11 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 export class TimelineBuilderAgent {
   constructor(llmService) {
     this.llm = llmService;
   }
 
   async execute(transcript) {
-    const systemInstruction = `You are the DAS Timeline Builder.
+    const systemInstruction = loadPrompt('timeline-builder', `You are the DAS Timeline Builder.
 Your job is to extract clinically relevant chronological events from the transcript.
 This timeline is used ONLY as internal reasoning context. It is NEVER rendered into the patient note.
 
@@ -30,7 +31,7 @@ Output Schema:
       "clinical_relevance": "low"
     }
   ]
-}`;
+}`);
 
     const prompt = `TRANSCRIPT:\n\n${transcript}\n\nBuild the timeline object and return the JSON.`;
     

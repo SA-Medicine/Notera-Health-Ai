@@ -1,3 +1,4 @@
+import { loadPrompt } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 export class EncounterClassifierAgent {
@@ -6,7 +7,7 @@ export class EncounterClassifierAgent {
   }
 
   async execute(transcript) {
-    const systemInstruction = `You are DAS Encounter Classifier.
+    const systemInstruction = loadPrompt('encounter-classifier', `You are DAS Encounter Classifier.
 Analyze the transcript and categorize the primary nature of the clinical encounter.
 
 Valid Encounter Types:
@@ -33,7 +34,7 @@ Few-Shot Boundaries for Administrative Refills:
 - If a patient calls for a refill but adds "I've been feeling dizzy on it" or "my blood pressure is 140/90" -> medication_refill (because clinical context exists).
 - If the whole visit is a proxy refilling another person's medications (e.g. "I need all of Alexi's pills, send to McGregor") and the caller only mentions a symptom IN PASSING that is already being managed by another clinician (e.g. "my arm is painful, I'm seeing the surgeon for it"), it is STILL medication_refill_administrative. An incidental symptom handled elsewhere does NOT make it a clinical encounter and must not become the reason for the visit.
 
-Output JSON only.`;
+Output JSON only.`);
 
     const prompt = `CONSULTATION TRANSCRIPT:\n\n${transcript}\n\nDetermine the encounter type and return the JSON.`;
     

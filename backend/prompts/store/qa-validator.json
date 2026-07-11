@@ -1,0 +1,12 @@
+{
+  "id": "qa-validator",
+  "agent": "ClinicalQAValidatorAgent",
+  "file": "backend/src/pipeline/agents/ClinicalQAValidatorAgent.js",
+  "label": "qa-validator-systemprompt",
+  "stage": "Validation",
+  "description": "Clinical QA validation of missing facts",
+  "vars": [],
+  "publishedVersion": 2,
+  "draft": null,
+  "updatedAt": "2026-07-11T17:23:32.546Z"
+}

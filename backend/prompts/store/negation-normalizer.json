@@ -1,0 +1,12 @@
+{
+  "id": "negation-normalizer",
+  "agent": "NegationNormalizerAgent",
+  "file": "backend/src/pipeline/agents/NegationNormalizerAgent.js",
+  "label": "negation-normalizer-systemprompt",
+  "stage": "Correction",
+  "description": "Fixes negation / historical-fact placement errors",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "updatedAt": "2026-07-11T17:02:56.439057Z"
+}
