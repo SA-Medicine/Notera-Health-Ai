@@ -5,6 +5,7 @@ export class DiagnosisPreservationAgent {
   }
 
   async execute(transcript, extractedData) {
+    console.log('🏷️ [PromptAgent] diagnosis-preservation');
     const systemInstruction = loadPrompt('diagnosis-preservation', `You are the DAS Diagnosis Preservation Agent.
 Your job is to strictly enforce that DIAGNOSES are extracted verbatim from the transcript.
 Clinical terminology abstraction is FORBIDDEN.

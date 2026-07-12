@@ -7,6 +7,7 @@ export class ClinicalObservationExtractorAgent {
   }
 
   async execute(transcript, encounterType) {
+    console.log('🏷️ [PromptAgent] observation-extractor');
     const systemInstruction = loadPrompt('observation-extractor', `You are a Universal Clinical Knowledge Graph Engine.
 Extract every clinically relevant entity from the transcript into a structured Graph.
 

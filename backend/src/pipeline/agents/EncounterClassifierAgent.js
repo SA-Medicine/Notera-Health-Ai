@@ -7,6 +7,7 @@ export class EncounterClassifierAgent {
   }
 
   async execute(transcript) {
+    console.log('🏷️ [PromptAgent] encounter-classifier');
     const systemInstruction = loadPrompt('encounter-classifier', `You are DAS Encounter Classifier.
 Analyze the transcript and categorize the primary nature of the clinical encounter.
 

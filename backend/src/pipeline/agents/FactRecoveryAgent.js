@@ -7,6 +7,7 @@ export class FactRecoveryAgent {
   }
 
   async execute(transcript, missingCategories, entitiesObj) {
+    console.log('🏷️ [PromptAgent] fact-recovery');
     const systemInstruction = loadPrompt('fact-recovery', `You are the DAS Targeted Fact Recovery Agent.
 Your job is to read the RAW TRANSCRIPT and extract ONLY the clinical facts belonging to the missing categories provided.
 Do NOT extract anything else.

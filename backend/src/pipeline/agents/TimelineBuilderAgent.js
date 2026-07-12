@@ -5,6 +5,7 @@ export class TimelineBuilderAgent {
   }
 
   async execute(transcript) {
+    console.log('🏷️ [PromptAgent] timeline-builder');
     const systemInstruction = loadPrompt('timeline-builder', `You are the DAS Timeline Builder.
 Your job is to extract clinically relevant chronological events from the transcript.
 This timeline is used ONLY as internal reasoning context. It is NEVER rendered into the patient note.

@@ -17,6 +17,7 @@ export class ClinicalQAValidatorAgent {
   }
 
   async execute(jsValidation) {
+    console.log('🏷️ [PromptAgent] qa-validator');
     const systemInstruction = loadPrompt('qa-validator', `You are the Clinical QA Validator for DAS V31.
 
 Your job: review missing clinical facts that were dropped by the documentation pipeline.
