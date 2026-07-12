@@ -1,5 +1,59 @@
 [
   {
+    "id": "2026-07-12T16-29-20-184Z-e77e",
+    "command": "node eval/run_eval.mjs Patient10",
+    "status": "passed",
+    "startedAt": "2026-07-12T16:29:20.184Z",
+    "finishedAt": "2026-07-12T16:29:50.479Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-12_16-29-20"
+  },
+  {
+    "id": "2026-07-12T16-24-28-090Z-837a",
+    "command": "node eval/run_eval.mjs Patient4",
+    "status": "passed",
+    "startedAt": "2026-07-12T16:24:28.090Z",
+    "finishedAt": "2026-07-12T16:25:00.661Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-12_16-24-28"
+  },
+  {
+    "id": "2026-07-12T16-04-30-850Z-33d9",
+    "command": "node eval/run_eval.mjs",
+    "status": "passed",
+    "startedAt": "2026-07-12T16:04:30.850Z",
+    "finishedAt": "2026-07-12T16:09:53.807Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-12_16-04-30"
+  },
+  {
+    "id": "2026-07-11T18-21-08-160Z-fa60",
+    "command": "node eval/run_eval.mjs patient1",
+    "status": "passed",
+    "startedAt": "2026-07-11T18:21:08.160Z",
+    "finishedAt": "2026-07-11T18:21:54.578Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-11_18-21-08"
+  },
+  {
+    "id": "2026-07-11T17-54-14-114Z-223c",
+    "command": "node eval/run_eval.mjs Patient2",
+    "status": "passed",
+    "startedAt": "2026-07-11T17:54:14.114Z",
+    "finishedAt": "2026-07-11T17:54:44.419Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-11_17-54-14"
+  },
+  {
+    "id": "2026-07-11T17-46-59-911Z-792a",
+    "command": "node eval/run_eval.mjs Patient10",
+    "status": "passed",
+    "startedAt": "2026-07-11T17:46:59.911Z",
+    "finishedAt": "2026-07-11T17:47:30.252Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-11_17-46-59"
+  },
+  {
     "id": "2026-07-09T14-51-46-254Z-2251",
     "command": "node eval/run_eval.mjs Patient2 patient1",
     "status": "passed",

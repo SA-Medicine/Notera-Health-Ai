@@ -140,13 +140,56 @@ function publishPromptDraft(id, author) {
   fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
   return rec;
 }
-function runsUsingAgent(agent) {
-  const out = [];
-  for (const r of [...runs.values()]) {
-    const hit = (r.lines || []).some((l) => (l.line || '').includes(agent));
-    if (hit) out.push({ id: r.id, status: r.status, startedAt: r.startedAt, resultDir: r.resultDir });
+// map prompt id -> regexes that identify that agent's lines in a run log
+// (run logs print human agent names + block markers, not the JS class name)
+// Primary matcher for every agent is the unique `[PromptAgent] <id>` tag each
+// agent now prints; the extra human-name patterns enrich the captured output.
+const AGENT_LOG_PATTERNS = {
+  'encounter-classifier': [/\[PromptAgent\] encounter-classifier/, /Encounter Classifier/i, /Classification Output/i],
+  'observation-extractor': [/\[PromptAgent\] observation-extractor/, /Observation Extractor/i, /AGENT 1 SUMMARY/i, /Extracted Entities/i, /Edges Found/i, /^Diagnoses:/, /^PMH:/, /^Medications:/, /^Orders:/, /^Followups:/, /^Numerics:/],
+  'fact-recovery': [/\[PromptAgent\] fact-recovery/, /Fact Recovery/i, /Targeted Recovery/i, /Recall optimal/i, /Recall Analyzer Scores/i, /Missing entities detected/i, /Recovered:/],
+  'timeline-builder': [/\[PromptAgent\] timeline-builder/, /Temporal Intelligence/i],
+  'negation-normalizer': [/\[PromptAgent\] negation-normalizer/],
+  'diagnosis-preservation': [/\[PromptAgent\] diagnosis-preservation/, /Diagnosis Preservation/i],
+  'qa-validator': [/\[PromptAgent\] qa-validator/, /QA Validator/i, /V31 QA/i, /Running deep QA/i, /QA Flags/i, /Missing Required Entity/i, /HARD FAIL/i, /Missing Medication/i, /Missing Numeric/i, /Missing Temporal/i, /Retry signal/i, /note is complete/i],
+  'heidi-compression': [/\[PromptAgent\] heidi-compression/, /Compression Engine/i],
+  'judge-clinical': [/\[PromptAgent\] judge-clinical/, /Judge/i],
+};
+const stripAnsiSrv = (s) => String(s || '').replace(/\x1b\[[0-9;]*m/g, '');
+// Get the full stdout for a result run. Prefer the per-run pipeline log the eval
+// harness now writes into the result dir (present for EVERY run, CLI or dashboard);
+// fall back to the dashboard-captured stdout log for older/legacy runs.
+function readRunLogByDir(dir) {
+  try { return fs.readFileSync(path.join(RESULTS, dir, '_pipeline.log'), 'utf8'); } catch {}
+  const rec = [...runs.values()].find((r) => r.resultDir === dir);
+  if (rec) { try { return fs.readFileSync(path.join(LOGDIR, rec.id + '.log'), 'utf8'); } catch {} }
+  return '';
+}
+// split a run log into per-fixture blocks, keeping only lines matching the agent
+function extractAgentFixtures(text, patterns) {
+  const lines = stripAnsiSrv(text).split(/\r?\n/);
+  const fixtures = []; let cur = null;
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    const fm = line.match(/^▶\s+(\S+)/);
+    if (fm) { cur = { fixture: fm[1], lines: [] }; fixtures.push(cur); continue; }
+    if (!cur) { cur = { fixture: '(startup)', lines: [] }; fixtures.push(cur); }
+    if (line && patterns.some((rx) => rx.test(line))) cur.lines.push(line);
   }
-  return out.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 10);
+  return fixtures.filter((f) => f.lines.length);
+}
+// for a prompt id, return recent runs with that agent's specific output grouped by fixture
+function agentLogs(id) {
+  const patterns = AGENT_LOG_PATTERNS[id] || [];
+  const byDir = {}; for (const r of runs.values()) if (r.resultDir) byDir[r.resultDir] = r;
+  const out = [];
+  for (const rr of listResultRuns().slice(0, 12)) {
+    const text = readRunLogByDir(rr.dir); if (!text) continue;
+    const rec = byDir[rr.dir];
+    out.push({ id: rr.dir, resultDir: rr.dir, status: rec ? rec.status : 'passed', command: rec ? rec.command : '(cli run)',
+      fixtures: patterns.length ? extractAgentFixtures(text, patterns) : [] });
+  }
+  return out;
 }
 
 // ── sessions (Debug tab) ──────────────────────────────────────────────────────
@@ -230,7 +273,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/prompts' && req.method === 'GET') {
     return json(res, 200, { readOnly: PROMPTS_READONLY, prompts: listPromptRecs().map((r) => ({
       id: r.id, agent: r.agent, file: r.file, label: r.label, stage: r.stage, description: r.description || '',
-      kind: r.kind || 'agent', vars: r.vars || [], publishedVersion: r.publishedVersion || null,
+      kind: r.kind || 'agent', vars: r.vars || [], active: r.active === true, publishedVersion: r.publishedVersion || null,
       hasDraft: !!r.draft, updatedAt: r.updatedAt })) });
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'GET') {
@@ -242,7 +285,7 @@ const server = http.createServer(async (req, res) => {
     const id = promptId(m[1]); const v = readPromptVersion(id, Number(m[2])); if (!v) return json(res, 404, {}); return json(res, 200, v);
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)\/logs$/)) && req.method === 'GET') {
-    const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, {}); return json(res, 200, runsUsingAgent(rec.agent));
+    const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, {}); return json(res, 200, agentLogs(id));
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PUT') {
     if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });

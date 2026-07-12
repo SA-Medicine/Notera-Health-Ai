@@ -94,6 +94,16 @@ async function main() {
   if (li !== -1) { limit = Number(args[li + 1]); args.splice(li, 2); }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
+
+  // Persist the full run stdout/stderr into the result dir so the admin dashboard
+  // (Prompts → Logs) can show per-agent output for THIS run — works whether the
+  // run is launched from the CLI or the dashboard.
+  const _pipeLog = fs.createWriteStream(path.join(OUT_DIR, '_pipeline.log'), { flags: 'a' });
+  for (const s of ['stdout', 'stderr']) {
+    const orig = process[s].write.bind(process[s]);
+    process[s].write = (chunk, ...rest) => { try { _pipeLog.write(typeof chunk === 'string' ? chunk : chunk.toString()); } catch {} return orig(chunk, ...rest); };
+  }
+
   let files = fs.readdirSync(GOLD_DIR).filter((f) => f.endsWith('.txt')).sort();
   // Exact (case-insensitive) basename match — NOT startsWith, else "patient1" also
   // matches "patient10". Args are gold basenames like "Patient2", "done_Patient3".

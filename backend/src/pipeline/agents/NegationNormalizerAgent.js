@@ -5,6 +5,7 @@ export class NegationNormalizerAgent {
   }
 
   async execute(transcript, clinicalObservations) {
+    console.log('🏷️ [PromptAgent] negation-normalizer');
     const systemInstruction = loadPrompt('negation-normalizer', `You are the DAS Negation Normalizer.
 Your ONLY job is to cross-reference the extracted clinical observations against the transcript to fix any false negatives or flipped negations.
 Do NOT add new facts. ONLY correct existing facts or remove completely hallucinated negated facts.

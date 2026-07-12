@@ -5,6 +5,7 @@ export class HeidiCompressionAgent {
   }
 
   async execute(draftNote) {
+    console.log('🏷️ [PromptAgent] heidi-compression');
     const systemInstruction = loadPrompt('heidi-compression', `You are DAS Compression Engine.
 Goal: Remove unnecessary filler words. Preserve every clinical fact exactly.
 
