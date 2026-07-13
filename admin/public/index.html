@@ -280,7 +280,11 @@ function MetricsTab({openInResults}){
   const [runs,setRuns]=useState([]); const [hist,setHist]=useState([]); const [expand,setExpand]=useState(null);
   const [rows,setRows]=useState({}); const [cmpA,setCmpA]=useState(''); const [cmpB,setCmpB]=useState(''); const [cmp,setCmp]=useState(null);
   const th=loadTh(); const chartRef=useRef(null); const chartObj=useRef(null);
-  useEffect(()=>{ jget('/api/metrics/history').then(setHist).catch(()=>{}); jget('/api/results/runs').then(r=>{setRuns(r); if(r[1])setCmpA(r[1].dir); if(r[0])setCmpB(r[0].dir);}).catch(()=>{}); },[]);
+  const reload=useCallback(()=>{ jget('/api/metrics/history').then(setHist).catch(()=>{}); jget('/api/results/runs').then(r=>{setRuns(r); if(r[1])setCmpA(r[1].dir); if(r[0])setCmpB(r[0].dir);}).catch(()=>{}); },[]);
+  useEffect(()=>{ reload(); },[]);
+  const del=async(dir)=>{ if(!window.confirm('Delete run '+shortId(dir)+' ? This permanently removes its results, logs and history entry.'))return;
+    try{ await fetch('/api/results/'+encodeURIComponent(dir),{method:'DELETE'}); }catch(e){}
+    setExpand(null); setRows({}); setCmp(null); reload(); };
   useEffect(()=>{ if(!chartRef.current||!hist.length) return; const ctx=chartRef.current.getContext('2d');
     const labels=hist.map(h=>String(h.runId).slice(5)||h.runId);
     const ds=(key,color)=>({label:key.replace('avg_',''),data:hist.map(h=>h[key]??null),borderColor:color,backgroundColor:color+'22',tension:.3,spanGaps:true,pointRadius:3});
@@ -306,6 +310,7 @@ function MetricsTab({openInResults}){
             {METRICS.map(m=>{const v=s?s[m[0]]:null; return <td key={m[0]} className={cls('text-center font-mono',metricColor(m[2],v,th))}>{m[3]==='pct'?fmtPct(v):fmtNum(v)}</td>;})}
             <td className={cls('text-center font-mono',(s?.total_unsupported_meds)?'text-danger':'text-slate-400')}>{s?(s.total_unsupported_meds||0):'—'}</td>
             <td className="px-3 text-right whitespace-nowrap">
+              <button onClick={(e)=>{e.stopPropagation(); del(r.dir);}} title="delete this run" className="text-danger/80 text-xs hover:text-danger hover:underline mr-3">🗑 delete</button>
               <button onClick={(e)=>{e.stopPropagation(); openInResults&&openInResults(r.dir);}} title="open this run in Results (side-by-side)" className="text-info text-xs hover:underline mr-2">open →</button>
               <span className="text-slate-500">{expand===r.dir?'▾':'▸'}</span></td></tr>
           {expand===r.dir&&<tr><td colSpan={8} className="bg-ink-900 px-4 py-3"><FixtureBreakdown rows={rows[r.dir]} th={th} dir={r.dir} openInResults={openInResults}/></td></tr>}
@@ -401,18 +406,32 @@ function Overview({setTab}){
   </div>;
 }
 
-// ── Prompts tab (modular registry · single editor · version management · logs) ──
+// ── Prompts tab (pipeline graph · single editor · version management · logs) ──
 const STAGE_ORDER=['Extraction','Classification','Recovery','Correction','Validation','Formatting','Judge'];
+// The real V31 execution order. Prompt nodes are editable; js nodes are context.
+const PIPELINE=[
+  {k:'prompt',id:'encounter-classifier'},
+  {k:'prompt',id:'observation-extractor'},
+  {k:'js',label:'Recall Analyzer'},
+  {k:'prompt',id:'fact-recovery'},
+  {k:'js',label:'Problem Graph → Engines'},
+  {k:'js',label:'Story / Narrative (V31)'},
+  {k:'prompt',id:'qa-validator'},
+  {k:'js',label:'FHIR Export'},
+];
 function PromptsTab({setTab}){
   const [data,setData]=useState({readOnly:false,prompts:[]});
-  const [sel,setSel]=useState(''); const [detail,setDetail]=useState(null);
+  const [sel,setSel]=useState(()=>{ try{ return localStorage.getItem('notera_sel')||''; }catch{ return ''; } }); const [detail,setDetail]=useState(null);
+  useEffect(()=>{ if(sel){ try{ localStorage.setItem('notera_sel',sel); }catch{} } },[sel]);
   const [edit,setEdit]=useState(''); const [note,setNote]=useState('');
   const [logs,setLogs]=useState(null); const [openRun,setOpenRun]=useState('');
   const [showVers,setShowVers]=useState(false); const [msg,setMsg]=useState('');
+  const [freeform,setFreeform]=useState(false); const [maxTok,setMaxTok]=useState('');
   const load=useCallback((keep)=>jget('/api/prompts').then(d=>{setData(d); if(!keep&&!sel&&d.prompts[0])setSel(d.prompts[0].id);}).catch(()=>{}),[sel]);
   useEffect(()=>{load();},[]);
   const loadDetail=useCallback((id)=>{ if(!id)return; jget('/api/prompts/'+id).then(d=>{ setDetail(d);
     setEdit(d.draft?d.draft.systemInstruction:(d.published?.systemInstruction||'')); setNote(d.draft?.note||''); setLogs(null); setOpenRun(''); setShowVers(false);
+    setFreeform(d.freeform===true); setMaxTok(d.maxOutputTokens?String(d.maxOutputTokens):'');
   }).catch(()=>{}); },[]);
   useEffect(()=>{ if(sel)loadDetail(sel); },[sel]);
   const pub=detail?.published?.systemInstruction||''; const dirty=detail&&edit!==pub;
@@ -423,28 +442,50 @@ function PromptsTab({setTab}){
     if(dirty||!detail.draft) await jput('/api/prompts/'+sel,{systemInstruction:edit,note});
     const r=await jpost('/api/prompts/'+sel+'/publish',{}); flash(r.ok?('Published v'+r.publishedVersion):(r.error||'nothing to publish')); load(true); loadDetail(sel); };
   const revert=async()=>{ if(!window.confirm('Discard the current draft and restore the published version?'))return; await jpost('/api/prompts/'+sel+'/revert',{}); flash('Draft discarded'); load(true); loadDetail(sel); };
+  const saveConfig=async(nf,nt)=>{ setFreeform(nf); setMaxTok(nt);
+    const mt=(nt===''?null:Number(nt)); let r={};
+    try{ r=await jpost('/api/prompts/'+sel+'/config',{freeform:nf,maxOutputTokens:mt}); }catch(e){}
+    if(r&&r.ok){ flash('Runtime config saved'); setDetail(d=>d?{...d,freeform:nf,maxOutputTokens:mt}:d); load(true); }
+    else { flash('Save failed — restart the admin server (new /config API not live)'); setFreeform(detail?.freeform===true); setMaxTok(detail?.maxOutputTokens?String(detail.maxOutputTokens):''); }
+  };
   const showLogs=()=>{ if(logs){setLogs(null);return;} jget('/api/prompts/'+sel+'/logs').then(d=>{ setLogs(d||[]); const first=(d||[]).find(r=>r.fixtures&&r.fixtures.length); setOpenRun(first?first.id:''); }).catch(()=>setLogs([])); };
   const loadVersion=(v)=>{ jget('/api/prompts/'+sel+'/version/'+v).then(x=>{ setEdit(x.systemInstruction); flash('Loaded v'+v+' into editor'); }).catch(()=>{}); };
   const rollback=async(v)=>{ if(!window.confirm('Roll back to v'+v+'? This publishes v'+v+"'s text as a new live version."))return;
     const x=await jget('/api/prompts/'+sel+'/version/'+v); await jput('/api/prompts/'+sel,{systemInstruction:x.systemInstruction,note:'rollback to v'+v}); const r=await jpost('/api/prompts/'+sel+'/publish',{}); flash(r.ok?('Rolled back → v'+r.publishedVersion):'error'); load(true); loadDetail(sel); };
-  const groups={}; (data.prompts||[]).forEach(p=>{(groups[p.stage]=groups[p.stage]||[]).push(p);});
-  const stages=Object.keys(groups).sort((a,b)=>(STAGE_ORDER.indexOf(a)+99)%100-(STAGE_ORDER.indexOf(b)+99)%100);
-  return <div className="p-6 fade flex gap-4 h-[calc(100vh-56px)]">
-    <div className="w-60 shrink-0 flex flex-col gap-2 overflow-auto pr-1">
-      <div className="text-xs uppercase tracking-wide text-slate-500">Pipeline prompts</div>
-      {stages.map(st=><div key={st}>
-        <div className="text-[11px] uppercase tracking-wide text-slate-600 mt-2 mb-1">{st}</div>
-        {groups[st].map(p=>
-          <button key={p.id} onClick={()=>setSel(p.id)} title={p.active?'active in the pipeline':'not invoked by the current pipeline'} className={cls('w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-left',sel===p.id?'bg-ink-700 text-slate-100':cls('hover:bg-ink-800',p.active?'text-slate-400':'text-slate-600'))}>
-            <span className={cls('w-1.5 h-1.5 rounded-full shrink-0',p.active?'bg-good':'bg-ink-600')}/>
-            <span className="truncate flex-1">{p.id}</span>
-            {p.hasDraft&&<span title="unpublished draft" className="w-2 h-2 rounded-full bg-warn"/>}
-            <span className="text-[10px] font-mono text-slate-500">v{p.publishedVersion||'—'}</span>
-          </button>)}
-      </div>)}
+  const pmap=Object.fromEntries((data.prompts||[]).map(p=>[p.id,p]));
+  const inactive=(data.prompts||[]).filter(p=>!p.active&&p.id!=='judge-clinical');
+  const judge=pmap['judge-clinical'];
+  const gnode=(n)=>{
+    if(n.k==='js') return <div key={n.label} className="shrink-0 px-3 py-2 rounded-lg border border-dashed border-line bg-ink-850 text-slate-500 text-xs whitespace-nowrap self-center">{n.label}</div>;
+    const p=pmap[n.id]; if(!p) return null; const on=sel===p.id;
+    return <button key={p.id} onClick={()=>setSel(p.id)} title={p.description||''} className={cls('shrink-0 px-3 py-2 rounded-lg border text-left whitespace-nowrap transition',on?'border-phos bg-ink-700 glow':cls('bg-ink-850 hover:bg-ink-800',p.active?'border-line':'border-ink-700 opacity-70'))}>
+      <div className="flex items-center gap-1.5">
+        <span className={cls('w-1.5 h-1.5 rounded-full',p.active?'bg-good':'bg-ink-600')}/>
+        <span className={cls('text-sm',on?'text-slate-100':'text-slate-200')}>{p.id}</span>
+        {p.hasDraft&&<span title="unpublished draft" className="w-1.5 h-1.5 rounded-full bg-warn"/>}
+      </div>
+      <div className="text-[10px] text-slate-500 font-mono mt-0.5">{p.stage} · v{p.publishedVersion||'—'}</div>
+    </button>;
+  };
+  return <div className="p-6 fade flex flex-col gap-4 h-[calc(100vh-56px)]">
+    <div className="shrink-0 bg-ink-900 border border-line rounded-xl p-3">
+      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pipeline flow — click a green node to view / edit its prompt</div>
+      <div className="flex items-stretch gap-1 overflow-x-auto pb-1">
+        {PIPELINE.map((n,i)=><React.Fragment key={i}>
+          {i>0&&<span className="self-center text-slate-600 px-0.5">→</span>}
+          {gnode(n)}
+        </React.Fragment>)}
+      </div>
+      {(inactive.length>0||judge)&&<>
+        <div className="text-[11px] uppercase tracking-wide text-slate-600 mt-3 mb-1.5">Not wired into the pipeline · judge</div>
+        <div className="flex items-stretch gap-2 flex-wrap">
+          {inactive.map(p=>gnode({k:'prompt',id:p.id}))}
+          {judge&&gnode({k:'prompt',id:'judge-clinical'})}
+        </div>
+      </>}
     </div>
-    <div className="flex-1 flex flex-col min-w-0">
-      {!detail? <div className="text-slate-600 text-sm">Select a prompt.</div> : <>
+    <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      {!detail? <div className="text-slate-600 text-sm">Select a node above to edit its prompt.</div> : <>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="font-semibold text-slate-200">{detail.id}</span>
         <span className="text-xs font-mono text-slate-500 truncate">{detail.file}</span>
@@ -455,7 +496,21 @@ function PromptsTab({setTab}){
         {ro&&<span className="text-[11px] text-warn border border-warn/40 rounded px-2 py-.5">read-only</span>}
         <button onClick={()=>setTab&&setTab('results')} title="open the latest run in Results" className="text-xs bg-ink-700 text-slate-200 rounded px-2.5 py-1 hover:brightness-110">Results →</button>
       </div>
-      <p className="text-slate-400 text-xs mb-3">{detail.description}</p>
+      <p className="text-slate-400 text-xs mb-2">{detail.description}</p>
+      <div className="flex items-center gap-3 mb-3 flex-wrap bg-ink-900 border border-line rounded-lg px-3 py-2">
+        <span className="text-[11px] uppercase tracking-wide text-slate-500">Runtime</span>
+        <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer" title="Drop the agent's fixed JSON schema so THIS prompt fully controls the output shape">
+          <input type="checkbox" checked={freeform} disabled={ro} onChange={e=>saveConfig(e.target.checked,maxTok)}/>
+          Freeform output <span className="text-slate-500">(ignore fixed schema)</span>
+        </label>
+        <span className="text-line">·</span>
+        <label className="flex items-center gap-1.5 text-xs text-slate-300" title="Override the model's max output tokens for this agent">
+          Max output tokens
+          <input type="number" min="0" step="512" value={maxTok} disabled={ro} placeholder="default" onChange={e=>setMaxTok(e.target.value)} onBlur={e=>saveConfig(freeform,e.target.value)}
+            className="w-24 bg-ink-850 border border-line rounded px-2 py-1 text-xs outline-none focus:border-phos-dim"/>
+        </label>
+        {freeform&&<span className="text-[11px] text-warn">⚠ output shape no longer guaranteed — for testing / custom rubrics</span>}
+      </div>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button onClick={()=>setShowVers(v=>!v)} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">History ({detail.versions?.length||0}) {showVers?'▾':'▸'}</button>
         <button onClick={showLogs} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">Logs {logs?'▾':'▸'}</button>

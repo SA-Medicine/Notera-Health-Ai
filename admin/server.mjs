@@ -165,7 +165,24 @@ function readRunLogByDir(dir) {
   if (rec) { try { return fs.readFileSync(path.join(LOGDIR, rec.id + '.log'), 'utf8'); } catch {} }
   return '';
 }
-// split a run log into per-fixture blocks, keeping only lines matching the agent
+// BLOCK capture: everything an agent printed between its `[PromptAgent] <id>`
+// start tag and the next agent's tag — i.e. the agent's full free output.
+const TAG_RE = /\[PromptAgent\]\s+([a-z0-9\-]+)/;
+function extractAgentBlocks(text, id) {
+  const lines = stripAnsiSrv(text).split(/\r?\n/);
+  const fixtures = []; let cur = null; let capturing = false;
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    const fm = line.match(/^▶\s+(\S+)/);
+    if (fm) { cur = { fixture: fm[1], lines: [] }; fixtures.push(cur); capturing = false; continue; }
+    if (!cur) { cur = { fixture: '(startup)', lines: [] }; fixtures.push(cur); }
+    const tm = line.match(TAG_RE);
+    if (tm) { capturing = (tm[1] === id); if (capturing) cur.lines.push(line); continue; }
+    if (capturing && line) cur.lines.push(line);
+  }
+  return fixtures.filter((f) => f.lines.length);
+}
+// LEGACY line capture: for older runs (before agent tags) match by human names
 function extractAgentFixtures(text, patterns) {
   const lines = stripAnsiSrv(text).split(/\r?\n/);
   const fixtures = []; let cur = null;
@@ -186,8 +203,11 @@ function agentLogs(id) {
   for (const rr of listResultRuns().slice(0, 12)) {
     const text = readRunLogByDir(rr.dir); if (!text) continue;
     const rec = byDir[rr.dir];
-    out.push({ id: rr.dir, resultDir: rr.dir, status: rec ? rec.status : 'passed', command: rec ? rec.command : '(cli run)',
-      fixtures: patterns.length ? extractAgentFixtures(text, patterns) : [] });
+    // primary: block capture via the agent's own tag (full free output);
+    // fallback: legacy human-name line matching for runs made before tagging.
+    let fixtures = extractAgentBlocks(text, id);
+    if (!fixtures.length && patterns.length) fixtures = extractAgentFixtures(text, patterns);
+    out.push({ id: rr.dir, resultDir: rr.dir, status: rec ? rec.status : 'passed', command: rec ? rec.command : '(cli run)', fixtures });
   }
   return out;
 }
@@ -250,6 +270,24 @@ const server = http.createServer(async (req, res) => {
     const rd = (dir) => { try { return fs.readFileSync(path.join(RESULTS, dir, f), 'utf8'); } catch { return ''; } };
     if (!a || !b || !f) return json(res, 400, {}); return json(res, 200, { a: rd(a), b: rd(b) });
   }
+  // delete a run entirely: its result dir, captured stdout log, runs.json entry, history line
+  if ((m = p.match(/^\/api\/results\/([^/]+)$/)) && req.method === 'DELETE') {
+    const d = safeRunDir(m[1]); if (!d) return json(res, 400, { error: 'bad run' });
+    try { fs.rmSync(path.join(RESULTS, d), { recursive: true, force: true }); }
+    catch (e) { return json(res, 500, { error: e.message }); }
+    // prune the metrics history line for this run
+    try {
+      const hp = path.join(RESULTS, '_history.jsonl'); const rid = d.replace(/^run_/, '');
+      const kept = fs.readFileSync(hp, 'utf8').split(/\n/).filter(Boolean).filter((l) => { try { return JSON.parse(l).runId !== rid; } catch { return true; } });
+      fs.writeFileSync(hp, kept.length ? kept.join('\n') + '\n' : '');
+    } catch {}
+    // prune the runs.json entry + its captured stdout log
+    try {
+      for (const [rid, r] of runs) if (r.resultDir === d) { runs.delete(rid); try { fs.unlinkSync(path.join(LOGDIR, rid + '.log')); } catch {} }
+      persistRuns();
+    } catch {}
+    return json(res, 200, { ok: true });
+  }
 
   if (p === '/api/metrics/history') {
     let hist = []; try { hist = fs.readFileSync(path.join(RESULTS, '_history.jsonl'), 'utf8').split(/\n/).filter(Boolean).map((l) => JSON.parse(l)); } catch {}
@@ -273,8 +311,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/prompts' && req.method === 'GET') {
     return json(res, 200, { readOnly: PROMPTS_READONLY, prompts: listPromptRecs().map((r) => ({
       id: r.id, agent: r.agent, file: r.file, label: r.label, stage: r.stage, description: r.description || '',
-      kind: r.kind || 'agent', vars: r.vars || [], active: r.active === true, publishedVersion: r.publishedVersion || null,
-      hasDraft: !!r.draft, updatedAt: r.updatedAt })) });
+      kind: r.kind || 'agent', vars: r.vars || [], active: r.active === true, order: (typeof r.order === 'number' ? r.order : null),
+      freeform: r.freeform === true, maxOutputTokens: (typeof r.maxOutputTokens === 'number' ? r.maxOutputTokens : null),
+      publishedVersion: r.publishedVersion || null, hasDraft: !!r.draft, updatedAt: r.updatedAt })) });
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'GET') {
     const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, { error: 'no prompt' });
@@ -297,6 +336,17 @@ const server = http.createServer(async (req, res) => {
     if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
     const id = promptId(m[1]); const rec = publishPromptDraft(id, 'admin'); if (!rec) return json(res, 400, { error: 'no draft to publish' });
     return json(res, 200, { ok: true, publishedVersion: rec.publishedVersion });
+  }
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)\/config$/)) && req.method === 'POST') {
+    if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
+    const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, { error: 'no prompt' });
+    const body = await readBody(req);
+    if (typeof body.freeform === 'boolean') rec.freeform = body.freeform;
+    if (body.maxOutputTokens === null || body.maxOutputTokens === '') rec.maxOutputTokens = null;
+    else if (body.maxOutputTokens !== undefined) { const n = Number(body.maxOutputTokens); if (Number.isFinite(n) && n > 0) rec.maxOutputTokens = Math.floor(n); }
+    rec.updatedAt = new Date().toISOString();
+    fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
+    return json(res, 200, { ok: true, freeform: rec.freeform === true, maxOutputTokens: rec.maxOutputTokens ?? null });
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)\/revert$/)) && req.method === 'POST') {
     if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });

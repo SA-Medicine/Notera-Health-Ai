@@ -10,5 +10,6 @@
   "draft": null,
   "kind": "judge",
   "updatedAt": "2026-07-11T17:04:50.670917Z",
-  "active": false
+  "active": false,
+  "order": null
 }

@@ -1,4 +1,4 @@
-import { loadPrompt } from '../../../prompts/registry.js';
+import { loadPrompt, loadPromptConfig } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 export class ClinicalObservationExtractorAgent {
@@ -322,7 +322,13 @@ Rendering & Priority:
 
     // Extraction is the essential, heaviest call (large transcripts → long output). Give
     // it generous time + a retry so a single slow response can't crash the whole note.
-    const resultStr = await this.llm.generateContent(systemInstruction, prompt, responseSchema, { timeoutMs: 180000, retries: 1, maxOutputTokens: 65536 });
+    const resultStr = await (async () => {
+      const _cfg = loadPromptConfig('observation-extractor');
+      const _opts = { ...({ timeoutMs: 180000, retries: 1, maxOutputTokens: 65536 }) };
+      if (_cfg.maxOutputTokens) _opts.maxOutputTokens = _cfg.maxOutputTokens;
+      return this.llm.generateContent(systemInstruction, prompt, _cfg.freeform ? null : responseSchema, _opts);
+    })();
+    try{ const _o = (typeof resultStr==='string'?resultStr:JSON.stringify(resultStr)); console.log('📤 [PromptAgentOutput] observation-extractor: '+(_o.length>20000?_o.slice(0,20000)+' …[truncated]':_o)); }catch(_){}
     
     try {
       const parsed = safeParseJson(resultStr);

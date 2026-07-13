@@ -1,4 +1,4 @@
-import { loadPrompt } from '../../../prompts/registry.js';
+import { loadPrompt, loadPromptConfig } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 /**
@@ -58,7 +58,13 @@ Output Schema:
       required: ["status", "missing_facts", "addendum", "action"]
     };
 
-    const resultStr = await this.llm.generateContent(systemInstruction, prompt, responseSchema);
+    const resultStr = await (async () => {
+      const _cfg = loadPromptConfig('qa-validator');
+      const _opts = { ...({}) };
+      if (_cfg.maxOutputTokens) _opts.maxOutputTokens = _cfg.maxOutputTokens;
+      return this.llm.generateContent(systemInstruction, prompt, _cfg.freeform ? null : responseSchema, _opts);
+    })();
+    try{ const _o = (typeof resultStr==='string'?resultStr:JSON.stringify(resultStr)); console.log('📤 [PromptAgentOutput] qa-validator: '+(_o.length>20000?_o.slice(0,20000)+' …[truncated]':_o)); }catch(_){}
     
     try {
       const result = safeParseJson(resultStr);
