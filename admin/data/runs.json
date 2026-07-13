@@ -1,30 +1,66 @@
 [
   {
-    "id": "2026-07-12T18-47-36-018Z-035b",
-    "command": "node eval/run_eval.mjs Patient9",
+    "id": "2026-07-13T16-14-13-670Z-23fe",
+    "command": "node eval/run_eval.mjs Patient10",
     "status": "passed",
-    "startedAt": "2026-07-12T18:47:36.018Z",
-    "finishedAt": "2026-07-12T18:48:06.325Z",
+    "startedAt": "2026-07-13T16:14:13.670Z",
+    "finishedAt": "2026-07-13T16:17:44.419Z",
     "exitCode": 0,
-    "resultDir": "run_2026-07-12_18-47-36"
+    "resultDir": "run_2026-07-13_16-14-13"
   },
   {
-    "id": "2026-07-12T18-36-48-512Z-1993",
-    "command": "node eval/run_eval.mjs Patient7",
+    "id": "2026-07-13T16-04-11-098Z-5fca",
+    "command": "node eval/run_eval.mjs Patient5",
     "status": "passed",
-    "startedAt": "2026-07-12T18:36:48.512Z",
-    "finishedAt": "2026-07-12T18:37:42.704Z",
+    "startedAt": "2026-07-13T16:04:11.098Z",
+    "finishedAt": "2026-07-13T16:04:59.527Z",
     "exitCode": 0,
-    "resultDir": "run_2026-07-12_18-36-48"
+    "resultDir": "run_2026-07-13_16-04-11"
   },
   {
-    "id": "2026-07-12T18-29-32-930Z-946d",
-    "command": "node eval/run_eval.mjs Patient7",
+    "id": "2026-07-13T15-25-30-491Z-335d",
+    "command": "node eval/run_eval.mjs Patient5",
     "status": "passed",
-    "startedAt": "2026-07-12T18:29:32.930Z",
-    "finishedAt": "2026-07-12T18:30:03.260Z",
+    "startedAt": "2026-07-13T15:25:30.491Z",
+    "finishedAt": "2026-07-13T15:26:24.222Z",
     "exitCode": 0,
-    "resultDir": "run_2026-07-12_18-29-32"
+    "resultDir": "run_2026-07-13_15-25-30"
+  },
+  {
+    "id": "2026-07-13T15-23-51-510Z-1117",
+    "command": "node eval/run_eval.mjs Patient4",
+    "status": "passed",
+    "startedAt": "2026-07-13T15:23:51.511Z",
+    "finishedAt": "2026-07-13T15:24:42.464Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-13_15-23-51"
+  },
+  {
+    "id": "2026-07-13T15-22-40-430Z-eadc",
+    "command": "node eval/run_eval.mjs Patient2",
+    "status": "failed",
+    "startedAt": "2026-07-13T15:22:40.430Z",
+    "finishedAt": "2026-07-13T15:22:53.533Z",
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-13T15-22-36-830Z-6d6a",
+    "command": "node eval/run_eval.mjs",
+    "status": "failed",
+    "startedAt": "2026-07-13T15:22:36.830Z",
+    "finishedAt": "2026-07-13T15:22:37.842Z",
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-13T15-07-07-794Z-2cc7",
+    "command": "node eval/run_eval.mjs Patient4",
+    "status": "passed",
+    "startedAt": "2026-07-13T15:07:07.794Z",
+    "finishedAt": "2026-07-13T15:07:57.063Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-13_15-07-07"
   },
   {
     "id": "2026-07-12T17-55-40-364Z-9d1f",
@@ -36,60 +72,6 @@
     "resultDir": "run_2026-07-12_17-55-40"
   },
   {
-    "id": "2026-07-12T17-53-09-412Z-caf5",
-    "command": "node eval/run_eval.mjs patient1",
-    "status": "passed",
-    "startedAt": "2026-07-12T17:53:09.412Z",
-    "finishedAt": "2026-07-12T17:53:53.606Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_17-53-09"
-  },
-  {
-    "id": "2026-07-12T17-33-26-006Z-6668",
-    "command": "node eval/run_eval.mjs",
-    "status": "passed",
-    "startedAt": "2026-07-12T17:33:26.006Z",
-    "finishedAt": "2026-07-12T17:43:35.661Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_17-33-26"
-  },
-  {
-    "id": "2026-07-12T17-10-06-136Z-7fbc",
-    "command": "node eval/run_eval.mjs Patient6",
-    "status": "passed",
-    "startedAt": "2026-07-12T17:10:06.136Z",
-    "finishedAt": "2026-07-12T17:10:36.489Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_17-10-06"
-  },
-  {
-    "id": "2026-07-12T16-29-20-184Z-e77e",
-    "command": "node eval/run_eval.mjs Patient10",
-    "status": "passed",
-    "startedAt": "2026-07-12T16:29:20.184Z",
-    "finishedAt": "2026-07-12T16:29:50.479Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_16-29-20"
-  },
-  {
-    "id": "2026-07-12T16-24-28-090Z-837a",
-    "command": "node eval/run_eval.mjs Patient4",
-    "status": "passed",
-    "startedAt": "2026-07-12T16:24:28.090Z",
-    "finishedAt": "2026-07-12T16:25:00.661Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_16-24-28"
-  },
-  {
-    "id": "2026-07-12T16-04-30-850Z-33d9",
-    "command": "node eval/run_eval.mjs",
-    "status": "passed",
-    "startedAt": "2026-07-12T16:04:30.850Z",
-    "finishedAt": "2026-07-12T16:09:53.807Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-12_16-04-30"
-  },
-  {
     "id": "2026-07-11T18-21-08-160Z-fa60",
     "command": "node eval/run_eval.mjs patient1",
     "status": "passed",
@@ -97,33 +79,6 @@
     "finishedAt": "2026-07-11T18:21:54.578Z",
     "exitCode": 0,
     "resultDir": "run_2026-07-11_18-21-08"
-  },
-  {
-    "id": "2026-07-11T17-54-14-114Z-223c",
-    "command": "node eval/run_eval.mjs Patient2",
-    "status": "passed",
-    "startedAt": "2026-07-11T17:54:14.114Z",
-    "finishedAt": "2026-07-11T17:54:44.419Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-11_17-54-14"
-  },
-  {
-    "id": "2026-07-11T17-46-59-911Z-792a",
-    "command": "node eval/run_eval.mjs Patient10",
-    "status": "passed",
-    "startedAt": "2026-07-11T17:46:59.911Z",
-    "finishedAt": "2026-07-11T17:47:30.252Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-11_17-46-59"
-  },
-  {
-    "id": "2026-07-09T14-51-46-254Z-2251",
-    "command": "node eval/run_eval.mjs Patient2 patient1",
-    "status": "passed",
-    "startedAt": "2026-07-09T14:51:46.255Z",
-    "finishedAt": "2026-07-09T14:53:05.614Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-09_14-51-46"
   },
   {
     "id": "2026-07-08T19-40-25-837Z-93be",
@@ -187,14 +142,5 @@
     "finishedAt": "2026-07-08T18:33:05.137Z",
     "exitCode": 0,
     "resultDir": "run_2026-07-08_18-32-12"
-  },
-  {
-    "id": "2026-07-08T17-23-56-310Z-d548",
-    "command": "node /tmp/stub_eval.mjs Patient2",
-    "status": "passed",
-    "startedAt": "2026-07-08T17:23:56.310Z",
-    "finishedAt": "2026-07-08T17:23:56.369Z",
-    "exitCode": 0,
-    "resultDir": "run_2026-07-08_16-32-12"
   }
 ]

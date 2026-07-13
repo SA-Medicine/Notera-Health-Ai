@@ -6,12 +6,6 @@
 //   • {{var}} tokens in a stored prompt are substituted from `vars`.
 //   • Reads are cached by file mtime → editing+publishing a prompt hot-reloads
 //     into the running pipeline on the next agent invocation.
-//
-// Store layout (written by the admin dashboard / seed script):
-//   backend/prompts/store/<id>.json            → { id, agent, file, label, stage,
-//                                                   vars[], publishedVersion, draft }
-//   backend/prompts/store/<id>/v<N>.json        → { version, systemInstruction,
-//                                                   note, createdAt, author }
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,9 +35,6 @@ function substitute(text, vars) {
 
 /**
  * Return the published systemInstruction for a prompt id, or the fallback.
- * @param {string} id       registry id (e.g. "qa-validator")
- * @param {string} fallback the original inline literal (used if no published version)
- * @param {object} [vars]   values for {{token}} substitution
  */
 export function loadPrompt(id, fallback, vars) {
   const rec = readJsonCached(path.join(STORE, `${id}.json`));
@@ -51,6 +42,20 @@ export function loadPrompt(id, fallback, vars) {
   const ver = readJsonCached(path.join(STORE, id, `v${rec.publishedVersion}.json`));
   if (!ver || typeof ver.systemInstruction !== 'string') return substitute(fallback, vars);
   return substitute(ver.systemInstruction, vars);
+}
+
+/**
+ * Per-prompt runtime config (editable from the admin dashboard):
+ *  - freeform:        drop the agent's fixed responseSchema so the PROMPT fully
+ *                     controls the output shape (for experimenting / custom rubrics)
+ *  - maxOutputTokens: override the model's max output tokens for this agent
+ */
+export function loadPromptConfig(id) {
+  const rec = readJsonCached(path.join(STORE, `${id}.json`)) || {};
+  return {
+    freeform: rec.freeform === true,
+    maxOutputTokens: (typeof rec.maxOutputTokens === 'number' && rec.maxOutputTokens > 0) ? rec.maxOutputTokens : null,
+  };
 }
 
 /** List all registry records (metadata only). Used by the admin server. */

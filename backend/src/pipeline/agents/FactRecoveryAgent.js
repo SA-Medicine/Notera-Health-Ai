@@ -1,4 +1,4 @@
-import { loadPrompt } from '../../../prompts/registry.js';
+import { loadPrompt, loadPromptConfig } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
 
 export class FactRecoveryAgent {
@@ -88,7 +88,13 @@ Only output facts that belong to the missing categories. Do not hallucinate.`, {
     // proceed with the entities we already have (this step was hanging for 3m+).
     let resultStr;
     try {
-      resultStr = await this.llm.generateContent(systemInstruction, prompt, responseSchema, { timeoutMs: 45000 });
+      resultStr = await (async () => {
+        const _cfg = loadPromptConfig('fact-recovery');
+        const _opts = { ...({ timeoutMs: 45000 }) };
+        if (_cfg.maxOutputTokens) _opts.maxOutputTokens = _cfg.maxOutputTokens;
+        return this.llm.generateContent(systemInstruction, prompt, _cfg.freeform ? null : responseSchema, _opts);
+      })();
+      try{ const _o = (typeof resultStr==='string'?resultStr:JSON.stringify(resultStr)); console.log('📤 [PromptAgentOutput] fact-recovery: '+(_o.length>20000?_o.slice(0,20000)+' …[truncated]':_o)); }catch(_){}
     } catch (e) {
       console.warn("[FactRecovery] skipped — LLM call failed/timed out:", e && e.message);
       return entitiesObj;

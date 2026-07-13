@@ -6,8 +6,11 @@
   "stage": "Validation",
   "description": "Clinical QA validation of missing facts",
   "vars": [],
-  "publishedVersion": 7,
+  "publishedVersion": 13,
   "draft": null,
-  "updatedAt": "2026-07-12T18:47:29.577Z",
-  "active": true
+  "updatedAt": "2026-07-13T16:14:08.389Z",
+  "active": true,
+  "order": 4,
+  "freeform": true,
+  "maxOutputTokens": null
 }
