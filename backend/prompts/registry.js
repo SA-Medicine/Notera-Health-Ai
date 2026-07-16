@@ -1,11 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Notera Prompt Registry — modular, versioned prompt store for pipeline agents.
-//   • loadPrompt(id, fallback, vars) returns the PUBLISHED systemInstruction for
-//     an agent prompt, falling back to the inline literal if the registry has no
-//     entry (so nothing breaks on a fresh clone / empty registry).
-//   • {{var}} tokens in a stored prompt are substituted from `vars`.
-//   • Reads are cached by file mtime → editing+publishing a prompt hot-reloads
-//     into the running pipeline on the next agent invocation.
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const STORE = path.join(HERE, 'store');
 
-const _cache = new Map(); // absPath -> { mtimeMs, data }
+const _cache = new Map();
 
 function readJsonCached(absPath) {
   try {
@@ -33,9 +27,7 @@ function substitute(text, vars) {
     Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m);
 }
 
-/**
- * Return the published systemInstruction for a prompt id, or the fallback.
- */
+/** Return the published systemInstruction for a prompt id, or the fallback. */
 export function loadPrompt(id, fallback, vars) {
   const rec = readJsonCached(path.join(STORE, `${id}.json`));
   if (!rec || !rec.publishedVersion) return substitute(fallback, vars);
@@ -46,15 +38,16 @@ export function loadPrompt(id, fallback, vars) {
 
 /**
  * Per-prompt runtime config (editable from the admin dashboard):
- *  - freeform:        drop the agent's fixed responseSchema so the PROMPT fully
- *                     controls the output shape (for experimenting / custom rubrics)
- *  - maxOutputTokens: override the model's max output tokens for this agent
+ *  - freeform:        drop the fixed responseSchema so the prompt controls output
+ *  - maxOutputTokens: override the model's max output tokens
+ *  - schema:          an output-schema block auto-appended to the bottom of the call
  */
 export function loadPromptConfig(id) {
   const rec = readJsonCached(path.join(STORE, `${id}.json`)) || {};
   return {
     freeform: rec.freeform === true,
     maxOutputTokens: (typeof rec.maxOutputTokens === 'number' && rec.maxOutputTokens > 0) ? rec.maxOutputTokens : null,
+    schema: (typeof rec.schema === 'string') ? rec.schema : '',
   };
 }
 

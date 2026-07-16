@@ -15,7 +15,12 @@
     "start:backend": "npm --workspace @notera/backend run start",
     "test": "npm --workspace @notera/backend run test && npm --workspace @notera/eval run test",
     "eval": "npm --workspace @notera/eval run eval",
-    "admin": "node admin/server.mjs"
+    "admin": "node admin/server.mjs",
+    "db:migrate": "node db/migrate.mjs",
+    "db:backfill": "node db/backfill_files.mjs",
+    "db:backfill:firestore": "node db/backfill_firestore.mjs",
+    "db:up": "docker compose -f db/docker-compose.postgres.yml up -d",
+    "db:down": "docker compose -f db/docker-compose.postgres.yml down"
   },
   "engines": {
     "node": ">=20"

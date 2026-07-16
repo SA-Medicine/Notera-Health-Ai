@@ -75,7 +75,7 @@ export async function generateNote(input, opts = {}) {
     () => {}
   );
   await engine.init();
-  const pipeline = await engine.runPipeline(safeTranscript, templateSystemPrompt);
+  const pipeline = await engine.runPipeline(safeTranscript, templateSystemPrompt, input.referenceNote || '');
   const finalNote = pipeline.finalNote;
 
   // Auto-select specialty from the pipeline's Agent 0 encounter classifier unless
@@ -146,6 +146,7 @@ export async function generateNote(input, opts = {}) {
   return {
     consultId, draftId, note, renderedNote: finalNote,
     status: gr.status, flags: gr.flags, schemaErrors: gr.schemaErrors, entities, detectedSpecialty: detected,
+    qa: pipeline.logs?.qaValidation || null,   // QA agent output incl. _metrics (for eval metrics chart)
     // Full pipeline logs for the Developer panel (only when requested).
     logs: opts.includeLogs ? {
       textLogs: pipeline.textLogs || [],

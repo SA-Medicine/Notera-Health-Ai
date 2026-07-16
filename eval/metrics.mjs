@@ -99,7 +99,7 @@ export function scoreNote({ note, noteText, goldText, entities }) {
 export function aggregate(rows) {
   const n = rows.length || 1;
   const avg = (k) => +(rows.reduce((s, r) => s + (Number(r[k]) || 0), 0) / n).toFixed(3);
-  return {
+  const out = {
     count: rows.length,
     schema_validity: +(rows.filter((r) => r.schema_valid).length / n).toFixed(3),
     avg_section_coverage: avg('section_coverage'),
@@ -108,4 +108,13 @@ export function aggregate(rows) {
     avg_story_flow: avg('story_flow'),
     total_unsupported_meds: rows.reduce((s, r) => s + (r.meds_unsupported?.length || 0), 0),
   };
+  // Dynamic QA-agent metrics: average every qa_<name> numeric field found on the rows,
+  // counting only rows that reported it → surfaced as avg_qa_<name> for the trend chart.
+  const qaKeys = new Set();
+  for (const r of rows) for (const k of Object.keys(r)) if (k.startsWith('qa_') && typeof r[k] === 'number') qaKeys.add(k);
+  for (const k of qaKeys) {
+    const vals = rows.map((r) => r[k]).filter((v) => typeof v === 'number' && isFinite(v));
+    if (vals.length) out['avg_' + k] = +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(3);
+  }
+  return out;
 }

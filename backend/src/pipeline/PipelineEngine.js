@@ -57,7 +57,7 @@ export class PipelineEngine {
     this.llmService = await createGeminiService();
   }
 
-  async runPipeline(transcript, templateSystemPrompt) {
+  async runPipeline(transcript, templateSystemPrompt, referenceNote = '') {
     if (!this.llmService) await this.init();
 
     const logs = {};
@@ -456,7 +456,8 @@ export class PipelineEngine {
           let qaResult;
           try {
             const qaAgent = new ClinicalQAValidatorAgent(this.llmService);
-            qaResult = await qaAgent.execute(jsValidation);
+            // pass the live transcript + generated note + gold/Heidi reference so the QA prompt can cross-verify
+            qaResult = await qaAgent.execute(jsValidation, transcript, finalNote, referenceNote);
           } catch (qaErr) {
             logEvent("⚠️ Agent 8 QA skipped — " + (qaErr && qaErr.message));
             qaResult = { status: "PASS", missing_facts: [], addendum: [], action: "none" };

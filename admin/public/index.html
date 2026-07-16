@@ -3,16 +3,33 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Notera · Auto-Tester Admin</title>
+<title>Notera · Auto-Tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  tailwind.config = { darkMode: 'class', theme: { extend: {
-    colors: {
-      ink: { 900:'#0a0e14', 850:'#0d1219', 800:'#111827', 750:'#151d2b', 700:'#1c2636', 600:'#26344a' },
-      line: '#22304a', phos: { DEFAULT:'#3ddc97', dim:'#1f7a5a' }, danger:'#ff5c7c', warn:'#ffb454', good:'#3ddc97', info:'#4aa3ff'
+  // ── Design tokens (refined premium palette · dark) ──────────────────────────
+  tailwind.config = { darkMode:'class', theme:{ extend:{
+    colors:{
+      // surfaces (near-black → raised) + borders
+      ink:{ 900:'#0b0d10', 850:'#111418', 800:'#161a20', 750:'#1b2027', 700:'#232a33', 600:'#2c343f' },
+      line:'#262d37',
+      // brand + semantic (softer, higher-trust)
+      phos:{ DEFAULT:'#34d399', dim:'#167c5b' },
+      danger:'#fb7185', warn:'#fbbf24', good:'#34d399', info:'#60a5fa'
     },
-    fontFamily: { mono: ['ui-monospace','SFMono-Regular','Menlo','monospace'], sans: ['Inter','ui-sans-serif','system-ui'] }
-  } } };
+    fontFamily:{
+      sans:['Inter','ui-sans-serif','system-ui','sans-serif'],
+      mono:['"JetBrains Mono"','ui-monospace','SFMono-Regular','Menlo','monospace']
+    },
+    boxShadow:{
+      card:'0 1px 2px rgba(0,0,0,.35), 0 1px 1px rgba(0,0,0,.2)',
+      pop:'0 16px 40px -12px rgba(0,0,0,.6), 0 0 0 1px rgba(38,45,55,.9)',
+      glow:'0 0 0 1px #262d37, 0 14px 44px -18px rgba(52,211,153,.20)'
+    },
+    borderRadius:{ xl:'14px' }
+  }}};
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -20,24 +37,41 @@
 <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  html,body{height:100%} body{background:#0a0e14;color:#c9d4e3}
-  *{scrollbar-width:thin;scrollbar-color:#26344a transparent}
-  *::-webkit-scrollbar{width:9px;height:9px}*::-webkit-scrollbar-thumb{background:#26344a;border-radius:6px}
-  .glow{box-shadow:0 0 0 1px #22304a, 0 8px 30px -12px rgba(61,220,151,.15)}
-  .logpane{font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.55}
-  .md h1{font-size:1.4rem;font-weight:700;margin:.5em 0 .3em;color:#eaf1fb}
-  .md h2{font-size:1.1rem;font-weight:700;margin:.9em 0 .3em;color:#dbe6f5;border-bottom:1px solid #22304a;padding-bottom:.2em}
-  .md h3{font-size:.98rem;font-weight:600;margin:.7em 0 .2em;color:#cdd9ea}
-  .md p{margin:.4em 0}.md ul,.md ol{margin:.3em 0 .3em 1.2em}.md ul{list-style:disc}.md ol{list-style:decimal}.md li{margin:.15em 0}
-  .md code{background:#151d2b;padding:.1em .35em;border-radius:4px;font-family:ui-monospace,monospace;font-size:.85em;color:#9ff0cf}
-  .md pre{background:#0d1219;border:1px solid #22304a;border-radius:8px;padding:.8em;overflow:auto;margin:.5em 0}
+  html,body{height:100%}
+  body{background:#0b0d10;color:#d4dbe6;font-family:'Inter',ui-sans-serif,system-ui;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  ::selection{background:rgba(52,211,153,.25);color:#eafff6}
+  *{scrollbar-width:thin;scrollbar-color:#2c343f transparent}
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-thumb{background:#232a33;border:2px solid transparent;background-clip:padding-box;border-radius:8px}
+  *::-webkit-scrollbar-thumb:hover{background:#2c343f;background-clip:padding-box}
+  /* accessible focus (WCAG) — keyboard only */
+  :focus-visible{outline:2px solid #34d399;outline-offset:2px;border-radius:6px}
+  button:focus:not(:focus-visible),a:focus:not(:focus-visible),input:focus:not(:focus-visible),select:focus:not(:focus-visible),textarea:focus:not(:focus-visible){outline:none}
+  .glow{box-shadow:0 0 0 1px #262d37, 0 14px 44px -18px rgba(52,211,153,.20)}
+  .card{background:#111418;border:1px solid #262d37;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .logpane{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;letter-spacing:-.01em}
+  /* skeleton loading */
+  .skeleton{position:relative;overflow:hidden;background:#161a20;border-radius:8px}
+  .skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);animation:shimmer 1.5s infinite}
+  @keyframes shimmer{100%{transform:translateX(100%)}}
+  /* toasts */
+  .toastIn{animation:toastIn .22s cubic-bezier(.2,.8,.2,1)}
+  @keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  /* markdown (refined) */
+  .md h1{font-size:1.35rem;font-weight:700;margin:.5em 0 .35em;color:#f1f5fb;letter-spacing:-.01em}
+  .md h2{font-size:1.05rem;font-weight:650;margin:1em 0 .35em;color:#e2e9f3;border-bottom:1px solid #232a33;padding-bottom:.3em}
+  .md h3{font-size:.95rem;font-weight:600;margin:.75em 0 .25em;color:#cdd9ea}
+  .md p{margin:.45em 0;line-height:1.65}.md ul,.md ol{margin:.35em 0 .35em 1.2em}.md ul{list-style:disc}.md ol{list-style:decimal}.md li{margin:.2em 0;line-height:1.6}
+  .md code{background:#1b2027;padding:.12em .4em;border-radius:5px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:.85em;color:#8fe9c4}
+  .md pre{background:#0d1013;border:1px solid #232a33;border-radius:10px;padding:.9em;overflow:auto;margin:.6em 0}
   .md pre code{background:none;padding:0}
   .md table{border-collapse:collapse;margin:.6em 0;width:100%;font-size:.85rem}
-  .md th,.md td{border:1px solid #22304a;padding:.35em .6em;text-align:left;vertical-align:top}.md th{background:#151d2b}
-  .md strong{color:#eaf1fb}.md em{color:#9fb0c6}.md blockquote{border-left:3px solid #1f7a5a;padding-left:.8em;color:#9fb0c6;margin:.4em 0}
-  .md hr{border:0;border-top:1px solid #22304a;margin:.8em 0}
-  .diff-add{background:rgba(61,220,151,.12);color:#a9f0d1}.diff-del{background:rgba(255,92,124,.12);color:#ffb3c4}
-  .fade{animation:f .25s ease}@keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .md th,.md td{border:1px solid #232a33;padding:.4em .65em;text-align:left;vertical-align:top}.md th{background:#161a20;font-weight:600}
+  .md strong{color:#f1f5fb;font-weight:600}.md em{color:#9fb0c6}.md blockquote{border-left:3px solid #167c5b;padding-left:.85em;color:#9fb0c6;margin:.5em 0}
+  .md hr{border:0;border-top:1px solid #232a33;margin:.9em 0}
+  .diff-add{background:rgba(52,211,153,.12);color:#a7f3d0}.diff-del{background:rgba(251,113,133,.12);color:#fecdd3}
+  .fade{animation:f .28s cubic-bezier(.2,.8,.2,1)}@keyframes f{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
@@ -75,44 +109,73 @@ function metricColor(key,v,th){ if(v==null) return 'text-slate-500'; const t=th[
   if(inv){ if(v<=g) return 'text-good'; if(v<=a) return 'text-warn'; return 'text-danger'; }
   if(v>=g) return 'text-good'; if(v>=a) return 'text-warn'; return 'text-danger'; }
 
+// ── Toasts (global, portal-free) ──────────────────────────────
+const _toasts={list:[],subs:new Set(),n:0};
+function toast(msg,kind='info'){ const t={id:++_toasts.n,msg,kind}; _toasts.list=[..._toasts.list,t]; _toasts.subs.forEach(f=>f());
+  setTimeout(()=>{ _toasts.list=_toasts.list.filter(x=>x.id!==t.id); _toasts.subs.forEach(f=>f()); },2600); }
+function Toaster(){ const [,f]=useState(0); useEffect(()=>{ const h=()=>f(n=>n+1); _toasts.subs.add(h); return ()=>_toasts.subs.delete(h); },[]);
+  const ico={info:'●',success:'✓',error:'✕',warn:'!'}; const tone={info:'text-info',success:'text-good',error:'text-danger',warn:'text-warn'};
+  return <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
+    {_toasts.list.map(t=><div key={t.id} className="toastIn pointer-events-auto flex items-center gap-2.5 bg-ink-800/95 border border-line rounded-xl px-3.5 py-2.5 shadow-pop min-w-[240px]">
+      <span className={cls('text-sm',tone[t.kind]||tone.info)}>{ico[t.kind]||ico.info}</span><span className="text-sm text-slate-200">{t.msg}</span></div>)}
+  </div>; }
+// ── Loading + empty states ────────────────────────────────────
+function Skeleton({className}){ return <div className={cls('skeleton',className)}/>; }
+function EmptyState({icon,title,hint,action}){ return <div className="flex flex-col items-center justify-center text-center py-16 px-6 fade">
+  <div className="w-12 h-12 rounded-2xl bg-ink-800 border border-line flex items-center justify-center text-slate-500 text-xl mb-3.5">{icon||'○'}</div>
+  <div className="text-slate-200 font-medium text-sm">{title}</div>
+  {hint&&<div className="text-slate-500 text-xs mt-1.5 max-w-sm leading-relaxed">{hint}</div>}
+  {action&&<div className="mt-4">{action}</div>}
+</div>; }
+// ── Status primitives ─────────────────────────────────────────
 function Pill({status}){
-  const map={idle:['Idle','bg-ink-700 text-slate-300'],running:['Running','bg-info/20 text-info animate-pulse'],passed:['Passed','bg-good/15 text-good'],failed:['Failed','bg-danger/15 text-danger'],killed:['Killed','bg-warn/15 text-warn'],error:['Error','bg-danger/15 text-danger'],interrupted:['Interrupted','bg-warn/15 text-warn']};
-  const [t,c]=map[status]||map.idle; return <span className={cls('px-2.5 py-1 rounded-full text-xs font-semibold',c)}>{t}</span>;
+  const map={idle:['Idle','bg-ink-700 text-slate-300','bg-slate-500'],running:['Running','bg-info/15 text-info','bg-info animate-pulse'],passed:['Passed','bg-good/15 text-good','bg-good'],failed:['Failed','bg-danger/15 text-danger','bg-danger'],killed:['Killed','bg-warn/15 text-warn','bg-warn'],error:['Error','bg-danger/15 text-danger','bg-danger'],interrupted:['Interrupted','bg-warn/15 text-warn','bg-warn']};
+  const [t,c,dot]=map[status]||map.idle;
+  return <span className={cls('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',c)}><span className={cls('w-1.5 h-1.5 rounded-full',dot)}/>{t}</span>;
 }
-function Badge({passed}){ return passed===null? <span className="text-slate-500 text-xs">—</span> :
-  <span className={cls('px-2 py-.5 rounded text-[11px] font-bold', passed?'bg-good/15 text-good':'bg-danger/15 text-danger')}>{passed?'PASS':'FAIL'}</span>; }
+function Badge({passed}){ return passed===null? <span className="text-slate-600 text-xs">—</span> :
+  <span className={cls('inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide ring-1', passed?'bg-good/10 text-good ring-good/20':'bg-danger/10 text-danger ring-danger/20')}>{passed?'PASS':'FAIL'}</span>; }
 function Md({text}){ return <div className="md" dangerouslySetInnerHTML={{__html:MD.render(text||'')}}/>; }
 
 function Login({onOk}){
   const [pw,setPw]=useState(''); const [err,setErr]=useState('');
-  const go=async()=>{ const r=await jpost('/api/login',{password:pw}); if(r.ok) onOk(); else setErr('Wrong password'); };
-  return <div className="h-screen flex items-center justify-center">
-    <div className="w-80 bg-ink-800 glow rounded-2xl p-7">
-      <div className="text-phos font-mono text-sm mb-1">notera://</div>
-      <h1 className="text-xl font-bold text-slate-100 mb-1">Auto-Tester Admin</h1>
-      <p className="text-slate-400 text-sm mb-5">Internal regression console.</p>
+  const [busy,setBusy]=useState(false);
+  const go=async()=>{ if(!pw||busy)return; setBusy(true); setErr(''); try{ const r=await jpost('/api/login',{password:pw}); if(r.ok){toast('Welcome back','success'); onOk();} else setErr('Incorrect password'); }catch{ setErr('Could not reach the server'); } setBusy(false); };
+  return <div className="h-screen flex items-center justify-center bg-ink-900 relative overflow-hidden">
+    <div className="absolute -top-1/3 left-1/2 -translate-x-1/2 w-[560px] h-[560px] rounded-full blur-3xl pointer-events-none" style={{background:'radial-gradient(circle, rgba(52,211,153,.10), transparent 60%)'}}/>
+    <div className="w-[360px] card p-8 relative fade">
+      <div className="flex items-center gap-2.5 mb-6">
+        <div className="w-9 h-9 rounded-xl bg-phos/15 border border-phos/25 flex items-center justify-center text-phos font-bold text-lg">N</div>
+        <div><div className="text-slate-100 font-semibold leading-tight">Notera</div><div className="text-slate-500 text-xs">Auto-Tester console</div></div>
+      </div>
+      <label className="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
       <input type="password" value={pw} autoFocus onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}
-        placeholder="password" className="w-full bg-ink-900 border border-line rounded-lg px-3 py-2 text-sm outline-none focus:border-phos-dim"/>
-      {err&&<div className="text-danger text-xs mt-2">{err}</div>}
-      <button onClick={go} className="w-full mt-4 bg-phos text-ink-900 font-semibold rounded-lg py-2 text-sm hover:brightness-110">Enter</button>
+        placeholder="Enter admin password" className="w-full bg-ink-900 border border-line rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-phos-dim focus:ring-2 focus:ring-phos/15 transition"/>
+      {err&&<div className="text-danger text-xs mt-2 flex items-center gap-1">✕ {err}</div>}
+      <button onClick={go} disabled={!pw||busy} className={cls('w-full mt-4 font-semibold rounded-lg py-2.5 text-sm transition',(!pw||busy)?'bg-ink-700 text-slate-500 cursor-not-allowed':'bg-phos text-ink-900 hover:brightness-110 active:brightness-95')}>{busy?'Signing in…':'Sign in'}</button>
+      <p className="text-slate-600 text-[11px] text-center mt-5">Internal regression harness · authorized access only</p>
     </div></div>;
 }
 
 const NAV=[['overview','Overview','▦'],['run','Run','▶'],['results','Results','☰'],['metrics','Metrics','📈'],['prompts','Prompts','✎'],['judge','Gates & Judge','⚖']];
 function Sidebar({tab,setTab,onLogout,collapsed}){
-  return <div className={cls('shrink-0 bg-ink-850 border-r border-line flex flex-col transition-all', collapsed?'w-14':'w-52')}>
-    <div className="px-4 py-4 border-b border-line overflow-hidden whitespace-nowrap">
-      <div className="text-phos font-mono text-[13px]">notera://</div>
-      {!collapsed&&<div className="text-slate-200 font-semibold text-sm">Auto-Tester</div>}
+  return <aside className={cls('shrink-0 bg-ink-850 border-r border-line flex flex-col transition-all duration-200', collapsed?'w-16':'w-56')}>
+    <div className="h-14 flex items-center gap-2.5 px-4 border-b border-line overflow-hidden whitespace-nowrap">
+      <div className="w-8 h-8 rounded-lg bg-phos/15 border border-phos/25 flex items-center justify-center text-phos font-bold shrink-0">N</div>
+      {!collapsed&&<div className="leading-tight"><div className="text-slate-100 font-semibold text-sm">Notera</div><div className="text-slate-500 text-[11px]">Auto-Tester</div></div>}
     </div>
-    <nav className="flex-1 p-2 space-y-1">
-      {NAV.map(([id,label,ic])=>
-        <button key={id} onClick={()=>setTab(id)} title={label} className={cls('w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition',
-          tab===id?'bg-ink-700 text-slate-100 glow':'text-slate-400 hover:bg-ink-800 hover:text-slate-200')}>
-          <span className="w-4 text-center opacity-80">{ic}</span>{!collapsed&&label}</button>)}
+    <nav className="flex-1 p-2.5 space-y-0.5" aria-label="Primary">
+      {NAV.map(([id,label,ic])=>{
+        const active=tab===id;
+        return <button key={id} onClick={()=>setTab(id)} title={label} aria-current={active?'page':undefined}
+          className={cls('group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition',
+          active?'bg-ink-750 text-slate-100':'text-slate-400 hover:bg-ink-800 hover:text-slate-200')}>
+          {active&&<span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-phos"/>}
+          <span className={cls('w-4 text-center text-[15px]',active?'opacity-100':'opacity-70 group-hover:opacity-100')}>{ic}</span>{!collapsed&&label}</button>;
+      })}
     </nav>
-    <button onClick={onLogout} className="m-2 px-3 py-2 text-xs text-slate-500 hover:text-slate-300 text-left">{collapsed?'⎋':'Sign out'}</button>
-  </div>;
+    <button onClick={onLogout} className="m-2.5 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 hover:bg-ink-800 text-left flex items-center gap-2 transition">⎋{!collapsed&&<span>Sign out</span>}</button>
+  </aside>;
 }
 
 // ── Run tab (preset + range) ──────────────────────────────────
@@ -133,7 +196,7 @@ function RunTab({global}){
     const es=new EventSource('/api/runs/'+id+'/stream'); esRef.current=es;
     es.onmessage=(e)=>{ const d=JSON.parse(e.data);
       if(d.type==='line') setLines(L=>[...L,{stream:d.stream,line:stripAnsi(d.line)}]);
-      else if(d.type==='status'){ setStatus(d.status); global.setStatus(d.status); if(d.status!=='running'){ es.close(); loadHist(); } } };
+      else if(d.type==='status'){ setStatus(d.status); global.setStatus(d.status); if(d.status!=='running'){ es.close(); loadHist(); if(d.status==='passed')toast('Run passed','success'); else if(d.status==='failed'||d.status==='error')toast('Run '+d.status,'error'); } } };
     es.onerror=()=>{ es.close(); };
   };
   const chosen=()=> mode==='all'?[] : mode==='one'?(sel?[sel]:[]) : rangeSel;
@@ -283,14 +346,18 @@ function MetricsTab({openInResults}){
   const reload=useCallback(()=>{ jget('/api/metrics/history').then(setHist).catch(()=>{}); jget('/api/results/runs').then(r=>{setRuns(r); if(r[1])setCmpA(r[1].dir); if(r[0])setCmpB(r[0].dir);}).catch(()=>{}); },[]);
   useEffect(()=>{ reload(); },[]);
   const del=async(dir)=>{ if(!window.confirm('Delete run '+shortId(dir)+' ? This permanently removes its results, logs and history entry.'))return;
-    try{ await fetch('/api/results/'+encodeURIComponent(dir),{method:'DELETE'}); }catch(e){}
+    try{ await fetch('/api/results/'+encodeURIComponent(dir),{method:'DELETE'}); toast('Run deleted','success'); }catch(e){ toast('Delete failed','error'); }
     setExpand(null); setRows({}); setCmp(null); reload(); };
   useEffect(()=>{ if(!chartRef.current||!hist.length) return; const ctx=chartRef.current.getContext('2d');
     const labels=hist.map(h=>String(h.runId).slice(5)||h.runId);
     const ds=(key,color)=>({label:key.replace('avg_',''),data:hist.map(h=>h[key]??null),borderColor:color,backgroundColor:color+'22',tension:.3,spanGaps:true,pointRadius:3});
+    // QA-agent metrics (avg_qa_*) discovered dynamically from history → plotted on a 2nd axis
+    const PAL=['#ffb454','#7dd3fc','#f472b6','#a3e635','#c77dff','#4aa3ff','#fb923c','#34d399'];
+    const qaKeys=[...new Set(hist.flatMap(h=>Object.keys(h).filter(k=>k.startsWith('avg_qa_'))))];
+    const qaDs=qaKeys.map((k,i)=>({label:k.replace('avg_qa_',''),data:hist.map(h=>h[k]??null),borderColor:PAL[i%PAL.length],backgroundColor:'transparent',borderDash:[4,3],tension:.3,spanGaps:true,pointRadius:3,yAxisID:'yQA'}));
     if(chartObj.current)chartObj.current.destroy();
-    chartObj.current=new Chart(ctx,{type:'line',data:{labels,datasets:[ds('avg_section_coverage','#3ddc97'),ds('avg_similarity_to_gold','#4aa3ff'),ds('avg_story_flow','#c77dff'),ds('avg_omission_rate','#ff5c7c')]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#9fb0c6',boxWidth:12}}},scales:{x:{ticks:{color:'#5b6b82',maxRotation:0,autoSkip:true},grid:{color:'#151d2b'}},y:{ticks:{color:'#5b6b82'},grid:{color:'#151d2b'},min:0,max:1}}}});
+    chartObj.current=new Chart(ctx,{type:'line',data:{labels,datasets:[ds('avg_section_coverage','#3ddc97'),ds('avg_similarity_to_gold','#4aa3ff'),ds('avg_story_flow','#c77dff'),ds('avg_omission_rate','#ff5c7c'),...qaDs]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#9fb0c6',boxWidth:12}}},scales:{x:{ticks:{color:'#5b6b82',maxRotation:0,autoSkip:true},grid:{color:'#151d2b'}},y:{ticks:{color:'#5b6b82'},grid:{color:'#151d2b'},min:0,max:1},yQA:{display:qaKeys.length>0,position:'right',ticks:{color:'#ffb454'},grid:{drawOnChartArea:false},title:{display:true,text:'QA metrics',color:'#ffb454'}}}}});
   },[hist]);
   const toggle=(d)=>{ if(expand===d){setExpand(null);return;} setExpand(d); if(!rows[d]) jget('/api/metrics/run/'+d).then(x=>setRows(r=>({...r,[d]:x.rows||[]}))).catch(()=>{}); };
   const runCompare=()=>{ if(cmpA&&cmpB) jget(`/api/metrics/compare?a=${cmpA}&b=${cmpB}`).then(setCmp).catch(()=>{}); };
@@ -387,22 +454,33 @@ function JudgeTab(){
 }
 
 function Overview({setTab}){
-  const [runs,setRuns]=useState([]); const [hist,setHist]=useState([]);
-  useEffect(()=>{ jget('/api/results/runs').then(setRuns).catch(()=>{}); jget('/api/metrics/history').then(setHist).catch(()=>{}); },[]);
-  const withS=runs.filter(r=>r.summary); const latest=withS[0], prev=withS[1];
-  const card=(label,key,fmt)=>{const v=latest?.summary?.[key]; const p=prev?.summary?.[key]; const d=(v!=null&&p!=null)?v-p:null; const inv=key==='avg_omission_rate';
-    return <div className="bg-ink-850 border border-line rounded-xl p-4"><div className="text-xs text-slate-500">{label}</div>
-      <div className="text-2xl font-mono text-slate-100 mt-1">{fmt(v)}</div>
-      <div className={cls('text-xs font-mono mt-1',d==null?'text-slate-600':(inv?d<0:d>0)?'text-good':'text-danger')}>{d==null?'first run':(d>0?'▲ +':'▼ ')+fmt(Math.abs(d))}</div></div>;};
-  return <div className="p-6 fade space-y-5">
-    <div className="grid grid-cols-4 gap-4">
+  const [runs,setRuns]=useState(null); const [hist,setHist]=useState([]);
+  useEffect(()=>{ jget('/api/results/runs').then(setRuns).catch(()=>setRuns([])); jget('/api/metrics/history').then(setHist).catch(()=>{}); },[]);
+  const withS=(runs||[]).filter(r=>r.summary); const latest=withS[0], prev=withS[1];
+  const card=(label,key,fmt)=>{const v=latest?.summary?.[key]; const p=prev?.summary?.[key]; const d=(v!=null&&p!=null)?v-p:null; const inv=key==='avg_omission_rate'; const good=d!=null&&(inv?d<0:d>0);
+    return <div className="card p-4"><div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">{label}</div>
+      <div className="text-2xl font-semibold text-slate-100 mt-1.5 tabular-nums">{fmt(v)}</div>
+      <div className={cls('inline-flex items-center gap-1 text-xs font-medium mt-2 px-1.5 py-0.5 rounded-md',d==null?'text-slate-600 bg-ink-800':good?'text-good bg-good/10':'text-danger bg-danger/10')}>{d==null?'first run':(d>0?'↑ ':'↓ ')+fmt(Math.abs(d))}{d!=null&&<span className="text-slate-600">vs prev</span>}</div></div>;};
+  const act=(t,tab,ic,tone,desc)=><button onClick={()=>setTab(tab)} className="card p-5 text-left hover:bg-ink-800/60 hover:border-ink-600 transition group">
+    <div className={cls('inline-flex items-center justify-center w-9 h-9 rounded-lg mb-2.5',tone)}>{ic}</div>
+    <div className="text-slate-100 font-medium text-sm mb-0.5">{t}</div><div className="text-slate-500 text-xs leading-relaxed">{desc}</div></button>;
+  if(runs===null) return <div className="p-6 space-y-5"><div className="grid grid-cols-4 gap-4">{[0,1,2,3].map(i=><Skeleton key={i} className="h-24"/>)}</div><div className="grid grid-cols-3 gap-4">{[0,1,2].map(i=><Skeleton key={i} className="h-28"/>)}</div></div>;
+  if(!withS.length) return <div className="p-6"><EmptyState icon="▦" title="No runs yet" hint="Trigger the regression harness to generate your first scorecard, then results and metrics will appear here." action={<button onClick={()=>setTab('run')} className="bg-phos text-ink-900 font-semibold text-sm rounded-lg px-4 py-2 hover:brightness-110">▶ Run the tester</button>}/></div>;
+  return <div className="p-6 fade space-y-6 max-w-6xl">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {card('Section coverage','avg_section_coverage',fmtPct)}{card('Similarity to gold','avg_similarity_to_gold',v=>fmtNum(v))}
       {card('Story / Flow','avg_story_flow',v=>fmtNum(v))}{card('Omission rate','avg_omission_rate',fmtPct)}</div>
-    <div className="grid grid-cols-2 gap-4">
-      <button onClick={()=>setTab('run')} className="bg-ink-850 border border-line rounded-xl p-5 text-left hover:bg-ink-800"><div className="text-phos text-sm font-mono mb-1">▶ Run</div><div className="text-slate-300 text-sm">Trigger the tester (preset or patient range) and watch logs stream live.</div></button>
-      <button onClick={()=>setTab('results')} className="bg-ink-850 border border-line rounded-xl p-5 text-left hover:bg-ink-800"><div className="text-info text-sm font-mono mb-1">☰ Results</div><div className="text-slate-300 text-sm">Generated vs Gold side-by-side, run-vs-run diff.</div></button></div>
-    <div className="bg-ink-850 border border-line rounded-xl p-4"><div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Runs recorded</div>
-      <div className="text-slate-300 text-sm">{runs.length} result set{runs.length===1?'':'s'} · {hist.length} scored in history · release blockers ★ patient2, patient5</div></div>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {act('Run the tester','run',<span className="text-phos">▶</span>,'bg-phos/12','Trigger a preset or patient range and watch logs stream live.')}
+      {act('Inspect results','results',<span className="text-info">☰</span>,'bg-info/12','Generated vs Gold side-by-side, with run-vs-run diff.')}
+      {act('Track metrics','metrics',<span className="text-warn">📈</span>,'bg-warn/12','Quality trend across runs and per-fixture breakdowns.')}</div>
+    <div className="card p-4 flex items-center gap-6 text-sm">
+      <div><div className="text-2xl font-semibold text-slate-100 tabular-nums">{(runs||[]).length}</div><div className="text-xs text-slate-500">result sets</div></div>
+      <div className="w-px h-8 bg-line"/>
+      <div><div className="text-2xl font-semibold text-slate-100 tabular-nums">{hist.length}</div><div className="text-xs text-slate-500">scored in history</div></div>
+      <div className="w-px h-8 bg-line"/>
+      <div className="text-slate-500 text-xs">Release blockers <span className="text-warn">★</span> patient2, patient5</div>
+    </div>
   </div>;
 }
 
@@ -427,16 +505,17 @@ function PromptsTab({setTab}){
   const [logs,setLogs]=useState(null); const [openRun,setOpenRun]=useState('');
   const [showVers,setShowVers]=useState(false); const [msg,setMsg]=useState('');
   const [freeform,setFreeform]=useState(false); const [maxTok,setMaxTok]=useState('');
+  const [schema,setSchema]=useState(''); const [showSchema,setShowSchema]=useState(false);
   const load=useCallback((keep)=>jget('/api/prompts').then(d=>{setData(d); if(!keep&&!sel&&d.prompts[0])setSel(d.prompts[0].id);}).catch(()=>{}),[sel]);
   useEffect(()=>{load();},[]);
   const loadDetail=useCallback((id)=>{ if(!id)return; jget('/api/prompts/'+id).then(d=>{ setDetail(d);
     setEdit(d.draft?d.draft.systemInstruction:(d.published?.systemInstruction||'')); setNote(d.draft?.note||''); setLogs(null); setOpenRun(''); setShowVers(false);
-    setFreeform(d.freeform===true); setMaxTok(d.maxOutputTokens?String(d.maxOutputTokens):'');
+    setFreeform(d.freeform===true); setMaxTok(d.maxOutputTokens?String(d.maxOutputTokens):''); setSchema(d.schema||''); setShowSchema(false);
   }).catch(()=>{}); },[]);
   useEffect(()=>{ if(sel)loadDetail(sel); },[sel]);
   const pub=detail?.published?.systemInstruction||''; const dirty=detail&&edit!==pub;
   const ro=data.readOnly;
-  const flash=(t)=>{ setMsg(t); setTimeout(()=>setMsg(''),1800); };
+  const flash=(t)=>{ setMsg(t); toast(t, /publish|saved|rolled|loaded/i.test(t)?'success':/fail|error|discard/i.test(t)?'error':'info'); setTimeout(()=>setMsg(''),1800); };
   const saveDraft=async()=>{ await jput('/api/prompts/'+sel,{systemInstruction:edit,note}); flash('Draft saved'); load(true); loadDetail(sel); };
   const publish=async()=>{ if(!window.confirm('Publish this prompt as a new version? It changes live pipeline behavior on the next run.'))return;
     if(dirty||!detail.draft) await jput('/api/prompts/'+sel,{systemInstruction:edit,note});
@@ -448,6 +527,7 @@ function PromptsTab({setTab}){
     if(r&&r.ok){ flash('Runtime config saved'); setDetail(d=>d?{...d,freeform:nf,maxOutputTokens:mt}:d); load(true); }
     else { flash('Save failed — restart the admin server (new /config API not live)'); setFreeform(detail?.freeform===true); setMaxTok(detail?.maxOutputTokens?String(detail.maxOutputTokens):''); }
   };
+  const saveSchema=async()=>{ let r={}; try{ r=await jpost('/api/prompts/'+sel+'/config',{schema}); }catch(e){} flash(r&&r.ok?'Output schema saved':'Save failed — restart the admin server'); load(true); };
   const showLogs=()=>{ if(logs){setLogs(null);return;} jget('/api/prompts/'+sel+'/logs').then(d=>{ setLogs(d||[]); const first=(d||[]).find(r=>r.fixtures&&r.fixtures.length); setOpenRun(first?first.id:''); }).catch(()=>setLogs([])); };
   const loadVersion=(v)=>{ jget('/api/prompts/'+sel+'/version/'+v).then(x=>{ setEdit(x.systemInstruction); flash('Loaded v'+v+' into editor'); }).catch(()=>{}); };
   const rollback=async(v)=>{ if(!window.confirm('Roll back to v'+v+'? This publishes v'+v+"'s text as a new live version."))return;
@@ -514,6 +594,7 @@ function PromptsTab({setTab}){
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button onClick={()=>setShowVers(v=>!v)} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">History ({detail.versions?.length||0}) {showVers?'▾':'▸'}</button>
         <button onClick={showLogs} className="text-xs border border-line rounded px-2 py-1 text-slate-500 hover:text-slate-300">Logs {logs?'▾':'▸'}</button>
+        {sel==='qa-validator'&&<button onClick={()=>setShowSchema(s=>!s)} className={cls('text-xs border rounded px-2 py-1',showSchema?'border-phos-dim text-slate-200':'border-line text-slate-500 hover:text-slate-300')}>Output schema {showSchema?'▾':'▸'}</button>}
         {dirty&&<span className="text-xs text-warn">● unsaved changes</span>}
         <div className="flex-1"/>
         {dirty&&<button onClick={()=>setEdit(pub)} className="text-xs border border-line rounded px-2 py-1 text-slate-400 hover:text-slate-200">Reset to published</button>}
@@ -521,6 +602,16 @@ function PromptsTab({setTab}){
         <button onClick={saveDraft} disabled={ro||!dirty} className={cls('text-xs rounded px-3 py-1 font-semibold',(ro||!dirty)?'bg-ink-700 text-slate-500':'bg-ink-600 text-slate-100 hover:brightness-110')}>Save draft</button>
         <button onClick={publish} disabled={ro} className={cls('text-xs rounded px-3 py-1 font-semibold',ro?'bg-ink-700 text-slate-500':'bg-phos text-ink-900 hover:brightness-110')}>Publish</button>
       </div>
+      {showSchema&&sel==='qa-validator'&&<div className="mb-3 bg-ink-900 border border-phos-dim/40 rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[11px] uppercase tracking-wide text-phos">Output schema — appended to the bottom of every QA call</span>
+          <div className="flex-1"/>
+          <button onClick={saveSchema} disabled={ro} className="text-xs bg-phos text-ink-900 font-semibold rounded px-3 py-1 hover:brightness-110 disabled:opacity-40">Save schema</button>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-2">Define the JSON the QA agent must return — the base fields drive the scorecard/pipeline; add your own <span className="text-slate-300">named numeric fields</span> (e.g. <code className="text-phos">"clarity_score": 0-5</code>) and they're auto-detected each run and plotted as new lines in the Metrics chart. Turn on <span className="text-slate-300">Freeform output</span> above so this schema (not the fixed one) controls the output.</p>
+        <textarea value={schema} onChange={e=>setSchema(e.target.value)} readOnly={ro} spellCheck={false} placeholder={'{\n  "status": "PASS" | "LOW" | "FAIL",\n  "missing_facts": ["string"],\n  "addendum": [],\n  "action": "none" | "retry_slot_filler" | "pipeline_fail",\n  "clarity_score": 0\n}'}
+          className="w-full h-40 p-3 logpane bg-ink-950 bg-ink-900 border border-line rounded text-slate-200 outline-none resize-y focus:border-phos-dim"/>
+      </div>}
       {showVers&&<div className="mb-3 bg-ink-900 border border-line rounded-lg p-2 max-h-48 overflow-auto">
         <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Version history</div>
         {(detail.versions||[]).slice().reverse().map(v=><div key={v.version} className="flex items-center gap-2 text-xs py-1">
@@ -569,33 +660,84 @@ function PromptsTab({setTab}){
   </div>;
 }
 
+// ── Command palette (⌘K) ──────────────────────────────────────
+function CommandPalette({open,setOpen,commands}){
+  const [q,setQ]=useState(''); const [i,setI]=useState(0); const inputRef=useRef(null); const listRef=useRef(null);
+  const filtered=useMemo(()=>{ const s=q.trim().toLowerCase(); return s?commands.filter(c=>c.label.toLowerCase().includes(s)||(c.group||'').toLowerCase().includes(s)):commands; },[q,commands]);
+  useEffect(()=>{ if(open){ setQ(''); setI(0); const t=setTimeout(()=>inputRef.current&&inputRef.current.focus(),20); return ()=>clearTimeout(t); } },[open]);
+  useEffect(()=>{ setI(0); },[q]);
+  const run=(c)=>{ setOpen(false); setTimeout(()=>c.action(),0); };
+  const onKey=(e)=>{ if(e.key==='ArrowDown'){e.preventDefault(); setI(x=>Math.min(x+1,filtered.length-1));}
+    else if(e.key==='ArrowUp'){e.preventDefault(); setI(x=>Math.max(x-1,0));}
+    else if(e.key==='Enter'){e.preventDefault(); if(filtered[i])run(filtered[i]);}
+    else if(e.key==='Escape'){e.preventDefault(); setOpen(false);} };
+  if(!open) return null;
+  let lastGroup=null;
+  return <div className="fixed inset-0 z-[90] flex items-start justify-center pt-[14vh] px-4" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={()=>setOpen(false)}/>
+    <div className="relative w-full max-w-xl card shadow-pop overflow-hidden toastIn">
+      <div className="flex items-center gap-2.5 px-4 border-b border-line">
+        <span className="text-slate-500 text-sm">⌘</span>
+        <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} onKeyDown={onKey} placeholder="Type a command or search…"
+          className="flex-1 bg-transparent py-3.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none"/>
+        <kbd className="text-[10px] text-slate-500 border border-line rounded px-1.5 py-0.5">ESC</kbd>
+      </div>
+      <div ref={listRef} className="max-h-[22rem] overflow-auto py-2">
+        {filtered.length===0 && <div className="px-4 py-10 text-center text-slate-600 text-sm">No commands match "{q}"</div>}
+        {filtered.map((c,idx)=>{ const showGroup=c.group&&c.group!==lastGroup; lastGroup=c.group;
+          return <React.Fragment key={c.id}>
+            {showGroup&&<div className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-wide text-slate-600 font-medium">{c.group}</div>}
+            <button onMouseMove={()=>setI(idx)} onClick={()=>run(c)}
+              className={cls('w-full flex items-center gap-3 px-4 py-2 text-left text-sm rounded-none',idx===i?'bg-ink-750 text-slate-100':'text-slate-300 hover:bg-ink-800')}>
+              <span className="w-5 text-center opacity-80">{c.icon}</span><span className="flex-1">{c.label}</span>
+              {idx===i&&<span className="text-[10px] text-slate-500">↵</span>}
+            </button>
+          </React.Fragment>; })}
+      </div>
+    </div>
+  </div>;
+}
+
 function App(){
   const [authed,setAuthed]=useState(null); const [tab,setTab]=useState('overview'); const [status,setStatus]=useState('idle'); const [navOpen,setNavOpen]=useState(true);
-  const [resultsTarget,setResultsTarget]=useState(null);
+  const [resultsTarget,setResultsTarget]=useState(null); const [paletteOpen,setPaletteOpen]=useState(false);
   const openInResults=(dir,file)=>{ setResultsTarget({dir,file:file||'',n:Date.now()}); setTab('results'); };
   useEffect(()=>{ jget('/api/session').then(d=>setAuthed(d.authed)).catch(()=>setAuthed(false)); },[]);
-  useEffect(()=>{ const h=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault(); setTab('run');} }; window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h); },[]);
-  if(authed===null) return <div className="h-screen flex items-center justify-center text-slate-500">…</div>;
+  useEffect(()=>{ const h=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault(); setPaletteOpen(o=>!o);} }; window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h); },[]);
+  if(authed===null) return <div className="h-screen flex items-center justify-center bg-ink-900"><div className="w-6 h-6 rounded-full border-2 border-ink-700 border-t-phos animate-spin"/></div>;
   if(!authed) return <Login onOk={()=>setAuthed(true)}/>;
   const logout=async()=>{ await jpost('/api/logout',{}); setAuthed(false); };
-  return <div className="flex h-screen">
+  const commands=[
+    ...NAV.map(([id,label,ic])=>({id:'go-'+id,label:'Go to '+label,icon:ic,group:'Navigate',action:()=>setTab(id)})),
+    {id:'run-open',label:'Run the tester',icon:'▶',group:'Actions',action:()=>setTab('run')},
+    {id:'toggle-nav',label:(navOpen?'Collapse':'Expand')+' sidebar',icon:'☰',group:'View',action:()=>setNavOpen(o=>!o)},
+    {id:'signout',label:'Sign out',icon:'⎋',group:'Account',action:logout},
+  ];
+  return <div className="flex h-screen bg-ink-900">
     <Sidebar tab={tab} setTab={setTab} onLogout={logout} collapsed={!navOpen}/>
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="h-14 shrink-0 border-b border-line bg-ink-850 flex items-center gap-3 px-4">
-        <button onClick={()=>setNavOpen(o=>!o)} title="toggle sidebar" className="text-slate-400 hover:text-slate-200 w-8 h-8 rounded-lg hover:bg-ink-800">☰</button>
-        <div className="text-slate-200 font-semibold capitalize">{NAV.find(n=>n[0]===tab)?.[1]}</div>
+      <header className="h-14 shrink-0 border-b border-line bg-ink-850/80 flex items-center gap-3 px-4">
+        <button onClick={()=>setNavOpen(o=>!o)} title="Toggle sidebar" aria-label="Toggle sidebar" className="text-slate-400 hover:text-slate-100 w-8 h-8 rounded-lg hover:bg-ink-800 flex items-center justify-center transition">☰</button>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-slate-500 text-sm">Auto-Tester</span><span className="text-slate-600">/</span>
+          <span className="text-slate-100 font-semibold">{NAV.find(n=>n[0]===tab)?.[1]}</span>
+        </div>
         <Pill status={status}/><div className="flex-1"/>
-        <span className="text-xs text-slate-500 font-mono">env: local · ⌘K → Run</span>
-      </div>
-      <div className="flex-1 overflow-auto">
+        <button onClick={()=>setPaletteOpen(true)} title="Command palette" className="hidden sm:inline-flex items-center gap-2 text-xs text-slate-400 bg-ink-800 border border-line rounded-lg pl-2.5 pr-1.5 py-1.5 hover:text-slate-200 hover:border-ink-600 transition">
+          <span>Search</span><kbd className="text-[10px] text-slate-500 bg-ink-900 border border-line rounded px-1 py-0.5 font-mono">⌘K</kbd></button>
+        <span className="hidden md:inline text-xs text-slate-600 font-mono">env: local</span>
+      </header>
+      <main className="flex-1 overflow-auto">
         {tab==='overview'&&<Overview setTab={setTab}/>}
         {tab==='run'&&<RunTab global={{setStatus}}/>}
         {tab==='results'&&<ResultsTab setTab={setTab} target={resultsTarget} clearTarget={()=>setResultsTarget(null)}/>}
         {tab==='metrics'&&<MetricsTab openInResults={openInResults}/>}
         {tab==='prompts'&&<PromptsTab setTab={setTab}/>}
         {tab==='judge'&&<JudgeTab/>}
-      </div>
+      </main>
     </div>
+    <Toaster/>
+    <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} commands={commands}/>
   </div>;
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
