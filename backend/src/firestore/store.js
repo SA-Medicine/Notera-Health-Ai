@@ -76,7 +76,11 @@ async function firestoreDriver() {
 let _driver = null;
 async function driver() {
   if (_driver) return _driver;
-  _driver = DRIVER === 'firestore' ? await firestoreDriver() : memoryDriver();
+  // STORE_BACKEND=postgres → full Postgres cutover (recommended). Falls back to the
+  // legacy FIRESTORE_DRIVER (memory | firestore) when not set.
+  const backend = process.env.STORE_BACKEND || (DRIVER === 'firestore' ? 'firestore' : 'memory');
+  if (backend === 'postgres') { const { pgStoreDriver } = await import('../db/pgStore.js'); _driver = pgStoreDriver(); }
+  else _driver = DRIVER === 'firestore' ? await firestoreDriver() : memoryDriver();
   return _driver;
 }
 

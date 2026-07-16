@@ -118,12 +118,14 @@ async function main() {
     process.stdout.write(`▶ ${id} … `);
     try {
       const result = await generateNote(
-        { transcript, specialty: 'general_primary_care', noteType: 'consultation', clinicianId: 'eval' },
+        { transcript, specialty: 'general_primary_care', noteType: 'consultation', clinicianId: 'eval', referenceNote: gold },
         { persist: false }
       );
       const noteText = noteToText(result.note);
       const score = scoreNote({ note: result.note, noteText, goldText: gold, entities: result.entities });
       score.id = id; score.status = result.status;
+      // merge QA-agent numeric metrics (qa_<name>) so aggregate() can trend them
+      if (result.qa && result.qa._metrics) { for (const [k, v] of Object.entries(result.qa._metrics)) { if (typeof v === 'number' && isFinite(v)) score['qa_' + k] = v; } }
       rows.push(score);
       fs.writeFileSync(path.join(OUT_DIR, `${id}.json`), JSON.stringify({ score, note: result.note, renderedNote: result.renderedNote, flags: result.flags }, null, 2));
       // Human/AI-readable side-by-side report for review.

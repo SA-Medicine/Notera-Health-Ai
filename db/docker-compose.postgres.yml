@@ -1,0 +1,71 @@
+# Notera — PostgreSQL 18 (Docker) + nightly backup sidecar.
+#   docker compose -f db/docker-compose.postgres.yml up -d
+services:
+  postgres:
+    image: postgres:18
+    container_name: notera-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"                          # publish to host so node (migrate/app) reaches localhost:5432
+    environment:
+      POSTGRES_DB: notera
+      POSTGRES_USER: notera_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      TZ: UTC
+    command:
+      - "postgres"
+      - "-c"
+      - "log_connections=on"
+      - "-c"
+      - "log_disconnections=on"
+      # ── production extras (need pgaudit image + TLS certs) ──
+      # - "-c"
+      # - "shared_preload_libraries=pgaudit"
+      # - "-c"
+      # - "ssl=on"
+    secrets:
+      - pg_password
+    volumes:
+      - pgdata:/var/lib/postgresql            # PG18+ layout: mount the parent dir
+      - ./init:/docker-entrypoint-initdb.d:ro # optional: SQL run on first init
+    networks: [notera_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notera_admin -d notera"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pg-backup:
+    image: postgres:18
+    container_name: notera-pg-backup
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    secrets:
+      - pg_password
+    volumes:
+      - ./backups:/backups
+    networks: [notera_net]
+    # nightly compressed custom-format dump (pg_dump -Fc is gzip-compressed), 7-day retention.
+    # For real-PHI backups, add gpg/KMS encryption on top.
+    entrypoint: >
+      bash -c '
+      while true; do
+        TS=$$(date +%Y%m%d_%H%M%S);
+        PGPASSWORD=$$(cat /run/secrets/pg_password) pg_dump -h postgres -U notera_admin -d notera -Fc -f /backups/notera_$$TS.dump || echo backup-failed;
+        find /backups -name "notera_*.dump" -mtime +7 -delete 2>/dev/null || true;
+        sleep 86400;
+      done'
+
+volumes:
+  pgdata:
+    labels: { app: "notera", data: "database", backup: "critical" }
+
+networks:
+  notera_net:
+    driver: bridge
+
+secrets:
+  pg_password:
+    file: ./secrets/pg_password.txt

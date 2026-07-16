@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.65rem;
+    /* light */
+    --background: 210 20% 99%;
+    --foreground: 222 30% 11%;
+    --surface: 210 20% 97%;
+    --raised: 0 0% 100%;
+    --card: 0 0% 100%; --card-foreground: 222 30% 11%;
+    --popover: 0 0% 100%; --popover-foreground: 222 30% 11%;
+    --muted: 210 16% 93%; --muted-foreground: 215 16% 42%;
+    --accent: 210 16% 94%; --accent-foreground: 222 30% 11%;
+    --primary: 160 70% 36%; --primary-foreground: 0 0% 100%;
+    --success: 160 70% 36%; --success-foreground: 0 0% 100%;
+    --warning: 38 92% 45%; --warning-foreground: 0 0% 100%;
+    --destructive: 351 74% 52%; --destructive-foreground: 0 0% 100%;
+    --info: 213 82% 50%; --info-foreground: 0 0% 100%;
+    --border: 215 20% 88%; --input: 215 20% 88%; --ring: 160 64% 42%;
+  }
+  .dark {
+    /* dark (default) — refined near-black surfaces */
+    --background: 220 14% 5%;
+    --foreground: 215 24% 87%;
+    --surface: 220 13% 8%;
+    --raised: 217 16% 13%;
+    --card: 220 13% 8%; --card-foreground: 215 24% 87%;
+    --popover: 218 14% 11%; --popover-foreground: 215 24% 87%;
+    --muted: 216 16% 14%; --muted-foreground: 215 16% 60%;
+    --accent: 214 18% 17%; --accent-foreground: 215 24% 90%;
+    --primary: 160 64% 51%; --primary-foreground: 220 30% 6%;
+    --success: 160 64% 51%; --success-foreground: 220 30% 6%;
+    --warning: 43 96% 56%; --warning-foreground: 220 30% 6%;
+    --destructive: 351 95% 71%; --destructive-foreground: 220 30% 6%;
+    --info: 213 94% 68%; --info-foreground: 220 30% 6%;
+    --border: 216 19% 18%; --input: 216 19% 18%; --ring: 160 64% 51%;
+  }
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11','ss01';
+  }
+  ::selection { background: hsl(var(--primary) / .25); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border: 2px solid transparent; background-clip: padding-box; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .4); background-clip: padding-box; }
+}
+
+@layer components {
+  .logpane { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px; line-height: 1.6; letter-spacing: -.01em; }
+  .skeleton { @apply relative overflow-hidden bg-muted rounded-md; }
+  .skeleton::after { content: ''; @apply absolute inset-0 animate-shimmer; transform: translateX(-100%); background: linear-gradient(90deg, transparent, hsl(var(--foreground) / .06), transparent); }
+  /* markdown */
+  .md h1 { @apply text-xl font-bold mb-1 mt-2 text-foreground; }
+  .md h2 { @apply text-base font-semibold mt-4 mb-1 text-foreground border-b border-border pb-1; }
+  .md h3 { @apply text-sm font-semibold mt-3 mb-1 text-foreground; }
+  .md p { @apply my-1.5 leading-relaxed; } .md ul { @apply list-disc ml-5 my-1.5; } .md ol { @apply list-decimal ml-5 my-1.5; } .md li { @apply my-1; }
+  .md code { @apply bg-muted px-1.5 py-0.5 rounded text-[.85em] font-mono text-primary; }
+  .md pre { @apply bg-background border border-border rounded-lg p-3 overflow-auto my-2; } .md pre code { @apply bg-transparent p-0; }
+  .md table { @apply w-full my-2 text-sm border-collapse; } .md th,.md td { @apply border border-border px-2.5 py-1.5 text-left align-top; } .md th { @apply bg-muted font-semibold; }
+  .md strong { @apply text-foreground font-semibold; } .md blockquote { @apply border-l-2 border-primary/60 pl-3 text-muted-foreground my-2; }
+  .diff-add { background: hsl(var(--success) / .12); @apply text-success; }
+  .diff-del { background: hsl(var(--destructive) / .12); @apply text-destructive; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }

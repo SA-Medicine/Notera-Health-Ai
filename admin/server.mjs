@@ -342,11 +342,12 @@ const server = http.createServer(async (req, res) => {
     const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, { error: 'no prompt' });
     const body = await readBody(req);
     if (typeof body.freeform === 'boolean') rec.freeform = body.freeform;
+    if (typeof body.schema === 'string') rec.schema = body.schema;
     if (body.maxOutputTokens === null || body.maxOutputTokens === '') rec.maxOutputTokens = null;
     else if (body.maxOutputTokens !== undefined) { const n = Number(body.maxOutputTokens); if (Number.isFinite(n) && n > 0) rec.maxOutputTokens = Math.floor(n); }
     rec.updatedAt = new Date().toISOString();
     fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
-    return json(res, 200, { ok: true, freeform: rec.freeform === true, maxOutputTokens: rec.maxOutputTokens ?? null });
+    return json(res, 200, { ok: true, freeform: rec.freeform === true, maxOutputTokens: rec.maxOutputTokens ?? null, schema: rec.schema || '' });
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)\/revert$/)) && req.method === 'POST') {
     if (PROMPTS_READONLY) return json(res, 403, { error: 'read-only mode' });
