@@ -1,0 +1,14 @@
+{
+  "id": "compression",
+  "agent": "CompressionAgent",
+  "file": "packages/backend/src/pipeline/agents/CompressionAgent.js",
+  "label": "compression-systemprompt",
+  "stage": "Formatting",
+  "description": "Compresses the draft note",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "updatedAt": "2026-07-11T17:02:56.439057Z",
+  "active": false,
+  "order": null
+}

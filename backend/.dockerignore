@@ -1,9 +1,0 @@
-**/node_modules
-web
-eval
-data/out
-data/raw
-data/deidentified
-.git
-*.md
-**/results

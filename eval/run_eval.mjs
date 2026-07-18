@@ -35,13 +35,27 @@ const OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
     const raw = fs.readFileSync(path.join(ROOT, '.env'), 'utf8');
     for (const line of raw.split(/\r?\n/)) {
       const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      // Override undefined OR empty existing values, and hard-strip any stray CR so a
+      // CRLF .env can never corrupt a key (…AIza…\r ⇒ invalid ⇒ 401 UNAUTHENTICATED).
+      if (m) {
+        const v = m[2].replace(/^["']|["']$/g, '').replace(/[\r\n]+$/, '').trim();
+        if (process.env[m[1]] === undefined || process.env[m[1]] === '') process.env[m[1]] = v;
+      }
     }
   } catch { /* no .env */ }
 })();
 
-const { generateNote } = await import(pathToFileURL(path.join(ROOT, 'backend', 'src', 'orchestrator', 'generateNote.js')).href);
+const { generateNote } = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'orchestrator', 'generateNote.js')).href);
 const { scoreNote, aggregate } = await import(pathToFileURL(path.join(__dirname, 'metrics.mjs')).href);
+
+// Optional: mirror every run into the Testing Lab DB (best-effort; a broken DB
+// never blocks a run — file results are still written).
+let lab = null, labRun = null;
+if (process.env.STORE_BACKEND === 'postgres' && process.env.DATABASE_URL) {
+  try { lab = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'db', 'labStore.js')).href); }
+  catch (e) { console.warn('[lab] disabled (labStore import failed):', e.message); }
+}
+const tryParseJSON = (s) => { try { return JSON.parse(String(s || '').replace(/```json/gi, '').replace(/```/g, '').trim()); } catch { return null; } };
 
 function splitTranscriptAndGold(raw) {
   const idx = raw.search(/^\s*Subjective\s*:/im);
@@ -110,6 +124,11 @@ async function main() {
   if (args.length) files = files.filter((f) => args.some((a) => path.basename(f, '.txt').toLowerCase() === a.toLowerCase()));
   files = files.slice(0, limit);
 
+  if (lab) {
+    try { labRun = await lab.createRun({ label: `run_${RUN_ID}`, status: 'running', pipelineVersion: process.env.PIPELINE_VERSION, model: process.env.GEMINI_MODEL }); }
+    catch (e) { console.warn('[lab] createRun failed — DB mirror off:', e.message); lab = null; }
+  }
+
   const rows = [];
   for (const f of files) {
     const id = path.basename(f, '.txt');
@@ -119,7 +138,7 @@ async function main() {
     try {
       const result = await generateNote(
         { transcript, specialty: 'general_primary_care', noteType: 'consultation', clinicianId: 'eval', referenceNote: gold },
-        { persist: false }
+        { persist: false, recordTrace: !!lab }
       );
       const noteText = noteToText(result.note);
       const score = scoreNote({ note: result.note, noteText, goldText: gold, entities: result.entities });
@@ -144,12 +163,35 @@ async function main() {
         ``,
         (result.renderedNote || "(no rendered note)"),
         ``,
-        `## ── GOLD NOTE (Heidi) ──`,
+        `## ── GOLD NOTE ──`,
         ``,
         gold,
       ].join("\n");
       fs.writeFileSync(path.join(OUT_DIR, `${id}.md`), md);
       console.log(`schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} flow=${score.story_flow} unsupported_meds=${score.meds_unsupported.length}`);
+
+      // ── mirror into Testing Lab DB (patient + record + agent I/O + metrics) ──
+      if (lab && labRun) {
+        try {
+          const pat = await lab.upsertPatient({ slug: lab.slugify(id, id.toLowerCase()), name: id, transcript_clean: transcript, transcript_raw: transcript, gold_note: gold });
+          const rpId = await lab.upsertRunPatient({ runId: labRun.id, patientId: pat.id, generatedNote: noteText, renderedNote: result.renderedNote, status: result.status, schemaValid: score.schema_valid });
+          const trace = result.trace || [];
+          for (let i = 0; i < trace.length; i++) {
+            const tr = trace[i];
+            await lab.insertAgentRun({
+              runId: labRun.id, patientId: pat.id, runPatientId: rpId, agentId: tr.agent, seq: tr.seq ?? i,
+              systemPrompt: tr.systemInstruction, input: { userPrompt: tr.userPrompt, responseSchema: tr.responseSchema || null },
+              outputRaw: tr.output, outputParsed: tryParseJSON(tr.output), status: tr.status, errorMessage: tr.error,
+              latencyMs: tr.latency_ms, model: tr.model,
+            });
+          }
+          const metrics = {};
+          for (const k of ['section_coverage', 'similarity_to_gold', 'story_flow', 'omission_rate']) if (typeof score[k] === 'number') metrics[k] = score[k];
+          if (typeof score.schema_valid === 'boolean') metrics.schema_valid = score.schema_valid ? 1 : 0;
+          for (const [k, v] of Object.entries(score)) if (k.startsWith('qa_') && typeof v === 'number') metrics[k] = v;
+          await lab.upsertMetrics({ runId: labRun.id, patientId: pat.id, runPatientId: rpId, metrics });
+        } catch (e) { console.warn('[lab] persist failed for', id, '—', e.message); }
+      }
     } catch (e) {
       console.log('FAILED —', e.message);
       rows.push({ id, error: e.message, schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] });
@@ -164,6 +206,10 @@ async function main() {
   const histLine = JSON.stringify({ runId: RUN_ID, at: new Date().toISOString(), ...summary });
   fs.appendFileSync(path.join(RESULTS_ROOT, '_history.jsonl'), histLine + '\n');
   fs.writeFileSync(path.join(RESULTS_ROOT, 'latest.txt'), `run_${RUN_ID}`);
+  if (lab && labRun) {
+    try { await lab.finishRun(labRun.id, 'done'); const { closePool } = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'db', 'pool.js')).href); await closePool(); }
+    catch (e) { console.warn('[lab] finishRun failed:', e.message); }
+  }
   console.log(`Results  → ${path.relative(process.cwd(), OUT_DIR)}/`);
   console.log(`History  → eval/results/_history.jsonl  (one line per run — compare here)`);
   console.log(`Latest   → eval/results/latest.txt`);

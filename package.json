@@ -1,26 +1,33 @@
 {
-  "name": "notera-health-ai",
-  "version": "1.0.0",
+  "name": "notera",
+  "version": "2.0.0",
   "private": true,
-  "description": "Notera-Health-Ai — production clinical documentation engine (Next.js + Node/Cloud Run + Python NER + Gemini + Firestore)",
-  "type": "module",
+  "description": "Notera — unified clinical documentation engine + testing lab (Turborepo: Next.js app, Express backend, shared shadcn UI).",
+  "packageManager": "npm@10.8.1",
   "workspaces": [
+    "apps/*",
+    "packages/*",
     "schema",
-    "backend",
-    "eval",
-    "web"
+    "eval"
   ],
   "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "start": "turbo start",
+    "check-types": "turbo check-types",
+    "lint": "turbo lint",
+    "dev:web": "npm --workspace @notera/web run dev",
     "dev:backend": "npm --workspace @notera/backend run dev",
-    "start:backend": "npm --workspace @notera/backend run start",
-    "test": "npm --workspace @notera/backend run test && npm --workspace @notera/eval run test",
     "eval": "npm --workspace @notera/eval run eval",
-    "admin": "node admin/server.mjs",
-    "db:migrate": "node db/migrate.mjs",
-    "db:backfill": "node db/backfill_files.mjs",
-    "db:backfill:firestore": "node db/backfill_firestore.mjs",
+    "test": "npm --workspace @notera/eval run test",
+    "db:reset": "node db/reset.mjs",
+    "db:backfill:lab": "node db/backfill_lab.mjs",
+    "db:test": "node db/test_lab_logic.mjs",
     "db:up": "docker compose -f db/docker-compose.postgres.yml up -d",
     "db:down": "docker compose -f db/docker-compose.postgres.yml down"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
   },
   "engines": {
     "node": ">=20"
