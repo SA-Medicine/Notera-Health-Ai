@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind-preset.ts",
+    "css": "src/styles/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@notera/ui/components",
+    "ui": "@notera/ui/components/ui",
+    "lib": "@notera/ui/lib",
+    "utils": "@notera/ui/lib/utils"
+  }
+}

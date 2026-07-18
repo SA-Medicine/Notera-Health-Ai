@@ -1,0 +1,37 @@
+{
+  "name": "@notera/ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notera shared design system — shadcn tokens, primitives, and blocks (consumed by apps/web).",
+  "type": "module",
+  "exports": {
+    "./globals.css": "./src/styles/globals.css",
+    "./tailwind-preset": "./tailwind-preset.ts",
+    "./lib/*": "./src/lib/*.ts",
+    "./components/ui/*": "./src/components/ui/*.tsx",
+    "./components/blocks/*": "./src/components/blocks/*.tsx"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.1",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.0",
+    "@radix-ui/react-tooltip": "^1.1.2",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.0.0",
+    "lucide-react": "^0.408.0",
+    "markdown-it": "^14.1.0",
+    "sonner": "^1.5.0",
+    "tailwind-merge": "^2.4.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "peerDependencies": {
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.1",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.5.0"
+  }
+}

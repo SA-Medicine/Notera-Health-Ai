@@ -1,118 +1,101 @@
-# Notera — PostgreSQL database
+# Database — Testing Lab (PostgreSQL)
 
-Local, Docker-hosted **PostgreSQL 18** — the single source of truth for all app data
-(full cutover from Firestore + files). De-id maps are encrypted, PHI tables use
-row-level security, and the audit log is append-only.
-
----
-
-## 🚀 Quick start (new user, Windows)
-
-You need **Docker Desktop** (running) and **Node 20+**. Then, from the project root:
-
-1. **One-time setup** — double-click **`db\setup.bat`** (or run it in a terminal).
-   It creates the database container, generates the password + keys, writes `.env`,
-   applies the schema, and loads existing data. Wait for **“Database is LIVE”**.
-
-2. **Every day before you work** — run **`db\start.bat`** to bring the database up
-   (Docker keeps your data between restarts). Then start the app with `npm run dev:backend`.
-
-3. **When you're done** (optional) — `db\stop.bat` to stop the container. Your data stays.
-
-That's it. The scripts are safe to re-run.
-
-> **macOS / Linux:** run the equivalent commands from the “Manual steps” section below —
-> the `.bat`/`.ps1` files are Windows-only, but `migrate.mjs` / `backfill_files.mjs` are cross-platform.
+Local, Docker-hosted **PostgreSQL 18**. One database (`notera`), one humanized schema
+(`lab`, see `schema.lab.sql`). Everything traces back to a **patient** (a reference case)
+and a **run** (one pipeline execution).
 
 ---
 
-## ▶️ Make the database live (the command you asked for)
+## New user — create the database from zero
 
-Already set up and just want the DB running before working?
+**Prerequisites:** Docker Desktop (running) and Node 20+. Run everything from the repo root.
 
-```powershell
-db\start.bat
+### Option A — one command (Windows, recommended)
+```bat
+db\setup.bat
 ```
-or directly:
-```powershell
-docker compose -f db/docker-compose.postgres.yml up -d
+This runs `db/setup.ps1`, which:
+1. checks Docker is running,
+2. generates a DB password → `db/secrets/pg_password.txt`,
+3. creates `.env` from `.env.example` and fills in `STORE_BACKEND=postgres`,
+   `DATABASE_URL`, and a fresh `DEID_ENC_KEY`,
+4. starts the Postgres container and waits until it's **healthy**,
+5. `npm install`, then `node db/reset.mjs` (creates the `lab` schema + backfills gold/runs).
+
+When it prints **"Database is LIVE on localhost:5432"** you're done.
+
+### Option B — manual (any OS)
+```bash
+# 1. DB password → the file the container reads
+mkdir -p db/secrets db/backups db/init
+#   put a strong password in db/secrets/pg_password.txt  (one line, no newline)
+printf 'change-me-strong-pass' > db/secrets/pg_password.txt
+
+# 2. .env at the repo root (copy the example, then set these)
+cp .env.example .env
+#   STORE_BACKEND=postgres
+#   DATABASE_URL=postgres://notera_admin:<the password above>@localhost:5432/notera
+#   DEID_ENC_KEY=<any 32-char random string>
+
+# 3. start Postgres and create the schema + seed data
+npm install
+npm run db:up            # docker compose up -d  (wait until STATUS = healthy)
+npm run db:reset         # backup → create the lab schema → backfill data/gold + eval/results
 ```
-It's ready when `docker compose -f db/docker-compose.postgres.yml ps` shows **healthy**
-and the app can connect at `postgres://notera_admin:<password>@localhost:5432/notera`.
+
+Container: **notera-postgres** · DB **notera** · user **notera_admin** · port **5432**.
 
 ---
+
+## Run it (day to day)
+```bat
+npm run db:up            :: start Postgres (if not already running)
+npm run dev              :: from the repo root — starts backend (:8080) + Next app (:3000)
+npm run db:down          :: stop Postgres
+```
+The app reads `DATABASE_URL`, `STORE_BACKEND=postgres`, and `DEID_ENC_KEY` from the repo-root `.env`.
+
+### Other DB commands
+```bat
+npm run db:reset         :: re-create the lab schema + backfill (DESTRUCTIVE — backs up first)
+npm run db:backfill:lab  :: re-run just the backfill (idempotent)
+npm run db:test          :: 16 pure-logic assertions (no DB/LLM needed)
+```
+
+---
+
+## Schema (`lab`)
+| Table | Purpose |
+|-------|---------|
+| `lab.patients` | reference case: transcript + gold SOAP note (never changes) |
+| `lab.runs` | one pipeline execution / test batch |
+| `lab.run_patients` | run × patient = one generated note + verdict (a "record") |
+| `lab.agent_runs` | run × patient × agent = that agent's input + output |
+| `lab.metrics` | normalized metric points (feeds every chart) |
+| `lab.run_logs` | per-run stdout/stderr, tagged by agent |
 
 ## Files
-| File | What it is |
-|---|---|
-| `setup.bat` / `setup.ps1` | One-time setup: container + secrets + `.env` + schema + backfill. |
-| `start.bat` / `stop.bat` | Bring the database up / down for daily work. |
-| `schema.sql` | Full DDL (schemas `clinical` / `phi` / `ops`). Idempotent. |
-| `docker-compose.postgres.yml` | Postgres 18 + nightly backup sidecar. |
-| `migrate.mjs` | Applies `schema.sql`. |
-| `backfill_files.mjs` | Loads prompts, eval runs/metrics, sessions, logs from disk. |
-| `backfill_firestore.mjs` | Loads live consults / de-id maps / audit / models from Firestore. |
-
-The app reads/writes Postgres via `backend/src/db/pool.js` + `pgStore.js`, selected by
-`STORE_BACKEND=postgres` in `backend/src/firestore/store.js`.
-
----
-
-## Manual steps (what `setup.bat` automates)
-
-```powershell
-# 1. folders + a URL-safe DB password (no openssl needed)
-New-Item -ItemType Directory -Force -Path db\secrets, db\backups, db\init | Out-Null
-$pw = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 24 | ForEach-Object {[char]$_})
-[IO.File]::WriteAllText("$PWD\db\secrets\pg_password.txt", $pw)
-
-# 2. .env
-Copy-Item .env.example .env -Force
-(Get-Content .env) `
-  -replace '^STORE_BACKEND=.*','STORE_BACKEND=postgres' `
-  -replace '^DATABASE_URL=.*',"DATABASE_URL=postgres://notera_admin:$pw@localhost:5432/notera" `
-  -replace '^DEID_ENC_KEY=.*',"DEID_ENC_KEY=$pw`K3y" | Set-Content .env
-
-# 3. start Postgres
-docker compose -f db/docker-compose.postgres.yml up -d
-docker compose -f db/docker-compose.postgres.yml ps      # wait for "healthy"
-
-# 4. driver + schema + data
-npm install
-$env:DATABASE_URL = "postgres://notera_admin:$pw@localhost:5432/notera"
-$env:DEID_ENC_KEY = "$pw`K3y"
-node db/migrate.mjs
-node db/backfill_files.mjs
-```
-
-### Optional: import live Firestore data (real PHI)
-Needs Google credentials + `DEID_ENC_KEY` set:
-```powershell
-node db/backfill_firestore.mjs
-```
-
----
-
-## Verify
-```powershell
-docker exec -it notera-postgres psql -U notera_admin -d notera -c "\dt clinical.*"
-docker exec -it notera-postgres psql -U notera_admin -d notera -c "\dt ops.*"
-docker exec -it notera-postgres psql -U notera_admin -d notera -c "SELECT count(*) FROM ops.prompts;"
-docker exec -it notera-postgres psql -U notera_admin -d notera -c "SELECT metric_key, count(*) FROM ops.eval_metric_points GROUP BY 1 ORDER BY 1;"
-```
-
-## Backups & restore
-The `pg-backup` sidecar writes `db/backups/notera_<ts>.dump` nightly (7-day retention). Restore:
-```powershell
-docker exec -i notera-postgres pg_restore -U notera_admin -d notera --clean --if-exists < db/backups/notera_YYYYMMDD_HHMMSS.dump
-```
-
-## Troubleshooting
-- **`up` fails / container “unhealthy” instantly** → check `docker compose -f db/docker-compose.postgres.yml logs postgres`. A blank secret file or a stale volume from a failed boot are the usual causes; wipe + retry: `docker compose -f db/docker-compose.postgres.yml down -v` then `up -d`.
-- **migrate says “applied” but tables are missing** → the schema is one transaction; a truncated `schema.sql` (no final `COMMIT;`) rolls everything back. Confirm the file ends with `COMMIT;`.
-- **`node` connection error with a blank message** → Postgres port isn’t reachable on the host; the compose must publish `5432:5432` and the container must be `healthy`.
+| File | What it does |
+|------|--------------|
+| `schema.lab.sql` | The `lab` schema DDL (tables, indexes, views). Idempotent. |
+| `reset.mjs` / `reset.bat` | Backup → drop old schemas → apply `schema.lab.sql` → backfill. |
+| `backfill_lab.mjs` | Seeds `data/gold/*` + `eval/results/*` into the lab tables. |
+| `test_lab_logic.mjs` | Pure-logic unit tests. |
+| `docker-compose.postgres.yml` | Postgres 18 + nightly `pg_dump` backup sidecar. |
+| `setup.ps1` / `setup.bat` | First-run helper (Option A above). |
+| `start.bat` / `stop.bat` | Start/stop the container (wrap `db:up` / `db:down`). |
+| `init/` | Optional SQL run on the container's first init (compose mount). |
+| `secrets/pg_password.txt` | DB password the container reads (git-ignored). |
+| `backups/` | `pg_dump` output written by `reset.mjs`. |
 
 ## Notes
-- **Keys:** `DEID_ENC_KEY` decrypts the de-id map — keep it in a secret manager in production, never in git.
-- **At-rest encryption:** Postgres has no built-in TDE; encrypt the host volume (LUKS/ZFS) for `pgdata` + backups when holding real PHI.
-- **RLS:** the service connects as the table owner (RLS bypassed). Add a restricted per-clinician DB role later and RLS enforces per-clinician access via the `app.clinician_id` / `app.role` session vars set in `pool.withSession`.
+- `reset.mjs` is **destructive**: it drops `clinical` / `phi` / `ops` / `lab` and recreates
+  `lab`, writing a `pg_dump` to `backups/` first. Reference data re-seeds from `data/gold`
+  and from any Heidi-style JSON you import in the admin **Patients** tab.
+- Runs mirror into the lab DB automatically (best-effort); if Postgres is down, file results
+  under `eval/results/` are still written.
+
+## Troubleshooting
+- **`docker compose up` says unhealthy / exits** — check `docker compose -f db/docker-compose.postgres.yml logs postgres`. Usually a missing `db/secrets/pg_password.txt`.
+- **`db:reset` connection refused** — the container isn't published/healthy yet; run `npm run db:up` and wait for STATUS `healthy`, then retry.
+- **`DATABASE_URL is not set`** — it's missing/blank in the repo-root `.env` (Option A fills it in automatically).

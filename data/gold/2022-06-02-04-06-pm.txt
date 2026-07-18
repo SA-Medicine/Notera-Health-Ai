@@ -1,0 +1,30 @@
+Patient 2 started 2009-05-30
+
+0:00
+
+Hi, doctor. My name is Patient 1, and I live in [LOCATION], and I would like to please don't come.
+
+0:12
+
+And I would like to describe my issue. I'm having a stomach pains. It's a cramps, and I'm not feeling well. And I would like to get some medicine to test it. Thank you.
+
+Transcript ended 1986-07-25
+
+Subjective:
+
+Patient 1 presents with stomach pain and cramps. Reports not feeling well. Requests medication for symptom relief.
+
+
+
+
+Objective:
+
+
+
+
+Assessment:
+
+
+
+
+Plan:

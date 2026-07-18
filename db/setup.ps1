@@ -51,12 +51,11 @@ for ($i = 0; $i -lt 60; $i++) {
 Write-Host ""
 if ($h -ne 'healthy') { Write-Error "Postgres never became healthy. Check: docker compose -f db/docker-compose.postgres.yml logs postgres"; exit 1 }
 
-# 5. driver + schema + backfill
+# 5. install + create the lab schema + backfill existing gold/runs
 npm install
 $env:DATABASE_URL = $dburl
 $env:DEID_ENC_KEY = $deid
-node db/migrate.mjs
-node db/backfill_files.mjs
+node db/reset.mjs
 
 Write-Host ""
 Write-Host "== Database is LIVE on localhost:5432 ==" -ForegroundColor Green

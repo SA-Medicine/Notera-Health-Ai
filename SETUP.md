@@ -26,16 +26,16 @@ No Firebase needed — `FIRESTORE_DRIVER=memory` is the default.
 
 ```bash
 cd Notera-Health-Ai
-npm install                 # installs workspace deps (schema/backend/eval)
+npm install                 # installs all workspaces (apps/web, packages/*, schema, eval)
 
-# Terminal A — backend (reads .env automatically)
-npm run start:backend       # → http://localhost:8080  ("listening on :8080")
+npm run db:up               # start Postgres (docker)
+npm run db:reset            # first time only — create the lab schema + backfill
 
-# Terminal B — frontend
-cd web && npm install && npm run dev    # → http://localhost:3000
+npm run dev                 # Turborepo runs BOTH the backend (:8080) and Next (:3000)
 ```
 
-Open http://localhost:3000 → **Load sample** → **Generate draft note**.
+Open http://localhost:3000 → sign in → **Load sample** → **Generate draft note**
+(and http://localhost:3000/admin for the testing lab, password `notera`).
 That exercises: Gemini generation → schema structuring → guardrails → review → sign-off.
 
 > Optional: the medical NER sidecar. It's not required (the app degrades gracefully),
@@ -79,7 +79,7 @@ This pushes `deploy/firestore.rules` (PHI collections are backend-only) and
 `deploy/firestore.indexes.json`.
 
 ### 2e. Run against real Firebase
-Restart the backend (`npm run start:backend`). It will now read/write your Firestore.
+Restart the backend (`npm run dev:backend`). It will now read/write your Firestore.
 Watch the Firestore console populate as you generate and approve notes:
 `consults/`, `deidMaps/`, `auditLog/`.
 
