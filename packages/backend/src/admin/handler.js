@@ -69,7 +69,30 @@ const safeName = (s) => String(s || '').replace(/[^A-Za-z0-9_.\- ]/g, '');
 const safeRunDir = (s) => { const n = safeName(s); return /^run_/.test(n) ? n : null; };
 function parseCookies(req) { const out = {}; (req.headers.cookie || '').split(';').forEach((c) => { const i = c.indexOf('='); if (i > 0) out[c.slice(0, i).trim()] = c.slice(i + 1).trim(); }); return out; }
 function authed(req) { return sessions.has(parseCookies(req).notera_admin); }
-function readBody(req) { return new Promise((resolve) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 5e7) req.destroy(); }); req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } }); }); }
+// Body reader. Buffers chunks (not string concat) and, when the limit is hit, answers
+// with a real 413 instead of destroying the socket — a silent destroy surfaces to the
+// caller/proxy as an opaque `write ECONNRESET`.
+const MAX_BODY_MB = Number(process.env.ADMIN_MAX_BODY_MB || 512);
+const MAX_BODY = MAX_BODY_MB * 1024 * 1024;
+function readBody(req, res) {
+  return new Promise((resolve) => {
+    const chunks = []; let size = 0, done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    req.on('data', (d) => {
+      if (done) return;
+      size += d.length;
+      if (size > MAX_BODY) {
+        if (res && !res.headersSent) json(res, 413, { ok: false, error: `Upload too large (over ${MAX_BODY_MB} MB). Split the file, or raise ADMIN_MAX_BODY_MB.` });
+        finish({ __tooLarge: true });
+        setTimeout(() => { try { req.destroy(); } catch {} }, 50);   // let the 413 flush first
+        return;
+      }
+      chunks.push(d);
+    });
+    req.on('end', () => { try { const s = Buffer.concat(chunks).toString('utf8'); finish(s ? JSON.parse(s) : {}); } catch (e) { finish({ __badJson: e.message }); } });
+    req.on('error', () => finish({}));
+  });
+}
 
 // ── lazy Testing-Lab DB access (pg) ───────────────────────────────────────────
 // Loaded only when a /api/patients|lab|metrics route is hit, so the zero-dependency
@@ -320,9 +343,23 @@ export async function adminHandler(req, res, next) {
     try { const lab = await getLab(); return json(res, 200, { patients: await lab.listPatients() }); }
     catch (e) { return json(res, 200, { patients: [], error: e.message, hint: labHint }); }
   }
+  // delete ONE patient (cascades to its records/agent runs/metrics) + its gold fixture
+  if ((m = p.match(/^\/api\/patients\/(\d+)$/)) && req.method === 'DELETE') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    try {
+      const gone = await lab.deletePatient(Number(m[1]));
+      if (!gone) return json(res, 404, { ok: false, error: 'patient not found' });
+      let fixtureRemoved = false;
+      try { fs.unlinkSync(path.join(GOLD, `${gone.slug}.txt`)); fixtureRemoved = true; } catch { /* no fixture on disk */ }
+      return json(res, 200, { ok: true, deleted: { id: gone.id, slug: gone.slug, name: gone.name }, fixtureRemoved });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
   if (p === '/api/patients/import' && req.method === 'POST') {
     let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
-    const body = await readBody(req);
+    const body = await readBody(req, res);
+    if (body.__tooLarge) return;                                             // 413 already sent
+    if (body.__badJson) return json(res, 400, { ok: false, error: 'Invalid JSON: ' + body.__badJson });
     const sessions = Array.isArray(body) ? body : (Array.isArray(body.sessions) ? body.sessions : (Array.isArray(body.data) ? body.data : []));
     if (!sessions.length) return json(res, 200, { ok: false, error: 'No sessions found. Expected a JSON array of reference sessions (or { sessions: [...] }).' });
     // ensure unique fixture slugs across existing + this batch
@@ -332,30 +369,58 @@ export async function adminHandler(req, res, next) {
       let s = lab.slugify(base, 'patient'); if (s.length < 2) s = 'session-' + String(sid || '').slice(0, 6);
       let c = s, i = 2; while (taken.has(c)) c = `${s}-${i++}`; taken.add(c); return c;
     };
-    const added = [], updated = [], skipped = [];
+
+    // Large imports: don't spray thousands of .txt run fixtures into data/gold (it would
+    // flood the run selector and the disk). Above the threshold we import to the DB only.
+    const FIXTURE_LIMIT = Number(process.env.ADMIN_MAX_FIXTURES || 500);
+    const writeFixtures = sessions.length <= FIXTURE_LIMIT;
+
+    // 1) prepare rows synchronously so slugs are assigned deterministically, in order
+    const rows = [], skipped = [];
     for (const s of sessions) {
-      try {
-        const name = (s.session_title || s.patient_name_fallback || s.subtitle || `Session ${s.id ?? ''}`).toString().trim() || 'Session';
-        const t = s.transcript || {};
-        const transcript_clean = (t.clean_text || t.raw_text || '').trim();
-        const transcript_raw = (t.raw_text || t.clean_text || '').trim();
-        const gold_note = ((s.soap_note && s.soap_note.soap_note) || '').trim();
-        if (!transcript_clean && !gold_note) { skipped.push({ name, reason: 'no transcript or note' }); continue; }
-        const slug = uniqueSlug(name, s.heidi_session_id);
-        const rec = await lab.upsertPatient({
-          slug, name, heidi_session_id: s.heidi_session_id || null, source_url: s.source_url || null,
-          subtitle: s.subtitle || null, tags: s.tags || [], transcript_raw, transcript_clean, gold_note,
-          artifacts: s.artifacts || [], audits: s.audits || [],
-        });
-        // write a runnable gold fixture so it shows up in the run selector alongside Patient 1/2/3
-        try {
-          const golden = gold_note && /Subjective\s*:/i.test(gold_note) ? gold_note : (gold_note ? ('Subjective:\n' + gold_note) : '');
-          fs.writeFileSync(path.join(GOLD, `${rec.slug}.txt`), transcript_clean + (golden ? '\n\n' + golden : ''), 'utf8');
-        } catch (e) { /* fixture write best-effort */ }
-        (rec.created ? added : updated).push({ name, slug: rec.slug });
-      } catch (e) { skipped.push({ name: s.session_title || s.id, reason: e.message }); }
+      const name = (s.session_title || s.patient_name_fallback || s.subtitle || `Session ${s.id ?? ''}`).toString().trim() || 'Session';
+      const t = s.transcript || {};
+      const transcript_clean = (t.clean_text || t.raw_text || '').trim();
+      const transcript_raw = (t.raw_text || t.clean_text || '').trim();
+      const gold_note = ((s.soap_note && s.soap_note.soap_note) || '').trim();
+      if (!transcript_clean && !gold_note) { skipped.push({ name, reason: 'no transcript or note' }); continue; }
+      rows.push({ slug: uniqueSlug(name, s.heidi_session_id), name, s, transcript_raw, transcript_clean, gold_note });
     }
-    return json(res, 200, { ok: true, added, updated, skipped, counts: { added: added.length, updated: updated.length, skipped: skipped.length } });
+
+    // 2) upsert with bounded concurrency — 10k sequential round-trips would crawl/time out
+    const added = [], updated = [];
+    const CONC = Math.max(1, Number(process.env.ADMIN_IMPORT_CONCURRENCY || 8));
+    let idx = 0;
+    const worker = async () => {
+      while (idx < rows.length) {
+        const r = rows[idx++];
+        try {
+          const rec = await lab.upsertPatient({
+            slug: r.slug, name: r.name, heidi_session_id: r.s.heidi_session_id || null,
+            source_url: r.s.source_url || null, subtitle: r.s.subtitle || null, tags: r.s.tags || [],
+            transcript_raw: r.transcript_raw, transcript_clean: r.transcript_clean, gold_note: r.gold_note,
+            artifacts: r.s.artifacts || [], audits: r.s.audits || [],
+          });
+          if (writeFixtures) {
+            try {
+              const golden = r.gold_note && /Subjective\s*:/i.test(r.gold_note) ? r.gold_note : (r.gold_note ? ('Subjective:\n' + r.gold_note) : '');
+              fs.writeFileSync(path.join(GOLD, `${rec.slug}.txt`), r.transcript_clean + (golden ? '\n\n' + golden : ''), 'utf8');
+            } catch { /* fixture write best-effort */ }
+          }
+          (rec.created ? added : updated).push({ name: r.name, slug: rec.slug });
+        } catch (e) { skipped.push({ name: r.name, reason: e.message }); }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONC, rows.length || 1) }, () => worker()));
+
+    const cap = (a) => a.slice(0, 50);   // keep the response small for huge imports
+    return json(res, 200, {
+      ok: true, added: cap(added), updated: cap(updated), skipped: cap(skipped),
+      counts: { added: added.length, updated: updated.length, skipped: skipped.length },
+      fixturesWritten: writeFixtures,
+      note: writeFixtures ? undefined
+        : `Imported ${rows.length} patients to the database without writing .txt run fixtures (batch over ${FIXTURE_LIMIT}). Raise ADMIN_MAX_FIXTURES if you want fixtures too.`,
+    });
   }
 
   // ── rerun a single agent (both modes) ────────────────────────────────────────

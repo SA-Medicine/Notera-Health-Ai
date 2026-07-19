@@ -22,7 +22,7 @@ export interface PromptMeta { id: string; agent: string; file: string; label: st
 export interface PromptDetail extends PromptMeta { schema?: string; draft: any; published: { version: number; systemInstruction: string } | null; versions: { version: number; note: string; author: string; createdAt: string }[] }
 export interface AgentLogRun { id: string; resultDir: string; status: string; command: string; fixtures: { fixture: string; lines: string[] }[] }
 export interface Patient { id: number; slug: string; name: string; subtitle: string | null; heidi_session_id: string | null; source_url: string | null; transcript_len: number | null; gold_len: number | null; created_at: string; updated_at: string }
-export interface ImportResult { ok: boolean; error?: string; hint?: string; added?: { name: string; slug: string }[]; updated?: { name: string; slug: string }[]; skipped?: { name: string; reason: string }[]; counts?: { added: number; updated: number; skipped: number } }
+export interface ImportResult { ok: boolean; error?: string; hint?: string; note?: string; fixturesWritten?: boolean; added?: { name: string; slug: string }[]; updated?: { name: string; slug: string }[]; skipped?: { name: string; reason: string }[]; counts?: { added: number; updated: number; skipped: number } }
 export interface LabRun { id: number; run_no: number; label: string; status: string; model: string | null; started_at: string; finished_at: string | null; patient_count: number }
 export interface TrendPoint { run_no: number; label: string; metric_key: string; value: number }
 export interface MetricRow { slug: string; name: string; metric_key: string; metric_value: number }
@@ -50,6 +50,7 @@ export const api = {
   deleteRun: (dir: string) => fetch('/backend/api/results/' + encodeURIComponent(dir), { method: 'DELETE' }),
   patients: () => jget<{ patients: Patient[]; error?: string; hint?: string }>('/backend/api/patients'),
   importPatients: (sessions: any) => jpost<ImportResult>('/backend/api/patients/import', sessions),
+  deletePatient: (id: number) => jsend<{ ok: boolean; error?: string; deleted?: { id: number; slug: string; name: string }; fixtureRemoved?: boolean }>(`/backend/api/patients/${id}`, 'DELETE'),
   // ── Testing Lab dashboard ──
   labRuns: () => jget<{ runs: LabRun[]; error?: string; hint?: string }>('/backend/api/lab/runs'),
   labTrend: () => jget<{ points: TrendPoint[] }>('/backend/api/lab/trend'),

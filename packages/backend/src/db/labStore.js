@@ -145,6 +145,14 @@ export const latestAgentRun = (runId, patientId, agentId) =>
 
 export const getRun = (id) => one(`SELECT * FROM lab.runs WHERE id=$1`, [id]);
 export const getPatient = (id) => one(`SELECT * FROM lab.patients WHERE id=$1`, [id]);
+
+/**
+ * Delete one patient. run_patients / agent_runs / metrics / run_logs all cascade
+ * (ON DELETE CASCADE), so this removes every trace of the case.
+ * Returns the deleted row (for its slug) or null if it didn't exist.
+ */
+export const deletePatient = (id) =>
+  one(`DELETE FROM lab.patients WHERE id=$1 RETURNING id, slug, name`, [id]);
 export const getRunPatient = (runId, patientId) =>
   one(`SELECT * FROM lab.run_patients WHERE run_id=$1 AND patient_id=$2`, [runId, patientId]);
 
