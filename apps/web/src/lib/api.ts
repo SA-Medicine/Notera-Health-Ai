@@ -83,15 +83,34 @@ export function useRunStream(runId: string | null) {
   const esRef = useRef<EventSource | null>(null)
   useEffect(() => {
     if (!runId) return
-    setLines([])
+    setLines([]); setStatus('running')
+    let sseAlive = false, stopped = false
+
     const es = new EventSource('/backend/api/runs/' + runId + '/stream'); esRef.current = es
     es.onmessage = (e) => {
+      sseAlive = true
       const d = JSON.parse(e.data)
       if (d.type === 'line') setLines((L) => [...L, { stream: d.stream, line: stripAnsi(d.line) }])
-      else if (d.type === 'status') { setStatus(d.status); if (d.status !== 'running') es.close() }
+      else if (d.type === 'status') { setStatus(d.status); if (d.status !== 'running') { stopped = true; es.close() } }
     }
     es.onerror = () => es.close()
-    return () => es.close()
+
+    // Fallback: if a dev proxy buffers SSE, nothing would appear until the run ends.
+    // The run record carries the full captured line buffer, so poll it until the SSE
+    // proves alive (or for the whole run if it never does). Logs are always live.
+    const poll = setInterval(async () => {
+      if (sseAlive || stopped) return
+      try {
+        const r: any = await jget('/backend/api/runs/' + runId)
+        if (Array.isArray(r?.lines)) setLines(r.lines.map((l: any) => ({ stream: l.stream, line: stripAnsi(l.line) })))
+        if (r?.status) {
+          setStatus(r.status)
+          if (r.status !== 'running') { stopped = true; clearInterval(poll); es.close() }
+        }
+      } catch { /* keep trying */ }
+    }, 1000)
+
+    return () => { clearInterval(poll); es.close() }
   }, [runId])
   return { lines, status, setStatus }
 }

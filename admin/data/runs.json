@@ -1,5 +1,50 @@
 [
   {
+    "id": "2026-07-19T17-08-15-030Z-37f1",
+    "command": "node eval/run_eval.mjs Patient4",
+    "status": "passed",
+    "startedAt": "2026-07-19T17:08:15.030Z",
+    "finishedAt": "2026-07-19T17:11:09.146Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-19_17-08-15"
+  },
+  {
+    "id": "2026-07-19T16-39-58-689Z-907f",
+    "command": "node eval/run_eval.mjs Patient10",
+    "status": "passed",
+    "startedAt": "2026-07-19T16:39:58.689Z",
+    "finishedAt": "2026-07-19T16:40:29.207Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-19_16-39-58"
+  },
+  {
+    "id": "2026-07-18T17-38-41-002Z-e41f",
+    "command": "node eval/run_eval.mjs Patient7",
+    "status": "passed",
+    "startedAt": "2026-07-18T17:38:41.002Z",
+    "finishedAt": "2026-07-18T17:39:11.504Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-18_17-38-41"
+  },
+  {
+    "id": "2026-07-18T17-18-21-223Z-3627",
+    "command": "node eval/run_eval.mjs Patient4",
+    "status": "passed",
+    "startedAt": "2026-07-18T17:18:21.223Z",
+    "finishedAt": "2026-07-18T17:18:54.138Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-18_17-18-21"
+  },
+  {
+    "id": "2026-07-18T17-17-32-885Z-db09",
+    "command": "node eval/run_eval.mjs hair-fall-tests",
+    "status": "failed",
+    "startedAt": "2026-07-18T17:17:32.886Z",
+    "finishedAt": "2026-07-18T17:18:02.768Z",
+    "exitCode": null,
+    "resultDir": "run_2026-07-18_17-17-32"
+  },
+  {
     "id": "2026-07-17T19-08-59-772Z-b903",
     "command": "node eval/run_eval.mjs Patient4",
     "status": "passed",

@@ -280,13 +280,26 @@ export async function adminHandler(req, res, next) {
   if ((m = p.match(/^\/api\/runs\/([^/]+)\/kill$/)) && req.method === 'POST') { const r = runs.get(m[1]); if (r?.proc) { r.proc.kill('SIGTERM'); r.status = 'killed'; } return json(res, 200, { ok: true }); }
   if ((m = p.match(/^\/api\/runs\/([^/]+)\/stream$/))) {
     const r = runs.get(m[1]); if (!r) return json(res, 404, { error: 'no run' });
-    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    for (const ln of r.lines) res.write(`data: ${JSON.stringify({ type: 'line', stream: ln.stream, line: ln.line })}\n\n`);
-    res.write(`data: ${JSON.stringify({ type: 'status', status: r.status, resultDir: r.resultDir })}\n\n`);
+    // Anti-buffering headers: dev proxies (Next rewrites, nginx) otherwise hold the
+    // whole stream until it closes, so nothing appears until the run finishes.
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    if (res.flushHeaders) res.flushHeaders();
+    res.write(': open\n\n');                    // forces an immediate flush through proxies
+    const send = (obj) => { try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {} };
+    for (const ln of r.lines) send({ type: 'line', stream: ln.stream, line: ln.line });
+    send({ type: 'status', status: r.status, resultDir: r.resultDir });
     if (r.status !== 'running') { return res.end(); }
-    const listener = (ev) => res.write(`data: ${JSON.stringify(ev)}\n\n`);
+    const listener = (ev) => send(ev);
     r.listeners.add(listener);
-    req.on('close', () => r.listeners.delete(listener));
+    const beat = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 15000);
+    const cleanup = () => { clearInterval(beat); r.listeners.delete(listener); };
+    req.on('close', cleanup);
+    res.on('close', cleanup);
     return;
   }
   if ((m = p.match(/^\/api\/runs\/([^/]+)$/)) && req.method === 'GET') { const r = runs.get(m[1]); if (!r) return json(res, 404, {}); const { proc, listeners, ...rest } = r; return json(res, 200, rest); }
