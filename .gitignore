@@ -29,3 +29,7 @@ data/out/
 eval/results/
 *.wav
 *.mp3
+
+# Database backups (may contain PHI)
+db/backups/
+*.dump
