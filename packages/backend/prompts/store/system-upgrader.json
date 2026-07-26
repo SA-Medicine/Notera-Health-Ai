@@ -1,0 +1,14 @@
+{
+  "id": "system-upgrader",
+  "agent": "SystemUpgraderAgent",
+  "file": "packages/backend/src/admin/handler.js (upgrade endpoint)",
+  "label": "system-upgrader-systemprompt",
+  "stage": "Meta",
+  "description": "Reads a run's evidence (agent I/O, comparison scores, current prompts) and proposes targeted prompt edits + system-level improvements.",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "updatedAt": "2026-07-25T00:00:00.000Z",
+  "active": false,
+  "order": null
+}

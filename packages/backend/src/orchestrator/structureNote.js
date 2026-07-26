@@ -95,7 +95,7 @@ export async function structureNote(noteText, opts = {}) {
         SYS,
         `SPECIALTY: ${specialty}\nNOTE TYPE: ${noteType}\n\nCLINICIAN NOTE / TRANSCRIPT-DERIVED CONTENT:\n${noteText}\n\nReturn ONLY the JSON.`,
         GEMINI_NOTE_SCHEMA,
-        { timeoutMs: 60000, maxOutputTokens: 8192 }
+        { timeoutMs: 60000, maxOutputTokens: Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536 }
       );
       const parsed = JSON.parse(stripFences(raw));
       return normalize(parsed, { specialty, noteType, generatedBy });

@@ -1,4 +1,4 @@
-import { LayoutGrid, Play, Rows3, LineChart, PencilLine, Scale, Users, type LucideIcon } from 'lucide-react'
+import { LayoutGrid, Play, Rows3, LineChart, PencilLine, Scale, Users, Sparkles, Lightbulb, type LucideIcon } from 'lucide-react'
 export interface NavItem { id: string; label: string; icon: LucideIcon }
 export const NAV: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid },
@@ -7,6 +7,8 @@ export const NAV: NavItem[] = [
   { id: 'results', label: 'Results', icon: Rows3 },
   { id: 'metrics', label: 'Metrics', icon: LineChart },
   { id: 'prompts', label: 'Prompts', icon: PencilLine },
+  { id: 'upgrader', label: 'Upgrader', icon: Sparkles },
   { id: 'judge', label: 'Gates & Judge', icon: Scale },
+  { id: 'system', label: 'System Ideas', icon: Lightbulb },
 ]
 export type TabId = string

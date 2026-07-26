@@ -60,6 +60,15 @@ try {
   console.log('• applying db/schema.lab.sql …');
   await client.query(fs.readFileSync(path.join(__dirname, 'schema.lab.sql'), 'utf8'));
   console.log('  ✓ lab schema created');
+  // Upgrader tables live in a separate additive migration. Re-apply it here so a
+  // reset never leaves the System Upgrader without its tables (lab.upgrade_runs,
+  // lab.prompt_suggestions, lab.system_suggestions).
+  const upgraderSql = path.join(__dirname, 'schema.upgrader.sql');
+  if (fs.existsSync(upgraderSql)) {
+    console.log('• applying db/schema.upgrader.sql …');
+    await client.query(fs.readFileSync(upgraderSql, 'utf8'));
+    console.log('  ✓ upgrader tables ready');
+  }
 } catch (e) {
   console.error('✗ reset failed:', e.message || e.code || String(e));
   process.exitCode = 1;

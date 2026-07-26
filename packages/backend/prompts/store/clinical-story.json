@@ -1,0 +1,14 @@
+{
+  "id": "clinical-story",
+  "agent": "ClinicalStoryLLMAgent",
+  "file": "packages/backend/src/pipeline/agents/ClinicalStoryLLMAgent.js",
+  "label": "clinical-story-systemprompt",
+  "stage": "Narrative",
+  "description": "V31 Heidi slot filler — maps the fact graph into the note's subjective slots. Registry-backed; falls back to the in-code prompt until a version is published.",
+  "vars": [],
+  "publishedVersion": null,
+  "draft": null,
+  "updatedAt": "2026-07-25T00:00:00.000Z",
+  "active": true,
+  "order": null
+}

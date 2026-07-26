@@ -128,6 +128,8 @@ async function main() {
     try { labRun = await lab.createRun({ label: `run_${RUN_ID}`, status: 'running', pipelineVersion: process.env.PIPELINE_VERSION, model: process.env.GEMINI_MODEL }); }
     catch (e) { console.warn('[lab] createRun failed — DB mirror off:', e.message); lab = null; }
   }
+  if (lab && labRun) console.log(`[lab] DB mirroring ON → run #${labRun.run_no} (id ${labRun.id}). Agent I/O will be captured for the System Upgrader.`);
+  else console.warn(`[lab] DB mirroring OFF — STORE_BACKEND=${process.env.STORE_BACKEND || '(unset)'}, DATABASE_URL ${process.env.DATABASE_URL ? 'set' : '(unset)'}. Runs won't be usable by the System Upgrader.`);
 
   const rows = [];
   for (const f of files) {
@@ -185,6 +187,10 @@ async function main() {
               latencyMs: tr.latency_ms, model: tr.model,
             });
           }
+          // Observability: the System Upgrader needs these agent runs. Make the count
+          // visible in the Run-tab logs so it's obvious whether capture worked.
+          if (trace.length) console.log(`[lab] ${id}: stored ${trace.length} agent runs (${[...new Set(trace.map((t) => t.agent))].join(', ')})`);
+          else console.warn(`[lab] ${id}: 0 agent runs captured — the System Upgrader will have no data for this run.`);
           const metrics = {};
           for (const k of ['section_coverage', 'similarity_to_gold', 'story_flow', 'omission_rate']) if (typeof score[k] === 'number') metrics[k] = score[k];
           if (typeof score.schema_valid === 'boolean') metrics.schema_valid = score.schema_valid ? 1 : 0;

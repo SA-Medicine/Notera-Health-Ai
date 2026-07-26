@@ -7,7 +7,7 @@ import { Button } from '@notera/ui/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@notera/ui/components/ui/tabs'
 import { EmptyState, Skeleton } from '@notera/ui/components/ui/skeleton'
 import { toast } from 'sonner'
-import { Star, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
+import { Star, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight, Sparkles, FileText } from 'lucide-react'
 import type { TabId } from '@/lib/nav'
 
 const scoreTone = (s: number) => (s >= 80 ? 'text-success' : s >= 55 ? 'text-warning' : 'text-destructive')
@@ -21,8 +21,14 @@ export function Results({ setTab, target, clearTarget }: { setTab: (t: TabId) =>
   const [sideOpen, setSideOpen] = React.useState(true)
   const [compare, setCompare] = React.useState<Comparison | null>(null); const [comparing, setComparing] = React.useState(false)
   const [cmpOpen, setCmpOpen] = React.useState(() => localStorage.getItem('notera_cmp') !== '0')
+  // Source transcript — collapsed by default, remembers your choice, loads lazily.
+  const [tx, setTx] = React.useState<{ ok: boolean; source?: string; transcript?: string; error?: string } | null>(null)
+  const [txOpen, setTxOpen] = React.useState(() => localStorage.getItem('notera_tx') === '1')
   const [auto, setAuto] = React.useState(() => localStorage.getItem('notera_cmp_auto') === '1')
   React.useEffect(() => { localStorage.setItem('notera_cmp', cmpOpen ? '1' : '0') }, [cmpOpen])
+  React.useEffect(() => { localStorage.setItem('notera_tx', txOpen ? '1' : '0') }, [txOpen])
+  React.useEffect(() => { setTx(null) }, [file])                                   // new fixture → refetch
+  React.useEffect(() => { if (txOpen && file && !tx) api.transcript(file).then(setTx).catch(() => setTx({ ok: false, error: 'Could not load transcript' })) }, [txOpen, file, tx])
   React.useEffect(() => { localStorage.setItem('notera_cmp_auto', auto ? '1' : '0') }, [auto])
   React.useEffect(() => { api.resultRuns().then((r) => { setRuns(r); setDir((d) => d || (r[0]?.dir ?? '')) }).catch(() => {}) }, [])
   React.useEffect(() => { if (target?.dir) { setView('rendered'); setSideOpen(true); setWantFile(target.file || ''); setDir(target.dir); if (target.file) setFile(target.file); clearTarget() } }, [target])
@@ -111,6 +117,24 @@ export function Results({ setTab, target, clearTarget }: { setTab: (t: TabId) =>
               {compare.summary && <p className="text-sm text-foreground/85 border-t border-border pt-3">{compare.summary}</p>}
               {compare.generatedAt && <p className="text-[10px] text-muted-foreground">generated {new Date(compare.generatedAt).toLocaleString()}</p>}
             </div>}
+          </div>}
+        </div>
+
+        {/* ── Source transcript (what the pipeline was actually fed) — closed by default ── */}
+        <div className="shrink-0 rounded-xl border border-border bg-surface">
+          <button onClick={() => setTxOpen((o) => !o)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left">
+            {txOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+            <FileText className="w-4 h-4 text-info shrink-0" />
+            <span className="text-sm font-semibold text-foreground">Source transcript</span>
+            <span className="text-xs text-muted-foreground truncate">— the original input for {file.replace(/\.md$/, '') || 'this patient'}</span>
+            <div className="flex-1" />
+            {tx?.ok && tx.transcript && <span className="text-[10px] text-muted-foreground tabular-nums">{tx.transcript.length.toLocaleString()} chars · {tx.source}</span>}
+          </button>
+          {txOpen && <div className="px-4 pb-4">
+            {!tx ? <Skeleton className="h-24" />
+              : tx.ok && tx.transcript
+                ? <pre className="logpane whitespace-pre-wrap text-foreground/85 max-h-[45vh] overflow-auto bg-background border border-border rounded-lg p-3 text-xs">{tx.transcript}</pre>
+                : <div className="text-sm text-muted-foreground py-2">{tx.error || 'No transcript available for this patient.'}</div>}
           </div>}
         </div>
       </div>

@@ -12,7 +12,9 @@ import { Patients } from '@/screens/patients'
 import { Results } from '@/screens/results'
 import { Metrics } from '@/screens/metrics'
 import { Prompts } from '@/screens/prompts'
+import { Upgrader } from '@/screens/upgrader'
 import { Judge } from '@/screens/judge'
+import { SystemIdeas } from '@/screens/system'
 
 function Shell() {
   const [authed, setAuthed] = React.useState<boolean | null>(null)
@@ -39,7 +41,9 @@ function Shell() {
           {tab === 'results' && <Results setTab={setTab} target={resultsTarget} clearTarget={() => setResultsTarget(null)} />}
           {tab === 'metrics' && <Metrics openInResults={openInResults} />}
           {tab === 'prompts' && <Prompts setTab={setTab} />}
+          {tab === 'upgrader' && <Upgrader />}
           {tab === 'judge' && <Judge />}
+          {tab === 'system' && <SystemIdeas />}
         </main>
       </div>
       <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} setTab={setTab} onToggleNav={() => setNavOpen((o) => !o)} onLogout={logout} />

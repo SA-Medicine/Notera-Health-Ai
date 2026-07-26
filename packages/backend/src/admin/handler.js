@@ -193,6 +193,397 @@ function publishPromptDraft(id, author) {
   fs.writeFileSync(path.join(PROMPTS, id + '.json'), JSON.stringify(rec, null, 2));
   return rec;
 }
+
+// ── System Upgrader helpers ───────────────────────────────────────────────────
+// The note-shaping LLM agents the upgrader may improve (per-agent, clean attribution).
+const UPGRADER_AGENTS = ['observation-extractor', 'clinical-story', 'qa-validator', 'fact-recovery', 'encounter-classifier'];
+
+// Safety-critical instruction classes an edit must never remove or weaken.
+const PROTECTED_PATTERNS = [
+  { name: 'de-identification', rx: /de-?identif|\bPHI\b/i },
+  { name: 'no-fabrication', rx: /\b(do not|never|don't)\b[^.]{0,40}\b(invent|fabricate|hallucinat|make up)/i },
+  { name: 'negation-handling', rx: /negat(e|ion|ed)/i },
+  { name: 'medication-grounding', rx: /unsupported|not supported by|grounded|grounding/i },
+  { name: 'schema/format', rx: /schema|JSON|format/i },
+];
+/** A patch is unsafe if its `before` asserts a protected rule that `after` drops. */
+function protectedViolation(patches = []) {
+  for (const pt of patches) {
+    for (const P of PROTECTED_PATTERNS) {
+      if (P.rx.test(pt.before || '') && !P.rx.test(pt.after || '')) {
+        return `removes/weakens ${P.name} instruction`;
+      }
+    }
+  }
+  return null;
+}
+
+/** Published system instruction for a registry prompt id (or a fallback). */
+function loadPromptSrv(id, fallback = '') {
+  const rec = readPromptRec(id);
+  if (!rec || !rec.publishedVersion) return fallback;
+  const ver = readPromptVersion(id, rec.publishedVersion);
+  return (ver && typeof ver.systemInstruction === 'string') ? ver.systemInstruction : fallback;
+}
+
+/** Current published prompt for an agent (or null version → inline fallback used at runtime). */
+function resolveCurrentPrompt(agentId) {
+  const rec = readPromptRec(agentId);
+  if (rec && rec.publishedVersion) {
+    const ver = readPromptVersion(agentId, rec.publishedVersion);
+    if (ver && typeof ver.systemInstruction === 'string') return { version: rec.publishedVersion, text: ver.systemInstruction, hasRec: true };
+  }
+  return { version: rec ? (rec.publishedVersion || null) : null, text: '', hasRec: !!rec };
+}
+
+/** Apply anchored find→replace patches to a base prompt. Returns text + which applied. */
+function applyPatches(base, patches = []) {
+  let text = String(base || ''); const applied = [], failed = [];
+  for (const pt of patches) {
+    const before = pt.before || '';
+    if (before && text.includes(before)) { text = text.replace(before, pt.after || ''); applied.push(pt); }
+    else failed.push(pt);
+  }
+  return { text, applied, failed };
+}
+
+const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+function compositeScore(m) {
+  if (!m) return 0;
+  const cov = num(m.section_coverage) ?? 0, sim = num(m.similarity_to_gold) ?? 0,
+        flow = num(m.story_flow) ?? 0, om = num(m.omission_rate) ?? 0;
+  return (cov + sim + flow + (1 - om)) / 4;
+}
+const trim = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + `…[+${s.length - n} chars]` : s; };
+
+/**
+ * Assemble the contrastive evidence for one agent from a run:
+ * worst-K failing records + best-M anchors, each with metrics + note-vs-gold comparison,
+ * split into optimize/validate sets by ratio. Pure data — no LLM.
+ */
+async function buildUpgradeContext(lab, runId, agentId, { failK = 4, anchorM = 2, ratio = 0.5 } = {}) {
+  const run = await lab.getRun(runId);
+  if (!run) throw new Error('run not found');
+  const records = await lab.agentRunsForRunAgent(runId, agentId);
+  if (!records.length) throw new Error(`no '${agentId}' agent runs stored for this run`);
+  const metricRows = await lab.metricsForRunByRecord(runId);
+  const mByRp = {}; for (const r of metricRows) { (mByRp[r.run_patient_id] ||= {})[r.metric_key] = Number(r.metric_value); }
+  const dir = run.label;
+  const enrich = (r) => {
+    const m = mByRp[r.run_patient_id] || {};
+    // Cache files are named after the fixture basename, which is the patient NAME for
+    // backfilled gold cases (e.g. "Patient2") and the SLUG for imported ones. Try both.
+    let compare = null;
+    for (const cand of [r.name, r.slug]) {
+      if (!cand) continue;
+      try { compare = JSON.parse(fs.readFileSync(path.join(RESULTS, dir, cand + '.compare.json'), 'utf8')); break; } catch {}
+    }
+    return {
+      slug: r.slug, name: r.name, run_patient_id: r.run_patient_id, patient_id: r.patient_id,
+      metrics: m, score: compositeScore(m), status: r.status,
+      input: r.input || {}, output_raw: r.output_raw, output_parsed: r.output_parsed,
+      compare: compare && {
+        overall_score: compare.overall_score, verdict: compare.verdict,
+        notera_missing: compare.notera_missing, notera_extra: compare.notera_extra,
+        key_differences: compare.key_differences, summary: compare.summary, dimensions: compare.dimensions,
+      },
+    };
+  };
+  const all = records.map(enrich).sort((a, b) => a.slug.localeCompare(b.slug));
+  // optimize/validate split (deterministic by slug so it's stable across runs)
+  const nOpt = Math.max(1, Math.round(all.length * ratio));
+  const optimize = all.slice(0, nOpt), validate = all.slice(nOpt);
+  const byScore = [...optimize].sort((a, b) => a.score - b.score);
+  const failures = byScore.slice(0, Math.min(failK, byScore.length));
+  const anchors = byScore.slice(-Math.min(anchorM, byScore.length)).filter((a) => !failures.includes(a));
+  const cur = resolveCurrentPrompt(agentId);
+  // the prompt actually sent at runtime (captured per record) is the most accurate "current"
+  const runtimePrompt = records.find((r) => r.system_prompt)?.system_prompt || '';
+  return {
+    run: { id: run.id, run_no: run.run_no, label: run.label },
+    agentId, hasRegistryRec: cur.hasRec, baseVersion: cur.version,
+    currentPrompt: runtimePrompt || cur.text || '',
+    counts: { records: all.length, optimize: optimize.length, validate: validate.length, failures: failures.length, anchors: anchors.length },
+    failures, anchors,
+    optimizeSlugs: optimize.map((r) => r.slug), validateSlugs: validate.map((r) => r.slug),
+  };
+}
+
+/** Build the optimizer's user prompt from context (token-bounded). */
+function formatUpgradeUserPrompt(ctx) {
+  const L = [];
+  L.push(`AGENT TO IMPROVE: ${ctx.agentId}`);
+  L.push(`RUN: #${ctx.run.run_no} (${ctx.run.label}) — ${ctx.counts.records} records, ${ctx.counts.failures} failing samples, ${ctx.counts.anchors} passing anchors.`);
+  L.push('');
+  L.push('=== CURRENT PROMPT (verbatim — your `before` snippets must come from this) ===');
+  L.push(trim(ctx.currentPrompt, 8000));
+  L.push('');
+  L.push('=== FAILING RECORDS (edit the prompt to fix these) ===');
+  for (const f of ctx.failures) {
+    L.push(`--- ${f.name} [${f.slug}]  composite=${f.score.toFixed(2)}${f.compare?.overall_score != null ? `  compare=${f.compare.overall_score}/100 (${f.compare.verdict})` : ''} ---`);
+    if (f.compare) {
+      if (f.compare.notera_missing?.length) L.push(`MISSING (in gold, absent from note): ${f.compare.notera_missing.slice(0, 8).join(' | ')}`);
+      if (f.compare.notera_extra?.length) L.push(`EXTRA (in note, unsupported by gold): ${f.compare.notera_extra.slice(0, 8).join(' | ')}`);
+      if (f.compare.key_differences?.length) L.push(`KEY DIFFERENCES: ${f.compare.key_differences.slice(0, 8).join(' | ')}`);
+    } else {
+      L.push('(no comparison available — infer from metrics)');
+    }
+    L.push(`metrics: ${Object.entries(f.metrics).map(([k, v]) => `${k}=${Number(v).toFixed(2)}`).join(', ')}`);
+    L.push(`this agent's output (excerpt): ${trim(f.output_raw, 700)}`);
+    L.push('');
+  }
+  if (ctx.anchors.length) {
+    L.push('=== PASSING ANCHORS (do NOT break these — preserve what makes them work) ===');
+    for (const a of ctx.anchors) {
+      L.push(`--- ${a.name} [${a.slug}]  composite=${a.score.toFixed(2)}${a.compare?.overall_score != null ? `  compare=${a.compare.overall_score}/100` : ''} ---`);
+      if (a.compare?.summary) L.push(trim(a.compare.summary, 300));
+    }
+    L.push('');
+  }
+  L.push('Now improve the prompt per your instructions. Return ONLY the JSON.');
+  return L.join('\n');
+}
+
+const stripFencesSrv = (s) => String(s || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+const tryParseJsonSrv = (s) => { try { return JSON.parse(stripFencesSrv(s)); } catch { return null; } };
+const dropTrailingCommas = (s) => s.replace(/,(\s*[}\]])/g, '$1');
+
+// Escape raw control chars (literal newlines/tabs/etc.) that appear INSIDE JSON string
+// values — the #1 reason LLM JSON fails to parse (e.g. a multi-line prompt embedded in
+// a "full_prompt" string). Walks char-by-char tracking string state; only touches bytes
+// inside strings, so structure is preserved.
+function escapeCtrlInStrings(s) {
+  let out = '', inStr = false, esc = false;
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k], code = s.charCodeAt(k);
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === '\\') { out += c; esc = true; continue; }
+      if (c === '"') { out += c; inStr = false; continue; }
+      if (code < 0x20) { out += c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : '\\u' + code.toString(16).padStart(4, '0'); continue; }
+      out += c; continue;
+    }
+    if (c === '"') inStr = true;
+    out += c;
+  }
+  return out;
+}
+
+// Repair LLM JavaScript-style string concatenation inside JSON — a real failure mode
+// where the model writes  "A" + "B"  or  "A" + 'B'  (breaking out of the JSON string to
+// avoid escaping an inner quote). Merges the pieces into one valid JSON string.
+function mergeStringConcat(s) {
+  let out = String(s || '');
+  out = out.replace(/"(\s*)\+(\s*)"/g, '');                       // "A" + "B" -> "AB"
+  out = out.replace(/"\s*\+\s*'((?:\\.|[^'])*)'/g, (m, body) => { // "A" + 'B' -> "AB"
+    const conv = body.replace(/\\'/g, "'").replace(/(?<!\\)"/g, '\\"');
+    return conv + '"';
+  });
+  return out;
+}
+
+// Fix UNESCAPED double-quotes inside JSON string values — the model embeds huge prompts
+// with quoted terms and escapes them inconsistently (\"Age: X"  or  \"Diagnosis", ...).
+// A bare " before a comma is otherwise indistinguishable from a real string end, so we
+// use the fact that this optimizer JSON has a FIXED key set: a " terminates a string only
+// when followed by } ] : or  , "<known-key>": / , { / , ] . Everything else is a literal.
+const UPGRADE_JSON_KEYS = ['anchor', 'before', 'after', 'reason', 'agent_id', 'confidence', 'rationale', 'patches', 'full_prompt', 'summary', 'prompt_patches', 'system_suggestions', 'category', 'severity', 'title', 'detail'];
+const UPGRADE_KEY_AHEAD = new RegExp('^\\s*,\\s*"(' + UPGRADE_JSON_KEYS.join('|') + ')"\\s*:');
+function fixUnescapedQuotes(s) {
+  let out = '', inStr = false, esc = false;
+  const str = String(s || '');
+  for (let k = 0; k < str.length; k++) {
+    const c = str[k];
+    if (!inStr) { out += c; if (c === '"') inStr = true; continue; }
+    if (esc) { out += c; esc = false; continue; }
+    if (c === '\\') { out += c; esc = true; continue; }
+    if (c !== '"') { out += c; continue; }
+    let m = k + 1; while (m < str.length && /\s/.test(str[m])) m++;
+    const nxt = str[m]; const rest = str.slice(k + 1);
+    let term = false;
+    if (m >= str.length) term = true;
+    else if (nxt === '}' || nxt === ']' || nxt === ':') term = true;
+    else if (nxt === ',') term = UPGRADE_KEY_AHEAD.test(rest) || /^\s*,\s*[{[]/.test(rest) || /^\s*,\s*[}\]]/.test(rest);
+    if (term) { out += '"'; inStr = false; } else { out += '\\"'; }
+  }
+  return out;
+}
+
+// Apply every string-level repair in the right order (concat → stray quotes → control
+// chars → trailing commas). Used as the most aggressive parse attempt.
+function salvageJsonString(s) {
+  return dropTrailingCommas(escapeCtrlInStrings(fixUnescapedQuotes(mergeStringConcat(String(s || '')))));
+}
+
+// Best-effort repair for a TRUNCATED JSON object (the model hit the output-token
+// cap mid-structure). Walks the text tracking strings + bracket depth, closes an
+// open string, trims a dangling partial key/value, and appends the missing closers.
+function repairTruncatedJson(text) {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  const s = text.slice(start);
+  let inStr = false, esc = false;
+  const stack = [];
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  let out = s;
+  if (inStr) out += '"';                                   // close an unterminated string
+  out = out.replace(/,\s*$/, '');                          // dangling comma
+  out = out.replace(/,\s*"[^"]*"\s*:?\s*$/, '');           // dangling partial key like: , "foo":
+  while (stack.length) out += stack.pop();                 // close open brackets/braces
+  out = dropTrailingCommas(out);
+  try { return JSON.parse(out); } catch {}
+  try { return JSON.parse(escapeCtrlInStrings(out)); } catch {}
+  try { return JSON.parse(salvageJsonString(out)); } catch { return null; }
+}
+
+// Robust: models wrap JSON in prose/markdown, emit trailing commas, or get cut off
+// at the token limit. Try clean parse → outermost {...} slice → comma-fixed slice →
+// truncation repair. Returns { parsed, method } so the diagnostics show what happened.
+function extractUpgradeJson(out) {
+  const clean = tryParseJsonSrv(out);
+  if (clean) return { parsed: clean, method: 'clean' };
+  const s = stripFencesSrv(out); const i = s.indexOf('{'); const j = s.lastIndexOf('}');
+  if (i >= 0 && j > i) {
+    const slice = s.slice(i, j + 1);
+    try { return { parsed: JSON.parse(slice), method: 'sliced' }; } catch {}
+    try { return { parsed: JSON.parse(dropTrailingCommas(slice)), method: 'sliced-fixed' }; } catch {}
+    // Escape raw control chars inside strings (literal newlines in an embedded prompt).
+    try { return { parsed: JSON.parse(dropTrailingCommas(escapeCtrlInStrings(slice))), method: 'ctrl-fixed' }; } catch {}
+    // Full salvage: merge JS concatenation → escape stray quotes → escape control chars.
+    try { return { parsed: JSON.parse(salvageJsonString(slice)), method: 'salvaged' }; } catch {}
+  }
+  const repaired = repairTruncatedJson(s);
+  if (repaired) return { parsed: repaired, method: 'repaired' };
+  return { parsed: null, method: 'failed' };
+}
+
+// A model with a big token budget can fall into a repetition loop, producing degenerate
+// text (a phrase or "_And_X" fragment repeated hundreds of times). Detect it by the ratio
+// of unique to total words — very low ratio on a long string = degenerate.
+function isDegenerateText(s) {
+  const str = String(s || '');
+  if (str.length < 120) return false;
+  if (/(.{6,80}?)\1{4,}/.test(str)) return true;                 // same chunk repeated 5+ times
+  const words = str.split(/[\s_]+/).filter(Boolean);
+  if (words.length < 16) return false;
+  const uniq = new Set(words.map((w) => w.toLowerCase())).size;
+  return uniq / words.length < 0.35;
+}
+
+// Collapse obvious repetition and cap length so a stored suggestion is always readable.
+function cleanText(s, maxLen) {
+  let t = String(s || '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/(\b.{4,60}?\b)(?:\s*\1){2,}/g, '$1');           // "phrase phrase phrase" -> "phrase"
+  t = t.replace(/\b(\w+)(?:\s+\1\b){2,}/gi, '$1');               // "word word word" -> "word"
+  t = t.replace(/(_[A-Za-z][A-Za-z]*)\1{2,}/g, '$1');            // "_And_And_And" -> "_And"
+  if (t.length > maxLen) t = t.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
+  return t;
+}
+
+// Normalize one system suggestion; returns null if it's empty or irredeemably degenerate.
+function sanitizeSuggestion(s) {
+  const rawTitle = String(s.title || '').trim();
+  const rawDetail = String(s.detail || '').trim();
+  if (isDegenerateText(rawTitle) && isDegenerateText(rawDetail)) return null;     // pure garbage → drop
+  const title = cleanText(rawTitle || rawDetail || '', 140) || '(untitled)';
+  const detail = cleanText(rawDetail || rawTitle || '', 1200);
+  if (title === '(untitled)' && !detail) return null;
+  const cat = String(s.category || 'other').toLowerCase();
+  const category = ['pipeline', 'metric', 'guardrail', 'data', 'other'].includes(cat) ? cat : 'other';
+  const sev = String(s.severity || 'info').toLowerCase();
+  const severity = ['info', 'low', 'high'].includes(sev) ? sev : 'info';
+  return { category, title, detail, severity };
+}
+
+// Run the optimizer for ONE agent and persist its suggestions. Shared by the
+// single-shot /api/lab/upgrade endpoint and the incremental whole-system flow
+// (/upgrade/start + /upgrade/agent + /upgrade/finish). Never throws: any failure
+// is captured in the returned diag so callers can keep going. Returns
+// { diag, promptIds, systemIds, summary, raw }.
+async function processAgentUpgrade(lab, llm, sysPrompt, upgradeRunId, runId, agentId, opts) {
+  const d = { agentId, status: 'ok', reason: '', records: 0, failures: 0, anchors: 0, hasCompare: 0, promptChars: 0, outputChars: 0, parse: '', patches: 0, systems: 0 };
+  const promptIds = [], systemIds = [];
+  let summary = '', raw = '';
+  let ctx;
+  try { ctx = await buildUpgradeContext(lab, runId, agentId, opts); }
+  catch (e) { d.status = 'skipped'; d.reason = e.message; return { diag: d, promptIds, systemIds, summary, raw: `[${agentId}] SKIPPED: ${e.message}` }; }
+  d.records = ctx.counts.records; d.failures = ctx.counts.failures; d.anchors = ctx.counts.anchors;
+  d.hasCompare = ctx.failures.filter((f) => f.compare).length; d.promptChars = (ctx.currentPrompt || '').length;
+  if (!ctx.currentPrompt) { d.status = 'no_prompt'; d.reason = 'no captured prompt for this agent in the run (was the run mirrored to the DB with trace capture?)'; return { diag: d, promptIds, systemIds, summary, raw: `[${agentId}] no current prompt` }; }
+  const userPrompt = formatUpgradeUserPrompt(ctx);
+  let out = '';
+  // Big optimizer responses (rich agents like observation-extractor / clinical-story)
+  // were truncating at 8192 tokens → invalid/incomplete JSON. Give it the full ceiling.
+  const maxTok = Number(process.env.UPGRADER_MAX_OUTPUT_TOKENS) || Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536;
+  // Plain generation. NOTE: a responseSchema was tried here and made things worse — with the
+  // large token budget the model fell into repetition loops (degenerate suggestions, dropped
+  // patches, 500s). The robust parser below (incl. concat-fixed) handles malformed JSON, and
+  // sanitizeSuggestion() downstream filters any degenerate output.
+  try { out = await llm.generateContent(sysPrompt, userPrompt, null, { maxOutputTokens: maxTok }); }
+  catch (e) { d.status = 'llm_error'; d.reason = e.message; return { diag: d, promptIds, systemIds, summary, raw: `[${agentId}] LLM ERROR: ${e.message}` }; }
+  d.outputChars = (out || '').length;
+  raw = `===== ${agentId} (${d.records} records, ${d.failures} failing, ${d.hasCompare} with comparison) =====\n${out}`;
+  const { parsed, method } = extractUpgradeJson(out); d.parse = method;
+  if (!parsed) { d.status = 'parse_failed'; d.reason = 'optimizer output was not valid JSON — see raw output'; return { diag: d, promptIds, systemIds, summary, raw }; }
+  if (parsed.summary) summary = parsed.summary;
+  for (const patch of (parsed.prompt_patches || [])) {
+    const violation = protectedViolation(patch.patches || []);
+    const id = await lab.insertPromptSuggestion({
+      upgradeRunId, agentId: patch.agent_id || agentId, baseVersion: ctx.baseVersion, basePrompt: ctx.currentPrompt,
+      rationale: patch.rationale, patches: patch.patches || [], fullPrompt: patch.full_prompt,
+      confidence: num(patch.confidence), protectedBlocked: !!violation, protectedReason: violation,
+    });
+    promptIds.push(id); d.patches++;
+  }
+  for (const s of (parsed.system_suggestions || [])) {
+    const clean = sanitizeSuggestion(s);
+    if (!clean) continue;   // dropped: empty or degenerate repetition-loop output
+    const id = await lab.insertSystemSuggestion({ upgradeRunId, ...clean });
+    systemIds.push(id); d.systems++;
+  }
+  if (!d.patches && !d.systems) { d.status = 'no_changes'; d.reason = parsed.summary ? 'optimizer judged the prompt adequate' : 'optimizer returned no patches'; }
+  return { diag: d, promptIds, systemIds, summary, raw };
+}
+
+const COMPARATOR_SYS = `You are a clinical documentation comparator scoring two SOAP notes. Compare the NOTERA note (system under test) against the GOLD reference note.
+Score objectively, evidence-based, never rewarding fluent-but-unsupported text. Return ONLY valid JSON — no prose, no markdown:
+{ "overall_score": 0-100, "verdict": "notera_better | gold_better | equivalent",
+  "dimensions": [ {"name":"Faithfulness","notera":0-5,"gold":0-5,"comment":"short"},
+                  {"name":"Completeness","notera":0-5,"gold":0-5,"comment":"short"},
+                  {"name":"Structure","notera":0-5,"gold":0-5,"comment":"short"},
+                  {"name":"Clarity","notera":0-5,"gold":0-5,"comment":"short"} ],
+  "notera_missing": ["facts in gold missing from notera"],
+  "notera_extra": ["facts in notera not supported by gold"],
+  "key_differences": ["short phrases"], "summary": "2-3 sentence verdict" }`;
+
+/** Compute (and cache) a note-vs-gold comparison for one fixture .md. Reused by autocompare. */
+async function computeComparison(dir, fileName, llm) {
+  const cacheFp = path.join(RESULTS, dir, fileName.replace(/\.md$/, '') + '.compare.json');
+  try { const cached = JSON.parse(fs.readFileSync(cacheFp, 'utf8')); return { ok: true, cached: true, ...cached }; } catch {}
+  let generated = '', gold = '';
+  try {
+    const mdText = fs.readFileSync(path.join(RESULTS, dir, fileName), 'utf8');
+    const secs = []; let cur = { title: '_head', body: [] };
+    for (const ln of mdText.split('\n')) { const mm = ln.match(/──\s*(.+?)\s*──/); if (mm) { secs.push(cur); cur = { title: mm[1], body: [] }; } else cur.body.push(ln); }
+    secs.push(cur);
+    const findSec = (rx) => { const s = secs.find((x) => rx.test(x.title)); return s ? s.body.join('\n').trim() : ''; };
+    generated = findSec(/generated/i); gold = findSec(/gold/i);
+  } catch { return { ok: false, error: 'fixture not found' }; }
+  if (!generated) return { ok: false, error: 'no generated note in fixture' };
+  const prompt = `=== NOTERA NOTE (system under test) ===\n\n${generated}\n\n=== GOLD NOTE (reference) ===\n\n${gold || '(no gold reference available)'}\n\nCompare and return ONLY the JSON.`;
+  const out = await llm.generateContent(COMPARATOR_SYS, prompt);
+  const parsed = tryParseJsonSrv(out);
+  if (!parsed) return { ok: false, error: 'could not parse comparison output' };
+  parsed.generatedAt = new Date().toISOString();
+  try { fs.writeFileSync(cacheFp, JSON.stringify(parsed, null, 2)); } catch {}
+  return { ok: true, cached: true, ...parsed };
+}
 // map prompt id -> regexes that identify that agent's lines in a run log
 // (run logs print human agent names + block markers, not the JS class name)
 // Primary matcher for every agent is the unique `[PromptAgent] <id>` tag each
@@ -515,6 +906,188 @@ export async function adminHandler(req, res, next) {
     }
   }
 
+  // ── U-2: auto-run the comparison for every record of a run (safety-check corpus) ──
+  if ((m = p.match(/^\/api\/lab\/runs\/(\d+)\/autocompare$/)) && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    try {
+      const run = await lab.getRun(Number(m[1]));
+      if (!run) return json(res, 404, { ok: false, error: 'run not found' });
+      const dir = run.label;
+      const fixtures = runFiles(dir).map((f) => f.fixture);
+      const todo = fixtures.filter((fx) => { try { fs.accessSync(path.join(RESULTS, dir, fx + '.compare.json')); return false; } catch { return true; } });
+      let done = 0, failed = 0;
+      if (todo.length) {
+        const { createGeminiService } = await import(pathToFileURL(path.join(__dirname, '..', 'services', 'LLMService.js')).href);
+        const llm = await createGeminiService();
+        const CONC = Math.max(1, Number(process.env.ADMIN_COMPARE_CONCURRENCY || 4));
+        let i = 0;
+        const worker = async () => { while (i < todo.length) { const fx = todo[i++]; try { const r = await computeComparison(dir, fx + '.md', llm); r.ok ? done++ : failed++; } catch { failed++; } } };
+        await Promise.all(Array.from({ length: Math.min(CONC, todo.length) }, () => worker()));
+      }
+      return json(res, 200, { ok: true, run: { id: run.id, label: dir }, total: fixtures.length, alreadyCached: fixtures.length - todo.length, generated: done, failed });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: 'Auto-compare needs a valid GEMINI_API_KEY.' }); }
+  }
+
+  // ── U-3: preview the evidence that would be fed to the optimizer (no LLM spend) ──
+  if (p === '/api/lab/upgrade/preview' && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const { runId, agentId, failK, anchorM, ratio } = await readBody(req);
+    if (!runId || !agentId) return json(res, 400, { ok: false, error: 'runId and agentId required' });
+    if (!UPGRADER_AGENTS.includes(agentId)) return json(res, 400, { ok: false, error: `agent '${agentId}' is not upgrade-eligible` });
+    try {
+      const ctx = await buildUpgradeContext(lab, Number(runId), agentId, { failK: Number(failK) || 4, anchorM: Number(anchorM) || 2, ratio: ratio == null ? 0.5 : Number(ratio) });
+      // don't ship full prompts/outputs to the client — just what the reviewer needs
+      const slim = (r) => ({ slug: r.slug, name: r.name, score: r.score, metrics: r.metrics, compare: r.compare ? { overall_score: r.compare.overall_score, verdict: r.compare.verdict, notera_missing: r.compare.notera_missing, notera_extra: r.compare.notera_extra, key_differences: r.compare.key_differences } : null });
+      return json(res, 200, { ok: true, run: ctx.run, agentId, hasRegistryRec: ctx.hasRegistryRec, baseVersion: ctx.baseVersion, counts: ctx.counts, currentPromptChars: (ctx.currentPrompt || '').length, failures: ctx.failures.map(slim), anchors: ctx.anchors.map(slim), optimizeSlugs: ctx.optimizeSlugs, validateSlugs: ctx.validateSlugs });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
+  // ── U-4: run the optimizer, persist suggestions ──────────────────────────────
+  if (p === '/api/lab/upgrade' && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const body = await readBody(req);
+    const scope = body.scope === 'system' ? 'system' : 'agent';
+    const runId = Number(body.runId);
+    const opts = { failK: Number(body.failK) || 4, anchorM: Number(body.anchorM) || 2, ratio: body.ratio == null ? 0.5 : Number(body.ratio) };
+    if (!runId) return json(res, 400, { ok: false, error: 'runId required' });
+    const agents = scope === 'system' ? UPGRADER_AGENTS : [body.agentId];
+    if (scope === 'agent' && (!body.agentId || !UPGRADER_AGENTS.includes(body.agentId))) return json(res, 400, { ok: false, error: 'valid agentId required for per-agent scope' });
+    try {
+      const { createGeminiService } = await import(pathToFileURL(path.join(__dirname, '..', 'services', 'LLMService.js')).href);
+      const llm = await createGeminiService();
+      const sysPrompt = loadPromptSrv('system-upgrader');
+      const upgradeRunId = await lab.createUpgradeRun({ sourceRunId: runId, scope, agentId: scope === 'agent' ? body.agentId : null, model: llm.model, inputSummary: { agents, opts } });
+      const promptSuggestions = [], systemSuggestions = []; const rawParts = []; const diag = []; let summary = '';
+      for (const agentId of agents) {
+        const r = await processAgentUpgrade(lab, llm, sysPrompt, upgradeRunId, runId, agentId, opts);
+        diag.push(r.diag); if (r.raw) rawParts.push(r.raw);
+        for (const id of r.promptIds) promptSuggestions.push(id);
+        for (const id of r.systemIds) systemSuggestions.push(id);
+        if (r.summary && !summary) summary = r.summary;
+      }
+      await lab.finishUpgradeRun(upgradeRunId, { status: 'done', rawOutput: rawParts.join('\n\n').slice(0, 300000), summary, inputSummary: { agents, opts, diag } });
+      return json(res, 200, { ok: true, upgradeRunId, scope, promptSuggestions: promptSuggestions.length, systemSuggestions: systemSuggestions.length, summary, diag });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: 'Upgrade needs a valid GEMINI_API_KEY and a reachable Testing Lab DB.' }); }
+  }
+
+  // ── U-4b: INCREMENTAL whole-system upgrade (one short request per agent). ──────
+  // Whole-system runs many sequential LLM calls; doing them in a single request can
+  // exceed the dev-proxy / socket timeout and the connection gets reset. Instead the
+  // client calls /start once, /agent per agent (each ~one LLM call, like per-agent),
+  // then /finish. Robust: each step is independent and returns its own diag.
+  if (p === '/api/lab/upgrade/start' && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const body = await readBody(req);
+    const scope = body.scope === 'system' ? 'system' : 'agent';
+    const runId = Number(body.runId);
+    const opts = { failK: Number(body.failK) || 4, anchorM: Number(body.anchorM) || 2, ratio: body.ratio == null ? 0.5 : Number(body.ratio) };
+    if (!runId) return json(res, 400, { ok: false, error: 'runId required' });
+    try {
+      // Only process agents that actually have captured I/O in this run — keeps the
+      // progress bar honest and avoids spending LLM calls on guaranteed skips.
+      const captured = (await lab.agentsOfRun(runId)).map((r) => r.agent_id);
+      let agents;
+      if (scope === 'system') {
+        agents = UPGRADER_AGENTS.filter((a) => captured.includes(a));
+        if (!agents.length) return json(res, 200, { ok: false, error: 'This run has no captured agent I/O for any upgrade-eligible agent. Run a fresh batch (Run tab) so the pipeline is mirrored to the DB, then upgrade that run.' });
+      } else {
+        if (!body.agentId || !UPGRADER_AGENTS.includes(body.agentId)) return json(res, 400, { ok: false, error: 'valid agentId required for per-agent scope' });
+        agents = [body.agentId];
+      }
+      const { createGeminiService } = await import(pathToFileURL(path.join(__dirname, '..', 'services', 'LLMService.js')).href);
+      const llm = await createGeminiService();
+      const upgradeRunId = await lab.createUpgradeRun({ sourceRunId: runId, scope, agentId: scope === 'agent' ? body.agentId : null, model: llm.model, inputSummary: { agents, opts, incremental: true } });
+      return json(res, 200, { ok: true, upgradeRunId, scope, agents, opts });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+  }
+  if (p === '/api/lab/upgrade/agent' && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const body = await readBody(req);
+    const upgradeRunId = Number(body.upgradeRunId), runId = Number(body.runId), agentId = body.agentId;
+    const opts = { failK: Number(body.failK) || 4, anchorM: Number(body.anchorM) || 2, ratio: body.ratio == null ? 0.5 : Number(body.ratio) };
+    if (!upgradeRunId || !runId || !agentId) return json(res, 400, { ok: false, error: 'upgradeRunId, runId and agentId required' });
+    if (!UPGRADER_AGENTS.includes(agentId)) return json(res, 400, { ok: false, error: `agent '${agentId}' is not upgrade-eligible` });
+    try {
+      const { createGeminiService } = await import(pathToFileURL(path.join(__dirname, '..', 'services', 'LLMService.js')).href);
+      const llm = await createGeminiService();
+      const sysPrompt = loadPromptSrv('system-upgrader');
+      const r = await processAgentUpgrade(lab, llm, sysPrompt, upgradeRunId, runId, agentId, opts);
+      return json(res, 200, { ok: true, diag: r.diag, promptSuggestions: r.promptIds.length, systemSuggestions: r.systemIds.length, summary: r.summary, raw: r.raw });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: 'Upgrade needs a valid GEMINI_API_KEY and a reachable Testing Lab DB.' }); }
+  }
+  if (p === '/api/lab/upgrade/finish' && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const body = await readBody(req);
+    const upgradeRunId = Number(body.upgradeRunId);
+    if (!upgradeRunId) return json(res, 400, { ok: false, error: 'upgradeRunId required' });
+    try {
+      const diag = Array.isArray(body.diag) ? body.diag : [];
+      const agents = diag.map((d) => d && d.agentId).filter(Boolean);
+      const rawOutput = typeof body.raw === 'string' ? body.raw.slice(0, 300000) : (Array.isArray(body.rawParts) ? body.rawParts.join('\n\n').slice(0, 300000) : null);
+      await lab.finishUpgradeRun(upgradeRunId, { status: body.status === 'error' ? 'error' : 'done', rawOutput, summary: body.summary || null, errorMessage: body.errorMessage || null, inputSummary: { agents, opts: body.opts || {}, diag, incremental: true } });
+      return json(res, 200, { ok: true, upgradeRunId });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
+  // ── U reads: list + one upgrade run (with children) ──────────────────────────
+  if (p === '/api/lab/upgrades' && req.method === 'GET') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { runs: [], error: e.message, hint: labHint }); }
+    try { return json(res, 200, { runs: await lab.listUpgradeRuns() }); } catch (e) { return json(res, 200, { runs: [], error: e.message }); }
+  }
+  // Global feed of every system-level (non-prompt) suggestion — for the System Ideas tab.
+  if (p === '/api/lab/system-suggestions' && req.method === 'GET') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { suggestions: [], error: e.message, hint: labHint }); }
+    try { return json(res, 200, { suggestions: await lab.allSystemSuggestions() }); } catch (e) { return json(res, 200, { suggestions: [], error: e.message }); }
+  }
+  if ((m = p.match(/^\/api\/lab\/upgrade\/(\d+)$/)) && req.method === 'GET') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { error: e.message, hint: labHint }); }
+    try {
+      const run = await lab.getUpgradeRun(Number(m[1]));
+      if (!run) return json(res, 404, { error: 'not found' });
+      const prompts = await lab.promptSuggestionsFor(run.id);
+      // attach current prompt + patched preview so the UI can diff without a round-trip
+      const withPreview = prompts.map((s) => {
+        const cur = resolveCurrentPrompt(s.agent_id);
+        // Diff against the exact prompt the patches were computed on (persisted), so
+        // in-code prompts (e.g. clinical-story) diff correctly, not against ''.
+        const baseText = s.base_prompt || cur.text || '';
+        const applied = applyPatches(baseText, s.patches || []);
+        const drift = s.base_version != null && cur.version != null && cur.version !== s.base_version;
+        return { ...s, current_prompt: baseText, patched_prompt: applied.applied.length ? applied.text : (s.full_prompt || applied.text), patch_failed: applied.failed.length, base_drift: drift, current_version: cur.version };
+      });
+      return json(res, 200, { run, prompt_suggestions: withPreview, system_suggestions: await lab.systemSuggestionsFor(run.id) });
+    } catch (e) { return json(res, 200, { error: e.message }); }
+  }
+
+  // ── U publish/dismiss a prompt suggestion (goes through the existing versioning) ──
+  if ((m = p.match(/^\/api\/lab\/suggestions\/(\d+)\/publish$/)) && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message, hint: labHint }); }
+    const { finalPrompt } = await readBody(req);
+    try {
+      const s = await lab.getPromptSuggestion(Number(m[1]));
+      if (!s) return json(res, 404, { ok: false, error: 'suggestion not found' });
+      if (s.protected_blocked) return json(res, 200, { ok: false, error: `blocked by safety guard: ${s.protected_reason}. Edit it manually in the Prompts tab if you're sure.` });
+      if (!readPromptRec(s.agent_id)) return json(res, 200, { ok: false, error: `agent '${s.agent_id}' has no registry entry, so it can't be published from here.` });
+      // final text: explicit override → applied patches on the persisted base → full rewrite
+      let text = finalPrompt && String(finalPrompt).trim();
+      if (!text) { const base = s.base_prompt || resolveCurrentPrompt(s.agent_id).text || ''; const ap = applyPatches(base, s.patches || []); text = ap.applied.length ? ap.text : (s.full_prompt || ''); }
+      if (!text) return json(res, 200, { ok: false, error: 'nothing to publish (no patches applied and no full prompt)' });
+      savePromptDraft(s.agent_id, text, `System Upgrader suggestion #${s.id}`);
+      const rec = publishPromptDraft(s.agent_id, 'system-upgrader');
+      await lab.setPromptSuggestionStatus(s.id, 'published', rec.publishedVersion);
+      return json(res, 200, { ok: true, agentId: s.agent_id, publishedVersion: rec.publishedVersion });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+  if ((m = p.match(/^\/api\/lab\/suggestions\/(\d+)\/dismiss$/)) && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+    try { await lab.setPromptSuggestionStatus(Number(m[1]), 'dismissed'); return json(res, 200, { ok: true }); } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+  if ((m = p.match(/^\/api\/lab\/system-suggestions\/(\d+)\/status$/)) && req.method === 'POST') {
+    let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+    const { status } = await readBody(req);
+    try { await lab.setSystemSuggestionStatus(Number(m[1]), status === 'accepted' ? 'accepted' : status === 'dismissed' ? 'dismissed' : 'open'); return json(res, 200, { ok: true }); } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
   // ── Testing Lab dashboard reads ──────────────────────────────────────────────
   if (p.startsWith('/api/lab/')) {
     let lab; try { lab = await getLab(); } catch (e) { return json(res, 200, { error: e.message, hint: labHint }); }
@@ -527,6 +1100,7 @@ export async function adminHandler(req, res, next) {
       if ((mm = p.match(/^\/api\/lab\/run\/(\d+)\/heatmap$/))) return json(res, 200, { rows: await lab.heatmap(Number(mm[1])) });
       if ((mm = p.match(/^\/api\/lab\/run\/(\d+)\/patient\/(\d+)\/agents$/))) return json(res, 200, { rows: await lab.agentRunsFor(Number(mm[1]), Number(mm[2])) });
       if ((mm = p.match(/^\/api\/lab\/agent-run\/(\d+)$/))) return json(res, 200, { agentRun: await lab.getAgentRun(Number(mm[1])) });
+      if ((mm = p.match(/^\/api\/lab\/run\/(\d+)\/upgrade-agents$/))) return json(res, 200, { agents: (await lab.agentsOfRun(Number(mm[1]))).map((r) => r.agent_id) });
       if (p === '/api/lab/compare') {
         const a = Number(u.searchParams.get('a')), b = Number(u.searchParams.get('b'));
         const [ma, mb] = await Promise.all([lab.metricsForRun(a), lab.metricsForRun(b)]);
@@ -534,6 +1108,29 @@ export async function adminHandler(req, res, next) {
       }
     } catch (e) { return json(res, 200, { error: e.message, hint: labHint }); }
     // fall through for unknown /api/lab/* GETs handled elsewhere (e.g. rerun POST)
+  }
+
+  // ── original source transcript for a fixture (what the run was actually fed) ──
+  if (p === '/api/results/transcript') {
+    const base = safeName(u.searchParams.get('name') || '').replace(/\.(md|json|txt)$/i, '');
+    if (!base) return json(res, 400, { ok: false, error: 'name required' });
+    // 1) the gold fixture on disk IS the exact input the pipeline consumed
+    try {
+      const raw = fs.readFileSync(path.join(GOLD, base + '.txt'), 'utf8');
+      const idx = raw.search(/^\s*Subjective\s*:/im);
+      return json(res, 200, {
+        ok: true, source: 'fixture', fixture: base + '.txt',
+        transcript: (idx === -1 ? raw : raw.slice(0, idx)).trim(),
+        gold: idx === -1 ? '' : raw.slice(idx).trim(),
+      });
+    } catch { /* not on disk — fall through to the DB */ }
+    // 2) imported patients (large imports skip writing fixtures) live only in the DB
+    try {
+      const lab = await getLab();
+      const pt = await lab.getPatientBySlug(base);
+      if (pt) return json(res, 200, { ok: true, source: 'database', transcript: pt.transcript_clean || pt.transcript_raw || '', gold: pt.gold_note || '' });
+    } catch { /* DB unavailable */ }
+    return json(res, 200, { ok: false, error: `No source transcript found for "${base}".` });
   }
 
   // ── LLM comparison: Notera generated note vs gold reference, scored + cached ──────

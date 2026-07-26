@@ -23,12 +23,14 @@ function applyModelDefaults(body) {
   const b = body || {};
   b.generationConfig = b.generationConfig || {};
   const gc = b.generationConfig;
-  const maxOut = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS || 0);
-  if (maxOut && (!gc.maxOutputTokens || gc.maxOutputTokens < maxOut)) gc.maxOutputTokens = maxOut;
+  const maxOut = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536;
+  if (!gc.maxOutputTokens || gc.maxOutputTokens < maxOut) gc.maxOutputTokens = maxOut;
   const temp = process.env.GEMINI_TEMPERATURE;
   if (temp !== undefined && temp !== '' && gc.temperature === undefined) gc.temperature = Number(temp);
-  // Thinking is DISABLED — do not use thinking (force budget 0 on every call).
-  gc.thinkingConfig = { thinkingBudget: 0 };
+  // Reasoning depth from env (gemini-3.x): high|low|off. Defaults to no thinking.
+  const thinkingLevel = process.env.GEMINI_THINKING_LEVEL;
+  if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') gc.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
+  else gc.thinkingConfig = { thinkingBudget: 0 };
   return b;
 }
 

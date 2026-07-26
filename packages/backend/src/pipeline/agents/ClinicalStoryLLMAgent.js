@@ -17,6 +17,8 @@
  *   PipelineEngine catches and calls DeterministicFallbackComposer.
  */
 
+import { loadPrompt } from '../../../prompts/registry.js';
+
 const SYSTEM_PROMPT = `You are DAS Heidi Slot Filler — a clinical AI scribe working inside a medical documentation system.
 
 YOUR JOB: Given the extracted clinical fact graph, populate Heidi's 7 subjective semantic slots
@@ -442,7 +444,9 @@ Fill Heidi's 7 semantic slots and return the JSON.`;
 
     // Narrative synthesis is heavy (observed up to ~52s). Generous timeout; if it still
     // times out, PipelineEngine catches and falls back to the deterministic composer.
-    const rawResponse = await this.llm.generateContent(SYSTEM_PROMPT, prompt, null, { timeoutMs: 180000, retries: 1 });
+    // Registry-backed so the System Upgrader can improve it; falls back to SYSTEM_PROMPT
+    // until a version is published (behaviour unchanged out of the box).
+    const rawResponse = await this.llm.generateContent(loadPrompt('clinical-story', SYSTEM_PROMPT), prompt, null, { timeoutMs: 180000, retries: 1 });
 
     try {
       let slotData = parseSlotFillerResponse(rawResponse);
