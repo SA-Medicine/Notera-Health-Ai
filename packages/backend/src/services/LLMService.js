@@ -79,19 +79,28 @@ export class LLMService {
     let url = targets[ti].url;
     const timeoutMs = options.timeoutMs || 120000;
     const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
-    const maxOutputTokens = options.maxOutputTokens || Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 32768;
+    // Let the model run to its full output ceiling unless a caller explicitly caps it.
+    const maxOutputTokens = options.maxOutputTokens || Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536;
 
     const body = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig: { maxOutputTokens },
     };
-    // Thinking DISABLED by default (do not use thinking); callers may override.
-    body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget ?? 0 };
+    // Reasoning depth (gemini-3.x). GEMINI_THINKING_LEVEL / options.thinkingLevel = high|low|off.
+    // Legacy thinkingBudget still honored if a caller passes it explicitly.
+    const thinkingLevel = options.thinkingLevel ?? process.env.GEMINI_THINKING_LEVEL;
+    if (options.thinkingBudget !== undefined) body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget };
+    else if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') body.generationConfig.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
+    else body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
     if (responseSchema) {
       body.generationConfig.responseMimeType = 'application/json';
       if (typeof responseSchema === 'object') body.generationConfig.responseSchema = responseSchema;
+    } else if (options.responseMimeType) {
+      // JSON mode without a schema: constrained decoding guarantees syntactically
+      // valid JSON (fixes prompts that embed nested JSON and mis-escape it).
+      body.generationConfig.responseMimeType = options.responseMimeType;
     }
 
     let headers = usingProxy ? { 'Content-Type': 'application/json' } : await this._authHeaders();
@@ -109,13 +118,41 @@ export class LLMService {
             lastErr = new Error('Gemini 500 with responseSchema — retrying without schema');
             continue;
           }
+          // If an endpoint/model doesn't accept the new thinkingLevel field, fall back to
+          // disabling thinking so the call still succeeds (never break on config mismatch).
+          if (response.status === 400 && body.generationConfig.thinkingConfig?.thinkingLevel &&
+              /thinking|thinkingLevel|unknown name|invalid/i.test(JSON.stringify(errorData))) {
+            body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            lastErr = new Error('Gemini 400 with thinkingLevel — retrying without it');
+            continue;
+          }
+          // If a model rejects bare JSON mode (responseMimeType without schema), drop it
+          // and retry as plain text — the caller's robust parser handles the raw output.
+          if (response.status === 400 && body.generationConfig.responseMimeType && !body.generationConfig.responseSchema &&
+              /mime|responseMimeType|json|unknown name|invalid/i.test(JSON.stringify(errorData))) {
+            delete body.generationConfig.responseMimeType;
+            lastErr = new Error('Gemini 400 with responseMimeType — retrying as text');
+            continue;
+          }
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
             lastErr = new Error(`Gemini API ${response.status} (retrying)`);
             continue;
           }
           throw new Error(`Gemini API Error ${response.status}: ${JSON.stringify(errorData)}`);
         }
-        const data = await response.json();
+        // Read as text first: some upstreams (and proxies) return a plain-text body
+        // like "Internal Server Error" even on a 2xx, which would make response.json()
+        // throw a cryptic "Unexpected token 'I'". Parse defensively and, if it's not
+        // JSON, retry (transient) or surface the real body.
+        const raw = await response.text();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch {
+          const where = usingProxy ? `proxy ${url}` : 'Gemini API';
+          lastErr = new Error(`${where} returned non-JSON (${response.status}): ${String(raw).slice(0, 180)}`);
+          if (attempt < retries) continue;
+          throw lastErr;
+        }
         return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       } catch (err) {
         const connErr = err?.name === 'TypeError' || !!err?.cause?.code || /fetch failed|ECONNREFUSED|ECONNRESET|EAI_AGAIN|ENOTFOUND|network/i.test(err?.message || '');

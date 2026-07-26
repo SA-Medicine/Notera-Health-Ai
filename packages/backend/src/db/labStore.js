@@ -42,8 +42,10 @@ export async function upsertPatient(p) {
      p.gold_hash || (p.gold_note ? sha256(p.gold_note) : null),
      JSON.stringify(p.artifacts || []), JSON.stringify(p.audits || [])]
   ).catch(async (e) => {
-    // heidi_session_id may be null → ON CONFLICT can't fire; fall back to slug upsert.
-    if (/null value|there is no unique|ON CONFLICT/i.test(e.message)) {
+    // heidi_session_id may be null → ON CONFLICT (heidi_session_id) can't fire on a
+    // slug collision (NULLs are distinct), so it hits patients_slug_key instead.
+    // Fall back to a slug-based upsert for any such conflict.
+    if (/null value|there is no unique|ON CONFLICT|duplicate key|patients_slug_key|unique constraint/i.test(e.message)) {
       return one(
         `INSERT INTO lab.patients
            (slug, name, source_url, subtitle, tags, transcript_raw, transcript_clean, gold_note, transcript_sha256, gold_hash, artifacts, audits)
@@ -207,3 +209,89 @@ export const agentRunsFor = (runId, patientId) =>
   query(`SELECT id, agent_id, seq, status, latency_ms, tokens_in, tokens_out,
                 attempt, rerun_of, created_at, output_parsed
          FROM lab.agent_runs WHERE run_id=$1 AND patient_id=$2 ORDER BY seq, attempt`, [runId, patientId]);
+
+// ── System Upgrader: context reads ────────────────────────────────────────────
+/** Latest attempt of one agent for every record in a run, with the patient + record id. */
+export const agentRunsForRunAgent = (runId, agentId) =>
+  query(
+    `SELECT DISTINCT ON (ar.patient_id)
+            ar.id, ar.patient_id, ar.run_patient_id, p.slug, p.name,
+            ar.system_prompt, ar.prompt_version, ar.input, ar.output_raw, ar.output_parsed,
+            ar.status, ar.error_message, ar.latency_ms, ar.tokens_in, ar.tokens_out
+     FROM lab.agent_runs ar JOIN lab.patients p ON p.id = ar.patient_id
+     WHERE ar.run_id=$1 AND ar.agent_id=$2
+     ORDER BY ar.patient_id, ar.attempt DESC, ar.id DESC`,
+    [runId, agentId]
+  );
+
+/** Metrics for a run keyed by run_patient_id (for joining onto records in JS). */
+export const metricsForRunByRecord = (runId) =>
+  query(`SELECT run_patient_id, metric_key, metric_value FROM lab.metrics WHERE run_id=$1`, [runId]);
+
+/** Which agents actually ran in a run (so the Upgrader only offers real ones). */
+export const agentsOfRun = (runId) =>
+  query(`SELECT DISTINCT agent_id FROM lab.agent_runs WHERE run_id=$1 ORDER BY agent_id`, [runId]);
+
+// ── System Upgrader: writes ───────────────────────────────────────────────────
+export async function createUpgradeRun({ sourceRunId, scope, agentId, model, inputSummary }) {
+  const r = await one(
+    `INSERT INTO lab.upgrade_runs (source_run_id, scope, agent_id, model, input_summary)
+     VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id`,
+    [sourceRunId || null, scope, agentId || null, model || null, JSON.stringify(inputSummary || {})]
+  );
+  return r.id;
+}
+export const finishUpgradeRun = (id, { status = 'done', rawOutput, summary, errorMessage, inputSummary } = {}) =>
+  query(`UPDATE lab.upgrade_runs SET status=$2, raw_output=$3, summary=$4, error_message=$5,
+           input_summary = COALESCE($6::jsonb, input_summary), finished_at=now() WHERE id=$1`,
+    [id, status, rawOutput || null, summary || null, errorMessage || null, inputSummary ? JSON.stringify(inputSummary) : null]);
+
+export async function insertPromptSuggestion(s) {
+  const r = await one(
+    `INSERT INTO lab.prompt_suggestions
+       (upgrade_run_id, agent_id, base_version, base_prompt, rationale, patches, full_prompt, confidence, protected_blocked, protected_reason)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10) RETURNING id`,
+    [s.upgradeRunId, s.agentId, s.baseVersion || null, s.basePrompt || null, s.rationale || null,
+     JSON.stringify(s.patches || []), s.fullPrompt || null, s.confidence == null ? null : s.confidence,
+     !!s.protectedBlocked, s.protectedReason || null]
+  );
+  return r.id;
+}
+export async function insertSystemSuggestion(s) {
+  const r = await one(
+    `INSERT INTO lab.system_suggestions (upgrade_run_id, category, title, detail, severity)
+     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [s.upgradeRunId, s.category || 'other', s.title, s.detail, s.severity || 'info']
+  );
+  return r.id;
+}
+
+// ── System Upgrader: reads ────────────────────────────────────────────────────
+export const getUpgradeRun = (id) => one(`SELECT * FROM lab.upgrade_runs WHERE id=$1`, [id]);
+export const listUpgradeRuns = () =>
+  query(`SELECT ur.id, ur.scope, ur.agent_id, ur.status, ur.model, ur.summary, ur.created_at, ur.finished_at,
+                r.run_no AS source_run_no, r.label AS source_label,
+                (SELECT count(*) FROM lab.prompt_suggestions ps WHERE ps.upgrade_run_id=ur.id) AS prompt_count,
+                (SELECT count(*) FROM lab.system_suggestions ss WHERE ss.upgrade_run_id=ur.id) AS system_count
+         FROM lab.upgrade_runs ur LEFT JOIN lab.runs r ON r.id=ur.source_run_id
+         ORDER BY ur.id DESC LIMIT 50`);
+export const promptSuggestionsFor = (upgradeRunId) =>
+  query(`SELECT * FROM lab.prompt_suggestions WHERE upgrade_run_id=$1 ORDER BY id`, [upgradeRunId]);
+export const systemSuggestionsFor = (upgradeRunId) =>
+  query(`SELECT * FROM lab.system_suggestions WHERE upgrade_run_id=$1 ORDER BY id`, [upgradeRunId]);
+// Global feed: every system-level (non-prompt) suggestion the Upgrader has ever
+// produced, joined with the upgrade run + the source pipeline run it came from.
+// Powers the standalone "System Ideas" tab.
+export const allSystemSuggestions = () =>
+  query(`SELECT ss.id, ss.upgrade_run_id, ss.category, ss.title, ss.detail, ss.severity, ss.status, ss.created_at,
+                ur.scope, ur.agent_id AS upgrade_agent, ur.model AS upgrade_model,
+                r.run_no AS source_run_no, r.label AS source_label
+         FROM lab.system_suggestions ss
+         JOIN lab.upgrade_runs ur ON ur.id = ss.upgrade_run_id
+         LEFT JOIN lab.runs r ON r.id = ur.source_run_id
+         ORDER BY ss.id DESC`);
+export const getPromptSuggestion = (id) => one(`SELECT * FROM lab.prompt_suggestions WHERE id=$1`, [id]);
+export const setPromptSuggestionStatus = (id, status, publishedVersion = null) =>
+  query(`UPDATE lab.prompt_suggestions SET status=$2, published_version=COALESCE($3, published_version) WHERE id=$1`, [id, status, publishedVersion]);
+export const setSystemSuggestionStatus = (id, status) =>
+  query(`UPDATE lab.system_suggestions SET status=$2 WHERE id=$1`, [id, status]);

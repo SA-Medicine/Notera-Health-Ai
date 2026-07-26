@@ -16,6 +16,7 @@ service-account*.json
 .next/
 dist/
 build/
+.turbo/
 *.log
 
 # OS

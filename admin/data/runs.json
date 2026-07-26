@@ -1,5 +1,77 @@
 [
   {
+    "id": "2026-07-26T07-31-12-128Z-73ff",
+    "command": "node eval/run_eval.mjs Patient5",
+    "status": "passed",
+    "startedAt": "2026-07-26T07:31:12.128Z",
+    "finishedAt": "2026-07-26T07:33:23.042Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-26_07-31-12"
+  },
+  {
+    "id": "2026-07-25T19-13-49-673Z-e535",
+    "command": "node eval/run_eval.mjs Patient9",
+    "status": "passed",
+    "startedAt": "2026-07-25T19:13:49.673Z",
+    "finishedAt": "2026-07-25T19:14:20.733Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-25_19-13-49"
+  },
+  {
+    "id": "2026-07-25T18-55-08-379Z-2881",
+    "command": "node eval/run_eval.mjs Patient10",
+    "status": "passed",
+    "startedAt": "2026-07-25T18:55:08.379Z",
+    "finishedAt": "2026-07-25T18:55:40.373Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-25_18-55-08"
+  },
+  {
+    "id": "2026-07-25T18-06-01-387Z-535e",
+    "command": "node eval/run_eval.mjs Patient6",
+    "status": "passed",
+    "startedAt": "2026-07-25T18:06:01.387Z",
+    "finishedAt": "2026-07-25T18:06:32.610Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-25_18-06-01"
+  },
+  {
+    "id": "2026-07-21T19-17-59-646Z-c110",
+    "command": "node eval/run_eval.mjs Patient2 Patient4 Patient5 done_Patient3 hair-fall-tests-2 hand-injury-fever-2 patient1 r-knee-pain-medial-2",
+    "status": "passed",
+    "startedAt": "2026-07-21T19:17:59.646Z",
+    "finishedAt": "2026-07-21T19:26:38.726Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-21_19-17-59"
+  },
+  {
+    "id": "2026-07-21T19-14-10-947Z-8e84",
+    "command": "node eval/run_eval.mjs Patient6",
+    "status": "passed",
+    "startedAt": "2026-07-21T19:14:10.948Z",
+    "finishedAt": "2026-07-21T19:14:41.748Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-21_19-14-11"
+  },
+  {
+    "id": "2026-07-21T19-02-30-820Z-c6d5",
+    "command": "node eval/run_eval.mjs Patient6",
+    "status": "passed",
+    "startedAt": "2026-07-21T19:02:30.820Z",
+    "finishedAt": "2026-07-21T19:03:01.892Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-21_19-02-30"
+  },
+  {
+    "id": "2026-07-21T17-35-03-165Z-51ec",
+    "command": "node eval/run_eval.mjs r-knee-pain-medial",
+    "status": "passed",
+    "startedAt": "2026-07-21T17:35:03.165Z",
+    "finishedAt": "2026-07-21T17:35:34.112Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-21_17-35-03"
+  },
+  {
     "id": "2026-07-19T17-08-15-030Z-37f1",
     "command": "node eval/run_eval.mjs Patient4",
     "status": "passed",

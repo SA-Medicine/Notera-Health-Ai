@@ -33,6 +33,16 @@ export interface RerunResult { ok: boolean; mode?: string; error?: string; hint?
 export interface CompareDim { name: string; notera: number; gold: number; comment: string }
 export interface Comparison { cached: boolean; ok?: boolean; error?: string; hint?: string; raw?: string; overall_score?: number; verdict?: string; dimensions?: CompareDim[]; notera_missing?: string[]; notera_extra?: string[]; key_differences?: string[]; summary?: string; generatedAt?: string }
 
+// ── System Upgrader ──
+export const UPGRADER_AGENTS = ['observation-extractor', 'clinical-story', 'qa-validator', 'fact-recovery', 'encounter-classifier']
+export interface UpgradeSample { slug: string; name: string; score: number; metrics: Record<string, number>; compare: { overall_score?: number; verdict?: string; notera_missing?: string[]; notera_extra?: string[]; key_differences?: string[] } | null }
+export interface UpgradePreview { ok: boolean; error?: string; hint?: string; run?: { id: number; run_no: number; label: string }; agentId?: string; hasRegistryRec?: boolean; baseVersion?: number | null; counts?: { records: number; optimize: number; validate: number; failures: number; anchors: number }; currentPromptChars?: number; failures?: UpgradeSample[]; anchors?: UpgradeSample[]; optimizeSlugs?: string[]; validateSlugs?: string[] }
+export interface PromptSuggestion { id: number; agent_id: string; base_version: number | null; base_prompt?: string | null; rationale: string | null; patches: { anchor?: string; before?: string; after?: string; reason?: string }[]; full_prompt: string | null; confidence: number | null; protected_blocked: boolean; protected_reason: string | null; status: string; published_version: number | null; current_prompt?: string; patched_prompt?: string; patch_failed?: number; base_drift?: boolean; current_version?: number | null }
+export interface SystemSuggestion { id: number; category: string; title: string; detail: string; severity: string; status: string }
+// A system suggestion enriched with where it came from (for the global System Ideas feed).
+export interface SystemSuggestionRow extends SystemSuggestion { upgrade_run_id: number; created_at: string; scope: string; upgrade_agent: string | null; upgrade_model: string | null; source_run_no: number | null; source_label: string | null }
+export interface UpgradeRunRow { id: number; scope: string; agent_id: string | null; status: string; model: string | null; summary: string | null; created_at: string; finished_at: string | null; source_run_no: number | null; source_label: string | null; prompt_count: number; system_count: number }
+
 export const api = {
   session: () => jget<{ authed: boolean }>('/backend/api/session'),
   login: (password: string) => jpost<{ ok?: boolean; error?: string }>('/backend/api/login', { password }),
@@ -45,6 +55,7 @@ export const api = {
   files: (dir: string) => jget<FixtureRow[]>(`/backend/api/results/${dir}/files`),
   file: (dir: string, name: string) => jget<{ content: string }>(`/backend/api/results/file?dir=${dir}&name=${encodeURIComponent(name)}`),
   diff: (a: string, b: string, name: string) => jget<{ a: string; b: string }>(`/backend/api/results/diff?a=${a}&b=${b}&name=${encodeURIComponent(name)}`),
+  transcript: (name: string) => jget<{ ok: boolean; source?: string; fixture?: string; transcript?: string; gold?: string; error?: string }>(`/backend/api/results/transcript?name=${encodeURIComponent(name)}`),
   compareGet: (dir: string, name: string) => jget<Comparison>(`/backend/api/results/compare?dir=${dir}&name=${encodeURIComponent(name)}`),
   compareRun: (dir: string, name: string) => jpost<Comparison>('/backend/api/results/compare', { dir, name }),
   deleteRun: (dir: string) => fetch('/backend/api/results/' + encodeURIComponent(dir), { method: 'DELETE' }),
@@ -62,6 +73,21 @@ export const api = {
   labCompare: (a: number, b: number) => jget<{ a: MetricRow[]; b: MetricRow[] }>(`/backend/api/lab/compare?a=${a}&b=${b}`),
   rerunAgent: (body: { runId?: number; patientId: number; agentId: string; mode: string; promptOverride?: string }) => jpost<RerunResult>('/backend/api/lab/rerun-agent', body),
   rerunLatest: (agentId: string, promptOverride?: string) => jpost<{ ok: boolean; error?: string; hint?: string; run?: { run_no: number }; done?: number; failed?: number; total?: number }>('/backend/api/lab/rerun-latest', { agentId, promptOverride }),
+  // ── System Upgrader ──
+  autocompare: (runId: number) => jpost<{ ok: boolean; error?: string; hint?: string; total?: number; alreadyCached?: number; generated?: number; failed?: number }>(`/backend/api/lab/runs/${runId}/autocompare`, {}),
+  upgradeAgents: (runId: number) => jget<{ agents: string[]; error?: string }>(`/backend/api/lab/run/${runId}/upgrade-agents`),
+  upgradePreview: (body: { runId: number; agentId: string; failK?: number; anchorM?: number; ratio?: number }) => jpost<UpgradePreview>('/backend/api/lab/upgrade/preview', body),
+  runUpgrade: (body: { runId: number; scope: 'agent' | 'system'; agentId?: string; failK?: number; anchorM?: number; ratio?: number }) => jpost<{ ok: boolean; error?: string; hint?: string; upgradeRunId?: number; scope?: string; promptSuggestions?: number; systemSuggestions?: number; summary?: string }>('/backend/api/lab/upgrade', body),
+  // Incremental whole-system flow (one short request per agent — avoids long-request timeouts).
+  upgradeStart: (body: { runId: number; scope: 'agent' | 'system'; agentId?: string; failK?: number; anchorM?: number; ratio?: number }) => jpost<{ ok: boolean; error?: string; hint?: string; upgradeRunId?: number; scope?: string; agents?: string[]; opts?: any }>('/backend/api/lab/upgrade/start', body),
+  upgradeAgent: (body: { upgradeRunId: number; runId: number; agentId: string; failK?: number; anchorM?: number; ratio?: number }) => jpost<{ ok: boolean; error?: string; diag?: any; promptSuggestions?: number; systemSuggestions?: number; summary?: string; raw?: string }>('/backend/api/lab/upgrade/agent', body),
+  upgradeFinish: (body: { upgradeRunId: number; diag?: any[]; summary?: string; raw?: string; opts?: any; status?: string; errorMessage?: string }) => jpost<{ ok: boolean; error?: string; upgradeRunId?: number }>('/backend/api/lab/upgrade/finish', body),
+  upgrades: () => jget<{ runs: UpgradeRunRow[]; error?: string; hint?: string }>('/backend/api/lab/upgrades'),
+  upgrade: (id: number) => jget<{ run: any; prompt_suggestions: PromptSuggestion[]; system_suggestions: SystemSuggestion[]; error?: string; hint?: string }>(`/backend/api/lab/upgrade/${id}`),
+  publishSuggestion: (id: number, finalPrompt?: string) => jpost<{ ok: boolean; error?: string; agentId?: string; publishedVersion?: number }>(`/backend/api/lab/suggestions/${id}/publish`, { finalPrompt }),
+  dismissSuggestion: (id: number) => jpost<{ ok: boolean; error?: string }>(`/backend/api/lab/suggestions/${id}/dismiss`, {}),
+  systemSuggestions: () => jget<{ suggestions: SystemSuggestionRow[]; error?: string; hint?: string }>('/backend/api/lab/system-suggestions'),
+  systemSuggestionStatus: (id: number, status: string) => jpost<{ ok: boolean; error?: string }>(`/backend/api/lab/system-suggestions/${id}/status`, { status }),
   history: () => jget<any[]>('/backend/api/metrics/history'),
   metricRun: (dir: string) => jget<{ summary: any; rows: any[] }>(`/backend/api/metrics/run/${dir}`),
   compare: (a: string, b: string) => jget<any>(`/backend/api/metrics/compare?a=${a}&b=${b}`),

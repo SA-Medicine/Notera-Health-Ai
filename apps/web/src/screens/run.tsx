@@ -22,8 +22,17 @@ export function Run({ onStatus }: { onStatus: (s: string) => void }) {
   const lo = Math.min(from, to), hi = Math.max(from, to)
   const rangeSel = fixtures.filter((f) => { const n = numOf(f); return n != null && n >= lo && n <= hi })
   const loadHist = React.useCallback(() => api.runs().then(setHistory).catch(() => {}), [])
+  // After a run passes, score every note vs gold in the background so the System
+  // Upgrader has a fresh comparison corpus to reason over (best-effort, non-blocking).
+  const autoCompareLatest = React.useCallback(async () => {
+    try {
+      const d = await api.labRuns(); const latest = d.runs?.[0]; if (!latest) return
+      const r = await api.autocompare(latest.id)
+      if (r.ok && (r.generated || 0) > 0) toast.success(`Scored ${r.generated} note(s) vs gold for the Upgrader`)
+    } catch { /* comparisons are optional */ }
+  }, [])
   React.useEffect(() => { api.scripts().then((d) => { setPresets(d.presets || []); const f = (d.presets || []).find((x) => x.id !== 'all'); if (f) setSel(f.id) }).catch(() => {}); loadHist() }, [loadHist])
-  React.useEffect(() => { onStatus(status); if (status !== 'running' && runId) { loadHist(); if (status === 'passed') toast.success('Run passed'); else if (status === 'failed' || status === 'error') toast.error('Run ' + status) } }, [status])
+  React.useEffect(() => { onStatus(status); if (status !== 'running' && runId) { loadHist(); if (status === 'passed') { toast.success('Run passed'); autoCompareLatest() } else if (status === 'failed' || status === 'error') toast.error('Run ' + status) } }, [status])
   React.useEffect(() => { const el = paneRef.current; if (el) el.scrollTop = el.scrollHeight }, [lines])
   const chosen = () => (mode === 'all' ? [] : mode === 'one' ? (sel ? [sel] : []) : rangeSel)
   const willRun = mode === 'all' ? fixtures.length : mode === 'one' ? (sel ? 1 : 0) : rangeSel.length
