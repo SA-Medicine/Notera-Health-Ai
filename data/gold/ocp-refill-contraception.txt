@@ -1,0 +1,46 @@
+Patient 7 started 1978-12-11
+
+0:00
+
+Thanks. Please stay on the line. Hello? Hi, is this [LOCATION]?
+
+0:14
+
+Hi. Did you want to talk to me? Um, I was totally hard to call you for the refill on my prescriptions. For the birth control? Yeah. Which one are you- we put you on Patient 112 last time. How's that coming along? It's good. You like this one better? Yeah, I feel better. There's just, like, once in a while I bleed randomly, but it's not, like, long, and it's super, super-
+
+0:39
+
+Light. Good. So I can fax the prescription. Which drugstore do you deal with? The Rexulti and [LOCATION]. Alright. So I'll give you for 2005-11-02. Okay? Okay. Thank you. And no side effects on this. Eh? No. I feel a lot better on this. But Perfect. Alright. So I will fax the prescription then. Okay. Thank you. Okay. Bye.
+
+Transcript ended 3:06 PM 1979-01-06
+
+Subjective:
+
+- Presenting Complaint: Prescription refill request for birth control
+
+- Current Medication: lolo
+
+- Response to Medication: Reports feeling better on this medication compared to previous options
+
+- Side Effects: Occasional random bleeding - brief and light; no other side effects
+
+
+
+
+Past Medical History:
+
+
+
+
+Objective:
+
+
+
+
+Assessment & Plan:
+
+1. Oral contraceptive refill
+
+- Diagnosis: Contraception
+
+- Treatment planned: lolo prescription for 2018-09-21, faxed to Rexall pharmacy

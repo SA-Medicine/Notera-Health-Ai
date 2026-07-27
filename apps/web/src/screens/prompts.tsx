@@ -5,7 +5,7 @@ import { Button } from '@notera/ui/components/ui/button'
 import { Textarea } from '@notera/ui/components/ui/input'
 import { StatusPill } from '@notera/ui/components/ui/badge'
 import { toast } from 'sonner'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import type { TabId } from '@/lib/nav'
 
 // Default QA output schema — pre-loaded (editable) in the schema editor when the
@@ -63,6 +63,18 @@ export function Prompts({ setTab }: { setTab: (t: TabId) => void }) {
     catch { flash('rerun request failed', false) }
     setRerunBusy(false)
   }
+  const exportAll = async () => {
+    try {
+      const r = await fetch('/backend/api/prompts/export')
+      if (!r.ok) { const j = await r.json().catch(() => ({})); toast.error(j.error || 'Export failed'); return }
+      const blob = await r.blob()
+      const cd = r.headers.get('Content-Disposition') || ''
+      const name = (cd.match(/filename="?([^"]+)"?/) || [])[1] || `notera-prompts-${new Date().toISOString().slice(0, 10)}.zip`
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success('Exported all prompts (latest versions)')
+    } catch { toast.error('Export request failed') }
+  }
   const pmap = Object.fromEntries((data.prompts || []).map((p) => [p.id, p]))
   const inactive = (data.prompts || []).filter((p) => !p.active && p.id !== 'judge-clinical'); const judge = pmap['judge-clinical']
   const gnode = (n: { k: string; id?: string; label?: string }) => {
@@ -82,6 +94,7 @@ export function Prompts({ setTab }: { setTab: (t: TabId) => void }) {
           <span className="text-muted-foreground text-[11px]">· {(data.prompts || []).filter((p) => p.active).length} active</span>
           <div className="flex-1" />
           {!graphOpen && <select value={sel} onChange={(e) => setSel(e.target.value)} className="h-7 bg-surface border border-border rounded-md px-2 text-xs text-foreground">{(data.prompts || []).map((p) => <option key={p.id} value={p.id}>{p.id}{p.active ? '' : ' · inactive'}</option>)}</select>}
+          <Button size="sm" variant="outline" onClick={exportAll} title="Download every prompt's latest version as .txt files in a .zip"><Download className="w-3.5 h-3.5 mr-1" /> Export all</Button>
         </div>
         {graphOpen && <div className="px-3 pb-3">
           <div className="flex items-stretch gap-1 overflow-x-auto pb-1">{PIPELINE.map((n, i) => <React.Fragment key={i}>{i > 0 && <span className="self-center text-muted-foreground px-0.5">→</span>}{gnode(n)}</React.Fragment>)}</div>

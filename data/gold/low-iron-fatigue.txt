@@ -1,0 +1,86 @@
+Patient 7 started 2025-11-30 Patient 1499
+
+0:00
+
+This is Doctor Patient 1500 calling. Hello. I'm just wondering, um, when I did that blood test, did it show up anything?
+
+0:11
+
+But that one I'm tired all the time with no energy. I can check the results. Okay. It say it says that your hemoglobin was good, like one twenty eight. And, yeah, your B12 is good.
+
+0:31
+
+Your iron was a little low, 2019-08-12. So maybe you should take some iron supplements. Okay. Every time I take them, I get constipated. Then eat a lot of greens, like kale and spinach and stuff like that. Okay. But, anyways, your sugar was fine that day. Your sodium is fine. Your potassium is fine. Your sugar is at six point seven that particular day, so it's not too bad. You're on you're on the right medications. And then your kidneys are fine. Your LADL, which is your cholesterol, is very good. Yeah. No blood test otherwise is fine. Just increase the iron
+
+1:15
+
+Rich food, and that should help. That's great. Thank you. Alrighty. Please with that. Sounds good. Thank you.
+
+Transcript ended 2007-08-21 Patient 1499
+
+Subjective:
+
+- Phone call to review blood test results
+
+- Reports fatigue and low energy
+
+- Constipation when taking iron supplements
+
+
+
+
+Past Medical History:
+
+- Currently on medications
+
+
+
+
+Objective:
+
+- Blood test results:
+
+- Hemoglobin: 128 - normal
+
+- B12: normal
+
+- Iron: 19 - low
+
+- Blood glucose: 6.7
+
+- Sodium: normal
+
+- Potassium: normal
+
+- Kidney function: normal
+
+- LDL cholesterol: good
+
+
+
+
+Assessment & Plan:
+
+1. Low iron
+
+- Diagnosis: Low iron
+
+- Treatment planned: Increase iron-rich foods (kale, spinach, greens); iron supplements not recommended due to constipation
+
+
+
+
+2. Fatigue
+
+- Diagnosis: Fatigue - likely related to low iron
+
+- Treatment planned: Dietary modification as above
+
+
+
+
+3. Blood glucose monitoring
+
+- Diagnosis: Blood glucose acceptable at 6.7
+
+- Treatment planned: Continue current medications

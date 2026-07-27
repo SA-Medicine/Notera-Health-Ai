@@ -1,5 +1,14 @@
 [
   {
+    "id": "2026-07-27T18-09-37-526Z-306a",
+    "command": "node eval/run_eval.mjs 2022-06-02-04-06-pm patient10 patient2",
+    "status": "passed",
+    "startedAt": "2026-07-27T18:09:37.526Z",
+    "finishedAt": "2026-07-27T18:10:46.331Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-27_18-09-37"
+  },
+  {
     "id": "2026-07-26T07-31-12-128Z-73ff",
     "command": "node eval/run_eval.mjs Patient5",
     "status": "passed",

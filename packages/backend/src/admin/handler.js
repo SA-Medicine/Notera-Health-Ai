@@ -150,6 +150,26 @@ function listResultRuns() {
     return { dir, id: dir.replace(/^run_/, ''), summary };
   });
 }
+// Materialize .txt run fixtures ON DEMAND for a set of slugs, pulling transcript + gold
+// from the DB. Only the SELECTED slugs are written, so a dataset of any size (e.g. 7k
+// patients imported DB-only, past ADMIN_MAX_FIXTURES) is fully runnable by selecting a
+// subset — no need to flood data/gold with thousands of files up front. Returns count.
+async function ensureFixtures(lab, slugs = []) {
+  let written = 0;
+  for (const slug of slugs) {
+    if (!slug) continue;
+    const fp = path.join(GOLD, `${safeName(slug)}.txt`);
+    try { fs.accessSync(fp); continue; } catch { /* not on disk → build it */ }
+    let p; try { p = await lab.getPatientBySlug(slug); } catch { p = null; }
+    if (!p) continue;
+    const transcript = (p.transcript_clean || p.transcript_raw || '').trim();
+    if (!transcript) continue;                                   // nothing runnable
+    const gold = (p.gold_note || '').trim();
+    const golden = gold ? (/Subjective\s*:/i.test(gold) ? gold : 'Subjective:\n' + gold) : '';
+    try { fs.writeFileSync(fp, transcript + (golden ? '\n\n' + golden : ''), 'utf8'); written++; } catch { /* best effort */ }
+  }
+  return written;
+}
 function listFixtures() {
   try { return fs.readdirSync(GOLD).filter((f) => f.endsWith('.txt')).map((f) => f.replace(/\.txt$/, '')).sort(); } catch { return []; }
 }
@@ -161,6 +181,40 @@ function runFiles(dir) {
     try { score = JSON.parse(fs.readFileSync(path.join(d, base + '.json'), 'utf8')).score; } catch {}
     return { file: f, fixture: base, passed: score ? (score.status !== 'FLAGGED' && score.status !== 'INVALID' && score.schema_valid !== false) : null, score };
   });
+}
+
+// ── minimal, dependency-free ZIP writer (store method) — used to export prompts ──
+function crc32(buf) {
+  let c = ~0;
+  for (let i = 0; i < buf.length; i++) { c ^= buf[i]; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); }
+  return (~c) >>> 0;
+}
+function zipStore(files) {
+  const parts = [], central = []; let offset = 0;
+  const T = 0, D = 0x21;   // fixed DOS time/date (1980-01-01) for reproducible archives
+  for (const f of files) {
+    const name = Buffer.from(f.name, 'utf8'), data = Buffer.isBuffer(f.data) ? f.data : Buffer.from(f.data, 'utf8');
+    const crc = crc32(data);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0, 6); lh.writeUInt16LE(0, 8);
+    lh.writeUInt16LE(T, 10); lh.writeUInt16LE(D, 12); lh.writeUInt32LE(crc, 14);
+    lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
+    parts.push(lh, name, data);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6); cd.writeUInt16LE(0, 8); cd.writeUInt16LE(0, 10);
+    cd.writeUInt16LE(T, 12); cd.writeUInt16LE(D, 14); cd.writeUInt32LE(crc, 16);
+    cd.writeUInt32LE(data.length, 20); cd.writeUInt32LE(data.length, 24); cd.writeUInt16LE(name.length, 28);
+    cd.writeUInt16LE(0, 30); cd.writeUInt16LE(0, 32); cd.writeUInt16LE(0, 34); cd.writeUInt16LE(0, 36);
+    cd.writeUInt32LE(0, 38); cd.writeUInt32LE(offset, 42);
+    central.push(cd, name);
+    offset += lh.length + name.length + data.length;
+  }
+  const centralBuf = Buffer.concat(central);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(0, 4); eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(centralBuf.length, 12); eocd.writeUInt32LE(offset, 16); eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([...parts, centralBuf, eocd]);
 }
 
 // ── prompt registry (modular, versioned prompt store) ─────────────────────────
@@ -686,7 +740,35 @@ export async function adminHandler(req, res, next) {
     return json(res, 200, { presets: [{ id: 'all', label: `All fixtures (${fx.length})`, fixtures: [] }, ...fx.map((f) => ({ id: f, label: f, fixtures: [f] }))] });
   }
 
-  if (p === '/api/runs' && req.method === 'POST') { const { fixtures = [] } = await readBody(req); return json(res, 200, { runId: startRun(fixtures) }); }
+  if (p === '/api/runs' && req.method === 'POST') {
+    const { fixtures = [] } = await readBody(req);
+    // Materialize .txt for any selected slug that isn't on disk yet (DB-only patients).
+    // Bounded by a timeout so a slow/unreachable DB can never hang the run start — any
+    // slug that already has an on-disk fixture is unaffected.
+    if (fixtures.length) {
+      try {
+        const lab = await getLab();
+        await Promise.race([ensureFixtures(lab, fixtures), new Promise((_, rej) => setTimeout(() => rej(new Error('materialize timeout')), 20000))]);
+      } catch { /* DB optional — run whatever exists on disk */ }
+    }
+    return json(res, 200, { runId: startRun(fixtures) });
+  }
+  // Full patient universe for the Run picker — sourced from the DB so ALL imported
+  // patients are selectable by name even when they have no .txt fixture yet (scales to
+  // any N). Falls back to on-disk fixtures when the DB is unavailable.
+  if (p === '/api/run-patients' && req.method === 'GET') {
+    const onDisk = new Set(listFixtures());
+    let db = [];
+    try { const lab = await getLab(); db = await lab.listPatients(); } catch { db = []; }
+    if (db.length) {
+      const patients = db
+        .filter((r) => (r.transcript_len || 0) > 0)          // only runnable (has a transcript)
+        .map((r) => ({ slug: r.slug, name: r.name || r.slug, hasFixture: onDisk.has(r.slug), hasGold: (r.gold_len || 0) > 0 }));
+      return json(res, 200, { patients, total: patients.length, onDiskCount: onDisk.size, source: 'db' });
+    }
+    const patients = [...onDisk].sort().map((f) => ({ slug: f, name: f, hasFixture: true, hasGold: true }));
+    return json(res, 200, { patients, total: patients.length, onDiskCount: onDisk.size, source: 'fixtures' });
+  }
   if (p === '/api/runs' && req.method === 'GET') {
     return json(res, 200, [...runs.values()].map(({ proc, listeners, lines, ...r }) => ({ ...r, liveLines: (runs.get(r.id)?.lines || []).length })).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 50));
   }
@@ -762,21 +844,30 @@ export async function adminHandler(req, res, next) {
     };
 
     // Large imports: don't spray thousands of .txt run fixtures into data/gold (it would
-    // flood the run selector and the disk). Above the threshold we import to the DB only.
-    const FIXTURE_LIMIT = Number(process.env.ADMIN_MAX_FIXTURES || 500);
-    const writeFixtures = sessions.length <= FIXTURE_LIMIT;
+    // flood the run selector and the disk). The threshold is judged on the count of VALID
+    // rows (empty sessions are skipped and don't count), so a real dataset of a few hundred
+    // transcript/note pairs still gets fixtures even inside a much larger export.
+    const FIXTURE_LIMIT = Number(process.env.ADMIN_MAX_FIXTURES || 1000);
 
-    // 1) prepare rows synchronously so slugs are assigned deterministically, in order
+    // 1) prepare rows synchronously so slugs are assigned deterministically, in order.
+    // Support both nested Heidi shapes: transcript {raw_text|clean_text} and
+    // soap_note {soap_note|assessment|plan|summary} or a plain string note.
     const rows = [], skipped = [];
+    const noteOf = (sn) => {
+      if (!sn) return '';
+      if (typeof sn === 'string') return sn.trim();
+      return [sn.soap_note, sn.assessment, sn.plan, sn.summary].filter(Boolean).map((x) => String(x).trim()).filter(Boolean).join('\n\n');
+    };
     for (const s of sessions) {
       const name = (s.session_title || s.patient_name_fallback || s.subtitle || `Session ${s.id ?? ''}`).toString().trim() || 'Session';
       const t = s.transcript || {};
-      const transcript_clean = (t.clean_text || t.raw_text || '').trim();
-      const transcript_raw = (t.raw_text || t.clean_text || '').trim();
-      const gold_note = ((s.soap_note && s.soap_note.soap_note) || '').trim();
-      if (!transcript_clean && !gold_note) { skipped.push({ name, reason: 'no transcript or note' }); continue; }
+      const transcript_clean = ((typeof t === 'string' ? t : (t.clean_text || t.raw_text)) || '').trim();
+      const transcript_raw = ((typeof t === 'string' ? t : (t.raw_text || t.clean_text)) || '').trim();
+      const gold_note = noteOf(s.soap_note ?? s.note ?? s.notes);
+      if (!transcript_clean && !gold_note) { skipped.push({ name, reason: 'empty session (no transcript and no note)' }); continue; }
       rows.push({ slug: uniqueSlug(name, s.heidi_session_id), name, s, transcript_raw, transcript_clean, gold_note });
     }
+    const writeFixtures = rows.length <= FIXTURE_LIMIT;
 
     // 2) upsert with bounded concurrency — 10k sequential round-trips would crawl/time out
     const added = [], updated = [];
@@ -810,7 +901,7 @@ export async function adminHandler(req, res, next) {
       counts: { added: added.length, updated: updated.length, skipped: skipped.length },
       fixturesWritten: writeFixtures,
       note: writeFixtures ? undefined
-        : `Imported ${rows.length} patients to the database without writing .txt run fixtures (batch over ${FIXTURE_LIMIT}). Raise ADMIN_MAX_FIXTURES if you want fixtures too.`,
+        : `Imported ${rows.length} valid patients to the database, but did NOT write .txt run fixtures because that exceeds ADMIN_MAX_FIXTURES=${FIXTURE_LIMIT}. Without fixtures they won't appear in the Run tab. To get fixtures: set ADMIN_MAX_FIXTURES=${Math.max(rows.length, FIXTURE_LIMIT + 100)} in .env, restart the backend, and re-import (upsert is idempotent).`,
     });
   }
 
@@ -1225,6 +1316,24 @@ Score objectively, evidence-based, never rewarding fluent-but-unsupported text. 
       kind: r.kind || 'agent', vars: r.vars || [], active: r.active === true, order: (typeof r.order === 'number' ? r.order : null),
       freeform: r.freeform === true, maxOutputTokens: (typeof r.maxOutputTokens === 'number' ? r.maxOutputTokens : null),
       publishedVersion: r.publishedVersion || null, hasDraft: !!r.draft, updatedAt: r.updatedAt })) });
+  }
+  // Export EVERY prompt's latest stored version as a .txt inside one .zip (properly named).
+  if (p === '/api/prompts/export' && req.method === 'GET') {
+    const files = [];
+    for (const rec of listPromptRecs()) {
+      let text = '', suffix = '';
+      if (rec.publishedVersion) { const v = readPromptVersion(rec.id, rec.publishedVersion); if (v && v.systemInstruction) { text = v.systemInstruction; suffix = `_v${rec.publishedVersion}`; } }
+      if (!text && rec.draft && rec.draft.systemInstruction) { text = rec.draft.systemInstruction; suffix = '_draft'; }
+      if (!text) continue;   // no stored version (uses in-code fallback) → nothing to export
+      const header = `# ${rec.label || rec.id}\n# id: ${rec.id}${rec.agent ? `  · agent: ${rec.agent}` : ''}${rec.publishedVersion ? `  · published v${rec.publishedVersion}` : '  · draft (unpublished)'}\n# exported ${new Date().toISOString()}\n\n`;
+      files.push({ name: `${safeName(rec.id)}${suffix}.txt`, data: Buffer.from(header + text, 'utf8') });
+    }
+    if (!files.length) return json(res, 200, { ok: false, error: 'No stored prompt versions to export.' });
+    const zip = zipStore(files);
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+    res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="notera-prompts-${stamp}.zip"`, 'Content-Length': zip.length });
+    res.end(zip);
+    return;
   }
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'GET') {
     const id = promptId(m[1]); const rec = id && readPromptRec(id); if (!rec) return json(res, 404, { error: 'no prompt' });

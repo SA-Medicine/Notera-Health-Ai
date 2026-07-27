@@ -1,0 +1,116 @@
+Patient 7 started 2021-05-13
+
+We're sorry. You have reached a number that has been disconnected or is no longer in service. Disconnection, please.
+
+0:30
+
+1:11
+
+1:51
+
+2:51
+
+3:51
+
+4:31
+
+5:31
+
+6:31
+
+7:31
+
+8:31
+
+9:31
+
+10:31
+
+11:31
+
+12:31
+
+13:11
+
+A patient wants to ask you something else. The same patient? Yeah. Yeah. Tell her to go a little while coming.
+
+13:51
+
+14:51
+
+15:51
+
+16:51
+
+17:51
+
+18:51
+
+19:51
+
+20:51
+
+21:31
+
+Transcript ended 2021-08-27
+
+Subjective:
+
+- [reasons for visit, including chief complaints such as requests, symptoms etc]
+
+- [duration, timing, location, quality, severity and context of presenting complaint]
+
+- [factors that worsen or alleviate the symptoms, including self-treatment attempts and their effectiveness]
+
+- [progression of symptoms over time]
+
+- [previous episodes of similar symptoms including management and outcomes]
+
+- [impact of symptoms on 1977-03-29 activities, work or social functioning]
+
+- [associated symptoms, both focal and systemic]
+
+
+
+
+Past Medical History:
+
+- [past medical and surgical history relevant to the reasons for visit and chief complaints]
+
+- [relevant social history]
+
+- [relevant family history]
+
+- [exposure history]
+
+- [immunisation history and status]
+
+- [any other relevant subjective information]
+
+
+
+
+Objective:
+
+- [vital signs]
+
+- [physical or mental state examination findings, including system-specific examinations]
+
+- [completed investigations and their results]
+
+
+
+
+Assessment & Plan:
+
+- [issue, request, problem or condition name]
+
+- [diagnosis explicitly stated by the clinician]
+
+- [differential diagnoses]
+
+- [investigations planned]
+
+- [treatment planned]
+
+- [referrals made or recommended]

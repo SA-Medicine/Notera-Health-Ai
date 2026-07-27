@@ -1,0 +1,35 @@
+Patient 7 started 1993-08-17
+
+0:00
+
+0:10
+
+The person you have called is not available. Please leave a message.
+
+0:30
+
+The number you are trying to reach has automatic call screening service. To reach the call party, please press six. Thank you.
+
+1:10
+
+Connecting.
+
+Transcript ended 2024-09-25
+
+Subjective:
+
+- Attempted to contact patient, call went to voicemail.
+
+
+
+
+Objective:
+
+-
+
+
+
+
+Assessment & Plan:
+
+-

@@ -1,0 +1,48 @@
+Patient 7 started 2016-02-04 Patient 1499
+
+0:00
+
+I just needed a refill on my Synthroid. And that is one fifty micrograms a day? Yep. And the blood test is not due yet.
+
+0:11
+
+Is it? I don't believe so. I think we just did it maybe 1999-12-21, right? 1983-01-06. Yeah. And you're feeling okay on one fifty? Yeah. Yeah. I feel really good. Okay. I can fax the prescription. Which drugs do we deal with?
+
+0:34
+
+Can you send it to the WeCare Pharmacy at the Met campus? At the Met campus? Sure. I'll take care of that, hon. Perfect. Thank you so much. No worries. Take care. You too. Bye bye. Bye bye.
+
+Transcript ended 2025-11-22
+
+Subjective:
+
+- Reason for Visit: Refill request for synthroid
+
+- Current Medication: synthroid 150 mcg daily
+
+- Response to Treatment: Feeling well on current dose
+
+- Blood Test Status: Last completed 1989-07-191991-08-17), not yet due
+
+
+
+
+Past Medical History:
+
+
+
+
+Objective:
+
+
+
+
+Assessment & Plan:
+
+1. Synthroid refill
+
+- Diagnosis: On synthroid 150 mcg 1976-10-27
+
+- Treatment planned: Refill synthroid 150 mcg daily
+
+- Prescription to be faxed to WeCare Pharmacy at the Met campus

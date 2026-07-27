@@ -1,0 +1,94 @@
+Patient 7 started 2017-11-15
+
+0:00
+
+0:10
+
+Hello, Patient 391's here. Good morning, Patient 391, Dr. Patient 652, welcome. Hello, how are you? I'm all right. Is it good time to talk to you? I just want to run over, uh, your results of the blood test. Yeah, it's good, good time.
+
+0:32
+
+Perfect. So we did the lipoprotein A, which is the marker, genetic marker for the cholesterol, and that's normal for you. Should be less than ninety nine, and yours is thirty nine. So that's a good thing. Good thing. Good. Good. Yeah. And your cholesterol that particular day, total cholesterol was 2006-08-20, and your triglycerides, one of the bad cholesterol, is a bit high at two point two, but your LDL is at three point three, should be less than three point four. So, basically, I I you are on a still on Lipitor, though. Right? That's correct. Yeah. We'll continue that. It's a little bit I'm still on a higher range than to my liking, but it's better than before.
+
+1:14
+
+Okay, that's great. So watch your diet kind of a thing as well. Your B12 was fine, your iron was very fine, your A1C, sugar is fine, liver is fine. Um, your urine, you got to drink more water. It's not clear, and your creatinine, which is the marker for your kidney function test, is a bit elevated. Okay. So it should be less than 110, yours is 118, and your EGFR, which is the function of your kidneys, is, uh, should be more than 60. 60 is a cutoff. Should be more than 64, preferably closer to more, you know, upper ninety, like-
+
+1:57
+
+Low nineties, but yours is 2022-05-14. So drink water. It's still within normal limits, but it should be better. Okay. Yeah. That's good. So other than those two, we'll repeat that in 2008-06-08. Everything else is fine. Great. Okay. Thank thank you very much. Appreciate the the call. Yeah. Alright then. Okay. Bye. Take care.
+
+Transcript ended 1975-06-14
+
+Subjective:
+
+- Phone call to review blood test results
+
+
+
+
+Past Medical History:
+
+- Currently on lipitor
+
+
+
+
+Objective:
+
+- Lipoprotein A: 39 (normal <99)
+
+- Total cholesterol: 5.5
+
+- Triglycerides: 2.2 (elevated)
+
+- LDL: 3.3 (goal <3.4)
+
+- B12: normal
+
+- Iron: normal
+
+- A1C: normal
+
+- Liver function: normal
+
+- Urine: not clear
+
+- Creatinine: 118 (elevated, goal <110)
+
+- EGFR: 64 (goal >64)
+
+
+
+
+Assessment & Plan:
+
+
+
+
+1. Dyslipidaemia
+
+- Diagnosis: Dyslipidaemia
+
+- Treatment planned: Continue lipitor; dietary modifications advised
+
+
+
+
+2. Mildly reduced kidney function
+
+- Diagnosis: Mildly reduced kidney function
+
+- Treatment planned: Increase water intake
+
+
+
+
+3. Concentrated urine
+
+- Treatment planned: Increase water intake
+
+
+
+
+4. Investigations planned: Repeat bloodwork in 2021-09-15. Referrals: None

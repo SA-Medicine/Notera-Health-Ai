@@ -101,13 +101,13 @@ export function Results({ setTab, target, clearTarget }: { setTab: (t: TabId) =>
             {!comparing && !compare && <p className="text-muted-foreground text-sm py-4">No comparison yet. Press <b className="text-foreground">Generate</b> to score this note against the gold reference — or turn on <b className="text-foreground">Auto</b> to do it for every note automatically. Results are cached and stay with the run.</p>}
             {!comparing && compare?.ok === false && <div className="text-warning text-sm py-3"><div className="font-semibold mb-1">Comparison unavailable</div><div className="text-muted-foreground text-xs">{compare.error}</div>{compare.hint && <div className="text-muted-foreground text-xs mt-1">{compare.hint}</div>}</div>}
             {!comparing && compare?.dimensions && <div className="space-y-4 pt-1">
-              <div className="space-y-2">{compare.dimensions.map((d) => <div key={d.name} className="grid grid-cols-[7rem_1fr_auto] items-center gap-3 text-sm">
+              <div className="space-y-2.5">{compare.dimensions.map((d) => <div key={d.name} className="grid grid-cols-[6rem_minmax(0,20rem)_1fr] items-center gap-4 text-sm">
                 <span className="text-foreground/80">{d.name}</span>
                 <div className="flex items-center gap-3">
                   <div className="flex-1"><div className="flex items-center gap-2"><span className="text-[10px] w-10 text-primary">Notera</span><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className={cn('h-full rounded-full', barTone(d.notera))} style={{ width: `${(d.notera / 5) * 100}%` }} /></div><span className="w-6 text-right font-mono text-xs">{d.notera}</span></div>
                     <div className="flex items-center gap-2 mt-1"><span className="text-[10px] w-10 text-warning">Gold</span><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className={cn('h-full rounded-full', barTone(d.gold))} style={{ width: `${(d.gold / 5) * 100}%` }} /></div><span className="w-6 text-right font-mono text-xs">{d.gold}</span></div></div>
                 </div>
-                <span className="text-xs text-muted-foreground max-w-[16rem] truncate" title={d.comment}>{d.comment}</span>
+                <span className="text-xs text-muted-foreground leading-snug break-words" title={d.comment}>{d.comment}</span>
               </div>)}</div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <CmpList title="Notera missing" tone="text-destructive" items={compare.notera_missing} />

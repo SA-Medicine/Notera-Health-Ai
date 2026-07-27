@@ -1,0 +1,83 @@
+Patient 7 started 2025-04-27, Patient 122 speaking. Hi, Patient 122, doctor [LOCATION] calling. Hi, how are you? All right. How about you? Good. I'm okay. I was just wondering if I could get a refill on my lorazepam. Okay.
+
+0:36
+
+So lots of anxiety going on? Yeah. When did I give you last? Uh- 1973-11-15. Yeah. Yeah. I still, I still have a few left, um, but- How many times in 1986-09-09 are you using them then? Um, probably three. I've got a lot of stress going on with work, and, um, also with this skin cancer deal going on. Uh, who are you seeing? Who are you seeing for skin cancer again?
+
+1:18
+
+Uh, Dr. Patient 121. Okay, what did he do for you? So he, he did a procedure in 1988-06-06 where they went to remove it, and then they sent it away, and it still came back positive for, uh, the cancer. So he did another procedure 2011-03-29 to took out a bigger infection. Um, and, you know, I'm waiting on the results from that because he had indicated that if, if it comes back this time positive, you know, I might need some radiation. Mm-hmm.
+
+1:58
+
+So it's a basal cell, though, eh? Basal cell? It is, but it's an aggressive form of basal cell. It's it's called micronodular. Patient 4 And, apparently, it grows deep in the tissue. Patient 4 So the last time you saw him was 2009-11-04? Yeah. On I saw him on 2017-10-22, whatever that 1972-05-03 was. And I go I go on 2012-07-27 to get my stitches out. And he will have the results of that? He didn't know if he was gonna have them then. He said it could take 2006-02-10. Oh, okay.
+
+2:38
+
+Okay. All right. So I'll give you thirty more. Hopefully, it will last longer this time. Yeah. Um, and if I, if I, if I feel like I'm not having any improvement, like if this situation is gonna continue to weigh on me and I've got lots going on, I'll, I'll come and see you in person. I don't know if I need to look at different options. I have different time off. Yeah. You know, like, I'm, I'm just not sure. Um, but, uh- So the major stress is work? W- is a lot of workload or what, what's happening? It is. It is. I, I- the, the nature of the job is, is very stressful. I have to travel a lot. Um, I think some of the issue is-
+
+3:20
+
+When I'm traveling, so I have to do a lot of driving. And ever since the 1988-08-10 time, because we had such a a bad winter with the snow and whatnot, you know, I had witnessed accidents and stuff on the 401 and it's just kind of it it causes me stress when I know that I have to get on the 401. Okay. And, you know, like, right, right, it's it's just a very it's a high pressure job. Uh, there's a lot of stress involved with the the job itself too, with and then combined the traveling.
+
+4:02
+
+So, you know, like, I and then with the skin cancer thing, like, I've just I've not been sleeping good. My mind doesn't shut off. I'm I'm not feeling great. I'm kind of run down. Mhmm. Yeah. Because if that doesn't help, then the other option would be to take either different kind of, like, a everyday medication, like, you know, anti-anxiety pills. Yeah. You know, or the as you said, maybe we'll talk about the time off. Yeah. I'm like I say, I'm just kind of kinda going day to day right now waiting to find out what's kind of going on with the skin cancer deal. So So I can if so you want me for the lorazepam, I'm faxing it to the shoppers on Patient 120. Yeah?
+
+4:47
+
+Yes, that's crap. All right, I'll do that then. Yeah, and if I, if, if I need something else, I'll come in, and I'll see you in person. If I feel that I'm gonna maybe need some time off or whatnot, you know? Sounds good. I'll come see you. Sounds good. Okay. Yep.
+
+Transcript ended 2024-06-19
+
+Subjective:
+
+- Presenting Complaint: Request for lorazepam refill
+
+- Anxiety: Significant stress related to work and skin cancer diagnosis; using lorazepam approximately 3 times per week; last prescribed 2007-08-08
+
+- Work Stress: High-pressure job requiring frequent travel and driving; witnessed accidents on 401 during 2012-04-14 which has caused ongoing anxiety about highway driving
+
+- Skin Cancer: Micronodular basal cell carcinoma - aggressive form that grows deep in tissue; first excision in 2002-11-27 returned pos for cancer; second procedure performed 2017-04-27 with larger excision; awaiting pathology results (1987-06-22); may require radiation if pos again; stitches removal scheduled for 1982-09-30
+
+- Associated Symptoms: Poor sleep, racing thoughts, feeling run down
+
+
+
+
+Past Medical History:
+
+- Micronodular basal cell carcinoma - under care of Dr. Patient 121
+
+
+
+
+Objective:
+
+- Phone consultation
+
+
+
+
+Assessment & Plan:
+
+1. Anxiety
+
+- Diagnosis: Anxiety
+
+- Treatment planned: lorazepam x 30 refill - faxed to Shoppers on Patient 120
+
+- Discussed option of 1992-06-21 anti-anxiety medication if current management insufficient
+
+- Discussed option of time off work
+
+- rtc if no improvement or if time off needed
+
+
+
+
+2. Micronodular basal cell carcinoma
+
+- Diagnosis: Patient 2392 basal cell carcinoma
+
+- Treatment planned: Awaiting pathology results from second excision; may require radiation if pos; follow-up with Dr. Patient 121 1991-11-19 for suture removal
