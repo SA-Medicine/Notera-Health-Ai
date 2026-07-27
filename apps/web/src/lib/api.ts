@@ -48,6 +48,7 @@ export const api = {
   login: (password: string) => jpost<{ ok?: boolean; error?: string }>('/backend/api/login', { password }),
   logout: () => jpost('/backend/api/logout'),
   scripts: () => jget<{ presets: { id: string; label: string; fixtures: string[] }[] }>('/backend/api/scripts'),
+  runPatients: () => jget<{ patients: { slug: string; name: string; hasFixture: boolean; hasGold: boolean }[]; total: number; onDiskCount: number; source: string }>('/backend/api/run-patients'),
   runs: () => jget<RunRec[]>('/backend/api/runs'),
   startRun: (fixtures: string[]) => jpost<{ runId: string }>('/backend/api/runs', { fixtures }),
   killRun: (id: string) => jpost(`/backend/api/runs/${id}/kill`),

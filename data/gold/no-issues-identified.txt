@@ -1,0 +1,40 @@
+Patient 7 started 1978-11-29
+
+0:00
+
+0:10
+
+You have reached the voice mailbox.
+
+0:31
+
+1:11
+
+Your call has been forwarded to voicemail.
+
+2020-12-18
+
+Subjective:
+
+- Attempted to contact patient via phone; call went to voicemail. No message left.
+
+
+
+
+Past Medical History:
+
+- Not reviewed.
+
+
+
+
+Objective:
+
+- Not assessed.
+
+
+
+
+Assessment & Plan:
+
+- No new issues identified.

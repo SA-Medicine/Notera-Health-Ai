@@ -35,8 +35,8 @@ app.use((req, res, next) => {
 // large JSON imports, its own body parser). It calls next() for non-admin paths.
 const ADMIN_PREFIXES = [
   '/api/login', '/api/logout', '/api/session', '/api/scripts', '/api/runs',
-  '/api/results', '/api/metrics', '/api/prompts', '/api/patients', '/api/lab',
-  '/api/sessions', '/api/judge', '/api/config',
+  '/api/run-patients', '/api/results', '/api/metrics', '/api/prompts', '/api/patients',
+  '/api/lab', '/api/sessions', '/api/judge', '/api/config',
 ];
 app.use((req, res, next) => {
   if (ADMIN_PREFIXES.some((pre) => req.path === pre || req.path.startsWith(pre + '/'))) {

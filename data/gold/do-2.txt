@@ -1,0 +1,77 @@
+Patient 7 started 2010-04-19
+
+0:00
+
+0:10
+
+0:30
+
+See, we set your calls to a voice message system. Hi.
+
+Transcript ended 1976-12-05
+
+Subjective:
+
+- Follow-up to review blood test and X-ray results
+
+- Concerned about kidney function given family history of kidney disease
+
+
+
+
+Past Medical History:
+
+- Family history: Father with kidney disease
+
+
+
+
+Objective:
+
+- Bloods: Hemoglobin normal, glucose normal, creatinine 115 (normal 60-150), eGFR 62 (improved from 54), B12 low, LDL 4 (highest ever), total cholesterol elevated, thyroid normal, PSA normal, iron normal, urine normal
+
+- X-ray hips: Mild arthritis
+
+
+
+
+Assessment & Plan:
+
+
+
+
+1. Low B12
+
+- Treatment planned: B12 supplements 1000 mcg daily
+
+
+
+
+2. Hypercholesterolaemia
+
+- Treatment planned: Dietary modification, start exercising
+
+- Investigations planned: Repeat cholesterol in 1982-09-16 require medication if not improved
+
+
+
+
+3. Mild hip arthritis
+
+- Treatment planned: Pain control, heating pads, physiotherapy, Tylenol prn
+
+
+
+
+4. Reduced kidney function
+
+- eGFR improved from 54 to 62
+
+- Treatment planned: Increase water intake
+
+
+
+
+5. Follow-up
+
+- rtc 6 months
