@@ -21,6 +21,8 @@ import { narrateNote } from './heidiNarrative.js';
 import { composeStory } from './heidiStoryEngine.js';
 import { reconcileNote } from './reconcileNote.js';
 import { runGuardrails } from '../validation/guardrails.js';
+import { applyUpgradeGuardrails, isBlankEncounter } from '../validation/upgrades.js';
+import { noteToMarkdown } from './renderMarkdown.js';
 import { store, audit } from '../firestore/store.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION || 'notera-pipeline-v31';
@@ -118,12 +120,24 @@ export async function generateNote(input, opts = {}) {
   note.specialty = specialtyResolved;
   note.metadata.encounter_id = consultId;
 
+  // 5a. BLANK-ENCOUNTER GATE (upgrade B) — if the extractor found no clinical facts (or the
+  //     transcript is phatic-only), do NOT run the narrative generator, which would otherwise
+  //     confabulate a presentation. Emit an empty note instead.
+  const blankEncounter = isBlankEncounter({ transcript, graph: graphForMap });
+  if (blankEncounter) {
+    console.log('[upgrade:blank-encounter] no clinical facts extracted — emitting an empty note, skipping narrative synthesis to prevent hallucination');
+    for (const k of Object.keys(note.subjective || {})) note.subjective[k] = '';
+    if (note.objective) for (const k of Object.keys(note.objective)) if (typeof note.objective[k] === 'string') note.objective[k] = '';
+    note.assessment_and_plan = [];
+    note.metadata.flags = [...(note.metadata.flags || []), { type: 'empty_encounter', field: 'transcript', message: 'No clinical facts were extracted from the transcript; an empty note was produced to avoid fabrication.', severity: 'warning' }];
+  }
+
   // 5b. HEIDI STORY ENGINE — read the full transcript and compose the complete Heidi
   //     note (flowing prose, ranked problems, complete titles, problem-grouped objective).
   //     The deterministic note is the grounding scaffold + fallback. If the engine is
   //     unavailable or its guards trip, we keep the scaffold and apply the lighter
-  //     narrative polish instead. Skipped entirely when no LLM is available.
-  if (llm && story) {
+  //     narrative polish instead. Skipped entirely when no LLM is available or blank.
+  if (!blankEncounter && llm && story) {
     const scaffold = note;
     try {
       const composed = await composeStory(scaffold, { llm, transcript, meta: { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION } });
@@ -140,6 +154,35 @@ export async function generateNote(input, opts = {}) {
   //     referrals → A&P, no normal-lab relists in A&P (fixes cross-section contradictions).
   try { note = reconcileNote(note); } catch (e) { console.warn('[generateNote] reconcile skipped:', e.message); }
 
+  // 5d. UPGRADE GUARDRAILS (deterministic, source-grounded) — section-router (medication
+  //     dosing → Plan), temporal-validator (no future results in Objective), value-flagger.
+  //     Every action prints an [upgrade:*] line so it's visible in the run logs.
+  try {
+    const up = applyUpgradeGuardrails(note, { transcript, entities });
+    if (up.flags?.length) note.metadata.flags = [...(note.metadata.flags || []), ...up.flags];
+  } catch (e) { console.warn('[upgrade] guardrails skipped:', e.message); }
+
+  // 5e. RxNorm verification (upgrade D-Tier2) — opt-in (RXNORM_VERIFY=1), network-optional.
+  //     Flags medications that don't resolve to a real RxNorm concept. Never blocks.
+  if (process.env.RXNORM_VERIFY === '1') {
+    try {
+      const { normalizeMedications } = await import('../services/rxnorm.js');
+      // ensure any NER drug names are in the list the agent normalizes/checks
+      const nerMeds = entities.filter((e) => /DRUG|MEDICATION|CHEMICAL|MED7/i.test(String(e.label || ''))).map((e) => e.text);
+      note.metadata.medications_mentioned = [...new Set([...(note.metadata.medications_mentioned || []), ...nerMeds])];
+      // Time-boxed so a slow/unreachable RxNav can never stall note generation. Corrects
+      // medication spelling to the canonical RxNorm name and flags fabricated drugs.
+      const budget = Number(process.env.RXNORM_TIMEOUT_MS) || 8000;
+      const rx = await Promise.race([
+        normalizeMedications(note, transcript, { log: (l) => console.log(l) }),
+        new Promise((resolve) => setTimeout(() => resolve({ flags: [], timedOut: true }), budget)),
+      ]);
+      if (rx.timedOut) console.warn(`[upgrade:rxnorm] skipped — verification exceeded ${budget}ms (RxNav slow/unreachable)`);
+      if (rx.corrected) console.log(`[upgrade:rxnorm] corrected ${rx.corrected} medication name(s) to canonical RxNorm spelling`);
+      if (rx.flags?.length) note.metadata.flags = [...(note.metadata.flags || []), ...rx.flags];
+    } catch (e) { console.warn('[upgrade:rxnorm] skipped:', e.message); }
+  }
+
   // 6. GUARDRAILS (schema + NER cross-check) -----------------------------------
   const gr = runGuardrails(note, entities, { confidenceThreshold: opts.confidenceThreshold });
   note = gr.note;
@@ -150,13 +193,18 @@ export async function generateNote(input, opts = {}) {
     await audit({ consultId, actor: 'system', action: 'note.reidentified' }).catch(() => {});
   }
 
+  // Deterministic Markdown render of the FINAL structured note in the fixed Heidi/gold
+  // schema (section headings + bullets + numbered A&P). This is what the UI shows and the
+  // eval compares, so the structure is always the schema. Falls back to the pipeline text.
+  const renderedNote = noteToMarkdown(note) || finalNote;
+
   // 8. PERSIST draft + audit ---------------------------------------------------
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {
     await store.updateConsult(consultId, { status: 'ready', specialty: specialtyResolved, transcript: { text: transcript }, entities });
     await store.addDraft(consultId, {
       draftId, modelVersion: PIPELINE_VERSION, schemaVersion: note.schema_version,
-      note, renderedNote: finalNote, confidence: note.metadata.confidence || {},
+      note, renderedNote, rawRenderedNote: finalNote, confidence: note.metadata.confidence || {},
       status: gr.status, createdAt: new Date().toISOString(),
     });
     await audit({ consultId, actor: 'system', action: 'draft.created', target: draftId, meta: { status: gr.status, flags: gr.flags.length } });
@@ -164,7 +212,7 @@ export async function generateNote(input, opts = {}) {
 
   onProgress({ status: 'ready', consultId, draftId });
   return {
-    consultId, draftId, note, renderedNote: finalNote,
+    consultId, draftId, note, renderedNote, rawRenderedNote: finalNote,
     status: gr.status, flags: gr.flags, schemaErrors: gr.schemaErrors, entities, detectedSpecialty: detected,
     qa: pipeline.logs?.qaValidation || null,   // QA agent output incl. _metrics (for eval metrics chart)
     trace: opts.recordTrace ? trace : undefined,   // per-agent LLM I/O (Testing Lab)

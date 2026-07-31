@@ -58,6 +58,7 @@
   .md h2 { @apply text-base font-semibold mt-4 mb-1 text-foreground border-b border-border pb-1; }
   .md h3 { @apply text-sm font-semibold mt-3 mb-1 text-foreground; }
   .md p { @apply my-1.5 leading-relaxed; } .md ul { @apply list-disc ml-5 my-1.5; } .md ol { @apply list-decimal ml-5 my-1.5; } .md li { @apply my-1; }
+  .md li::marker { @apply text-primary; } .md ul ul, .md ol ul, .md ol ol { @apply my-0.5 ml-4; } .md ol > li::marker { @apply font-semibold text-foreground; }
   .md code { @apply bg-muted px-1.5 py-0.5 rounded text-[.85em] font-mono text-primary; }
   .md pre { @apply bg-background border border-border rounded-lg p-3 overflow-auto my-2; } .md pre code { @apply bg-transparent p-0; }
   .md table { @apply w-full my-2 text-sm border-collapse; } .md th,.md td { @apply border border-border px-2.5 py-1.5 text-left align-top; } .md th { @apply bg-muted font-semibold; }

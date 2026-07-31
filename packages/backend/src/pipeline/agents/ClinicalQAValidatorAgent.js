@@ -1,18 +1,8 @@
 import { loadPrompt, loadPromptConfig } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
+import { looksLikeBenchmarkingPrompt } from '../../validation/upgrades.js';
 
-/**
- * ClinicalQAValidatorAgent — DAS V31
- */
-export class ClinicalQAValidatorAgent {
-  constructor(llmService) {
-    this.llm = llmService;
-  }
-
-  async execute(jsValidation, transcript = '', generatedNote = '', referenceNote = '') {
-    console.log('🏷️ [PromptAgent] qa-validator');
-    const _cfg = loadPromptConfig('qa-validator');
-    let systemInstruction = loadPrompt('qa-validator', `You are the Clinical QA Validator for DAS V31.
+const QA_GATE_FALLBACK = `You are the Clinical QA Validator for DAS V31.
 
 Your job: review missing clinical facts that were dropped by the documentation pipeline.
 
@@ -27,7 +17,29 @@ SEVERITY DETERMINATION:
 - LOW: Minor facts missing (routine medications, normal findings, follow-up times, context).
   → action: "retry_slot_filler"
 - FAIL: Critical facts missing (active diagnoses, current medications, critical abnormalities).
-  → action: "pipeline_fail"`);
+  → action: "pipeline_fail"`;
+
+/**
+ * ClinicalQAValidatorAgent — DAS V31
+ */
+export class ClinicalQAValidatorAgent {
+  constructor(llmService) {
+    this.llm = llmService;
+  }
+
+  async execute(jsValidation, transcript = '', generatedNote = '', referenceNote = '') {
+    console.log('🏷️ [PromptAgent] qa-validator');
+    const _cfg = loadPromptConfig('qa-validator');
+    let systemInstruction = loadPrompt('qa-validator', QA_GATE_FALLBACK);
+
+    // Upgrade E — contract-drift guard: this agent is the pipeline QUALITY GATE (it must
+    // return {status, action, retry_reason}). If a blind benchmarking rubric (Heidi-vs-Notera,
+    // n=2000) was mistakenly published to 'qa-validator', its output contract conflicts with
+    // the gate, so we ignore it and use the gate prompt. (Benchmarking belongs to its own id.)
+    if (looksLikeBenchmarkingPrompt(systemInstruction)) {
+      console.warn('[upgrade:qa-contract] published qa-validator prompt looks like a benchmarking rubric — using the gate prompt instead to avoid output-contract drift. Move the benchmarking rubric to a separate agent id (e.g. comparative-judge).');
+      systemInstruction = QA_GATE_FALLBACK;
+    }
 
     // Inject live inputs so a custom evaluator prompt can cross-verify:
     //   [TRANSCRIPT] → source; [NOTERA_NOTE]/[GENERATED_NOTE]/[NOTE] → generated note;

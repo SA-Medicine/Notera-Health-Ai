@@ -1,5 +1,6 @@
 import { loadPrompt, loadPromptConfig } from '../../../prompts/registry.js';
 import { safeParseJson } from '../utils/safeParseJson.js';
+import { adminRefillFailsafe, multiSystemFallback } from '../../validation/upgrades.js';
 
 export class EncounterClassifierAgent {
   constructor(llmService) {
@@ -63,7 +64,14 @@ Output JSON only.`);
     try{ const _o = (typeof resultStr==='string'?resultStr:JSON.stringify(resultStr)); console.log('📤 [PromptAgentOutput] encounter-classifier: '+(_o.length>20000?_o.slice(0,20000)+' …[truncated]':_o)); }catch(_){}
     
     try {
-      return safeParseJson(resultStr).encounter_type;
+      let type = safeParseJson(resultStr).encounter_type;
+      // Upgrade C — administrative-refill fail-safe: don't let an 'administrative' label
+      // suppress real clinical content (dose changes / pharmacy routing) downstream.
+      type = adminRefillFailsafe(type, transcript, (l) => console.log(l));
+      // Upgrade C(2) — multi-system fallback: a narrow single-disease label drops other
+      // active problems; when ≥3 organ systems are discussed use the comprehensive template.
+      type = multiSystemFallback(type, transcript, (l) => console.log(l));
+      return type;
     } catch (e) {
       console.error("Failed to parse EncounterClassifier output", e);
       throw e;

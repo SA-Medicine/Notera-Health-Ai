@@ -18,6 +18,9 @@ dist/
 build/
 .turbo/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS
 .DS_Store
@@ -34,3 +37,23 @@ eval/results/
 # Database backups (may contain PHI)
 db/backups/
 *.dump
+
+# Admin runtime state — regenerated at runtime, not source. The tester writes per-run
+# stdout logs here plus a run-history index; these should never be committed.
+admin/data/logs/
+admin/data/runs.json
+
+# Prompt exports (the "Export all" zip downloads locally) and misc temp/editor files
+notera-prompts-*.zip
+*.tmp
+*~
+
+# RxNorm on-disk lookup cache (regenerated from the RxNav API)
+**/.cache/
+rxnorm.json
+
+# NOTE: data/gold/*.txt is the versioned (transcript → gold note) dataset and is
+# intentionally committed (see data/README.md). If you'd rather NOT track the bulk
+# imported clinical fixtures, untrack them with:
+#   git rm -r --cached data/gold && git commit -m "stop tracking run fixtures"
+# then add:  data/gold/
