@@ -119,19 +119,48 @@ function scaffoldSummary(note) {
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
 const contentWords = (s) => norm(s).split(' ').filter((w) => w.length > 3);
 
+// Robust note-JSON parse: strip fences, try clean parse, then repair a TRUNCATED object
+// (the model hit the token cap mid-string) by closing an open string, dropping a dangling
+// key/comma, and balancing the open brackets. Returns null if nothing parses.
+function parseNoteJson(raw) {
+  const s = String(raw || '').replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(s); } catch { /* fall through to repair */ }
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  const body = s.slice(start);
+  let inStr = false, esc = false; const stack = [];
+  for (let k = 0; k < body.length; k++) {
+    const c = body[k];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  let out = body;
+  if (inStr) out += '"';                                   // close an unterminated string
+  out = out.replace(/,\s*$/, '').replace(/,\s*"[^"]*"\s*:?\s*$/, '');   // drop dangling comma / partial key
+  while (stack.length) out += stack.pop();                 // close open brackets/braces
+  out = out.replace(/,(\s*[}\]])/g, '$1');                 // trailing commas
+  try { return JSON.parse(out); } catch { return null; }
+}
+
 export async function composeStory(scaffoldNote, opts = {}) {
   const { llm = null, transcript = '', meta = {} } = opts;
   if (!llm || !transcript.trim() || !scaffoldNote) return scaffoldNote;
 
   let out;
   try {
+    // A SOAP-note JSON is a few KB; cap output so a runaway/repetition can't balloon to
+    // hundreds of KB (which truncates at the token limit → unterminated JSON). Configurable.
+    const storyTokens = Number(process.env.STORY_MAX_OUTPUT_TOKENS) || 24576;
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,
       NOTE_SCHEMA,
-      { timeoutMs: 180000, retries: 1, maxOutputTokens: Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536, thinkingBudget: 0 }
+      { timeoutMs: 180000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
     );
-    out = JSON.parse(String(raw).replace(/^```(json)?/i, '').replace(/```$/, '').trim());
+    out = parseNoteJson(raw);
+    if (!out) throw new Error('unparseable JSON (even after repair)');
   } catch (e) {
     console.warn('[storyEngine] failed, using scaffold note:', e.message);
     return scaffoldNote;

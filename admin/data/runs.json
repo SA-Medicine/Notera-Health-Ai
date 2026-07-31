@@ -1,5 +1,149 @@
 [
   {
+    "id": "2026-07-31T17-12-47-408Z-47f9",
+    "command": "node eval/run_eval.mjs iron-def-anemia",
+    "status": "passed",
+    "startedAt": "2026-07-31T17:12:47.408Z",
+    "finishedAt": "2026-07-31T17:13:21.906Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-31_17-12-47"
+  },
+  {
+    "id": "2026-07-31T17-01-16-478Z-25cc",
+    "command": "node eval/run_eval.mjs iron-def-anemia",
+    "status": "passed",
+    "startedAt": "2026-07-31T17:01:16.478Z",
+    "finishedAt": "2026-07-31T17:01:46.932Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-31_17-01-16"
+  },
+  {
+    "id": "2026-07-31T16-31-25-182Z-1890",
+    "command": "node eval/run_eval.mjs rf jr ah-2 pmr-dmii-l-oa me kt location-7 rx-refill lp cervical-vv-skin mm-2 untitled-session peri-menopause-fibroids breast-path-l-axilla tr location-6 unknown-session rx-refills asthma-dog-allergy gord-rx-renewal hypothyroid-rx-renew",
+    "status": "passed",
+    "startedAt": "2026-07-31T16:31:25.182Z",
+    "finishedAt": "2026-07-31T16:44:54.627Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-31_16-31-25"
+  },
+  {
+    "id": "2026-07-31T16-03-52-258Z-2b6e",
+    "command": "node eval/run_eval.mjs rf jr ah-2 pmr-dmii-l-oa me kt location-7 rx-refill lp cervical-vv-skin mm-2 untitled-session peri-menopause-fibroids breast-path-l-axilla tr location-6 unknown-session rx-refills asthma-dog-allergy gord-rx-renewal hypothyroid-rx-renew rt-varicose-vein-thyroid obesity-wgt-mgt da normal-mammo-feet cf session-299044 dr-2 mk cz mk-2 mk-3 ms b12-inj-skin-lumps ab tm obesity-wt-mgmt rt-knee-arth-fibroid be location-9 vg memory-loss-freq km tp sz-2 location-8 patient-2820 cl js-2 am-3 ja repo-inj-amen rc rp wt-loss-patient-2827-anemia mr nf pj rj lymphocytosis-anemia-low-b12 l-knee-sx-hyperchol unknown-session-2 al patient-2840-adhd-uti dm-poor-control om breast-migraine-hip jm-3 breast-concerns diabetes-refills lk-2",
+    "status": "interrupted",
+    "startedAt": "2026-07-31T16:03:52.258Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-31T15-54-30-539Z-1f8d",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "passed",
+    "startedAt": "2026-07-31T15:54:30.539Z",
+    "finishedAt": "2026-07-31T15:55:15.579Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-31_15-54-30"
+  },
+  {
+    "id": "2026-07-30T17-49-22-557Z-9947",
+    "command": "node eval/run_eval.mjs l-ear-inf-bronchospasm am weakness-shakiness kl vag-dryness-freq hyperkalemia-htn location wegovy-refill-dose location-3 gi jp l-ankle-sprain-conc-diff kp sp copd-exacerbation 1990-08-30 perimenopause-bloodwork dr sa session-191432 sm dp lk unemployment-doc-eye diabetes-location nb cp pp rs rw mb cb mm cb-2 nb-2 l-axilla-swelling-hyperchol patient-2758 lb ar ka dp-2 acne-contraception patient-2769 location-2 jz kg cd ll location-4 sz js jm scrotal-swelling-orchiectomy cb-4 gv lb-2 mg location-5 do am-2 cb-3 dm-htn-constipation ae mw rt-shoulder-t-b-oa osteoporosis-high-risk 1982-03-03 dry-scalp-dermatitis kf lo jm-2 ah ph cp-2 ll-2 jj sb es db ma sl bc-refill-contraception session-306258 vr session-286995 sp-2 lr-2 location-location-low-k lr ad tl dg elevated-chol-conc-urine hormone-levels-wnl urinary-retention-rx sl-2 hm tb-test-discharge bs rf",
+    "status": "failed",
+    "startedAt": "2026-07-30T17:49:22.557Z",
+    "finishedAt": "2026-07-30T19:24:16.499Z",
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-30T17-47-46-464Z-024e",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "passed",
+    "startedAt": "2026-07-30T17:47:46.464Z",
+    "finishedAt": "2026-07-30T17:48:22.578Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-30_17-47-46"
+  },
+  {
+    "id": "2026-07-30T17-38-52-919Z-3916",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "interrupted",
+    "startedAt": "2026-07-30T17:38:52.919Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-30T17-36-55-558Z-5c3f",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "interrupted",
+    "startedAt": "2026-07-30T17:36:55.558Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-30T17-35-39-843Z-a639",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "interrupted",
+    "startedAt": "2026-07-30T17:35:39.844Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-30T17-34-47-985Z-93d9",
+    "command": "node eval/run_eval.mjs lymphocytosis-anemia-low-b12",
+    "status": "interrupted",
+    "startedAt": "2026-07-30T17:34:47.985Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-07-30T17-22-01-963Z-e49c",
+    "command": "node eval/run_eval.mjs weakness-shakiness",
+    "status": "passed",
+    "startedAt": "2026-07-30T17:22:01.963Z",
+    "finishedAt": "2026-07-30T17:22:32.576Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-30_17-22-02"
+  },
+  {
+    "id": "2026-07-30T17-16-33-127Z-6b4c",
+    "command": "node eval/run_eval.mjs kl",
+    "status": "passed",
+    "startedAt": "2026-07-30T17:16:33.127Z",
+    "finishedAt": "2026-07-30T17:17:03.810Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-30_17-16-33"
+  },
+  {
+    "id": "2026-07-30T16-42-46-057Z-af40",
+    "command": "node eval/run_eval.mjs l-ear-inf-bronchospasm vag-dryness-freq location kl weakness-shakiness",
+    "status": "passed",
+    "startedAt": "2026-07-30T16:42:46.057Z",
+    "finishedAt": "2026-07-30T16:44:47.808Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-30_16-42-46"
+  },
+  {
+    "id": "2026-07-29T17-08-23-396Z-ccc1",
+    "command": "node eval/run_eval.mjs l-ear-inf-bronchospasm weakness-shakiness kl hyperkalemia-htn location",
+    "status": "passed",
+    "startedAt": "2026-07-29T17:08:23.396Z",
+    "finishedAt": "2026-07-29T17:10:40.381Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-29_17-08-23"
+  },
+  {
+    "id": "2026-07-29T16-38-44-514Z-b915",
+    "command": "node eval/run_eval.mjs 2022-06-02-04-06-pm-2 2022-06-02-04-06-pm patient10 patient2 patient4 patient5 patient6 patient7 patient8 patient9 done-patient3 hair-fall-tests-2 hair-fall-tests hand-injury-fever-2 hand-injury-fever patient1 r-knee-pain-medial-2 r-knee-pain-medial session-317245-2 session-317245 l-ear-inf-bronchospasm am weakness-shakiness kl vag-dryness-freq hyperkalemia-htn location wegovy-refill-dose location-3 gi jp l-ankle-sprain-conc-diff kp sp copd-exacerbation 1990-08-30 perimenopause-bloodwork dr sa session-191432 sm dp lk unemployment-doc-eye diabetes-location nb cp pp rs rw",
+    "status": "passed",
+    "startedAt": "2026-07-29T16:38:44.514Z",
+    "finishedAt": "2026-07-29T17:01:18.153Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-07-29_16-38-44"
+  },
+  {
     "id": "2026-07-27T18-09-37-526Z-306a",
     "command": "node eval/run_eval.mjs 2022-06-02-04-06-pm patient10 patient2",
     "status": "passed",

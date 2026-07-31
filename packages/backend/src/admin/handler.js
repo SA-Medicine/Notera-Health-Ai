@@ -309,6 +309,9 @@ function compositeScore(m) {
   return (cov + sim + flow + (1 - om)) / 4;
 }
 const trim = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + `…[+${s.length - n} chars]` : s; };
+// Like trim(), but the marker makes explicit it's a DISPLAY cap (not a runtime truncation)
+// so the optimizer never proposes a phantom "prompt got truncated" fix.
+const trimForView = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + `\n…[VIEW CAP ONLY — the live prompt is COMPLETE; ${s.length - n} chars omitted from this view]` : s; };
 
 /**
  * Assemble the contrastive evidence for one agent from a run:
@@ -369,8 +372,11 @@ function formatUpgradeUserPrompt(ctx) {
   L.push(`AGENT TO IMPROVE: ${ctx.agentId}`);
   L.push(`RUN: #${ctx.run.run_no} (${ctx.run.label}) — ${ctx.counts.records} records, ${ctx.counts.failures} failing samples, ${ctx.counts.anchors} passing anchors.`);
   L.push('');
-  L.push('=== CURRENT PROMPT (verbatim — your `before` snippets must come from this) ===');
-  L.push(trim(ctx.currentPrompt, 8000));
+  L.push('=== CURRENT PROMPT (verbatim, COMPLETE — your `before` snippets must come from this) ===');
+  // Show the full current prompt so `before` snippets anchor and the optimizer never
+  // mistakes a display cap for a runtime truncation bug. Only a runaway prompt is capped,
+  // and the marker makes clear it's a view limit, not the live value.
+  L.push(trimForView(ctx.currentPrompt, 60000));
   L.push('');
   L.push('=== FAILING RECORDS (edit the prompt to fix these) ===');
   for (const f of ctx.failures) {

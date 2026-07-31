@@ -102,6 +102,12 @@ app.post('/api/consults/:id/approve', async (req, res) => {
 const port = config.port;
 const server = app.listen(port, () => {
   console.log(`Notera backend (unified) on :${port}  — product + admin/lab API  (llm=${config.llmBackend}, store=${config.firestoreDriver})`);
+  // RxNorm medication verification (upgrade D-Tier2): ping the source at startup so its
+  // availability is visible in the logs. Enabled with RXNORM_VERIFY=1; never blocks boot.
+  import('./src/services/rxnorm.js').then(({ rxnormEnabled, initRxNorm }) => {
+    if (rxnormEnabled()) initRxNorm();
+    else console.log('[rxnorm] medication verification is OFF (set RXNORM_VERIFY=1 to enable).');
+  }).catch(() => {});
 });
 server.requestTimeout = 0;
 server.headersTimeout = 0;
