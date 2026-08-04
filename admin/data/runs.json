@@ -1,5 +1,23 @@
 [
   {
+    "id": "2026-08-01T17-51-06-162Z-86c0",
+    "command": "node eval/run_eval.mjs l-ear-inf-bronchospasm am weakness-shakiness kl vag-dryness-freq",
+    "status": "passed",
+    "startedAt": "2026-08-01T17:51:06.162Z",
+    "finishedAt": "2026-08-01T17:53:12.431Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-01_17-51-06"
+  },
+  {
+    "id": "2026-08-01T17-46-50-509Z-1062",
+    "command": "node eval/run_eval.mjs hyperkalemia-htn l-ankle-sprain-conc-diff l-axilla-swelling-hyperchol lymphocytosis-anemia-low-b12 iron-def-anemia",
+    "status": "passed",
+    "startedAt": "2026-08-01T17:46:50.509Z",
+    "finishedAt": "2026-08-01T17:50:10.178Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-01_17-46-50"
+  },
+  {
     "id": "2026-07-31T17-12-47-408Z-47f9",
     "command": "node eval/run_eval.mjs iron-def-anemia",
     "status": "passed",
