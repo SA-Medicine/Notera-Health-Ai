@@ -22,13 +22,29 @@ export function Patients() {
   const doImport = async (text: string) => {
     let parsed: any
     try { parsed = JSON.parse(text) } catch { toast.error('That file is not valid JSON'); return }
+    const arr: any[] = Array.isArray(parsed) ? parsed : (parsed?.sessions || parsed?.data || [])
+    if (!arr.length) { toast.error('No sessions found in the file'); return }
     setBusy(true); setResult(null)
+    // Import in small batches — a single multi-MB POST is flaky through the dev proxy
+    // (large body / timeout). Batching keeps each request tiny and robust, and shows progress.
+    const CHUNK = 150
+    let added = 0, updated = 0, skipped = 0, failedBatches = 0
+    const errs: string[] = []
     try {
-      const r = await api.importPatients(parsed)
-      setResult(r)
-      if (r.ok) { toast.success(`Imported: ${r.counts?.added || 0} new, ${r.counts?.updated || 0} updated`); load() }
-      else toast.error(r.error || 'Import failed')
-    } catch { toast.error('Import request failed') }
+      for (let i = 0; i < arr.length; i += CHUNK) {
+        const batch = arr.slice(i, i + CHUNK)
+        try {
+          const r = await api.importPatients(batch)
+          if (r.ok) { added += r.counts?.added || 0; updated += r.counts?.updated || 0; skipped += r.counts?.skipped || 0 }
+          else { failedBatches++; if (r.error && errs.length < 3) errs.push(r.error) }
+        } catch (e: any) { failedBatches++; if (errs.length < 3) errs.push(e?.message || 'request failed') }
+        setResult({ ok: true, counts: { added, updated, skipped }, note: `Imported ${Math.min(i + CHUNK, arr.length)}/${arr.length}…` } as any)
+      }
+      setResult({ ok: failedBatches === 0, counts: { added, updated, skipped }, note: failedBatches ? `${failedBatches} batch(es) failed: ${errs.join('; ')}` : `Done — ${added} new, ${updated} updated, ${skipped} skipped.` } as any)
+      if (failedBatches) toast.error(`Imported ${added + updated}, but ${failedBatches} batch(es) failed — ${errs[0] || 'see summary'}`)
+      else toast.success(`Imported: ${added} new, ${updated} updated`)
+      load()
+    } catch (e: any) { toast.error('Import failed — ' + (e?.message || 'request error')) }
     setBusy(false)
   }
 

@@ -4,6 +4,12 @@ Patient 7 started 1993-10-04
 
 Transcript ended 1981-06-07
 
+Patient 7 started 1989-08-20
+
+0:00
+
+Transcript ended 1999-06-10
+
 Subjective:
 1993-02-13
 

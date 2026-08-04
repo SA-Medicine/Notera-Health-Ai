@@ -9,7 +9,11 @@ async function jget<T = any>(u: string): Promise<T> {
 async function jsend<T = any>(u: string, method: string, body?: any): Promise<T> {
   const r = await fetch(u, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
   if (r.status === 401 && u !== '/backend/api/login') throw { unauth: true }
-  return r.json()
+  // Read as text then parse, so a non-JSON error (e.g. a proxy 502/413 HTML page) surfaces
+  // its status + snippet instead of a cryptic "Unexpected token" / generic failure.
+  const text = await r.text()
+  try { return (text ? JSON.parse(text) : {}) as T }
+  catch { throw new Error(`${r.status} ${r.statusText || ''}${text ? ' — ' + text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) : ''}`) }
 }
 export const jpost = <T = any>(u: string, b?: any) => jsend<T>(u, 'POST', b)
 export const jput = <T = any>(u: string, b?: any) => jsend<T>(u, 'PUT', b)
