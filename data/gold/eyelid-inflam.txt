@@ -1,4 +1,4 @@
-Patient 7 started 1981-04-05
+Transcript started 5:02 PM 6/25/2026
 
 0:00
 
@@ -18,11 +18,11 @@ And sometimes glaucoma. That's why I didn't want you inside the eye. But outside
 
 1:57
 
-Right. Just do it for 2017-08-07 and then stop it again. Okay? Okay. Yeah. I can do that. Thank you so much. Okay. Bye for now. Alright. Take care. Bye.
+Right. Just do it for a couple of days and then stop it again. Okay? Okay. Yeah. I can do that. Thank you so much. Okay. Bye for now. Alright. Take care. Bye.
 
-Transcript ended 1985-12-12
+Transcript ended 5:04 PM 6/25/2026
 
-Patient 7 started 1985-06-28
+Transcript started 5:02 PM 6/25/2026
 
 0:00
 
@@ -42,9 +42,9 @@ And sometimes glaucoma. That's why I didn't want you inside the eye. But outside
 
 1:57
 
-Right. Just do it for 1975-08-23 and then stop it again. Okay? Okay. Yeah. I can do that. Thank you so much. Okay. Bye for now. Alright. Take care. Bye.
+Right. Just do it for a couple of days and then stop it again. Okay? Okay. Yeah. I can do that. Thank you so much. Okay. Bye for now. Alright. Take care. Bye.
 
-Transcript ended 2022-08-29
+Transcript ended 5:04 PM 6/25/2026
 
 Subjective:
 
@@ -79,6 +79,6 @@ Assessment & Plan:
 
 - Diagnosis: Eyelid inflammation
 
-- Treatment planned: Continue steroid cream to exterior of eyelids; apply thin layer for 1993-03-22 then stop; resume if symptoms flare up
+- Treatment planned: Continue steroid cream to exterior of eyelids; apply thin layer for a couple of days then stop; resume if symptoms flare up
 
 - Counselled: Steroids thin the skin - discontinue once resolved; cortisone cream safe for exterior of eye but not inside the eye due to risk of cataracts and glaucoma

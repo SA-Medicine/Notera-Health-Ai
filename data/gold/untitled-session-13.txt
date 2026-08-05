@@ -1,21 +1,21 @@
-Patient 7 started 2019-06-18
+Transcript started 1:02 PM 6/22/2026
 
 0:00
 
-Oh, yeah. I saw you in 2008-07-29. Mm-hmm. And I had sent you to Dr. Patient 307 for, uh, menstrual bleeding and clots. Ultrasound shows-
+Oh, yeah. I saw you in May. Mm-hmm. And I had sent you to Dr. Patel for, uh, menstrual bleeding and clots. Ultrasound shows-
 
-Transcript ended 1989-06-09
+Transcript ended 1:02 PM 6/22/2026
 
-Patient 7 started 2006-08-27
+Transcript started 1:02 PM 6/22/2026
 
 0:00
 
-Oh, yeah. I saw you in 2025-04-01. Mm-hmm. And I had sent you to Dr. Patient 307 for, uh, menstrual bleeding and clots. Ultrasound shows-
+Oh, yeah. I saw you in May. Mm-hmm. And I had sent you to Dr. Patel for, uh, menstrual bleeding and clots. Ultrasound shows-
 
-Transcript ended 2008-07-31
+Transcript ended 1:02 PM 6/22/2026
 
 Subjective:
-2013-01-13
+07/24/2026
 
 L ear inf, bronchospasm
 
@@ -23,7 +23,9 @@ L ear inf, bronchospasm
 
 KL
 
-Patient 24114:48PM
+keith leroux
+
+4:48PM
 
 Vag dryness, freq
 
@@ -61,9 +63,11 @@ Ann muzzin
 
 PP
 
-Patient 24102020-11-29
+Paolo Palazzi
 
-[LOCATION]
+2:50PM
+
+GB
 
 Gwenyth Beaudoin
 
@@ -83,11 +87,15 @@ Rehse steeve
 
 JP
 
-Patient 2409 ankle sprain, conc diff
+jayna paik
+
+2:06PM
+
+L ankle sprain, conc diff
 
 1:58PM
 
-[LOCATION]
+KP
 
 kelvin paik
 
@@ -95,7 +103,7 @@ kelvin paik
 
 RW
 
-Patient 2408
+Rebecca wright
 
 1:28PM
 
@@ -103,11 +111,11 @@ SP
 
 sheri peroni
 
-1997-10-08
+1:20PM
 
 CP
 
-[LOCATION] peroni
+Charlotte peroni
 
 1:07PM
 
@@ -115,11 +123,11 @@ Untitled session
 
 12:51PM
 
-1996-04-08
+07/23/2026
 
 Untitled session
 
-1971-11-22
+5:36PM
 
 COPD exacerbation
 

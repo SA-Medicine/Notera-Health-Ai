@@ -1,5 +1,32 @@
 [
   {
+    "id": "2026-08-05T16-51-59-620Z-ee4f",
+    "command": "node eval/run_eval.mjs hyperkalemia-htn",
+    "status": "passed",
+    "startedAt": "2026-08-05T16:51:59.620Z",
+    "finishedAt": "2026-08-05T16:53:29.075Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-05_16-51-59"
+  },
+  {
+    "id": "2026-08-05T16-19-00-446Z-c373",
+    "command": "node eval/run_eval.mjs hyperkalemia-htn",
+    "status": "passed",
+    "startedAt": "2026-08-05T16:19:00.446Z",
+    "finishedAt": "2026-08-05T16:19:53.086Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-05_16-19-00"
+  },
+  {
+    "id": "2026-08-05T14-33-43-661Z-c998",
+    "command": "node eval/run_eval.mjs weakness-shakiness wegovy-refill-dose copd-exacerbation perimenopause-bloodwork",
+    "status": "passed",
+    "startedAt": "2026-08-05T14:33:43.661Z",
+    "finishedAt": "2026-08-05T14:37:14.566Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-05_14-33-43"
+  },
+  {
     "id": "2026-08-01T17-51-06-162Z-86c0",
     "command": "node eval/run_eval.mjs l-ear-inf-bronchospasm am weakness-shakiness kl vag-dryness-freq",
     "status": "passed",

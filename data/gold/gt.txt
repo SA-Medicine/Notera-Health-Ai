@@ -1,10 +1,10 @@
-Patient 7 started 2007-04-25
+Transcript started 6:23 PM 7/9/2026
 
 0:00
 
 0:11
 
-Hey. Hello? Hi. This is Patient 707. Hey, Patient 706. Patient 706. Hey, Patient 706, Dr. Patient 244 calling. Yep. I have the results of your blood test. Is a good time to talk to you? Sure. All right. So it shows that your hemoglobin is fine. Your sugar 1982-12-13 was fine at five point four. Um, your kidneys are fine, EGFR of ninety-four. Your B12 could be better, so I want you to take the B12 supplements. Okay. And your cholesterol is high, hon. Your LDL is high.
+Hey. Hello? Hi. This is Gabe. Hey, Gabor. Gabor. Hey, Gabor, Dr. Agarwal calling. Yep. I have the results of your blood test. Is a good time to talk to you? Sure. All right. So it shows that your hemoglobin is fine. Your sugar that day was fine at five point four. Um, your kidneys are fine, EGFR of ninety-four. Your B12 could be better, so I want you to take the B12 supplements. Okay. And your cholesterol is high, hon. Your LDL is high.
 
 0:47
 
@@ -12,21 +12,21 @@ Highest ever. I think we should start you on a cholesterol pill. Would that be o
 
 1:39
 
-Uh, I'm willing to wait. Okay. But whatever you whatever you think, it doesn't matter. To me, I think it's we should be on a cholesterol pill. But if you say no, then I ca- I mean, decision is yours. I can only guide you. Uh, okay, then, you know what? W- w- we'll wait,'cause it'll be maybe 1971-06-24, right? Maybe 1997-07-25 for the surgery, you mean? Uh, no, no, for me losing the weight. Okay, yeah, I mean, a- yeah, so okay, so we, we can check again in 1991-05-08, but I, I suggest that you should consider starting the cholesterol pill sooner than later.
+Uh, I'm willing to wait. Okay. But whatever you whatever you think, it doesn't matter. To me, I think it's we should be on a cholesterol pill. But if you say no, then I ca- I mean, decision is yours. I can only guide you. Uh, okay, then, you know what? W- w- we'll wait,'cause it'll be maybe six months, right? Maybe six months for the surgery, you mean? Uh, no, no, for me losing the weight. Okay, yeah, I mean, a- yeah, so okay, so we, we can check again in six months, but I, I suggest that you should consider starting the cholesterol pill sooner than later.
 
 2:20
 
-Okay. Let me know when you're ready. Otherwise, we'll see you in 1988-02-09. Okay? Yep. Okay. Okay. Take care. Yep. Bye.
+Okay. Let me know when you're ready. Otherwise, we'll see you in six months. Okay? Yep. Okay. Okay. Take care. Yep. Bye.
 
-Transcript ended 1978-05-26
+Transcript ended 6:25 PM 7/9/2026
 
-Patient 7 started 1990-04-06
+Transcript started 6:23 PM 7/9/2026
 
 0:00
 
 0:11
 
-Hey. Hello? Hi. This is Patient 707. Hey, Patient 706. Patient 706. Hey, Patient 706, Dr. Patient 244 calling. Yep. I have the results of your blood test. Is a good time to talk to you? Sure. All right. So it shows that your hemoglobin is fine. Your sugar 2020-05-20 was fine at five point four. Um, your kidneys are fine, EGFR of ninety-four. Your B12 could be better, so I want you to take the B12 supplements. Okay. And your cholesterol is high, hon. Your LDL is high.
+Hey. Hello? Hi. This is Gabe. Hey, Gabor. Gabor. Hey, Gabor, Dr. Agarwal calling. Yep. I have the results of your blood test. Is a good time to talk to you? Sure. All right. So it shows that your hemoglobin is fine. Your sugar that day was fine at five point four. Um, your kidneys are fine, EGFR of ninety-four. Your B12 could be better, so I want you to take the B12 supplements. Okay. And your cholesterol is high, hon. Your LDL is high.
 
 0:47
 
@@ -34,13 +34,13 @@ Highest ever. I think we should start you on a cholesterol pill. Would that be o
 
 1:39
 
-Uh, I'm willing to wait. Okay. But whatever you whatever you think, it doesn't matter. To me, I think it's we should be on a cholesterol pill. But if you say no, then I ca- I mean, decision is yours. I can only guide you. Uh, okay, then, you know what? W- w- we'll wait,'cause it'll be maybe 2001-08-09, right? Maybe 1978-10-18 for the surgery, you mean? Uh, no, no, for me losing the weight. Okay, yeah, I mean, a- yeah, so okay, so we, we can check again in 1986-04-27, but I, I suggest that you should consider starting the cholesterol pill sooner than later.
+Uh, I'm willing to wait. Okay. But whatever you whatever you think, it doesn't matter. To me, I think it's we should be on a cholesterol pill. But if you say no, then I ca- I mean, decision is yours. I can only guide you. Uh, okay, then, you know what? W- w- we'll wait,'cause it'll be maybe six months, right? Maybe six months for the surgery, you mean? Uh, no, no, for me losing the weight. Okay, yeah, I mean, a- yeah, so okay, so we, we can check again in six months, but I, I suggest that you should consider starting the cholesterol pill sooner than later.
 
 2:20
 
-Okay. Let me know when you're ready. Otherwise, we'll see you in 1970-03-08. Okay? Yep. Okay. Okay. Take care. Yep. Bye.
+Okay. Let me know when you're ready. Otherwise, we'll see you in six months. Okay? Yep. Okay. Okay. Take care. Yep. Bye.
 
-Transcript ended 2020-04-16
+Transcript ended 6:25 PM 7/9/2026
 
 Subjective:
 
@@ -48,7 +48,7 @@ Subjective:
 
 - Suspected hernia - planning to lose weight prior to potential surgery
 
-- Requests to delay cholesterol medication until after weight loss achieved, 2003-06-01
+- Requests to delay cholesterol medication until after weight loss achieved, approximately 6 months
 
 
 
@@ -83,11 +83,11 @@ Assessment & Plan:
 
 - Cholesterol medication recommended
 
-- Patient 706 declines to start at this time, prefers to wait until after weight loss
+- Gabor declines to start at this time, prefers to wait until after weight loss
 
 - Counselled that weight loss may not sufficiently lower cholesterol given current level
 
-- Recheck in 1975-07-03
+- Recheck in 6 months
 
 
 

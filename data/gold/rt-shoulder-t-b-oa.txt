@@ -1,4 +1,4 @@
-Patient 7 started 1985-06-16
+Transcript started 6:04 PM 7/21/2026
 
 0:00
 
@@ -14,15 +14,15 @@ The shoulder is from tendonitis and bursitis. So what does that mean? Like means
 
 1:11
 
-He should like, we should try and avoid that, but I don't know. Why? I I don't know. He says he thinks it was torn at one point and healed. Well, that doesn't show ultrasound shows that you have a tendonitis and bursitis. I mean, if it's really, really bad, then, yeah, either the physio, physiophysio and or cortisone shot is an option. I've been going to physio for 1998-12-29, three times a week. So I can ask doing shockwave once a week. Yeah. Would you be willing I can make a referral for the cortisone shot if you want. I can try it. K.
+He should like, we should try and avoid that, but I don't know. Why? I I don't know. He says he thinks it was torn at one point and healed. Well, that doesn't show ultrasound shows that you have a tendonitis and bursitis. I mean, if it's really, really bad, then, yeah, either the physio, physiophysio and or cortisone shot is an option. I've been going to physio for two months, three times a week. So I can ask doing shockwave once a week. Yeah. Would you be willing I can make a referral for the cortisone shot if you want. I can try it. K.
 
 1:51
 
-It's your right shoulder. It's your right shoulder, right? Yeah. There is a guy, Doctor Patient 240, here. I will ask him to inject it. Is he in your office? No, it's he's, I think, on [LOCATION]. Is he, like, a surgeon or just a doctor? He's a emergency doc. I think he was a ER doctor, but he does lots of sports medicine injections. Okay. Okay. I'll call you with appointment. Okay. Thank you. Alrighty.
+It's your right shoulder. It's your right shoulder, right? Yeah. There is a guy, Doctor Barts, here. I will ask him to inject it. Is he in your office? No, it's he's, I think, on Orlette Avenue. Is he, like, a surgeon or just a doctor? He's a emergency doc. I think he was a ER doctor, but he does lots of sports medicine injections. Okay. Okay. I'll call you with appointment. Okay. Thank you. Alrighty.
 
-Transcript ended 2006-05-30
+Transcript ended 6:06 PM 7/21/2026
 
-Patient 7 started 1986-11-15
+Transcript started 6:04 PM 7/21/2026
 
 0:00
 
@@ -38,13 +38,13 @@ The shoulder is from tendonitis and bursitis. So what does that mean? Like means
 
 1:11
 
-He should like, we should try and avoid that, but I don't know. Why? I I don't know. He says he thinks it was torn at one point and healed. Well, that doesn't show ultrasound shows that you have a tendonitis and bursitis. I mean, if it's really, really bad, then, yeah, either the physio, physiophysio and or cortisone shot is an option. I've been going to physio for 1987-06-26, three times a week. So I can ask doing shockwave once a week. Yeah. Would you be willing I can make a referral for the cortisone shot if you want. I can try it. K.
+He should like, we should try and avoid that, but I don't know. Why? I I don't know. He says he thinks it was torn at one point and healed. Well, that doesn't show ultrasound shows that you have a tendonitis and bursitis. I mean, if it's really, really bad, then, yeah, either the physio, physiophysio and or cortisone shot is an option. I've been going to physio for two months, three times a week. So I can ask doing shockwave once a week. Yeah. Would you be willing I can make a referral for the cortisone shot if you want. I can try it. K.
 
 1:51
 
-It's your right shoulder. It's your right shoulder, right? Yeah. There is a guy, Doctor Patient 240, here. I will ask him to inject it. Is he in your office? No, it's he's, I think, on [LOCATION]. Is he, like, a surgeon or just a doctor? He's a emergency doc. I think he was a ER doctor, but he does lots of sports medicine injections. Okay. Okay. I'll call you with appointment. Okay. Thank you. Alrighty.
+It's your right shoulder. It's your right shoulder, right? Yeah. There is a guy, Doctor Barts, here. I will ask him to inject it. Is he in your office? No, it's he's, I think, on Orlette Avenue. Is he, like, a surgeon or just a doctor? He's a emergency doc. I think he was a ER doctor, but he does lots of sports medicine injections. Okay. Okay. I'll call you with appointment. Okay. Thank you. Alrighty.
 
-Transcript ended 1976-10-25
+Transcript ended 6:06 PM 7/21/2026
 
 Subjective:
 
@@ -52,7 +52,7 @@ Subjective:
 
 - Pain Description: Severe stabbing pain with movement across body, out to side, and up
 
-- Current Treatment: Physiotherapy for 2023-11-07, 3 times 2002-01-13; shockwave therapy once 2006-01-31
+- Current Treatment: Physiotherapy for 2 months, 3 times weekly; shockwave therapy once weekly
 
 - Cortisone Consideration: Physiotherapist advised against cortisone injection; reports physiotherapist suspects previous tear that healed
 
@@ -89,7 +89,7 @@ Assessment & Plan:
 
    - Treatment planned: Continue physiotherapy and shockwave therapy; cortisone injection offered
 
-   - Referrals: Dr. Patient 240 (sports medicine) for cortisone injection - will call with appointment
+   - Referrals: Dr. barts (sports medicine) for cortisone injection - will call with appointment
 
 
 

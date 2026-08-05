@@ -1,8 +1,8 @@
-Patient 7 started 2006-04-24
+Transcript started 6:19 PM 6/30/2026
 
 0:00
 
-Yeah. 1980-08-19. Yeah. So your hemoglobin was fine? Yeah.
+Yeah. May twenty fifth. Yeah. So your hemoglobin was fine? Yeah.
 
 0:12
 
@@ -10,7 +10,7 @@ Your sodium was fine. Potassium was fine. Kidneys are a little low. You got to d
 
 0:38
 
-Okay. Drink water. Okay. I drink wine. No wine. No wine. How's your blood pressure? Yes. It is very good. Let's tomatoes. Tomato. What fruits do you have there? Fruits. No. Fruits. No. No. Thank you. The tomatoes are really good. Hold it, please. Yeah. Yeah. Are you going to [LOCATION]? Hey. The old one. Old one. This one. Old one. Going to [LOCATION]? This 1972-11-13's. I don't know. I think 1975-04-27. Why? Because before the go, somebody take my place and my business. He's go out vacation. So wait 1998-01-20 to come back.
+Okay. Drink water. Okay. I drink wine. No wine. No wine. How's your blood pressure? Yes. It is very good. Let's tomatoes. Tomato. What fruits do you have there? Fruits. No. Fruits. No. No. Thank you. The tomatoes are really good. Hold it, please. Yeah. Yeah. Are you going to Italy? Hey. The old one. Old one. This one. Old one. Going to Italy? This year's. I don't know. I think the next year's. Why? Because before the go, somebody take my place and my business. He's go out vacation. So wait one minute to come back.
 
 1:26
 
@@ -24,13 +24,13 @@ Okay. No, I print it and give it to you or fax it to the drugstore. Give it to m
 
 Okay. So all things. Okay, then. I feel good. Take care. Thank you. Bye bye. Bye bye.
 
-Transcript ended 2018-05-15
+Transcript ended 6:22 PM 6/30/2026
 
-Patient 7 started 1973-01-07
+Transcript started 6:19 PM 6/30/2026
 
 0:00
 
-Yeah. 2022-08-08. Yeah. So your hemoglobin was fine? Yeah.
+Yeah. May twenty fifth. Yeah. So your hemoglobin was fine? Yeah.
 
 0:12
 
@@ -38,7 +38,7 @@ Your sodium was fine. Potassium was fine. Kidneys are a little low. You got to d
 
 0:38
 
-Okay. Drink water. Okay. I drink wine. No wine. No wine. How's your blood pressure? Yes. It is very good. Let's tomatoes. Tomato. What fruits do you have there? Fruits. No. Fruits. No. No. Thank you. The tomatoes are really good. Hold it, please. Yeah. Yeah. Are you going to [LOCATION]? Hey. The old one. Old one. This one. Old one. Going to [LOCATION]? This 2018-03-27's. I don't know. I think 2013-12-31. Why? Because before the go, somebody take my place and my business. He's go out vacation. So wait 2024-09-20 to come back.
+Okay. Drink water. Okay. I drink wine. No wine. No wine. How's your blood pressure? Yes. It is very good. Let's tomatoes. Tomato. What fruits do you have there? Fruits. No. Fruits. No. No. Thank you. The tomatoes are really good. Hold it, please. Yeah. Yeah. Are you going to Italy? Hey. The old one. Old one. This one. Old one. Going to Italy? This year's. I don't know. I think the next year's. Why? Because before the go, somebody take my place and my business. He's go out vacation. So wait one minute to come back.
 
 1:26
 
@@ -52,11 +52,11 @@ Okay. No, I print it and give it to you or fax it to the drugstore. Give it to m
 
 Okay. So all things. Okay, then. I feel good. Take care. Thank you. Bye bye. Bye bye.
 
-Transcript ended 2011-09-18
+Transcript ended 6:22 PM 6/30/2026
 
 Subjective:
 
-- Review of lab results from 2015-12-10
+- Review of lab results from 05/25/2026
 
 - Requests: sildenafil prescription, antifungal prescription
 
@@ -74,7 +74,7 @@ Objective:
 
 - BP: 120/60
 
-- Labs (2000-02-24): Hemoglobin normal, sodium normal, potassium normal, kidney function low, B12 normal, cholesterol normal, liver normal, blood glucose normal, thyroid normal, iron normal
+- Labs (05/25/2026): Hemoglobin normal, sodium normal, potassium normal, kidney function low, B12 normal, cholesterol normal, liver normal, blood glucose normal, thyroid normal, iron normal
 
 
 

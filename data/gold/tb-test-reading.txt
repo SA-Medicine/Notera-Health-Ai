@@ -1,8 +1,8 @@
-Patient 7 started 1973-12-31
+Transcript started 2:29 PM 7/12/2026
 
 0:00
 
-Okay. So I got a TB skin test on 1986-06-08. Okay. So I'm just really gave you a blood shot? No. I went to a different working back.
+Okay. So I got a TB skin test on Friday. Okay. So I'm just really gave you a blood shot? No. I went to a different working back.
 
 0:10
 
@@ -10,25 +10,25 @@ Yeah. And why do you need why were you doing the test? I'm gonna be doing clinic
 
 0:31
 
-Oh, you need a two step thing? It will be the step, yeah. So you have to come-- You know that 1991-01-22, you have to come back- Yeah... for the same program. Send it around, right? Yeah. Yeah. Date red. 1984-08-29.
+Oh, you need a two step thing? It will be the step, yeah. So you have to come-- You know that a week later, you have to come back- Yeah... for the same program. Send it around, right? Yeah. Yeah. Date red. July.
 
 1:11
 
 1:51
 
-The physician. I don't know, um, whether they need it after the second TB test or not. Okay. Or then what? I would say after the second one, just because I feel like at least one sample should suffice. And you will read. What's your date of birth? Uh, oh one. Oh, 2501 1974-10-04. Well, maybe we may have a small just show it to Patient 317 if we need to put a small one. Otherwise it's fine. Anything else? No. That's it. Oh, that's easy. Alrighty. Take care. Thank you. You too. Bye for now. Bye. TB test is negative.
+The physician. I don't know, um, whether they need it after the second TB test or not. Okay. Or then what? I would say after the second one, just because I feel like at least one sample should suffice. And you will read. What's your date of birth? Uh, oh one. Oh, 2501 2003. Well, maybe we may have a small just show it to Debbie if we need to put a small one. Otherwise it's fine. Anything else? No. That's it. Oh, that's easy. Alrighty. Take care. Thank you. You too. Bye for now. Bye. TB test is negative.
 
 2:33
 
 Okay.
 
-Transcript ended 1999-09-02
+Transcript ended 2:32 PM 7/12/2026
 
-Patient 7 started 2017-06-17
+Transcript started 2:29 PM 7/12/2026
 
 0:00
 
-Okay. So I got a TB skin test on 1981-11-26. Okay. So I'm just really gave you a blood shot? No. I went to a different working back.
+Okay. So I got a TB skin test on Friday. Okay. So I'm just really gave you a blood shot? No. I went to a different working back.
 
 0:10
 
@@ -36,25 +36,25 @@ Yeah. And why do you need why were you doing the test? I'm gonna be doing clinic
 
 0:31
 
-Oh, you need a two step thing? It will be the step, yeah. So you have to come-- You know that 2004-11-23, you have to come back- Yeah... for the same program. Send it around, right? Yeah. Yeah. Date red. 2017-05-27.
+Oh, you need a two step thing? It will be the step, yeah. So you have to come-- You know that a week later, you have to come back- Yeah... for the same program. Send it around, right? Yeah. Yeah. Date red. July.
 
 1:11
 
 1:51
 
-The physician. I don't know, um, whether they need it after the second TB test or not. Okay. Or then what? I would say after the second one, just because I feel like at least one sample should suffice. And you will read. What's your date of birth? Uh, oh one. Oh, 2501 2020-07-15. Well, maybe we may have a small just show it to Patient 317 if we need to put a small one. Otherwise it's fine. Anything else? No. That's it. Oh, that's easy. Alrighty. Take care. Thank you. You too. Bye for now. Bye. TB test is negative.
+The physician. I don't know, um, whether they need it after the second TB test or not. Okay. Or then what? I would say after the second one, just because I feel like at least one sample should suffice. And you will read. What's your date of birth? Uh, oh one. Oh, 2501 2003. Well, maybe we may have a small just show it to Debbie if we need to put a small one. Otherwise it's fine. Anything else? No. That's it. Oh, that's easy. Alrighty. Take care. Thank you. You too. Bye for now. Bye. TB test is negative.
 
 2:33
 
 Okay.
 
-Transcript ended 2022-07-22
+Transcript ended 2:32 PM 7/12/2026
 
 Subjective:
 
 - TB skin test reading for clinical research at hospital
 
-- Test administered 2008-03-26 at different location
+- Test administered Friday at different location
 
 - Two-step testing required
 
@@ -79,7 +79,7 @@ Assessment & Plan:
 
 - Diagnosis: Negative TB skin test
 
-- Investigations planned: Second TB test required in 1970-03-15 for two-step protocol
+- Investigations planned: Second TB test required in one week for two-step protocol
 
 - Referrals: None
 

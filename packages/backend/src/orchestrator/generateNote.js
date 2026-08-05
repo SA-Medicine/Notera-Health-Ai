@@ -23,6 +23,8 @@ import { reconcileNote } from './reconcileNote.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter } from '../validation/upgrades.js';
 import { noteToMarkdown } from './renderMarkdown.js';
+import { condenseNote } from './condenseNote.js';
+import { tightenNote } from './tightenNote.js';
 import { store, audit } from '../firestore/store.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION || 'notera-pipeline-v31';
@@ -154,6 +156,21 @@ export async function generateNote(input, opts = {}) {
   //     referrals → A&P, no normal-lab relists in A&P (fixes cross-section contradictions).
   try { note = reconcileNote(note); } catch (e) { console.warn('[generateNote] reconcile skipped:', e.message); }
 
+  // 5c-tighten. Optional LLM "gold tightener" (NOTE_TIGHTENER=1): re-reads the transcript +
+  // draft and rewrites gold-style — recovers dropped plan/pharmacy/RTC/normal-lab facts and
+  // trims filler, strictly grounded. Time-boxed; falls back to the draft on any issue. The
+  // deterministic guardrails below still run on its output (so it can't smuggle in fabrication).
+  if (process.env.NOTE_TIGHTENER === '1' && llm) {
+    try {
+      const budget = Number(process.env.TIGHTENER_TIMEOUT_MS) || 60000;
+      note = await Promise.race([
+        tightenNote(note, { llm, transcript, log: (l) => console.log(l) }),
+        new Promise((resolve) => setTimeout(() => resolve(note), budget)),
+      ]);
+      note.specialty = specialtyResolved; note.metadata.encounter_id = consultId;
+    } catch (e) { console.warn('[upgrade:tightener] skipped:', e.message); }
+  }
+
   // 5d. UPGRADE GUARDRAILS (deterministic, source-grounded) — section-router (medication
   //     dosing → Plan), temporal-validator (no future results in Objective), value-flagger.
   //     Every action prints an [upgrade:*] line so it's visible in the run logs.
@@ -193,9 +210,14 @@ export async function generateNote(input, opts = {}) {
     await audit({ consultId, actor: 'system', action: 'note.reidentified' }).catch(() => {});
   }
 
+  // Agent 1 — cross-section condenser: keep Subjective/Objective detailed, make A&P concise
+  // by dropping sentences that just repeat the detail above, and merge duplicate exam lines.
+  try { condenseNote(note, {}, (l) => console.log(l)); } catch (e) { console.warn('[upgrade:condense] skipped:', e.message); }
+
   // Deterministic Markdown render of the FINAL structured note in the fixed Heidi/gold
-  // schema (section headings + bullets + numbered A&P). This is what the UI shows and the
-  // eval compares, so the structure is always the schema. Falls back to the pipeline text.
+  // schema (section headings + one bullet per sentence + numbered A&P). This is what the UI
+  // shows and the eval compares, so the structure is always the schema + points. Falls back
+  // to the pipeline text if empty.
   const renderedNote = noteToMarkdown(note) || finalNote;
 
   // 8. PERSIST draft + audit ---------------------------------------------------

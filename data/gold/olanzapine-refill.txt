@@ -1,36 +1,40 @@
-Patient 7 started 2018-06-20
+Transcript started 2:49 PM 6/1/2026
+
+0:00
 
 So which prescriptions do you need to have? Lozapine is gas. And you got you're not due for the blood test yet, right?
 
 0:10
 
-Because I'm taking some list 1977-06-03? Yeah. And that's the right thing. Yeah. Now price is reasonable. Both of the two marks are now. The price is reasonable? Yep. It was before out of the one note after the one milligram, it was one hundred and forty bucks. So
+Because I'm taking some list this week? Yeah. And that's the right thing. Yeah. Now price is reasonable. Both of the two marks are now. The price is reasonable? Yep. It was before out of the one note after the one milligram, it was one hundred and forty bucks. So
 
 0:31
 
 Should I drink it or fax it? I did use the mask for you? No. Not as well.
 
-Transcript ended 1995-11-25
+Transcript ended 2:49 PM 6/1/2026
 
-Patient 7 started 2019-07-13
+Transcript started 2:49 PM 6/1/2026
+
+0:00
 
 So which prescriptions do you need to have? Lozapine is gas. And you got you're not due for the blood test yet, right?
 
 0:10
 
-Because I'm taking some list 2004-03-03? Yeah. And that's the right thing. Yeah. Now price is reasonable. Both of the two marks are now. The price is reasonable? Yep. It was before out of the one note after the one milligram, it was one hundred and forty bucks. So
+Because I'm taking some list this week? Yeah. And that's the right thing. Yeah. Now price is reasonable. Both of the two marks are now. The price is reasonable? Yep. It was before out of the one note after the one milligram, it was one hundred and forty bucks. So
 
 0:31
 
 Should I drink it or fax it? I did use the mask for you? No. Not as well.
 
-Transcript ended 2001-05-26
+Transcript ended 2:49 PM 6/1/2026
 
 Subjective:
 
 - Prescription refill request for olanzapine
 
-- Blood test not yet due - taking 2002-10-09
+- Blood test not yet due - taking this week
 
 - Price now reasonable for olanzapine 1mg (previously $140)
 
@@ -53,7 +57,7 @@ Assessment & Plan:
 
 - Diagnosis: Not documented
 
-- Investigations planned: Blood test 1985-07-15
+- Investigations planned: Blood test this week
 
 - Treatment planned: Olanzapine prescription to be faxed
 

@@ -1,14 +1,14 @@
-Patient 7 started 2017-11-15
+Transcript started 2:55 PM 7/13/2026
 
 0:00
 
 0:10
 
-Hello, Patient 391's here. Good morning, Patient 391, Dr. Patient 652, welcome. Hello, how are you? I'm all right. Is it good time to talk to you? I just want to run over, uh, your results of the blood test. Yeah, it's good, good time.
+Hello, Brian's here. Good morning, Brian, Dr. Ayger, welcome. Hello, how are you? I'm all right. Is it good time to talk to you? I just want to run over, uh, your results of the blood test. Yeah, it's good, good time.
 
 0:32
 
-Perfect. So we did the lipoprotein A, which is the marker, genetic marker for the cholesterol, and that's normal for you. Should be less than ninety nine, and yours is thirty nine. So that's a good thing. Good thing. Good. Good. Yeah. And your cholesterol that particular day, total cholesterol was 2006-08-20, and your triglycerides, one of the bad cholesterol, is a bit high at two point two, but your LDL is at three point three, should be less than three point four. So, basically, I I you are on a still on Lipitor, though. Right? That's correct. Yeah. We'll continue that. It's a little bit I'm still on a higher range than to my liking, but it's better than before.
+Perfect. So we did the lipoprotein A, which is the marker, genetic marker for the cholesterol, and that's normal for you. Should be less than ninety nine, and yours is thirty nine. So that's a good thing. Good thing. Good. Good. Yeah. And your cholesterol that particular day, total cholesterol was five point five, and your triglycerides, one of the bad cholesterol, is a bit high at two point two, but your LDL is at three point three, should be less than three point four. So, basically, I I you are on a still on Lipitor, though. Right? That's correct. Yeah. We'll continue that. It's a little bit I'm still on a higher range than to my liking, but it's better than before.
 
 1:14
 
@@ -16,21 +16,21 @@ Okay, that's great. So watch your diet kind of a thing as well. Your B12 was fin
 
 1:57
 
-Low nineties, but yours is 2022-05-14. So drink water. It's still within normal limits, but it should be better. Okay. Yeah. That's good. So other than those two, we'll repeat that in 2008-06-08. Everything else is fine. Great. Okay. Thank thank you very much. Appreciate the the call. Yeah. Alright then. Okay. Bye. Take care.
+Low nineties, but yours is sixty four. So drink water. It's still within normal limits, but it should be better. Okay. Yeah. That's good. So other than those two, we'll repeat that in six months. Everything else is fine. Great. Okay. Thank thank you very much. Appreciate the the call. Yeah. Alright then. Okay. Bye. Take care.
 
-Transcript ended 1975-06-14
+Transcript ended 2:57 PM 7/13/2026
 
-Patient 7 started 1977-11-23
+Transcript started 2:55 PM 7/13/2026
 
 0:00
 
 0:10
 
-Hello, Patient 391's here. Good morning, Patient 391, Dr. Patient 652, welcome. Hello, how are you? I'm all right. Is it good time to talk to you? I just want to run over, uh, your results of the blood test. Yeah, it's good, good time.
+Hello, Brian's here. Good morning, Brian, Dr. Ayger, welcome. Hello, how are you? I'm all right. Is it good time to talk to you? I just want to run over, uh, your results of the blood test. Yeah, it's good, good time.
 
 0:32
 
-Perfect. So we did the lipoprotein A, which is the marker, genetic marker for the cholesterol, and that's normal for you. Should be less than ninety nine, and yours is thirty nine. So that's a good thing. Good thing. Good. Good. Yeah. And your cholesterol that particular day, total cholesterol was 1975-01-10, and your triglycerides, one of the bad cholesterol, is a bit high at two point two, but your LDL is at three point three, should be less than three point four. So, basically, I I you are on a still on Lipitor, though. Right? That's correct. Yeah. We'll continue that. It's a little bit I'm still on a higher range than to my liking, but it's better than before.
+Perfect. So we did the lipoprotein A, which is the marker, genetic marker for the cholesterol, and that's normal for you. Should be less than ninety nine, and yours is thirty nine. So that's a good thing. Good thing. Good. Good. Yeah. And your cholesterol that particular day, total cholesterol was five point five, and your triglycerides, one of the bad cholesterol, is a bit high at two point two, but your LDL is at three point three, should be less than three point four. So, basically, I I you are on a still on Lipitor, though. Right? That's correct. Yeah. We'll continue that. It's a little bit I'm still on a higher range than to my liking, but it's better than before.
 
 1:14
 
@@ -38,9 +38,9 @@ Okay, that's great. So watch your diet kind of a thing as well. Your B12 was fin
 
 1:57
 
-Low nineties, but yours is 2007-05-31. So drink water. It's still within normal limits, but it should be better. Okay. Yeah. That's good. So other than those two, we'll repeat that in 1996-06-16. Everything else is fine. Great. Okay. Thank thank you very much. Appreciate the the call. Yeah. Alright then. Okay. Bye. Take care.
+Low nineties, but yours is sixty four. So drink water. It's still within normal limits, but it should be better. Okay. Yeah. That's good. So other than those two, we'll repeat that in six months. Everything else is fine. Great. Okay. Thank thank you very much. Appreciate the the call. Yeah. Alright then. Okay. Bye. Take care.
 
-Transcript ended 1978-07-21
+Transcript ended 2:57 PM 7/13/2026
 
 Subjective:
 
@@ -113,4 +113,6 @@ Assessment & Plan:
 
 
 
-4. Investigations planned: Repeat bloodwork in 2021-09-15. Referrals: None
+4. Investigations planned: Repeat bloodwork in 6 months
+
+5. Referrals: None

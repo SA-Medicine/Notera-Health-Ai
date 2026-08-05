@@ -1,4 +1,4 @@
-Patient 7 started 2002-04-30
+Transcript started 1:54 PM 7/21/2026
 
 0:00
 
@@ -6,17 +6,17 @@ Yes, ma'am. How can I help you? Um, I need, if you could, for you to fax over th
 
 0:10
 
-To my prescription, please, for my birth control. Wait. When you said rest of the prescriptions, you mean all the other because you're on [LOCATION], you're on Patient 19, and you're on Vesoprolol. Correct? Just the birth control. Just the birth control. Okay.
+To my prescription, please, for my birth control. Wait. When you said rest of the prescriptions, you mean all the other because you're on Lanessa, you're on Ciprolax, and you're on Vesoprolol. Correct? Just the birth control. Just the birth control. Okay.
 
 0:31
 
-And no side effects? Mhmm. No. But when we renewed it, like, 2003-03-13, they never have the facts. So on their end, I have no refills. That's crazy. Anyways, but you've been on it for a long time now. Right? The same one? Yeah. Okay. So [LOCATION] twenty eight, ninety tablets, four refills. That goes to Shoppers Drug Mart in Souse Sioux Enbury. Right? Yeah. I think so. You live there nowadays, don't you? Yeah. Alright. I'll take care of that then. Okay? Thank you so much. Okay. Bye. Bye.
+And no side effects? Mhmm. No. But when we renewed it, like, a few months ago, they never have the facts. So on their end, I have no refills. That's crazy. Anyways, but you've been on it for a long time now. Right? The same one? Yeah. Okay. So Lanessa twenty eight, ninety tablets, four refills. That goes to Shoppers Drug Mart in Souse Sioux Enbury. Right? Yeah. I think so. You live there nowadays, don't you? Yeah. Alright. I'll take care of that then. Okay? Thank you so much. Okay. Bye. Bye.
 
 1:11
 
-Transcript ended 1:55 PM 2016-01-05
+Transcript ended 1:55 PM 7/21/2026
 
-Patient 7 started 2012-06-15
+Transcript started 1:54 PM 7/21/2026
 
 0:00
 
@@ -24,27 +24,32 @@ Yes, ma'am. How can I help you? Um, I need, if you could, for you to fax over th
 
 0:10
 
-To my prescription, please, for my birth control. Wait. When you said rest of the prescriptions, you mean all the other because you're on [LOCATION], you're on Patient 19, and you're on Vesoprolol. Correct? Just the birth control. Just the birth control. Okay.
+To my prescription, please, for my birth control. Wait. When you said rest of the prescriptions, you mean all the other because you're on Lanessa, you're on Ciprolax, and you're on Vesoprolol. Correct? Just the birth control. Just the birth control. Okay.
 
 0:31
 
-And no side effects? Mhmm. No. But when we renewed it, like, 2009-06-03, they never have the facts. So on their end, I have no refills. That's crazy. Anyways, but you've been on it for a long time now. Right? The same one? Yeah. Okay. So [LOCATION] twenty eight, ninety tablets, four refills. That goes to Shoppers Drug Mart in Souse Sioux Enbury. Right? Yeah. I think so. You live there nowadays, don't you? Yeah. Alright. I'll take care of that then. Okay? Thank you so much. Okay. Bye. Bye.
+And no side effects? Mhmm. No. But when we renewed it, like, a few months ago, they never have the facts. So on their end, I have no refills. That's crazy. Anyways, but you've been on it for a long time now. Right? The same one? Yeah. Okay. So Lanessa twenty eight, ninety tablets, four refills. That goes to Shoppers Drug Mart in Souse Sioux Enbury. Right? Yeah. I think so. You live there nowadays, don't you? Yeah. Alright. I'll take care of that then. Okay? Thank you so much. Okay. Bye. Bye.
 
 1:11
 
-Transcript ended 1:55 PM 1975-06-06
+Transcript ended 1:55 PM 7/21/2026
 
 Subjective:
 
 - Request for birth control refill
 
-- On [LOCATION] for extended period
+- On Lanessa for extended period
 
 - No side effects from current medication
 
-- Previous renewal issue - pharmacy did not receive fax, no refills on 1982-06-17Past Medical History:
+- Previous renewal issue - pharmacy did not receive fax, no refills on their end
 
-- Current medications: [LOCATION], [LOCATION], Vesoprolol
+
+
+
+Past Medical History:
+
+- Current medications: Lanessa, Ciprolax, Vesoprolol
 
 
 

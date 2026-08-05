@@ -1,4 +1,4 @@
-Patient 7 started 1989-07-18
+Transcript started 3:57 PM 6/22/2026
 
 0:00
 
@@ -16,15 +16,15 @@ You checked your hepatitis B. You are you do not have hepatitis B infection or y
 
 1:51
 
-My boyfriend, my father-in-law died. Oh, gee. My uncle got diagnosed with state colon cancer. Who died again? My father-in-law. Wait, you're married? Uh, no, my son's father passed away 1977-06-19. Yeah, 1997-06-17. No, we didn't get married. He died, um, 1978-02-18. Uh, but my brain's just not letting me sleep for a while. Yeah. So a lot of stress going on. Patient 21, yeah. So you need a sleeping pill, or you need Ativan? No, I usually, usually give me, like, thirty-
+My boyfriend, my father-in-law died. Oh, gee. My uncle got diagnosed with state colon cancer. Who died again? My father-in-law. Wait, you're married? Uh, no, my son's father passed away two years ago. Yeah, two years ago. No, we didn't get married. He died, um, two years ago the next week. Uh, but my brain's just not letting me sleep for a while. Yeah. So a lot of stress going on. Mm, yeah. So you need a sleeping pill, or you need Ativan? No, I usually, usually give me, like, thirty-
 
 2:31
 
-Last name. When was the last time it was given? 1990-01-13. I just finished my last. Alright. I can fax it or print it. You can go to Superstore on [LOCATION]. Okay. I'll fax it. Thirty pills. Mhmm. Do you want to see a counselor or no? I'm I'm trying to find the counselor that I used to see. So go to see her. And the blood pressure is good, so we'll continue with the same medications. For the anxiety, Tylenol will be faxed, and the blood the blood test is fine. Okay. Perfect. Okay. I think that yeah. Good? That's it. Yeah. Okay. Then. Thank you.
+Last name. When was the last time it was given? Couple years ago. I just finished my last. Alright. I can fax it or print it. You can go to Superstore on Walker River. Okay. I'll fax it. Thirty pills. Mhmm. Do you want to see a counselor or no? I'm I'm trying to find the counselor that I used to see. So go to see her. And the blood pressure is good, so we'll continue with the same medications. For the anxiety, Tylenol will be faxed, and the blood the blood test is fine. Okay. Perfect. Okay. I think that yeah. Good? That's it. Yeah. Okay. Then. Thank you.
 
-Transcript ended 1977-04-27
+Transcript ended 4:00 PM 6/22/2026
 
-Patient 7 started 2014-09-11
+Transcript started 3:57 PM 6/22/2026
 
 0:00
 
@@ -42,13 +42,13 @@ You checked your hepatitis B. You are you do not have hepatitis B infection or y
 
 1:51
 
-My boyfriend, my father-in-law died. Oh, gee. My uncle got diagnosed with state colon cancer. Who died again? My father-in-law. Wait, you're married? Uh, no, my son's father passed away 1987-08-13. Yeah, 1997-12-01. No, we didn't get married. He died, um, 1994-09-18. Uh, but my brain's just not letting me sleep for a while. Yeah. So a lot of stress going on. Patient 21, yeah. So you need a sleeping pill, or you need Ativan? No, I usually, usually give me, like, thirty-
+My boyfriend, my father-in-law died. Oh, gee. My uncle got diagnosed with state colon cancer. Who died again? My father-in-law. Wait, you're married? Uh, no, my son's father passed away two years ago. Yeah, two years ago. No, we didn't get married. He died, um, two years ago the next week. Uh, but my brain's just not letting me sleep for a while. Yeah. So a lot of stress going on. Mm, yeah. So you need a sleeping pill, or you need Ativan? No, I usually, usually give me, like, thirty-
 
 2:31
 
-Last name. When was the last time it was given? 1985-11-19. I just finished my last. Alright. I can fax it or print it. You can go to Superstore on [LOCATION]. Okay. I'll fax it. Thirty pills. Mhmm. Do you want to see a counselor or no? I'm I'm trying to find the counselor that I used to see. So go to see her. And the blood pressure is good, so we'll continue with the same medications. For the anxiety, Tylenol will be faxed, and the blood the blood test is fine. Okay. Perfect. Okay. I think that yeah. Good? That's it. Yeah. Okay. Then. Thank you.
+Last name. When was the last time it was given? Couple years ago. I just finished my last. Alright. I can fax it or print it. You can go to Superstore on Walker River. Okay. I'll fax it. Thirty pills. Mhmm. Do you want to see a counselor or no? I'm I'm trying to find the counselor that I used to see. So go to see her. And the blood pressure is good, so we'll continue with the same medications. For the anxiety, Tylenol will be faxed, and the blood the blood test is fine. Okay. Perfect. Okay. I think that yeah. Good? That's it. Yeah. Okay. Then. Thank you.
 
-Transcript ended 1992-04-16
+Transcript ended 4:00 PM 6/22/2026
 
 Subjective:
 
@@ -56,9 +56,9 @@ Subjective:
 
 - Hypertension: Home BP monitoring shows good control; average 107/81, most recent 115/78
 
-- Anxiety/Sleep: Uses lorazepam for anxiety causing sleep difficulties; last prescribed 2003-01-13, just finished last supply
+- Anxiety/Sleep: Uses lorazepam for anxiety causing sleep difficulties; last prescribed couple of yrs ago, just finished last supply
 
-- Stressors: Father-in-law died; uncle diagnosed with stage 4 colon cancer; son's father passed away 1979-04-04
+- Stressors: Father-in-law died; uncle diagnosed with stage 4 colon cancer; son's father passed away 2 yrs ago next week
 
 - STI Testing: Requested testing due to concern about partner infidelity
 
@@ -101,7 +101,7 @@ Assessment & Plan:
 
 - Diagnosis: Anxiety with sleep difficulties secondary to psychosocial stressors
 
-- Treatment planned: lorazepam x30 faxed to Superstore on [LOCATION]
+- Treatment planned: lorazepam x30 faxed to Superstore on Walker River
 
 - Referrals: Counselling recommended; trying to locate previous counsellor
 

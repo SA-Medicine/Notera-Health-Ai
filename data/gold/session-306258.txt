@@ -1,10 +1,10 @@
-Patient 7 started 1978-09-10
+Transcript started 1:51 PM 7/21/2026
 
 0:00
 
 0:10
 
-Hello? Hi, this is Dr. Patient 244 calling for Patient 321. Oh, yes, they're speaking. Hi there. So I'm calling regarding the results of your blood test. Okay. Everything looks good, other than your potassium is a little bit low. So I want you to eat-
+Hello? Hi, this is Dr. Agarwal calling for Aiden. Oh, yes, they're speaking. Hi there. So I'm calling regarding the results of your blood test. Okay. Everything looks good, other than your potassium is a little bit low. So I want you to eat-
 
 0:30
 
@@ -12,17 +12,17 @@ Food that's rich in potassium. Okay. So that would include, like, your bananas, 
 
 1:10
 
-Just that's what I wanted to talk to you. Anything and you haven't gone for your ultrasound yet, correct? No. I'm waiting to hear back from them to book it. They yeah. They said it would be 1999-11-11, and and that seems to be the focus anywhere. So it's like, okay. I know. Alright. So we'll we'll follow-up with the ultrasound then. Okay? Okay. Thank you. Okay. Bye. Have a great day.
+Just that's what I wanted to talk to you. Anything and you haven't gone for your ultrasound yet, correct? No. I'm waiting to hear back from them to book it. They yeah. They said it would be about six weeks, and and that seems to be the focus anywhere. So it's like, okay. I know. Alright. So we'll we'll follow-up with the ultrasound then. Okay? Okay. Thank you. Okay. Bye. Have a great day.
 
-Transcript ended 1979-04-20
+Transcript ended 1:53 PM 7/21/2026
 
-Patient 7 started 2006-06-03
+Transcript started 1:51 PM 7/21/2026
 
 0:00
 
 0:10
 
-Hello? Hi, this is Dr. Patient 244 calling for Patient 321. Oh, yes, they're speaking. Hi there. So I'm calling regarding the results of your blood test. Okay. Everything looks good, other than your potassium is a little bit low. So I want you to eat-
+Hello? Hi, this is Dr. Agarwal calling for Aiden. Oh, yes, they're speaking. Hi there. So I'm calling regarding the results of your blood test. Okay. Everything looks good, other than your potassium is a little bit low. So I want you to eat-
 
 0:30
 
@@ -30,15 +30,15 @@ Food that's rich in potassium. Okay. So that would include, like, your bananas, 
 
 1:10
 
-Just that's what I wanted to talk to you. Anything and you haven't gone for your ultrasound yet, correct? No. I'm waiting to hear back from them to book it. They yeah. They said it would be 2013-11-06, and and that seems to be the focus anywhere. So it's like, okay. I know. Alright. So we'll we'll follow-up with the ultrasound then. Okay? Okay. Thank you. Okay. Bye. Have a great day.
+Just that's what I wanted to talk to you. Anything and you haven't gone for your ultrasound yet, correct? No. I'm waiting to hear back from them to book it. They yeah. They said it would be about six weeks, and and that seems to be the focus anywhere. So it's like, okay. I know. Alright. So we'll we'll follow-up with the ultrasound then. Okay? Okay. Thank you. Okay. Bye. Have a great day.
 
-Transcript ended 1996-03-28
+Transcript ended 1:53 PM 7/21/2026
 
 Subjective:
 
 - Phone call to discuss blood test results
 
-- Ultrasound pending - awaiting booking, 1995-07-25 wait
+- Ultrasound pending - awaiting booking, approximately 6 weeks wait
 
 
 
@@ -77,7 +77,7 @@ Assessment & Plan:
 
 2. Pending ultrasound
 
-- Investigations planned: Ultrasound - awaiting booking, 1989-03-30 wait
+- Investigations planned: Ultrasound - awaiting booking, approximately 6 weeks wait
 
 - Referrals: None
 

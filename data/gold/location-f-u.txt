@@ -1,8 +1,8 @@
-Patient 7 started 2001-10-10
+Transcript started 5:06 PM 6/25/2026
 
 0:00
 
-I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to [LOCATION]? Oh, it was really nice. Did a lot of walking.
+I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to Malta? Oh, it was really nice. Did a lot of walking.
 
 0:12
 
@@ -18,15 +18,15 @@ And your ADL is three point five, and it is it it is the worst ever. Last time i
 
 2:03
 
-Flaxseed. Okay. I'll give you 1983-03-28. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
+Flaxseed. Okay. I'll give you three to six months. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
 
-Transcript ended 2024-01-01
+Transcript ended 5:09 PM 6/25/2026
 
-Patient 7 started 1990-08-22
+Transcript started 5:06 PM 6/25/2026
 
 0:00
 
-I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to [LOCATION]? Oh, it was really nice. Did a lot of walking.
+I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to Malta? Oh, it was really nice. Did a lot of walking.
 
 0:12
 
@@ -42,15 +42,15 @@ And your ADL is three point five, and it is it it is the worst ever. Last time i
 
 2:03
 
-Flaxseed. Okay. I'll give you 2022-04-14. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
+Flaxseed. Okay. I'll give you three to six months. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
 
-Transcript ended 2013-04-29
+Transcript ended 5:09 PM 6/25/2026
 
 Subjective:
 
 - Follow-up for blood test results
 
-- Recent trip to [LOCATION]; reports eating differently than usual during travel
+- Recent trip to Malta; reports eating differently than usual during travel
 
 
 
@@ -76,10 +76,10 @@ Assessment & Plan:
 
 
 
-1. [LOCATION]
+1. Hypercholesterolaemia
 
 - Diagnosis: Elevated cholesterol
 
 - Treatment planned: Dietary modifications - avoid white bread, white rice, white pasta, red meat; flaxseeds recommended
 
-- Rtc in 2013-05-23 for repeat lipid panel
+- Rtc in 3-6 months for repeat lipid panel

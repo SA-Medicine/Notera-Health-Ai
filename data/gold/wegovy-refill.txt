@@ -1,4 +1,4 @@
-Transcript started 1975-10-20
+Transcript started 6:01 PM 6/15/2026
 
 0:00
 
@@ -6,7 +6,7 @@ Just to get a, um, refill on my Wegovy prescription. And how much are you on now
 
 0:10
 
-On it. I do. I was wondering. Wait. I thought you were on wait. Wait, Lis. I thought you were on point two five milligrams. Yeah. You gave, you gave 1984-10-13 worth of refill, so I'm up to one now. Oh, okay. Okay. Okay. Yeah. Mhmm. Okay. Yeah. So next is let me know 2008-11-04 that I was out. So
+On it. I do. I was wondering. Wait. I thought you were on wait. Wait, Lis. I thought you were on point two five milligrams. Yeah. You gave, you gave a few months worth of refill, so I'm up to one now. Oh, okay. Okay. Okay. Yeah. Mhmm. Okay. Yeah. So next is let me know last week that I was out. So
 
 0:31
 
@@ -14,13 +14,15 @@ Gotcha. So you want the next is one point seven. You want to try that? Sure. And
 
 1:12
 
-I would like to be around one fifty. Okay. Forty five. Yeah. I think I think let's do the one point seven now and see. If you attain your goal, we'll continue with this dose. Okay. Okay. Now the question is, where do I send the prescription to? The Greenshield Pharmacy in [LOCATION]. Patient 1769
+I would like to be around one fifty. Okay. Forty five. Yeah. I think I think let's do the one point seven now and see. If you attain your goal, we'll continue with this dose. Okay. Okay. Now the question is, where do I send the prescription to? The Greenshield Pharmacy in London. K.
 
-So I'll give you twenty milligrams. So that would be probably one point seven one point seven. Let's say two two four two six eight eight eight sixteen. 1991-08-01 plus. Okay. So and then you will figure out after that if we achieve our goal or not. Okay. Sounds good. Alright. I'll
+1:52
 
-Transcript ended 1977-05-07
+So I'll give you twenty milligrams. So that would be probably one point seven one point seven. Let's say two two four two six eight eight eight sixteen. About two months plus. Okay. So and then you will figure out after that if we achieve our goal or not. Okay. Sounds good. Alright. I'll
 
-Transcript started 1985-05-12
+Transcript ended 6:04 PM 6/15/2026
+
+Transcript started 6:01 PM 6/15/2026
 
 0:00
 
@@ -28,7 +30,7 @@ Just to get a, um, refill on my Wegovy prescription. And how much are you on now
 
 0:10
 
-On it. I do. I was wondering. Wait. I thought you were on wait. Wait, Lis. I thought you were on point two five milligrams. Yeah. You gave, you gave 1990-01-29 worth of refill, so I'm up to one now. Oh, okay. Okay. Okay. Yeah. Mhmm. Okay. Yeah. So next is let me know 2011-11-14 that I was out. So
+On it. I do. I was wondering. Wait. I thought you were on wait. Wait, Lis. I thought you were on point two five milligrams. Yeah. You gave, you gave a few months worth of refill, so I'm up to one now. Oh, okay. Okay. Okay. Yeah. Mhmm. Okay. Yeah. So next is let me know last week that I was out. So
 
 0:31
 
@@ -36,11 +38,13 @@ Gotcha. So you want the next is one point seven. You want to try that? Sure. And
 
 1:12
 
-I would like to be around one fifty. Okay. Forty five. Yeah. I think I think let's do the one point seven now and see. If you attain your goal, we'll continue with this dose. Okay. Okay. Now the question is, where do I send the prescription to? The Greenshield Pharmacy in [LOCATION]. Patient 1769
+I would like to be around one fifty. Okay. Forty five. Yeah. I think I think let's do the one point seven now and see. If you attain your goal, we'll continue with this dose. Okay. Okay. Now the question is, where do I send the prescription to? The Greenshield Pharmacy in London. K.
 
-So I'll give you twenty milligrams. So that would be probably one point seven one point seven. Let's say two two four two six eight eight eight sixteen. 2006-10-20 plus. Okay. So and then you will figure out after that if we achieve our goal or not. Okay. Sounds good. Alright. I'll
+1:52
 
-Transcript ended 2018-05-12
+So I'll give you twenty milligrams. So that would be probably one point seven one point seven. Let's say two two four two six eight eight eight sixteen. About two months plus. Okay. So and then you will figure out after that if we achieve our goal or not. Okay. Sounds good. Alright. I'll
+
+Transcript ended 6:04 PM 6/15/2026
 
 Subjective:
 
@@ -48,7 +52,7 @@ Subjective:
 
 - Currently on 1mg, titrated up from 0.25mg over past few months
 
-- Ran out of medication 1998-10-12
+- Ran out of medication last week
 
 - Current weight: 154 lbs
 
@@ -79,6 +83,6 @@ Assessment & Plan:
 
 - Treatment planned: Increase wegovy to 1.7mg, dispensed 20mg (approximately 2 months supply)
 
-- Prescription sent to Greenshield Pharmacy in [LOCATION]
+- Prescription sent to Greenshield Pharmacy in London
 
 - Rtc after current supply to reassess goal attainment; if goal achieved, will continue maintenance dose

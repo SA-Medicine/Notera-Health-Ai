@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import tailwindcssAnimate from 'tailwindcss-animate'
 
 // Shared Tailwind preset — the single source of truth for the Notera design system.
 // Both apps/web (Next) and any other consumer extend this via `presets: [notera]`.
@@ -42,6 +43,6 @@ const preset: Omit<Config, 'content'> = {
       animation: { shimmer: 'shimmer 1.5s infinite' },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 }
 export default preset

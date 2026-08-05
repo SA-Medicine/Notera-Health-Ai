@@ -1,8 +1,8 @@
-Transcript started 1979-11-17
+Transcript started 5:08 PM 6/16/2026
 
 0:00
 
-Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's 1974-11-19 now.
+Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's almost two weeks now.
 
 0:12
 
@@ -36,19 +36,19 @@ Let's see your back. Yeah.
 
 6:19
 
-Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for 2007-08-03. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Patient 1716? Patient 1715. Patient 1715.
+Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for ten days. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Shopperdown? Ron Marris. Ron Marris.
 
 7:08
 
-And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in 1980-02-02, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
+And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in two weeks, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
 
-Transcript ended 2012-03-10
+Transcript ended 5:15 PM 6/16/2026
 
-Transcript started 2007-02-13
+Transcript started 5:08 PM 6/16/2026
 
 0:00
 
-Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's 1985-09-26 now.
+Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's almost two weeks now.
 
 0:12
 
@@ -82,16 +82,16 @@ Let's see your back. Yeah.
 
 6:19
 
-Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for 1970-01-27. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Patient 1716? Patient 1715. Patient 1715.
+Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for ten days. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Shopperdown? Ron Marris. Ron Marris.
 
 7:08
 
-And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in 1983-02-10, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
+And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in two weeks, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
 
-Transcript ended 2000-11-21
+Transcript ended 5:15 PM 6/16/2026
 
 Subjective:
-2019-01-10
+07/24/2026
 
 L ear inf, bronchospasm
 
@@ -99,7 +99,9 @@ L ear inf, bronchospasm
 
 KL
 
-Patient 24114:48PM
+keith leroux
+
+4:48PM
 
 Vag dryness, freq
 
@@ -137,9 +139,11 @@ Ann muzzin
 
 PP
 
-Patient 24101974-09-09
+Paolo Palazzi
 
-[LOCATION]
+2:50PM
+
+GB
 
 Gwenyth Beaudoin
 
@@ -159,11 +163,15 @@ Rehse steeve
 
 JP
 
-Patient 2409 ankle sprain, conc diff
+jayna paik
+
+2:06PM
+
+L ankle sprain, conc diff
 
 1:58PM
 
-[LOCATION]
+KP
 
 kelvin paik
 
@@ -171,7 +179,7 @@ kelvin paik
 
 RW
 
-Patient 2408
+Rebecca wright
 
 1:28PM
 
@@ -179,11 +187,11 @@ SP
 
 sheri peroni
 
-2012-08-12
+1:20PM
 
 CP
 
-[LOCATION] peroni
+Charlotte peroni
 
 1:07PM
 
@@ -191,11 +199,11 @@ Untitled session
 
 12:51PM
 
-1971-09-15
+07/23/2026
 
 Untitled session
 
-2012-08-15
+5:36PM
 
 COPD exacerbation
 

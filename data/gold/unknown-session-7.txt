@@ -1,4 +1,8 @@
-Patient 7 started 2021-05-13
+Transcript started 3:46 PM 6/5/2026
+
+0:00
+
+0:10
 
 We're sorry. You have reached a number that has been disconnected or is no longer in service. Disconnection, please.
 
@@ -52,9 +56,13 @@ A patient wants to ask you something else. The same patient? Yeah. Yeah. Tell he
 
 21:31
 
-Transcript ended 2021-08-27
+Transcript ended 4:07 PM 6/5/2026
 
-Patient 7 started 1973-07-17
+Transcript started 3:46 PM 6/5/2026
+
+0:00
+
+0:10
 
 We're sorry. You have reached a number that has been disconnected or is no longer in service. Disconnection, please.
 
@@ -108,7 +116,7 @@ A patient wants to ask you something else. The same patient? Yeah. Yeah. Tell he
 
 21:31
 
-Transcript ended 1984-03-23
+Transcript ended 4:07 PM 6/5/2026
 
 Subjective:
 
@@ -122,7 +130,7 @@ Subjective:
 
 - [previous episodes of similar symptoms including management and outcomes]
 
-- [impact of symptoms on 1977-03-29 activities, work or social functioning]
+- [impact of symptoms on daily activities, work or social functioning]
 
 - [associated symptoms, both focal and systemic]
 

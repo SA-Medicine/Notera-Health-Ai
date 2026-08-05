@@ -33,6 +33,36 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'was', 'not', 'has', 'her', '
 const words = (s) => norm(s).split(' ').filter((w) => w.length > 3 && !STOP.has(w));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// ── R · de-repetition (degenerate LLM loop guard) ────────────────────────────
+// LLMs sometimes fall into a repetition loop, emitting the same phrase hundreds of times
+// (a note field ballooning to 100s of KB). Collapse repeated words, then cut the text at
+// the first long chunk that repeats — keeping the legit content before the loop.
+function deRepeat(text, maxChars = 2500) {
+  let t = String(text || '');
+  if (!t) return { text: t, collapsed: 0 };
+  const before = t.length;
+  if (t.length > 20000) t = t.slice(0, 20000);            // bound before regex work
+  t = t.replace(/\b(\w{2,})(?:\s+\1\b){2,}/gi, '$1');     // "word word word" -> "word"
+  const m = t.match(/([^]{20,300}?)\1{1,}/);              // first 20–300 char chunk that repeats
+  if (m && m.index != null) {
+    t = t.slice(0, m.index).replace(/[\s,;:–-]+$/, '').trim();
+    if (t && !/[.!?]$/.test(t)) t += '.';
+  }
+  if (t.length > maxChars) { const cut = t.lastIndexOf('. ', maxChars); t = cut > 400 ? t.slice(0, cut + 1) : t.slice(0, maxChars).trim(); }
+  t = t.trim();
+  return { text: t, collapsed: before - t.length };
+}
+export function stripRepetition(note, log = () => {}) {
+  let fixed = 0;
+  const fix = (s) => { const r = deRepeat(s); if (r.collapsed > 200) { fixed++; log(`[upgrade:de-repeat] collapsed a ${r.collapsed}-char repetition loop in the note`); } return r.text; };
+  for (const k of Object.keys(note.subjective || {})) note.subjective[k] = fix(note.subjective[k]);
+  for (const k of Object.keys(note.past_medical_history || {})) note.past_medical_history[k] = fix(note.past_medical_history[k]);
+  if (note.objective) for (const k of Object.keys(note.objective)) if (typeof note.objective[k] === 'string') note.objective[k] = fix(note.objective[k]);
+  for (const p of (note.assessment_and_plan || [])) for (const f of ['assessment', 'investigations_planned', 'treatment_planned', 'referrals']) if (typeof p[f] === 'string') p[f] = fix(p[f]);
+  if (!fixed) log('[upgrade:de-repeat] no repetition loops found');
+  return { fixed };
+}
+
 // Is this line a medication-management statement (dose + action/frequency), and NOT a lab value?
 function isMedManagement(line) {
   if (LAB_KW.test(line)) return false;                        // labs belong in Objective (reconcile handles them)
@@ -442,6 +472,7 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
     ...(Array.isArray(note?.metadata?.medications_mentioned) ? note.metadata.medications_mentioned : []),
     ...(entities || []).filter((e) => /DRUG|MEDICATION|CHEMICAL|MED7/i.test(String(e.label || ''))).map((e) => e.text),
   ];
+  const rep = stripRepetition(note, sink);   // FIRST: kill degenerate repetition loops
   const a = routeMedicationToPlan(note, sink);
   const g = validateTemporalStatus(note, sink);
   const d = flagSuspiciousValues(note, sink);
@@ -457,7 +488,7 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   const ungrounded = dt.ungrounded + numChecked;
   const rate = totalChecked ? +(1 - ungrounded / totalChecked).toFixed(3) : 1;
   note.metadata = note.metadata || {};
-  note.metadata.grounding = { dates_checked: dt.checked, dates_ungrounded: dt.ungrounded, numbers_ungrounded: numChecked, references_stripped: nr.stripped, rate };
-  sink(`[upgrade] guardrails complete — ${a.moved} med re-routed, ${g.fixed} temporal, ${d.flags.length} value, ${ph.flags.length} pharmacy, ${np.flags.length} non-patient, ${nm.flags.length} ungrounded-number, ${dt.ungrounded} ungrounded-date, ${nr.flags.length} fabricated-reference flag(s) · grounding rate ${(rate * 100).toFixed(0)}%`);
+  note.metadata.grounding = { dates_checked: dt.checked, dates_ungrounded: dt.ungrounded, numbers_ungrounded: numChecked, references_stripped: nr.stripped, repetition_loops_collapsed: rep.fixed, rate };
+  sink(`[upgrade] guardrails complete — ${rep.fixed} repetition loop(s), ${a.moved} med re-routed, ${g.fixed} temporal, ${d.flags.length} value, ${ph.flags.length} pharmacy, ${np.flags.length} non-patient, ${nm.flags.length} ungrounded-number, ${dt.ungrounded} ungrounded-date, ${nr.flags.length} fabricated-reference flag(s) · grounding rate ${(rate * 100).toFixed(0)}%`);
   return { note, flags, logs: lines };
 }

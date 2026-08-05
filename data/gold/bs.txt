@@ -1,8 +1,8 @@
-Patient 7 started 2014-08-19
+Transcript started 3:28 PM 7/20/2026
 
 0:00
 
-Okay, talk to me. So when did you start having the pain in your tummy? 2021-10-05. Where is the pain?
+Okay, talk to me. So when did you start having the pain in your tummy? About ten days ago. Where is the pain?
 
 0:10
 
@@ -26,23 +26,23 @@ All right, sweetheart. Where is the pain? In here. Oh, in my back. All the. Oh, 
 
 3:22
 
-But it was 2022-06-14. Oh, okay. Oh, it was I believe it was or was it 2015-04-13? You can get yeah. It was 1976-09-22. You're right. It was 2009-02-21. Okay. Yeah. It was booked for 1994-07-24, and I had to cancel it. That's what it was. Yeah. High fiber diet. They wanted you to eat high fiber diet. Doctor. Also, let me put you on an antibiotics. Okay? Okay. Two different one. I want to see you back in 1995-07-03 for diverticulitis.
+But it was this year. Oh, okay. Oh, it was I believe it was or was it October of last year? You can get yeah. It was January this year. You're right. It was this year. Okay. Yeah. It was booked for October, and I had to cancel it. That's what it was. Yeah. High fiber diet. They wanted you to eat high fiber diet. Doctor. Also, let me put you on an antibiotics. Okay? Okay. Two different one. I want to see you back in a week for diverticulitis.
 
 4:04
 
-I've I've got an appointment on 1996-07-13. That's fine. So that'll be 2002-06-19. That sounds great. So it's a two different type of medications twice a day Okay. For diverticulitis. And lots of fibers, semi solid food, more clears in 2014-02-25. Shall I fax the prescription or print it? You can fax it. Fax to cotton for me? Yes, please, if you would. I did. Oh, thank you. Lots of fluids, fibers. Take it semi solid food, not the big meals for 1974-09-30. Avoid nuts and see how it goes. Should I just maybe do
+I've I've got an appointment on the twenty seventh. That's fine. So that'll be a week. That sounds great. So it's a two different type of medications twice a day Okay. For diverticulitis. And lots of fibers, semi solid food, more clears in the first day. Shall I fax the prescription or print it? You can fax it. Fax to cotton for me? Yes, please, if you would. I did. Oh, thank you. Lots of fluids, fibers. Take it semi solid food, not the big meals for next couple of days. Avoid nuts and see how it goes. Should I just maybe do
 
 4:45
 
 Juices? Yes. Like a, like a liquidy stuff. Yeah, yeah. Like oops. Broth. Oh. Jelly. I got mashed potatoes. Oh. That kind of stuff. Okay. And, um, oatmeal, of course. Yeah. Okay.
 
-Transcript ended 1995-09-22
+Transcript ended 3:33 PM 7/20/2026
 
-Patient 7 started 1973-07-20
+Transcript started 3:28 PM 7/20/2026
 
 0:00
 
-Okay, talk to me. So when did you start having the pain in your tummy? 2019-12-28. Where is the pain?
+Okay, talk to me. So when did you start having the pain in your tummy? About ten days ago. Where is the pain?
 
 0:10
 
@@ -66,17 +66,17 @@ All right, sweetheart. Where is the pain? In here. Oh, in my back. All the. Oh, 
 
 3:22
 
-But it was 2019-05-11. Oh, okay. Oh, it was I believe it was or was it 2008-08-26? You can get yeah. It was 2025-01-16. You're right. It was 2001-12-02. Okay. Yeah. It was booked for 2025-02-26, and I had to cancel it. That's what it was. Yeah. High fiber diet. They wanted you to eat high fiber diet. Doctor. Also, let me put you on an antibiotics. Okay? Okay. Two different one. I want to see you back in 1970-11-29 for diverticulitis.
+But it was this year. Oh, okay. Oh, it was I believe it was or was it October of last year? You can get yeah. It was January this year. You're right. It was this year. Okay. Yeah. It was booked for October, and I had to cancel it. That's what it was. Yeah. High fiber diet. They wanted you to eat high fiber diet. Doctor. Also, let me put you on an antibiotics. Okay? Okay. Two different one. I want to see you back in a week for diverticulitis.
 
 4:04
 
-I've I've got an appointment on 2008-06-13. That's fine. So that'll be 1985-11-06. That sounds great. So it's a two different type of medications twice a day Okay. For diverticulitis. And lots of fibers, semi solid food, more clears in 1972-04-02. Shall I fax the prescription or print it? You can fax it. Fax to cotton for me? Yes, please, if you would. I did. Oh, thank you. Lots of fluids, fibers. Take it semi solid food, not the big meals for 1995-10-17. Avoid nuts and see how it goes. Should I just maybe do
+I've I've got an appointment on the twenty seventh. That's fine. So that'll be a week. That sounds great. So it's a two different type of medications twice a day Okay. For diverticulitis. And lots of fibers, semi solid food, more clears in the first day. Shall I fax the prescription or print it? You can fax it. Fax to cotton for me? Yes, please, if you would. I did. Oh, thank you. Lots of fluids, fibers. Take it semi solid food, not the big meals for next couple of days. Avoid nuts and see how it goes. Should I just maybe do
 
 4:45
 
 Juices? Yes. Like a, like a liquidy stuff. Yeah, yeah. Like oops. Broth. Oh. Jelly. I got mashed potatoes. Oh. That kind of stuff. Okay. And, um, oatmeal, of course. Yeah. Okay.
 
-Transcript ended 2024-01-08
+Transcript ended 3:33 PM 7/20/2026
 
 Subjective:
 
@@ -85,7 +85,7 @@ Subjective:
 
 Presenting Complaint:
 
-- Lower abdominal pain x 1976-07-05
+- Lower abdominal pain x 10 days
 
 - Pain in back also
 
@@ -138,7 +138,7 @@ Past Medical History:
 
 - History of diverticulitis
 
-- Colonoscopy 1978-07-25 - small polyp found
+- Colonoscopy 01/2026 - small polyp found
 
 
 
@@ -172,6 +172,6 @@ Assessment & Plan:
 
 - Prescription faxed to Cotton pharmacy
 
-- Diet: high fibre, semi-solid food, clear fluids 2016-07-15 (juices, broth, jelly, mashed potatoes, oatmeal), avoid nuts, avoid large meals for 2002-03-16, lots of fluids
+- Diet: high fibre, semi-solid food, clear fluids first day (juices, broth, jelly, mashed potatoes, oatmeal), avoid nuts, avoid large meals for next couple of days, lots of fluids
 
-- rtc 2004-12-19
+- rtc 07/27/2026

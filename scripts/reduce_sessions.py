@@ -143,9 +143,10 @@ class Stats:
     field_counts: dict = field(default_factory=dict)
 
 
-def reduce_session(s: Any, keep: List[str], min_chars: int, stats: Stats) -> Optional[dict]:
+def reduce_session(s: Any, keep: List[str], min_chars: int, stats: Stats, removed: List[dict]) -> Optional[dict]:
     if not isinstance(s, dict):
         stats.malformed += 1
+        removed.append({"_removed_reason": "malformed (not a JSON object)", "value": repr(s)[:500]})
         return None
 
     transcript, t_html = extract_text(s.get("transcript"), ("clean_text", "raw_text"))
@@ -154,9 +155,13 @@ def reduce_session(s: Any, keep: List[str], min_chars: int, stats: Stats) -> Opt
     if t_html or n_html:
         stats.html_cleaned += 1
 
-    # Nothing usable → drop (matches the importer, and saves space here).
+    # Nothing usable → drop (matches the importer, and saves space here). The FULL original
+    # session is kept in the removed sidecar (with a reason) so it can be checked later.
     if len(transcript) < min_chars and len(soap_note) < min_chars:
         stats.dropped_empty += 1
+        rec = dict(s)
+        rec["_removed_reason"] = "empty (no transcript and no gold note)"
+        removed.append(rec)
         return None
 
     # IMPORTANT: keep the ORIGINAL schema shape so the importer detects the fields —
@@ -202,6 +207,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--min-chars", type=int, default=5, help="drop a session if transcript AND note are both shorter than this")
     ap.add_argument("--max-note-chars", type=int, default=0, help="truncate transcript/soap_note to N chars (0 = no cap)")
     ap.add_argument("--indent", type=int, default=2, help="pretty-print indent (default 2, readable like the original; use 0 for smallest compact file)")
+    ap.add_argument("--removed-output", type=Path, default=None, help="where to write dropped sessions (default: <input>.removed.json)")
+    ap.add_argument("--no-removed", action="store_true", help="do not write the removed-sessions sidecar file")
     args = ap.parse_args(argv)
 
     bad = [f for f in args.keep if f not in ALLOWED_FIELDS]
@@ -225,12 +232,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     reduced: List[dict] = []
+    removed: List[dict] = []
     for s in sessions:
         stats.total += 1
         try:
-            rec = reduce_session(s, args.keep, args.min_chars, stats)
+            rec = reduce_session(s, args.keep, args.min_chars, stats, removed)
         except Exception as e:  # noqa: BLE001 — never let one bad record abort the run
             stats.malformed += 1
+            removed.append({"_removed_reason": f"error: {e}", "value": repr(s)[:500]})
             print(f"  warn: skipped a malformed session ({e})", file=sys.stderr)
             continue
         if rec is None:
@@ -249,11 +258,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
     stats.bytes_out = out_path.stat().st_size
 
+    # Sidecar: the sessions that were dropped, with a reason — for later checking.
+    removed_path: Optional[Path] = None
+    if not args.no_removed:
+        removed_path = args.removed_output or args.input.with_name(args.input.stem + ".removed.json")
+        try:
+            removed_path.write_text(json.dumps(removed, ensure_ascii=False, indent=(args.indent or None)), encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            print(f"  warn: could not write removed sidecar {removed_path}: {e}", file=sys.stderr)
+            removed_path = None
+
     saved = stats.bytes_in - stats.bytes_out
     pct = (saved / stats.bytes_in * 100) if stats.bytes_in else 0.0
     print("── reduce_sessions summary ─────────────────────────────")
     print(f"  input            {args.input}  ({human_mb(stats.bytes_in)})")
     print(f"  output           {out_path}  ({human_mb(stats.bytes_out)})")
+    if removed_path is not None:
+        print(f"  removed sidecar  {removed_path}  ({len(removed)} sessions, {human_mb(removed_path.stat().st_size)})")
     print(f"  sessions total   {stats.total}")
     print(f"  kept             {stats.kept}")
     print(f"  dropped (empty)  {stats.dropped_empty}")

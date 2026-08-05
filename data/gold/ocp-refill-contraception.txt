@@ -1,34 +1,34 @@
-Patient 7 started 1978-12-11
+Transcript started 3:05 PM 6/29/2026
 
 0:00
 
-Thanks. Please stay on the line. Hello? Hi, is this [LOCATION]?
+Thanks. Please stay on the line. Hello? Hi, is this Naria?
 
 0:14
 
-Hi. Did you want to talk to me? Um, I was totally hard to call you for the refill on my prescriptions. For the birth control? Yeah. Which one are you- we put you on Patient 112 last time. How's that coming along? It's good. You like this one better? Yeah, I feel better. There's just, like, once in a while I bleed randomly, but it's not, like, long, and it's super, super-
+Hi. Did you want to talk to me? Um, I was totally hard to call you for the refill on my prescriptions. For the birth control? Yeah. Which one are you- we put you on Lolo last time. How's that coming along? It's good. You like this one better? Yeah, I feel better. There's just, like, once in a while I bleed randomly, but it's not, like, long, and it's super, super-
 
 0:39
 
-Light. Good. So I can fax the prescription. Which drugstore do you deal with? The Rexulti and [LOCATION]. Alright. So I'll give you for 2005-11-02. Okay? Okay. Thank you. And no side effects on this. Eh? No. I feel a lot better on this. But Perfect. Alright. So I will fax the prescription then. Okay. Thank you. Okay. Bye.
+Light. Good. So I can fax the prescription. Which drugstore do you deal with? The Rexulti and Yannispur. Alright. So I'll give you for a whole year. Okay? Okay. Thank you. And no side effects on this. Eh? No. I feel a lot better on this. But Perfect. Alright. So I will fax the prescription then. Okay. Thank you. Okay. Bye.
 
-Transcript ended 3:06 PM 1979-01-06
+Transcript ended 3:06 PM 6/29/2026
 
-Patient 7 started 2025-12-09
+Transcript started 3:05 PM 6/29/2026
 
 0:00
 
-Thanks. Please stay on the line. Hello? Hi, is this [LOCATION]?
+Thanks. Please stay on the line. Hello? Hi, is this Naria?
 
 0:14
 
-Hi. Did you want to talk to me? Um, I was totally hard to call you for the refill on my prescriptions. For the birth control? Yeah. Which one are you- we put you on Patient 112 last time. How's that coming along? It's good. You like this one better? Yeah, I feel better. There's just, like, once in a while I bleed randomly, but it's not, like, long, and it's super, super-
+Hi. Did you want to talk to me? Um, I was totally hard to call you for the refill on my prescriptions. For the birth control? Yeah. Which one are you- we put you on Lolo last time. How's that coming along? It's good. You like this one better? Yeah, I feel better. There's just, like, once in a while I bleed randomly, but it's not, like, long, and it's super, super-
 
 0:39
 
-Light. Good. So I can fax the prescription. Which drugstore do you deal with? The Rexulti and [LOCATION]. Alright. So I'll give you for 1986-03-24. Okay? Okay. Thank you. And no side effects on this. Eh? No. I feel a lot better on this. But Perfect. Alright. So I will fax the prescription then. Okay. Thank you. Okay. Bye.
+Light. Good. So I can fax the prescription. Which drugstore do you deal with? The Rexulti and Yannispur. Alright. So I'll give you for a whole year. Okay? Okay. Thank you. And no side effects on this. Eh? No. I feel a lot better on this. But Perfect. Alright. So I will fax the prescription then. Okay. Thank you. Okay. Bye.
 
-Transcript ended 3:06 PM 2009-09-16
+Transcript ended 3:06 PM 6/29/2026
 
 Subjective:
 
@@ -59,4 +59,4 @@ Assessment & Plan:
 
 - Diagnosis: Contraception
 
-- Treatment planned: lolo prescription for 2018-09-21, faxed to Rexall pharmacy
+- Treatment planned: lolo prescription for 1 yr, faxed to Rexall pharmacy

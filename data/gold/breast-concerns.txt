@@ -1,4 +1,4 @@
-Patient 7 started 1981-07-22
+Transcript started 5:09 PM 7/15/2026
 
 0:00
 
@@ -6,7 +6,7 @@ Hello. Hello? Hi. Hi. Is this air phone?
 
 0:11
 
-Yes, speaking. This is doc Patient 537. Okay. Okay. Hi, Patient 536. How are you doing? I'm all right. How about you? Fine. Thank you. So, yeah, I was trying to reach your office because I would like to check with them. They're able to contact the cancer appointment with a cancer program or cancer treatment.
+Yes, speaking. This is doc Seema Agarwal. Okay. Okay. Hi, Seema Deep. How are you doing? I'm all right. How about you? Fine. Thank you. So, yeah, I was trying to reach your office because I would like to check with them. They're able to contact the cancer appointment with a cancer program or cancer treatment.
 
 0:31
 
@@ -14,7 +14,7 @@ Mhmm. And they say, I mean, it's best cancer, I mean, best breast health or well
 
 1:20
 
-Getting worse and red and to I mean, problematic pain, everything is there. And now almost there is no treatment except the pain. So is it possible to from your office to contract the cancer clinic to have an Okay. Appointment. Right. MRI, we are still waiting for the MRI, I guess. MRI done on eighth. So, hopefully, say, for example, doctor, give me in two, 2024-11-15, whatever the appointment is, we get it early, then in the meantime, probably the MRI is gonna be there as well. Right. Because they said that, yeah, we they wanted us to schedule the tests, and we did. They said once they all this is complete, then we will ask the the cancer clinic to see.
+Getting worse and red and to I mean, problematic pain, everything is there. And now almost there is no treatment except the pain. So is it possible to from your office to contract the cancer clinic to have an Okay. Appointment. Right. MRI, we are still waiting for the MRI, I guess. MRI done on eighth. So, hopefully, say, for example, doctor, give me in two, three or five days, whatever the appointment is, we get it early, then in the meantime, probably the MRI is gonna be there as well. Right. Because they said that, yeah, we they wanted us to schedule the tests, and we did. They said once they all this is complete, then we will ask the the cancer clinic to see.
 
 2:11
 
@@ -24,9 +24,9 @@ Um, let, yeah, let me see if we can call the cancer clinic or breast clinic and 
 
 Okay, let me see what I can do.
 
-Transcript ended 2020-02-12
+Transcript ended 5:12 PM 7/15/2026
 
-Patient 7 started 1998-02-20
+Transcript started 5:09 PM 7/15/2026
 
 0:00
 
@@ -34,7 +34,7 @@ Hello. Hello? Hi. Hi. Is this air phone?
 
 0:11
 
-Yes, speaking. This is doc Patient 537. Okay. Okay. Hi, Patient 536. How are you doing? I'm all right. How about you? Fine. Thank you. So, yeah, I was trying to reach your office because I would like to check with them. They're able to contact the cancer appointment with a cancer program or cancer treatment.
+Yes, speaking. This is doc Seema Agarwal. Okay. Okay. Hi, Seema Deep. How are you doing? I'm all right. How about you? Fine. Thank you. So, yeah, I was trying to reach your office because I would like to check with them. They're able to contact the cancer appointment with a cancer program or cancer treatment.
 
 0:31
 
@@ -42,7 +42,7 @@ Mhmm. And they say, I mean, it's best cancer, I mean, best breast health or well
 
 1:20
 
-Getting worse and red and to I mean, problematic pain, everything is there. And now almost there is no treatment except the pain. So is it possible to from your office to contract the cancer clinic to have an Okay. Appointment. Right. MRI, we are still waiting for the MRI, I guess. MRI done on eighth. So, hopefully, say, for example, doctor, give me in two, 2008-10-12, whatever the appointment is, we get it early, then in the meantime, probably the MRI is gonna be there as well. Right. Because they said that, yeah, we they wanted us to schedule the tests, and we did. They said once they all this is complete, then we will ask the the cancer clinic to see.
+Getting worse and red and to I mean, problematic pain, everything is there. And now almost there is no treatment except the pain. So is it possible to from your office to contract the cancer clinic to have an Okay. Appointment. Right. MRI, we are still waiting for the MRI, I guess. MRI done on eighth. So, hopefully, say, for example, doctor, give me in two, three or five days, whatever the appointment is, we get it early, then in the meantime, probably the MRI is gonna be there as well. Right. Because they said that, yeah, we they wanted us to schedule the tests, and we did. They said once they all this is complete, then we will ask the the cancer clinic to see.
 
 2:11
 
@@ -52,7 +52,7 @@ Um, let, yeah, let me see if we can call the cancer clinic or breast clinic and 
 
 Okay, let me see what I can do.
 
-Transcript ended 2015-05-29
+Transcript ended 5:12 PM 7/15/2026
 
 Subjective:
 
@@ -76,7 +76,7 @@ Past Medical History:
 
 Objective:
 
-- MRI completed 2001-09-06; results pending
+- MRI completed 07/08/2026; results pending
 
 
 

@@ -1,4 +1,4 @@
-Patient 7 started 2018-04-30 Patient 1499
+Transcript started 4:21 PM 6/11/2026
 
 0:00
 
@@ -14,11 +14,11 @@ And are you increased the the fibers? I have, and I drink a lot of water. I eat 
 
 1:16
 
-Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Patient 1821, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
+Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Molin Shoppers, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
 
-Transcript ended 2006-12-27 Patient 1499
+Transcript ended 4:23 PM 6/11/2026
 
-Patient 7 started 1970-11-27 Patient 1499
+Transcript started 4:21 PM 6/11/2026
 
 0:00
 
@@ -34,9 +34,9 @@ And are you increased the the fibers? I have, and I drink a lot of water. I eat 
 
 1:16
 
-Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Patient 1821, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
+Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Molin Shoppers, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
 
-Transcript ended 2024-07-14 Patient 1499
+Transcript ended 4:23 PM 6/11/2026
 
 Subjective:
 
@@ -75,4 +75,4 @@ Assessment & Plan:
 
 - Treatment planned: Constella 290mcg refill
 
-- Prescription faxed to Patient 1821
+- Prescription faxed to Molin Shoppers

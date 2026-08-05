@@ -1,4 +1,4 @@
-Patient 7 started 1992-04-18
+Transcript started 2:46 PM 7/16/2026
 
 0:00
 
@@ -6,15 +6,15 @@ How are you? Good. Thank you. I need a prescription repeat on my birth control. 
 
 0:10
 
-Try cycling twenty one? Yes, please. And it's working. No problems with it? Nope. None at all. No side effects, nausea, vomiting, none of that stuff. Oh, no. Perfect. Now not due for your physical and Pap and stuff? Am I? I'll check. Okay. 2006-03-27 yes. You are.
+Try cycling twenty one? Yes, please. And it's working. No problems with it? Nope. None at all. No side effects, nausea, vomiting, none of that stuff. Oh, no. Perfect. Now not due for your physical and Pap and stuff? Am I? I'll check. Okay. July yes. You are.
 
 0:33
 
-Oh, man. End of 2009-12-06. End of 2023-05-28? Okay. I will, uh- That's okay. I'll fax the prescription to [LOCATION] and Windot on Shoppers? Yes, please. Okay, that... Oh, sh- or rather Pillet, right? Shoppers on [LOCATION], right? Yes. Okay, I'll fax it, and you can call and make an appointment. Okay, sounds great. Okay, but-
+Oh, man. End of July. End of July? Okay. I will, uh- That's okay. I'll fax the prescription to Dawson and Windot on Shoppers? Yes, please. Okay, that... Oh, sh- or rather Pillet, right? Shoppers on Pillet, right? Yes. Okay, I'll fax it, and you can call and make an appointment. Okay, sounds great. Okay, but-
 
-Transcript ended 1979-05-05
+Transcript ended 2:47 PM 7/16/2026
 
-Patient 7 started 1996-06-03
+Transcript started 2:46 PM 7/16/2026
 
 0:00
 
@@ -22,13 +22,13 @@ How are you? Good. Thank you. I need a prescription repeat on my birth control. 
 
 0:10
 
-Try cycling twenty one? Yes, please. And it's working. No problems with it? Nope. None at all. No side effects, nausea, vomiting, none of that stuff. Oh, no. Perfect. Now not due for your physical and Pap and stuff? Am I? I'll check. Okay. 2015-04-02 yes. You are.
+Try cycling twenty one? Yes, please. And it's working. No problems with it? Nope. None at all. No side effects, nausea, vomiting, none of that stuff. Oh, no. Perfect. Now not due for your physical and Pap and stuff? Am I? I'll check. Okay. July yes. You are.
 
 0:33
 
-Oh, man. End of 1998-07-17. End of 2002-05-17? Okay. I will, uh- That's okay. I'll fax the prescription to [LOCATION] and Windot on Shoppers? Yes, please. Okay, that... Oh, sh- or rather Pillet, right? Shoppers on [LOCATION], right? Yes. Okay, I'll fax it, and you can call and make an appointment. Okay, sounds great. Okay, but-
+Oh, man. End of July. End of July? Okay. I will, uh- That's okay. I'll fax the prescription to Dawson and Windot on Shoppers? Yes, please. Okay, that... Oh, sh- or rather Pillet, right? Shoppers on Pillet, right? Yes. Okay, I'll fax it, and you can call and make an appointment. Okay, sounds great. Okay, but-
 
-Transcript ended 2006-12-18
+Transcript ended 2:47 PM 7/16/2026
 
 Subjective:
 
@@ -66,6 +66,6 @@ Assessment & Plan:
 
 2. Routine health maintenance
 
-- Due for physical and Patient 118 smear end of July
+- Due for physical and Pap smear end of July
 
 - rtc for scheduled appointment
