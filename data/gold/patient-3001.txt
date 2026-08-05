@@ -1,4 +1,4 @@
-Patient 7 started 1992-02-09
+Transcript started 5:27 PM 6/23/2026
 
 0:00
 
@@ -6,7 +6,7 @@ Okay. Yes. I just need a prescription refill. Oh, the
 
 0:10
 
-I was approved for the Patient 84, so if you wanna start the progress, progressive dosing. What what milligram are you on now? Five? Yes. So you've been taking five now? Yeah. For 2008-02-26. Yes? No. For 2016-04-04. I just got approved. It was a whole fight.
+I was approved for the Zepbound, so if you wanna start the progress, progressive dosing. What what milligram are you on now? Five? Yes. So you've been taking five now? Yeah. For the last four or five weeks. Yes? No. For the last two. I just got approved. It was a whole fight.
 
 0:30
 
@@ -14,9 +14,9 @@ So you want me to go up on seven point five? Yeah, whatever the dosing is. Then 
 
 1:11
 
-Transcript ended 1972-03-10
+Transcript ended 5:28 PM 6/23/2026
 
-Patient 7 started 1994-12-11
+Transcript started 5:27 PM 6/23/2026
 
 0:00
 
@@ -24,7 +24,7 @@ Okay. Yes. I just need a prescription refill. Oh, the
 
 0:10
 
-I was approved for the Patient 84, so if you wanna start the progress, progressive dosing. What what milligram are you on now? Five? Yes. So you've been taking five now? Yeah. For 1999-02-07. Yes? No. For 2006-05-13. I just got approved. It was a whole fight.
+I was approved for the Zepbound, so if you wanna start the progress, progressive dosing. What what milligram are you on now? Five? Yes. So you've been taking five now? Yeah. For the last four or five weeks. Yes? No. For the last two. I just got approved. It was a whole fight.
 
 0:30
 
@@ -32,11 +32,13 @@ So you want me to go up on seven point five? Yeah, whatever the dosing is. Then 
 
 1:11
 
-Transcript ended 2005-11-04
+Transcript ended 5:28 PM 6/23/2026
 
 Subjective:
 
-- Reason for Visit: Prescription refill request for Patient 2589 Current Medication: Zepbound 5mg - on this dose for 1976-12-16
+- Reason for Visit: Prescription refill request for Zepbound
+
+- Current Medication: Zepbound 5mg - on this dose for approximately 2 weeks
 
 - Approval Status: Recently approved after prior authorization process
 
@@ -55,9 +57,11 @@ Objective:
 
 Assessment & Plan:
 
-1. Patient 84 refill
+1. Zepbound refill
 
-- Diagnosis: Weight management on [LOCATION] planned: Increase Zepbound from 5mg to 7.5mg; prescription sent to Medica Pharmacy, Edie Street
+- Diagnosis: Weight management on Zepbound
+
+- Treatment planned: Increase Zepbound from 5mg to 7.5mg; prescription sent to Medica Pharmacy, Edie Street
 
 - Referrals: None
 

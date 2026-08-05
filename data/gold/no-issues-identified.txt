@@ -1,4 +1,4 @@
-Patient 7 started 1978-11-29
+Transcript started 3:08 PM 6/2/2026
 
 0:00
 
@@ -12,9 +12,11 @@ You have reached the voice mailbox.
 
 Your call has been forwarded to voicemail.
 
-2020-12-18
+1:53
 
-Patient 7 started 2008-05-22
+Transcript ended 3:10 PM 6/2/2026
+
+Transcript started 3:08 PM 6/2/2026
 
 0:00
 
@@ -28,7 +30,9 @@ You have reached the voice mailbox.
 
 Your call has been forwarded to voicemail.
 
-1988-06-23
+1:53
+
+Transcript ended 3:10 PM 6/2/2026
 
 Subjective:
 

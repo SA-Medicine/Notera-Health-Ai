@@ -1,34 +1,34 @@
-Patient 7 started 2019-03-04
+Transcript started 3:38 PM 7/6/2026
 
 0:00
 
-Um, I did a refill on my prescription. Of which one? Uh, amphomenamine. Am- I'm sorry? Patient 1017? Uh, yeah, blood pressure fills. I'm not the patient. Yeah. Five, 2007-05-08 once a day, eh? Yep.
+Um, I did a refill on my prescription. Of which one? Uh, amphomenamine. Am- I'm sorry? Amphomenamine? Uh, yeah, blood pressure fills. I'm not the patient. Yeah. Five, five milli- five milligrams once a day, eh? Yep.
 
 0:14
 
-Okay. And you check your blood pressure on a regular basis? Yeah, that seems good. Perfect. No side effects, and you are watching yourself and stuff? I try my best. I need to do better on that. Okay, where do I fax it? To Shoppers in [LOCATION]? Yeah. Okay, I'll take care of that. Anything else?
+Okay. And you check your blood pressure on a regular basis? Yeah, that seems good. Perfect. No side effects, and you are watching yourself and stuff? I try my best. I need to do better on that. Okay, where do I fax it? To Shoppers in Essex? Yeah. Okay, I'll take care of that. Anything else?
 
 0:36
 
-That's everything. All right, Patient 1016, I'll fax it. All right, thank you. Bye. Bye.
+That's everything. All right, Shane, I'll fax it. All right, thank you. Bye. Bye.
 
-Transcript ended 2013-10-02
+Transcript ended 3:39 PM 7/6/2026
 
-Patient 7 started 2014-03-28
+Transcript started 3:38 PM 7/6/2026
 
 0:00
 
-Um, I did a refill on my prescription. Of which one? Uh, amphomenamine. Am- I'm sorry? Patient 1017? Uh, yeah, blood pressure fills. I'm not the patient. Yeah. Five, 2019-09-23 once a day, eh? Yep.
+Um, I did a refill on my prescription. Of which one? Uh, amphomenamine. Am- I'm sorry? Amphomenamine? Uh, yeah, blood pressure fills. I'm not the patient. Yeah. Five, five milli- five milligrams once a day, eh? Yep.
 
 0:14
 
-Okay. And you check your blood pressure on a regular basis? Yeah, that seems good. Perfect. No side effects, and you are watching yourself and stuff? I try my best. I need to do better on that. Okay, where do I fax it? To Shoppers in [LOCATION]? Yeah. Okay, I'll take care of that. Anything else?
+Okay. And you check your blood pressure on a regular basis? Yeah, that seems good. Perfect. No side effects, and you are watching yourself and stuff? I try my best. I need to do better on that. Okay, where do I fax it? To Shoppers in Essex? Yeah. Okay, I'll take care of that. Anything else?
 
 0:36
 
-That's everything. All right, Patient 1016, I'll fax it. All right, thank you. Bye. Bye.
+That's everything. All right, Shane, I'll fax it. All right, thank you. Bye. Bye.
 
-Transcript ended 2010-03-10
+Transcript ended 3:39 PM 7/6/2026
 
 Subjective:
 
@@ -45,7 +45,7 @@ Subjective:
 
 Past Medical History:
 
-- Hypertension - on amlodipine 5mg 1974-11-18
+- Hypertension - on amlodipine 5mg daily
 
 
 
@@ -61,6 +61,6 @@ Assessment & Plan:
 
 - Diagnosis: Hypertension
 
-- Treatment planned: Amlodipine 5mg once 2000-03-22 refill
+- Treatment planned: Amlodipine 5mg once daily refill
 
-- Prescription to be faxed to Shoppers in [LOCATION]
+- Prescription to be faxed to Shoppers in Essex

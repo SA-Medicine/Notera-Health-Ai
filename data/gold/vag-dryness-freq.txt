@@ -1,4 +1,4 @@
-Patient 7 started 1987-06-30
+Transcript started 4:43 PM 7/24/2026
 
 0:00
 
@@ -22,11 +22,11 @@ This is the cranberry. I believe cranberry juice. Yeah. They said the cranberry 
 
 2:49
 
-One a day. One a day. Okay. Thanks. This is the cream that goes in the vagina. I'll open it. Open inside and around it. Okay. Do it. Do it every day for 2001-12-17. Okay. And come and see me. Yes. Yes. Okay. Hope it helps. Yeah. Let's see. Yeah.
+One a day. One a day. Okay. Thanks. This is the cream that goes in the vagina. I'll open it. Open inside and around it. Okay. Do it. Do it every day for two weeks. Okay. And come and see me. Yes. Yes. Okay. Hope it helps. Yeah. Let's see. Yeah.
 
-Transcript ended 2010-05-29
+Transcript ended 4:46 PM 7/24/2026
 
-Patient 7 started 2010-03-14
+Transcript started 4:43 PM 7/24/2026
 
 0:00
 
@@ -50,9 +50,9 @@ This is the cranberry. I believe cranberry juice. Yeah. They said the cranberry 
 
 2:49
 
-One a day. One a day. Okay. Thanks. This is the cream that goes in the vagina. I'll open it. Open inside and around it. Okay. Do it. Do it every day for 1980-10-17. Okay. And come and see me. Yes. Yes. Okay. Hope it helps. Yeah. Let's see. Yeah.
+One a day. One a day. Okay. Thanks. This is the cream that goes in the vagina. I'll open it. Open inside and around it. Okay. Do it. Do it every day for two weeks. Okay. And come and see me. Yes. Yes. Okay. Hope it helps. Yeah. Let's see. Yeah.
 
-Transcript ended 1992-05-04
+Transcript ended 4:46 PM 7/24/2026
 
 Subjective:
 
@@ -90,10 +90,10 @@ Assessment & Plan:
 
 - Diagnosis: Vaginal atrophy secondary to low estrogen
 
-- Treatment planned: Vaginal cream - apply inside and around vagina daily for 2004-03-09; cranberry capsules 1 1971-02-25 for UTI prevention
+- Treatment planned: Vaginal cream - apply inside and around vagina daily for 2 weeks; cranberry capsules 1 daily for UTI prevention
 
 - Referrals: None
 
 - Investigations planned: None
 
-- rtc in 2002-06-26
+- rtc in 2 weeks

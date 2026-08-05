@@ -1,4 +1,4 @@
-Transcript started 2020-03-31
+Transcript started 6:00 PM 5/28/2026
 
 0:00
 
@@ -6,15 +6,15 @@ Uh, the last time I was in, I renewed my prescriptions. Mm-hmm. But you forgot t
 
 0:10
 
-Is that the [LOCATION] 2012-12-18 removal? Yes. And you take 1979-07-28, every day, or if it needs to be only. I take 2022-09-02. Okay. And that goes to Patient 2376 and Mitron? Yes.
+Is that the Zofran seven point five milligram removal? Yes. And you take one a day, every day, or if it needs to be only. I take one every day. Okay. And that goes to Zobezo and Mitron? Yes.
 
 0:30
 
 Because they faxed it and they wouldn't take it because it wasn't I had to see you first. No worries. I'll take care of it. No worries. Okay. And I'll see you on the second. Okay, buddy. I'll fax it for now. Yeah. Okay. Thank you very much. Bye. Bye.
 
-Transcript ended 2016-05-27
+Transcript ended 6:01 PM 5/28/2026
 
-Transcript started 2022-04-04
+Transcript started 6:00 PM 5/28/2026
 
 0:00
 
@@ -22,21 +22,21 @@ Uh, the last time I was in, I renewed my prescriptions. Mm-hmm. But you forgot t
 
 0:10
 
-Is that the [LOCATION] 1987-11-19 removal? Yes. And you take 2009-05-16, every day, or if it needs to be only. I take 1983-08-13. Okay. And that goes to Patient 2376 and Mitron? Yes.
+Is that the Zofran seven point five milligram removal? Yes. And you take one a day, every day, or if it needs to be only. I take one every day. Okay. And that goes to Zobezo and Mitron? Yes.
 
 0:30
 
 Because they faxed it and they wouldn't take it because it wasn't I had to see you first. No worries. I'll take care of it. No worries. Okay. And I'll see you on the second. Okay, buddy. I'll fax it for now. Yeah. Okay. Thank you very much. Bye. Bye.
 
-Transcript ended 1972-12-20
+Transcript ended 6:01 PM 5/28/2026
 
 Subjective:
 
 - Reason for visit: Prescription renewal request for sleeping pill (zopiclone 7.5mg) - omitted from previous visit renewal
 
-- Current use: One tablet 2006-06-22
+- Current use: One tablet daily
 
-- Pharmacy: Patient 2376 and Mitron - prescription not accepted as required in-person visit first
+- Pharmacy: Zobezo and Mitron - prescription not accepted as required in-person visit first
 
 
 
@@ -55,6 +55,6 @@ Assessment & Plan:
 
 1. Prescription renewal - zopiclone 7.5mg
 
-- Treatment planned: Prescription to be faxed to Patient 2376 and Mitron pharmacy
+- Treatment planned: Prescription to be faxed to Zobezo and Mitron pharmacy
 
-- rtc 2003-11-16
+- rtc 06/02/2026

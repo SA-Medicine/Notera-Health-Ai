@@ -1,42 +1,42 @@
-Patient 7 started 1996-06-23
+Transcript started 4:22 PM 6/12/2026
 
 0:00
 
-Good. Yes, ma'am. How can I help you? So I just recently got so you prescribed me on Patient 64. It's been 1971-12-12 now. Yeah. I haven't had any like, no weight loss, no changes, no anything. The only thing I have is heartburn.
+Good. Yes, ma'am. How can I help you? So I just recently got so you prescribed me on Wegovy. It's been about six weeks now. Yeah. I haven't had any like, no weight loss, no changes, no anything. The only thing I have is heartburn.
 
 0:18
 
-But, um, I'm just curious because I went to get my refill for my dose, and the, um, amount wasn't increased. So I'm just curious if that, uh, if we're going to increase the dosage from the starter dose. So you've been on 0.25mg for 2013-01-05? Yes. Yeah, I think we should go up on it. Okay.
+But, um, I'm just curious because I went to get my refill for my dose, and the, um, amount wasn't increased. So I'm just curious if that, uh, if we're going to increase the dosage from the starter dose. So you've been on 0.25mg for six weeks? Yes. Yeah, I think we should go up on it. Okay.
 
 0:40
 
-And, um, the next step is 0.5, eh? Okay. Yeah. And hopefully, uh, this will help you more. Okay. So my question is, um, which drugstore do you deal with? Um, the Patient 1595, uh, Shoppers. I'm seeing Patient 1595. Okay. All right, I'll fax that for 1992-06-14, and then, uh, we'll see how it goes. Okay, great. Anything else? Nope, that was everything.
+And, um, the next step is 0.5, eh? Okay. Yeah. And hopefully, uh, this will help you more. Okay. So my question is, um, which drugstore do you deal with? Um, the Banwell, uh, Shoppers. I'm seeing Banwell. Okay. All right, I'll fax that for a month, and then, uh, we'll see how it goes. Okay, great. Anything else? Nope, that was everything.
 
-Transcript ended 1975-06-28
+Transcript ended 4:24 PM 6/12/2026
 
-Patient 7 started 2003-04-06
+Transcript started 4:22 PM 6/12/2026
 
 0:00
 
-Good. Yes, ma'am. How can I help you? So I just recently got so you prescribed me on Patient 64. It's been 2015-09-10 now. Yeah. I haven't had any like, no weight loss, no changes, no anything. The only thing I have is heartburn.
+Good. Yes, ma'am. How can I help you? So I just recently got so you prescribed me on Wegovy. It's been about six weeks now. Yeah. I haven't had any like, no weight loss, no changes, no anything. The only thing I have is heartburn.
 
 0:18
 
-But, um, I'm just curious because I went to get my refill for my dose, and the, um, amount wasn't increased. So I'm just curious if that, uh, if we're going to increase the dosage from the starter dose. So you've been on 0.25mg for 2010-08-31? Yes. Yeah, I think we should go up on it. Okay.
+But, um, I'm just curious because I went to get my refill for my dose, and the, um, amount wasn't increased. So I'm just curious if that, uh, if we're going to increase the dosage from the starter dose. So you've been on 0.25mg for six weeks? Yes. Yeah, I think we should go up on it. Okay.
 
 0:40
 
-And, um, the next step is 0.5, eh? Okay. Yeah. And hopefully, uh, this will help you more. Okay. So my question is, um, which drugstore do you deal with? Um, the Patient 1595, uh, Shoppers. I'm seeing Patient 1595. Okay. All right, I'll fax that for 2010-02-25, and then, uh, we'll see how it goes. Okay, great. Anything else? Nope, that was everything.
+And, um, the next step is 0.5, eh? Okay. Yeah. And hopefully, uh, this will help you more. Okay. So my question is, um, which drugstore do you deal with? Um, the Banwell, uh, Shoppers. I'm seeing Banwell. Okay. All right, I'll fax that for a month, and then, uh, we'll see how it goes. Okay, great. Anything else? Nope, that was everything.
 
-Transcript ended 2021-01-17
+Transcript ended 4:24 PM 6/12/2026
 
 Subjective:
 
-- Reason for Visit: Follow-up for Wegovy - no weight loss or changes after 2010-07-28 on 0.25mg; inquiry about dose increase
+- Reason for Visit: Follow-up for Wegovy - no weight loss or changes after 6 weeks on 0.25mg; inquiry about dose increase
 
 - Side Effects: Heartburn only
 
-- Current Dose: 0.25mg for 1999-07-10
+- Current Dose: 0.25mg for 6 weeks
 
 
 
@@ -57,7 +57,7 @@ Assessment & Plan:
 
 - Diagnosis: No weight loss on current dose
 
-- Treatment planned: Increase Wegovy from 0.25mg to 0.5mg; prescription faxed to Banwell Shoppers for 1985-01-04 supply
+- Treatment planned: Increase Wegovy from 0.25mg to 0.5mg; prescription faxed to Banwell Shoppers for 1 month supply
 
 - Referrals: None
 

@@ -1,8 +1,8 @@
-Patient 7 started 2002-02-05
+Transcript started 2:28 PM 7/16/2026
 
 0:00
 
-So it's been 1993-01-23 for the repo shots, I guess? Yeah, 2018-12-31. Which arm do you want your shot, huh?
+So it's been three months for the repo shots, I guess? Yeah, three months. Which arm do you want your shot, huh?
 
 0:10
 
@@ -14,13 +14,13 @@ Alrighty. Anything else? No. That's it. Oh, nice and easy. Take care. You too. B
 
 1:10
 
-Transcript ended 2023-04-08
+Transcript ended 2:29 PM 7/16/2026
 
-Patient 7 started 1994-08-06
+Transcript started 2:28 PM 7/16/2026
 
 0:00
 
-So it's been 1988-05-03 for the repo shots, I guess? Yeah, 2016-10-13. Which arm do you want your shot, huh?
+So it's been three months for the repo shots, I guess? Yeah, three months. Which arm do you want your shot, huh?
 
 0:10
 
@@ -32,13 +32,13 @@ Alrighty. Anything else? No. That's it. Oh, nice and easy. Take care. You too. B
 
 1:10
 
-Transcript ended 2005-11-18
+Transcript ended 2:29 PM 7/16/2026
 
 Subjective:
 
-- Presenting Complaint: 1972-11-01 depo injection due
+- Presenting Complaint: 3-month depo injection due
 
-- Menstrual Status: Patient 2442 - satisfied with this outcome
+- Menstrual Status: Amenorrhoeic - satisfied with this outcome
 
 
 
@@ -57,4 +57,4 @@ Assessment & Plan:
 
 1. Contraception -depo injection
 
-- Treatment planned: repo injection administered 2005-04-10
+- Treatment planned: repo injection administered today

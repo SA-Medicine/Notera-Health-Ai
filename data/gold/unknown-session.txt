@@ -1,4 +1,4 @@
-Patient 7 started 1993-08-17
+Transcript started 4:43 PM 7/17/2026
 
 0:00
 
@@ -14,9 +14,9 @@ The number you are trying to reach has automatic call screening service. To reac
 
 Connecting.
 
-Transcript ended 2024-09-25
+Transcript ended 4:45 PM 7/17/2026
 
-Patient 7 started 2013-06-17
+Transcript started 4:43 PM 7/17/2026
 
 0:00
 
@@ -32,7 +32,7 @@ The number you are trying to reach has automatic call screening service. To reac
 
 Connecting.
 
-Transcript ended 2023-08-26
+Transcript ended 4:45 PM 7/17/2026
 
 Subjective:
 

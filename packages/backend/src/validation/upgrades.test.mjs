@@ -1,5 +1,5 @@
 // Unit tests for the deterministic upgrade guardrails. Run: node packages/backend/src/validation/upgrades.test.mjs
-import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences } from './upgrades.js';
+import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition } from './upgrades.js';
 import { reconcileMedications, normalizeMedications, _clearCache } from '../services/rxnorm.js';
 import { noteToMarkdown } from '../orchestrator/renderMarkdown.js';
 
@@ -303,6 +303,22 @@ console.log('RxNorm agent · normalizeMedications (mocked)');
   ok('reports the correction count', r.corrected >= 1);
   ok('flags a fabricated drug not in transcript', r.flags.some((f) => f.type === 'fabricated_medication' && /Brianox/.test(f.message)));
   ok('leaves a correctly-spelled brand alone', /Zepbound/.test(n.assessment_and_plan[0].treatment_planned));
+}
+
+console.log('R · de-repetition (degenerate loop guard)');
+{
+  const unit = 'next week for her safety and health overall today as scheduled too as well overall also as noted in details today in clinic ';
+  const n = baseNote({ subjective: { hpi_details: 'Leg weakness began Monday. Felt lightheaded at the bank on Tuesday. ' + unit.repeat(500) } });
+  const r = stripRepetition(n, () => {});
+  ok('collapses a huge repetition loop', n.subjective.hpi_details.length < 400 && r.fixed >= 1);
+  ok('keeps the legit content before the loop', /Leg weakness began Monday/.test(n.subjective.hpi_details) && /lightheaded at the bank on Tuesday/.test(n.subjective.hpi_details));
+  ok('leaves normal text untouched', (() => { const m = baseNote({ subjective: { hpi_details: 'Cough for three days. Denies fever.' } }); stripRepetition(m, () => {}); return m.subjective.hpi_details === 'Cough for three days. Denies fever.'; })());
+}
+{
+  // collapses simple repeated words too
+  const n = baseNote({ subjective: { reason_for_visit: 'pain pain pain pain in the knee' } });
+  stripRepetition(n, () => {});
+  ok('collapses repeated words', n.subjective.reason_for_visit === 'pain in the knee');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

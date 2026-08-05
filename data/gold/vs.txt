@@ -1,4 +1,4 @@
-Patient 7 started 1977-02-24
+Transcript started 1:57 PM 7/13/2026
 
 0:00
 
@@ -16,7 +16,7 @@ Sixty over seventy two, one oh six over sixty four, one oh four over sixty five,
 
 1:56
 
-Yeah, it's much better. One thirty over seventy. Okay? Yeah. I like it. That's good. Yes. So do I. I'm working on it. Good stuff. Anything else you need from me 1978-06-21? Any prescriptions? No. I mean, do you think five is enough? For the just stuff? Yeah. For now? Yes. We'll do the blood test. 2005-06-12 ish. Okay. Shall I give you the paper for that? Yeah. And then you can go get it done in the in 1977-08-02. But you have enough medication till then, though? Yes. They called you. I keep going out, and they called you.
+Yeah, it's much better. One thirty over seventy. Okay? Yeah. I like it. That's good. Yes. So do I. I'm working on it. Good stuff. Anything else you need from me today? Any prescriptions? No. I mean, do you think five is enough? For the just stuff? Yeah. For now? Yes. We'll do the blood test. April, May, June, July, August, September, end of August ish. Okay. Shall I give you the paper for that? Yeah. And then you can go get it done in the in the middle of April. But you have enough medication till then, though? Yes. They called you. I keep going out, and they called you.
 
 2:36
 
@@ -26,13 +26,13 @@ So you're only on two different medications high, right? And it's cholesterol. S
 
 3:56
 
-2017-08-17
+4:36
 
-Thank you. Take a seat. Patient 660.
+Thank you. Take a seat. Barbara.
 
-Transcript ended 1997-09-18
+Transcript ended 2:03 PM 7/13/2026
 
-Patient 7 started 1985-07-14
+Transcript started 1:57 PM 7/13/2026
 
 0:00
 
@@ -50,7 +50,7 @@ Sixty over seventy two, one oh six over sixty four, one oh four over sixty five,
 
 1:56
 
-Yeah, it's much better. One thirty over seventy. Okay? Yeah. I like it. That's good. Yes. So do I. I'm working on it. Good stuff. Anything else you need from me 1999-06-01? Any prescriptions? No. I mean, do you think five is enough? For the just stuff? Yeah. For now? Yes. We'll do the blood test. 2026-01-16 ish. Okay. Shall I give you the paper for that? Yeah. And then you can go get it done in the in 2002-05-06. But you have enough medication till then, though? Yes. They called you. I keep going out, and they called you.
+Yeah, it's much better. One thirty over seventy. Okay? Yeah. I like it. That's good. Yes. So do I. I'm working on it. Good stuff. Anything else you need from me today? Any prescriptions? No. I mean, do you think five is enough? For the just stuff? Yeah. For now? Yes. We'll do the blood test. April, May, June, July, August, September, end of August ish. Okay. Shall I give you the paper for that? Yeah. And then you can go get it done in the in the middle of April. But you have enough medication till then, though? Yes. They called you. I keep going out, and they called you.
 
 2:36
 
@@ -60,17 +60,17 @@ So you're only on two different medications high, right? And it's cholesterol. S
 
 3:56
 
-1988-08-14
+4:36
 
-Thank you. Take a seat. Patient 660.
+Thank you. Take a seat. Barbara.
 
-Transcript ended 2013-10-23
+Transcript ended 2:03 PM 7/13/2026
 
 Subjective:
 
 - Follow-up for blood pressure monitoring and cholesterol management
 
-- Home BP readings: 110/60, 1999-06-23, 104/65, 120/77
+- Home BP readings: 110/60, 72/106/64, 104/65, 120/77
 
 - Currently taking cholesterol medication 5mg and B12 pills
 
@@ -115,7 +115,7 @@ Assessment & Plan:
 
 
 
-2. [LOCATION]
+2. Hypercholesterolaemia
 
 - Diagnosis: Hypercholesterolaemia
 
@@ -125,7 +125,7 @@ Assessment & Plan:
 
 - Blood test ordered for end of August/September
 
-- Requisition provided - to complete 1995-10-11
+- Requisition provided - to complete mid-April
 
 - Adequate medication supply until then
 

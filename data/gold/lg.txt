@@ -1,51 +1,57 @@
-Transcript started 2000-06-15
+Transcript started 3:37 PM 7/14/2026
+
+0:00
 
 0:10
 
-Hello. Hello? Hi. Hi, Dr. Patient 596? Yes. Is this Patient 595? Yes. How are you? I'm good. How are you? Good. I just called in the in regards to Patient 594 there. She's got a little bit of a bladder infection. She's been doing great other than that, so. What's what symptoms the same what what the symptoms does she have? She's got she's got burning down there, so she's
+Hello. Hello? Hi. Hi, Dr. Egoal? Yes. Is this Nicholas? Yes. How are you? I'm good. How are you? Good. I just called in the in regards to Lewis there. She's got a little bit of a bladder infection. She's been doing great other than that, so. What's what symptoms the same what what the symptoms does she have? She's got she's got burning down there, so she's
 
 0:37
 
-Burning, and she's got discomfort down there. Okay. And I I've been giving her some Advil to keep her, you know, keep her going for 2003-01-21 there, but she's even 1998-08-27, she said she's in some pain. Yeah. Seems like she's she's using the antibiotics 2017-04-30. Right? Yeah. And they work fabulous. Like, the after 2016-12-21, she's good. She's feeling fabulous. You don't have to deal with it for a while. Alrighty. So I'll write I'll write the prescription then. Fabulous. I appreciate it. Where does the prescription goes to? Just the shoppers on Grand Maris and Patient 593. Alright. I'll take care of that.
+Burning, and she's got discomfort down there. Okay. And I I've been giving her some Advil to keep her, you know, keep her going for the weekend there, but she's even today, she said she's in some pain. Yeah. Seems like she's she's using the antibiotics every three months or so. Right? Yeah. And they work fabulous. Like, the after about seven days, she's good. She's feeling fabulous. You don't have to deal with it for a while. Alrighty. So I'll write I'll write the prescription then. Fabulous. I appreciate it. Where does the prescription goes to? Just the shoppers on Grand Maris and Curry. Alright. I'll take care of that.
 
 1:19
 
 Fabulous. Thank you, doctor. I appreciate it. Bye for now.
 
-Transcript ended 1999-05-04
+Transcript ended 3:39 PM 7/14/2026
 
-Transcript started 2008-04-18
+Transcript started 3:37 PM 7/14/2026
+
+0:00
 
 0:10
 
-Hello. Hello? Hi. Hi, Dr. Patient 596? Yes. Is this Patient 595? Yes. How are you? I'm good. How are you? Good. I just called in the in regards to Patient 594 there. She's got a little bit of a bladder infection. She's been doing great other than that, so. What's what symptoms the same what what the symptoms does she have? She's got she's got burning down there, so she's
+Hello. Hello? Hi. Hi, Dr. Egoal? Yes. Is this Nicholas? Yes. How are you? I'm good. How are you? Good. I just called in the in regards to Lewis there. She's got a little bit of a bladder infection. She's been doing great other than that, so. What's what symptoms the same what what the symptoms does she have? She's got she's got burning down there, so she's
 
 0:37
 
-Burning, and she's got discomfort down there. Okay. And I I've been giving her some Advil to keep her, you know, keep her going for 1977-05-14 there, but she's even 1997-09-16, she said she's in some pain. Yeah. Seems like she's she's using the antibiotics 1992-01-31. Right? Yeah. And they work fabulous. Like, the after 1975-01-18, she's good. She's feeling fabulous. You don't have to deal with it for a while. Alrighty. So I'll write I'll write the prescription then. Fabulous. I appreciate it. Where does the prescription goes to? Just the shoppers on Grand Maris and Patient 593. Alright. I'll take care of that.
+Burning, and she's got discomfort down there. Okay. And I I've been giving her some Advil to keep her, you know, keep her going for the weekend there, but she's even today, she said she's in some pain. Yeah. Seems like she's she's using the antibiotics every three months or so. Right? Yeah. And they work fabulous. Like, the after about seven days, she's good. She's feeling fabulous. You don't have to deal with it for a while. Alrighty. So I'll write I'll write the prescription then. Fabulous. I appreciate it. Where does the prescription goes to? Just the shoppers on Grand Maris and Curry. Alright. I'll take care of that.
 
 1:19
 
 Fabulous. Thank you, doctor. I appreciate it. Bye for now.
 
-Transcript ended 2007-02-22
+Transcript ended 3:39 PM 7/14/2026
 
 Subjective:
 
-- Presenting Complaint: Phone call from Patient 595 (caregiver) regarding bladder infection symptoms
+- Presenting Complaint: Phone call from Nicholas (caregiver) regarding bladder infection symptoms
 
 - Symptoms: Burning and discomfort in genital area
 
-- Self-treatment: Advil given over 2010-10-25 for symptom management
+- Self-treatment: Advil given over the weekend for symptom management
 
-- Current Status: Still experiencing pain 1986-03-02
+- Current Status: Still experiencing pain today
 
 
 
 
 Past Medical History:
 
-- History of recurrent bladder infections - uses antibiotics 1986-06-08 Previous antibiotic courses effective - symptoms resolve after 2024-02-17
+- History of recurrent bladder infections - uses antibiotics approximately every 3 months
+
+- Previous antibiotic courses effective - symptoms resolve after approximately 7 days
 
 
 
@@ -65,4 +71,4 @@ Assessment & Plan:
 
 - Treatment planned: Antibiotic prescription
 
-- Prescription sent to Shoppers on Grand Maris and Patient 593
+- Prescription sent to Shoppers on Grand Maris and Curry

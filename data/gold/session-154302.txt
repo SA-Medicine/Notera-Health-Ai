@@ -1,22 +1,22 @@
-Transcript started 2000-02-05
+Transcript started 5:53 PM 6/29/2026
 
 0:00
 
 0:10
 
-Hello? Hi, this is Dr. Patient 590 calling for Patient 1272. Hi, it's Patient 1271, his mom. Hey, Patient 1270, how are you? Hi, good. What's happening with the big man here?
+Hello? Hi, this is Dr. Agawal calling for Zachary. Hi, it's Stephanie, his mom. Hey, Zach, how are you? Hi, good. What's happening with the big man here?
 
 0:36
 
-Yeah. So we, um, contacted his, the doctor from [LOCATION]. Patient 1269. Notice hand. Yeah. Yeah. And, um, we were told that he needs to, uh, you he needs to have you, uh, refer him to Hulk. Where? Patient 1268 in [LOCATION]. Hold on, I'll bring up the name. Is it a doctor? It's a clinic. Um, I have the You mean Patient 906? Fowl. Patient 1267?
+Yeah. So we, um, contacted his, the doctor from London. Caitlin. Notice hand. Yeah. Yeah. And, um, we were told that he needs to, uh, you he needs to have you, uh, refer him to Hulk. Where? Hulk in London. Hold on, I'll bring up the name. Is it a doctor? It's a clinic. Um, I have the You mean Fowler? Fowl. Kennedy Fowler Kennedy?
 
 1:16
 
-Um, hand and upper limb center. Okay. Patient 1266, I think. Um, yeah. And they said to tell them that it's urgent. So hands and upper limb center in [LOCATION]. Then any particular doctor? No. Okay. She didn't give a doctor, but just said to say it's urgent, so they take them. Could she not do it? Um, no, she is under the impression that it's not connected to anything from the broken hand or the cast. Okay.
+Um, hand and upper limb center. Okay. Ross McFarland, I think. Um, yeah. And they said to tell them that it's urgent. So hands and upper limb center in London. Then any particular doctor? No. Okay. She didn't give a doctor, but just said to say it's urgent, so they take them. Could she not do it? Um, no, she is under the impression that it's not connected to anything from the broken hand or the cast. Okay.
 
 1:56
 
-Okey dokey. So I will send the referral hand and up on them sent to in [LOCATION]. Okay. I will send the referral, and then you can make sure you follow up with them as well. Okay? For sure. Yep. Alright. I'll take care of that. Anything else? Okay. Nope. That's it. Alright. Thanks a lot. Thank you. Bye bye bye.
+Okey dokey. So I will send the referral hand and up on them sent to in London. Okay. I will send the referral, and then you can make sure you follow up with them as well. Okay? For sure. Yep. Alright. I'll take care of that. Anything else? Okay. Nope. That's it. Alright. Thanks a lot. Thank you. Bye bye bye.
 
 2:36
 
@@ -28,27 +28,29 @@ Okey dokey. So I will send the referral hand and up on them sent to in [LOCATION
 
 Oh, yeah, yeah.
 
-2016-06-27 ended 2004-01-24
+5:17
 
-Transcript started 2017-06-03
+Transcript ended 5:58 PM 6/29/2026
+
+Transcript started 5:53 PM 6/29/2026
 
 0:00
 
 0:10
 
-Hello? Hi, this is Dr. Patient 590 calling for Patient 1272. Hi, it's Patient 1271, his mom. Hey, Patient 1270, how are you? Hi, good. What's happening with the big man here?
+Hello? Hi, this is Dr. Agawal calling for Zachary. Hi, it's Stephanie, his mom. Hey, Zach, how are you? Hi, good. What's happening with the big man here?
 
 0:36
 
-Yeah. So we, um, contacted his, the doctor from [LOCATION]. Patient 1269. Notice hand. Yeah. Yeah. And, um, we were told that he needs to, uh, you he needs to have you, uh, refer him to Hulk. Where? Patient 1268 in [LOCATION]. Hold on, I'll bring up the name. Is it a doctor? It's a clinic. Um, I have the You mean Patient 906? Fowl. Patient 1267?
+Yeah. So we, um, contacted his, the doctor from London. Caitlin. Notice hand. Yeah. Yeah. And, um, we were told that he needs to, uh, you he needs to have you, uh, refer him to Hulk. Where? Hulk in London. Hold on, I'll bring up the name. Is it a doctor? It's a clinic. Um, I have the You mean Fowler? Fowl. Kennedy Fowler Kennedy?
 
 1:16
 
-Um, hand and upper limb center. Okay. Patient 1266, I think. Um, yeah. And they said to tell them that it's urgent. So hands and upper limb center in [LOCATION]. Then any particular doctor? No. Okay. She didn't give a doctor, but just said to say it's urgent, so they take them. Could she not do it? Um, no, she is under the impression that it's not connected to anything from the broken hand or the cast. Okay.
+Um, hand and upper limb center. Okay. Ross McFarland, I think. Um, yeah. And they said to tell them that it's urgent. So hands and upper limb center in London. Then any particular doctor? No. Okay. She didn't give a doctor, but just said to say it's urgent, so they take them. Could she not do it? Um, no, she is under the impression that it's not connected to anything from the broken hand or the cast. Okay.
 
 1:56
 
-Okey dokey. So I will send the referral hand and up on them sent to in [LOCATION]. Okay. I will send the referral, and then you can make sure you follow up with them as well. Okay? For sure. Yep. Alright. I'll take care of that. Anything else? Okay. Nope. That's it. Alright. Thanks a lot. Thank you. Bye bye bye.
+Okey dokey. So I will send the referral hand and up on them sent to in London. Okay. I will send the referral, and then you can make sure you follow up with them as well. Okay? For sure. Yep. Alright. I'll take care of that. Anything else? Okay. Nope. That's it. Alright. Thanks a lot. Thank you. Bye bye bye.
 
 2:36
 
@@ -60,15 +62,17 @@ Okey dokey. So I will send the referral hand and up on them sent to in [LOCATION
 
 Oh, yeah, yeah.
 
-2000-08-08 ended 1990-07-27
+5:17
+
+Transcript ended 5:58 PM 6/29/2026
 
 Subjective:
 
-- Phone call with mother (Patient 1271) regarding referral request
+- Phone call with mother (Stephanie) regarding referral request
 
-- Contacted doctor in [LOCATION] (Patient 1269) who advised referral to Patient 2553 Hand and Upper Limb Centre in [LOCATION]
+- Contacted doctor in London (Caitlin) who advised referral to Fowler Kennedy Hand and Upper Limb Centre in London
 
-- [LOCATION] doctor indicated condition not connected to previous broken hand or cast
+- London doctor indicated condition not connected to previous broken hand or cast
 
 - Urgent referral requested
 
@@ -95,6 +99,6 @@ Assessment & Plan:
 
 - Investigations planned: None
 
-- Referrals made: Patient 2553 Hand and Upper Limb Centre, [LOCATION] - urgent
+- Referrals made: Fowler Kennedy Hand and Upper Limb Centre, London - urgent
 
 - Treatment planned: None

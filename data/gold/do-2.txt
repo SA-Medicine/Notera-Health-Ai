@@ -1,4 +1,4 @@
-Patient 7 started 2010-04-19
+Transcript started 2:08 PM 6/30/2026
 
 0:00
 
@@ -8,9 +8,9 @@ Patient 7 started 2010-04-19
 
 See, we set your calls to a voice message system. Hi.
 
-Transcript ended 1976-12-05
+Transcript ended 2:09 PM 6/30/2026
 
-Patient 7 started 1976-06-01
+Transcript started 2:08 PM 6/30/2026
 
 0:00
 
@@ -20,7 +20,7 @@ Patient 7 started 1976-06-01
 
 See, we set your calls to a voice message system. Hi.
 
-Transcript ended 2025-11-03
+Transcript ended 2:09 PM 6/30/2026
 
 Subjective:
 
@@ -63,7 +63,9 @@ Assessment & Plan:
 
 - Treatment planned: Dietary modification, start exercising
 
-- Investigations planned: Repeat cholesterol in 1982-09-16 require medication if not improved
+- Investigations planned: Repeat cholesterol in 6 months
+
+- May require medication if not improved
 
 
 

@@ -1,8 +1,8 @@
-Patient 7 started 1976-07-04
+Transcript started 3:41 PM 7/6/2026
 
 0:00
 
-Hello? Hi. Is this Igar? It is. Doctor. Patient 1015. It is. How are you, sir?
+Hello? Hi. Is this Igar? It is. Doctor. Igarwal. It is. How are you, sir?
 
 0:15
 
@@ -16,13 +16,13 @@ But rest of the blood test is pretty good. Your X-ray of your thoracic spine and
 
 As pronounced as it was, so I think we'll be all right. Perfect. So that's all I have for you. I just wanted to discuss those results with you. Okay. Appreciate it. Thank you. Any questions for me? No. I think I'm good. Okay. Okay. Take care. Bye.
 
-Transcript ended 2023-05-22
+Transcript ended 3:43 PM 7/6/2026
 
-Patient 7 started 1979-04-18
+Transcript started 3:41 PM 7/6/2026
 
 0:00
 
-Hello? Hi. Is this Igar? It is. Doctor. Patient 1015. It is. How are you, sir?
+Hello? Hi. Is this Igar? It is. Doctor. Igarwal. It is. How are you, sir?
 
 0:15
 
@@ -36,7 +36,7 @@ But rest of the blood test is pretty good. Your X-ray of your thoracic spine and
 
 As pronounced as it was, so I think we'll be all right. Perfect. So that's all I have for you. I just wanted to discuss those results with you. Okay. Appreciate it. Thank you. Any questions for me? No. I think I'm good. Okay. Okay. Take care. Bye.
 
-Transcript ended 1970-01-16
+Transcript ended 3:43 PM 7/6/2026
 
 Subjective:
 

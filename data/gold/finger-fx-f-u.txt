@@ -1,8 +1,8 @@
-Transcript started 1993-09-22
+Transcript started 1:31 PM 6/17/2026
 
 0:00
 
-Hello. Hi. Is this Patient 568? Yes. Doctor. Patient 244 calling, sir. Oh, hi. Yeah. I was I was indisposed when you called last time. Ah, okay.
+Hello. Hi. Is this James? Yes. Doctor. Agarwal calling, sir. Oh, hi. Yeah. I was I was indisposed when you called last time. Ah, okay.
 
 0:14
 
@@ -10,19 +10,19 @@ So I have the results of your X-ray. How's your finger doing? Doing good. I have
 
 0:39
 
-Oh, okay. But it's healing, seems like. Okay. So so how long how long have you been in this splint? When did this happen? 2011-01-17. I I suggest we do another maybe 1976-08-10. 1994-10-24. 2008-08-27 with the splint on? Yes. Okay. I know. I know. They said usually 1974-01-26, it should be healed. Okay. So it will be in 1976-12-10, it will be 2016-06-13. I think that should be plenty. Yeah. Okay. So that, yeah, it's been it's been
+Oh, okay. But it's healing, seems like. Okay. So so how long how long have you been in this splint? When did this happen? Three and a half weeks. I I suggest we do another maybe one and a half week. Another two weeks. Another two weeks with the splint on? Yes. Okay. I know. I know. They said usually four to six weeks, it should be healed. Okay. So it will be in two weeks, it will be five weeks. I think that should be plenty. Yeah. Okay. So that, yeah, it's been it's been
 
 1:21
 
-It's been one, two, it's been 1988-04-26. Yeah. Just another 2004-01-04 should be it. Okay. And then I then I just take the splint off? Yes. Okay. Okay? That's it. That's it. Do I need any appointment do I need should I get an appointment or nothing at all or just leave it? If you have any major pain, then you come and see me. Otherwise, see in 2022-04-05 how it goes. Okay. Alright. Thank you very much. I really appreciate it, doctor. Alright, Patient 568. Take care, buddy. Bye for now. You too. Bye bye.
+It's been one, two, it's been three and a half weeks. Yeah. Just another ten days should be it. Okay. And then I then I just take the splint off? Yes. Okay. Okay? That's it. That's it. Do I need any appointment do I need should I get an appointment or nothing at all or just leave it? If you have any major pain, then you come and see me. Otherwise, see in two weeks how it goes. Okay. Alright. Thank you very much. I really appreciate it, doctor. Alright, James. Take care, buddy. Bye for now. You too. Bye bye.
 
-Transcript ended 2004-08-30
+Transcript ended 1:33 PM 6/17/2026
 
-Transcript started 2026-06-04
+Transcript started 1:31 PM 6/17/2026
 
 0:00
 
-Hello. Hi. Is this Patient 568? Yes. Doctor. Patient 244 calling, sir. Oh, hi. Yeah. I was I was indisposed when you called last time. Ah, okay.
+Hello. Hi. Is this James? Yes. Doctor. Agarwal calling, sir. Oh, hi. Yeah. I was I was indisposed when you called last time. Ah, okay.
 
 0:14
 
@@ -30,19 +30,19 @@ So I have the results of your X-ray. How's your finger doing? Doing good. I have
 
 0:39
 
-Oh, okay. But it's healing, seems like. Okay. So so how long how long have you been in this splint? When did this happen? 1995-03-31. I I suggest we do another maybe 1987-03-29. 1994-12-17. 1986-01-03 with the splint on? Yes. Okay. I know. I know. They said usually 1978-03-07, it should be healed. Okay. So it will be in 1990-08-01, it will be 2020-08-19. I think that should be plenty. Yeah. Okay. So that, yeah, it's been it's been
+Oh, okay. But it's healing, seems like. Okay. So so how long how long have you been in this splint? When did this happen? Three and a half weeks. I I suggest we do another maybe one and a half week. Another two weeks. Another two weeks with the splint on? Yes. Okay. I know. I know. They said usually four to six weeks, it should be healed. Okay. So it will be in two weeks, it will be five weeks. I think that should be plenty. Yeah. Okay. So that, yeah, it's been it's been
 
 1:21
 
-It's been one, two, it's been 1980-07-07. Yeah. Just another 2024-07-31 should be it. Okay. And then I then I just take the splint off? Yes. Okay. Okay? That's it. That's it. Do I need any appointment do I need should I get an appointment or nothing at all or just leave it? If you have any major pain, then you come and see me. Otherwise, see in 2005-12-08 how it goes. Okay. Alright. Thank you very much. I really appreciate it, doctor. Alright, Patient 568. Take care, buddy. Bye for now. You too. Bye bye.
+It's been one, two, it's been three and a half weeks. Yeah. Just another ten days should be it. Okay. And then I then I just take the splint off? Yes. Okay. Okay? That's it. That's it. Do I need any appointment do I need should I get an appointment or nothing at all or just leave it? If you have any major pain, then you come and see me. Otherwise, see in two weeks how it goes. Okay. Alright. Thank you very much. I really appreciate it, doctor. Alright, James. Take care, buddy. Bye for now. You too. Bye bye.
 
-Transcript ended 1981-12-02
+Transcript ended 1:33 PM 6/17/2026
 
 Subjective:
 
 - Phone follow-up for finger injury
 
-- Finger splinted for 2011-05-06
+- Finger splinted for 3.5 weeks
 
 - Pain not bad unless squeezing
 
@@ -67,10 +67,10 @@ Assessment & Plan:
 
 - Diagnosis: Fracture at tip of finger
 
-- Treatment planned: Continue splint for 2011-10-31 (total 2002-11-20), then remove splint
+- Treatment planned: Continue splint for another 2 weeks (total 5-5.5 weeks), then remove splint
 
 - Referrals: None
 
 - Investigations planned: None
 
-- Rtc if major pain develops, otherwise reassess in 2024-12-07
+- Rtc if major pain develops, otherwise reassess in 2 weeks

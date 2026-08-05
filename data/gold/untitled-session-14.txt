@@ -1,8 +1,8 @@
-Transcript started 2013-02-02
+Transcript started 5:23 PM 6/19/2026
 
 0:00
 
-Hi, this is Patient 899. Please lead.
+Hi, this is Jerry. Please lead.
 
 0:11
 
@@ -44,15 +44,19 @@ Yes.
 
 15:56
 
-I'm leaving. Two o'clock. What time is it? 2014-08-13. What time is it? You almost got it.
+I'm leaving. Two o'clock. What time is it? About two hours today. What time is it? You almost got it.
 
 16:36
 
 17:16
 
-Have a good afternoon. Have a good evening. Have 1997-01-03. See ya. Yeah.
+Have a good afternoon. Have a good evening. Have a nice weekend. See ya. Yeah.
 
-1985-11-10
+17:56
+
+18:56
+
+19:56
 
 20:36
 
@@ -72,7 +76,7 @@ Have a good afternoon. Have a good evening. Have 1997-01-03. See ya. Yeah.
 
 27:16
 
-Just getting like the making people. Thanks for the treats 2010-09-05.
+Just getting like the making people. Thanks for the treats today.
 
 27:57
 
@@ -166,13 +170,13 @@ Just wait for you. This is last time. Okay?
 
 65:20
 
-Transcript ended 2024-09-25
+Transcript ended 6:29 PM 6/19/2026
 
-Transcript started 2008-06-21
+Transcript started 5:23 PM 6/19/2026
 
 0:00
 
-Hi, this is Patient 899. Please lead.
+Hi, this is Jerry. Please lead.
 
 0:11
 
@@ -214,15 +218,19 @@ Yes.
 
 15:56
 
-I'm leaving. Two o'clock. What time is it? 2008-09-29. What time is it? You almost got it.
+I'm leaving. Two o'clock. What time is it? About two hours today. What time is it? You almost got it.
 
 16:36
 
 17:16
 
-Have a good afternoon. Have a good evening. Have 2015-08-26. See ya. Yeah.
+Have a good afternoon. Have a good evening. Have a nice weekend. See ya. Yeah.
 
-1987-08-03
+17:56
+
+18:56
+
+19:56
 
 20:36
 
@@ -242,7 +250,7 @@ Have a good afternoon. Have a good evening. Have 2015-08-26. See ya. Yeah.
 
 27:16
 
-Just getting like the making people. Thanks for the treats 1982-04-16.
+Just getting like the making people. Thanks for the treats today.
 
 27:57
 
@@ -336,10 +344,10 @@ Just wait for you. This is last time. Okay?
 
 65:20
 
-Transcript ended 2004-12-12
+Transcript ended 6:29 PM 6/19/2026
 
 Subjective:
-1973-02-27
+07/24/2026
 
 L ear inf, bronchospasm
 
@@ -347,7 +355,9 @@ L ear inf, bronchospasm
 
 KL
 
-Patient 24114:48PM
+keith leroux
+
+4:48PM
 
 Vag dryness, freq
 
@@ -385,9 +395,11 @@ Ann muzzin
 
 PP
 
-Patient 24101995-12-18
+Paolo Palazzi
 
-[LOCATION]
+2:50PM
+
+GB
 
 Gwenyth Beaudoin
 
@@ -407,11 +419,15 @@ Rehse steeve
 
 JP
 
-Patient 2409 ankle sprain, conc diff
+jayna paik
+
+2:06PM
+
+L ankle sprain, conc diff
 
 1:58PM
 
-[LOCATION]
+KP
 
 kelvin paik
 
@@ -419,7 +435,7 @@ kelvin paik
 
 RW
 
-Patient 2408
+Rebecca wright
 
 1:28PM
 
@@ -427,11 +443,11 @@ SP
 
 sheri peroni
 
-2019-04-15
+1:20PM
 
 CP
 
-[LOCATION] peroni
+Charlotte peroni
 
 1:07PM
 
@@ -439,11 +455,11 @@ Untitled session
 
 12:51PM
 
-1985-06-04
+07/23/2026
 
 Untitled session
 
-1997-04-30
+5:36PM
 
 COPD exacerbation
 
