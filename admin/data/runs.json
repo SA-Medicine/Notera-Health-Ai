@@ -1,5 +1,32 @@
 [
   {
+    "id": "2026-08-06T13-24-43-702Z-e979",
+    "command": "node eval/run_eval.mjs hyperkalemia-htn wegovy-refill-dose",
+    "status": "passed",
+    "startedAt": "2026-08-06T13:24:43.702Z",
+    "finishedAt": "2026-08-06T13:26:42.210Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-06_13-24-43"
+  },
+  {
+    "id": "2026-08-06T12-09-21-255Z-640c",
+    "command": "node eval/run_eval.mjs weakness-shakiness location mm rs diabetes-location scrotal-swelling-orchiectomy acne-contraception elevated-chol-conc-urine lr-2 cervical-vv-skin rx-refill",
+    "status": "passed",
+    "startedAt": "2026-08-06T12:09:21.255Z",
+    "finishedAt": "2026-08-06T12:18:06.361Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-06_12-09-21"
+  },
+  {
+    "id": "2026-08-05T17-32-00-681Z-44a0",
+    "command": "node eval/run_eval.mjs weakness-shakiness vag-dryness-freq hyperkalemia-htn sp l-ankle-sprain-conc-diff jz",
+    "status": "passed",
+    "startedAt": "2026-08-05T17:32:00.682Z",
+    "finishedAt": "2026-08-05T17:36:41.927Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-05_17-32-00"
+  },
+  {
     "id": "2026-08-05T16-51-59-620Z-ee4f",
     "command": "node eval/run_eval.mjs hyperkalemia-htn",
     "status": "passed",

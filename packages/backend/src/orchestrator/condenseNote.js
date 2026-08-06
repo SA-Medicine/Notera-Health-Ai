@@ -35,10 +35,46 @@ function containment(short, long) {
   return c / short.length;
 }
 
+// Remove near-duplicate sentences WITHIN a section object (across its fields), keeping the
+// first occurrence. Fixes "the Subjective repeats the same timeline in several sub-headings".
+function dedupWithinSection(obj, threshold, log) {
+  if (!obj) return 0;
+  const seen = []; let removed = 0;
+  for (const k of Object.keys(obj)) {
+    if (typeof obj[k] !== 'string') continue;
+    const kept = [];
+    for (const line of splitLines(obj[k])) {
+      for (const s of splitSentences(line)) {
+        const w = wordsOf(s);
+        if (w.length < 4) { kept.push(s); continue; }
+        const dup = seen.some((a) => jaccard(w, a) >= threshold || containment(w, a) >= 0.85);
+        if (dup) { removed++; log(`[upgrade:condense] dropped duplicate sentence within a section: "${s.slice(0, 80)}"`); continue; }
+        seen.push(w); kept.push(s);
+      }
+    }
+    obj[k] = kept.join('\n');
+  }
+  return removed;
+}
+
 export function condenseNote(note, opts = {}, log = () => {}) {
   const simThreshold = opts.simThreshold ?? 0.55;
   const containThreshold = opts.containThreshold ?? 0.8;
-  if (!note) return { removed: 0, deduped: 0 };
+  const withinThreshold = opts.withinThreshold ?? 0.6;
+  if (!note) return { removed: 0, deduped: 0, withinRemoved: 0 };
+
+  // 0) Remove intra-section repetition first (e.g. Subjective restating the timeline).
+  let withinRemoved = 0;
+  withinRemoved += dedupWithinSection(note.subjective, withinThreshold, log);
+  withinRemoved += dedupWithinSection(note.past_medical_history, withinThreshold, log);
+  withinRemoved += dedupWithinSection(note.objective, withinThreshold, log);
+  for (const p of (note.assessment_and_plan || [])) {
+    if (typeof p.assessment === 'string') {
+      const box = { a: p.assessment };
+      withinRemoved += dedupWithinSection(box, withinThreshold, log);
+      p.assessment = box.a;
+    }
+  }
 
   // 1) Collect the "above" (detailed) content as one word-set per sentence.
   const above = [];
@@ -86,7 +122,7 @@ export function condenseNote(note, opts = {}, log = () => {}) {
     note.objective.examination = exam.join('\n');
   }
 
-  if (removed || deduped) log(`[upgrade:condense] A&P condensed — ${removed} redundant sentence(s) removed; ${deduped} duplicate exam/objective line(s) merged`);
-  else log('[upgrade:condense] no cross-section redundancy found');
-  return { removed, deduped };
+  if (removed || deduped || withinRemoved) log(`[upgrade:condense] ${withinRemoved} intra-section duplicate(s) removed; ${removed} redundant A&P sentence(s) removed; ${deduped} duplicate exam/objective line(s) merged`);
+  else log('[upgrade:condense] no redundancy found');
+  return { removed, deduped, withinRemoved };
 }

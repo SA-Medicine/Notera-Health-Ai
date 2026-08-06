@@ -37,6 +37,21 @@ console.log('condenseNote · A&P redundancy');
   ok('leaves non-redundant A&P alone', /Likely viral/.test(n.assessment_and_plan[0].assessment) && /fluids and rest/.test(n.assessment_and_plan[0].assessment) && r.removed === 0);
 }
 
+console.log('condenseNote · within-section (Subjective timeline) de-dup');
+{
+  const n = note({
+    subjective: {
+      hpi_details: 'Leg weakness and body shakiness started on Monday. Lightheadedness occurred on Tuesday at the bank.',
+      symptom_progression: 'Leg weakness and body shakiness started on Monday.',   // restated
+      functional_impact: 'Lightheadedness occurred on Tuesday at the bank.',        // restated
+    },
+  });
+  const r = condenseNote(n, {}, () => {});
+  ok('drops the restated timeline sentences', n.subjective.symptom_progression.trim() === '' && n.subjective.functional_impact.trim() === '');
+  ok('keeps the first (hpi) statement', /Leg weakness and body shakiness started on Monday/.test(n.subjective.hpi_details));
+  ok('reports intra-section removals', r.withinRemoved >= 2);
+}
+
 console.log('condenseNote · Objective de-dup');
 {
   const n = note({ objective: { examination: 'Hemoglobin 88 g/L low', completed_investigations: 'Hemoglobin 88 g/L (low)' } });
