@@ -35,6 +35,9 @@ RULES (in priority order):
 2. COMPLETENESS — capture EVERY clinically relevant fact from the transcript. In particular the PLAN: every new or changed medication WITH its dose/frequency, the destination pharmacy, any referral, and the exact return-to-clinic timing. Also record ALL investigation results, including normal ones (e.g. "B12 normal", "cholesterol normal").
 3. CONCISENESS — short clinical points, not prose. Omit small talk and non-actionable filler. Do not repeat the same fact across sections at the same level of detail.
 4. STRUCTURE — Subjective and Objective may stay detailed; Assessment & Plan is concise: one numbered problem each, with a diagnosis and terse plan points.
+5. NO REPETITION — state each event/timeline ONCE. Do not restate the same history in multiple sub-headings.
+6. PRESERVE SPECIFICS — keep exact details verbatim: a specific month/date (e.g. "February" — never generalize to "within the last year"), exact medication names and patient wording ("pumps", "pantoprazole"). Never downgrade a specific to a vague phrase.
+7. NO EMBELLISHMENT — do not add parenthetical asides (e.g. "(squeezing fingers)"), and do not invent extra "denies X" items the transcript never mentioned.
 
 Return ONLY this JSON object (no markdown, no commentary). Every string field is newline-separated short points:
 {

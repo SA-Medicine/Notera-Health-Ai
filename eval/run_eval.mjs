@@ -62,16 +62,34 @@ function splitTranscriptAndGold(raw) {
   return idx === -1 ? { transcript: raw.trim(), gold: '' } : { transcript: raw.slice(0, idx).trim(), gold: raw.slice(idx).trim() };
 }
 
+// Split a field value into crisp bullet points (one per line, then per sentence) so the
+// generated pane renders as real "- " bullets — matching the gold note's dotted layout.
+// Sentence split only fires after a real 3+ char word so "Dr.", "e.g.", "St." don't break.
+function toBullets(val) {
+  const arr = Array.isArray(val) ? val : String(val || '').split('\n');
+  const out = [];
+  for (const raw of arr) {
+    const line = String(raw).trim().replace(/^[-•*]\s*/, '');
+    if (!line) continue;
+    for (const part of line.split(/(?<=[a-z0-9]{3}[.!?])\s+(?=[A-Z(])/)) {
+      const p = part.trim();
+      if (p) out.push(p);
+    }
+  }
+  return out;
+}
+
 function renderSchemaMarkdown(note) {
   const L = [];
   const s = note.subjective, pmh = note.past_medical_history, o = note.objective;
-  const blk = (label, val) => { if (val && String(val).trim()) { L.push(`**${label}:**`); L.push(String(val)); L.push(''); } };
+  // A labelled block: bold sub-header, then each value line/sentence as its own "- " bullet.
+  const blk = (label, val) => { const b = toBullets(val); if (b.length) { L.push(`**${label}:**`); for (const x of b) L.push(`- ${x}`); L.push(''); } };
   L.push('**Subjective:**');
   blk('Presenting Complaints', s.reason_for_visit);
   blk('History of Presenting Complaint', [s.hpi_details, s.aggravating_relieving_factors, s.symptom_progression, s.previous_episodes, s.functional_impact].filter(Boolean).join('\n'));
   blk('Associated Symptoms', s.associated_symptoms);
   L.push('**Past Medical History:**');
-  [pmh.medical_surgical, pmh.social && `Social history: ${pmh.social}`, pmh.family && `Family history: ${pmh.family}`, pmh.exposure, pmh.immunisation, pmh.other].filter(Boolean).forEach((x) => L.push(x));
+  for (const x of toBullets([pmh.medical_surgical, pmh.social && `Social history: ${pmh.social}`, pmh.family && `Family history: ${pmh.family}`, pmh.exposure, pmh.immunisation, pmh.other].filter(Boolean).join('\n'))) L.push(`- ${x}`);
   L.push('');
   L.push('**Objective:**');
   blk('Vital Signs', o.vital_signs);
@@ -79,13 +97,14 @@ function renderSchemaMarkdown(note) {
   blk('Exam Findings', o.examination);
   L.push('**Assessment & Plan:**');
   (note.assessment_and_plan || []).forEach((it, i) => {
-    L.push(`${i + 1}. ${it.issue}`);
-    if (it.diagnosis) L.push(`Diagnosis: ${it.diagnosis}`);
-    if (it.assessment) L.push(it.assessment);
-    if ((it.differential_diagnoses || []).length) L.push(`Differentials: ${it.differential_diagnoses.join(', ')}`);
-    if (it.investigations_planned) L.push(`Investigations planned: ${it.investigations_planned}`);
-    if (it.treatment_planned) L.push(`Treatment planned: ${it.treatment_planned}`);
-    if (it.referrals) L.push(`Referrals: ${it.referrals}`);
+    L.push(`${i + 1}. **${String(it.issue || it.diagnosis || `Issue ${i + 1}`).trim()}**`);
+    const sub = (label, val) => { for (const x of toBullets(val)) L.push(`   - ${label}${x}`); };
+    if (it.diagnosis && String(it.diagnosis).trim() !== String(it.issue || '').trim()) sub('Diagnosis: ', it.diagnosis);
+    sub('', it.assessment);
+    if ((it.differential_diagnoses || []).length) L.push(`   - Differentials: ${it.differential_diagnoses.join(', ')}`);
+    sub('Investigations planned: ', it.investigations_planned);
+    sub('Treatment planned: ', it.treatment_planned);
+    sub('Referrals: ', it.referrals);
     L.push('');
   });
   return L.join('\n');
