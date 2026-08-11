@@ -113,4 +113,19 @@ server.requestTimeout = 0;
 server.headersTimeout = 0;
 server.keepAliveTimeout = 120000;
 
+// Fail with a clear, actionable message instead of an unhandled 'error' crash-loop when
+// the port is already taken (a previous backend is still running). Common in dev on Windows.
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`\n[backend] Port ${port} is already in use — another backend is still running.`);
+    console.error(`[backend] Free it, then restart:`);
+    console.error(`[backend]   Windows : npx kill-port ${port}   (or)  netstat -ano | findstr :${port}  →  taskkill /PID <pid> /F`);
+    console.error(`[backend]   macOS/Linux: lsof -ti:${port} | xargs kill -9`);
+    console.error(`[backend]   or set a different port:  PORT=8081 npm run dev:backend\n`);
+    process.exit(1);
+  }
+  console.error('[backend] server error:', err);
+  process.exit(1);
+});
+
 export { app };

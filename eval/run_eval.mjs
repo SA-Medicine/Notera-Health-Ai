@@ -47,6 +47,8 @@ const OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
 
 const { generateNote } = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'orchestrator', 'generateNote.js')).href);
 const { scoreNote, aggregate } = await import(pathToFileURL(path.join(__dirname, 'metrics.mjs')).href);
+// Single source of truth for note structure — the "Notera — generated" pane renders this.
+const { noteToMarkdown } = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'orchestrator', 'renderMarkdown.js')).href);
 
 // Optional: mirror every run into the Testing Lab DB (best-effort; a broken DB
 // never blocks a run — file results are still written).
@@ -62,52 +64,12 @@ function splitTranscriptAndGold(raw) {
   return idx === -1 ? { transcript: raw.trim(), gold: '' } : { transcript: raw.slice(0, idx).trim(), gold: raw.slice(idx).trim() };
 }
 
-// Split a field value into crisp bullet points (one per line, then per sentence) so the
-// generated pane renders as real "- " bullets — matching the gold note's dotted layout.
-// Sentence split only fires after a real 3+ char word so "Dr.", "e.g.", "St." don't break.
-function toBullets(val) {
-  const arr = Array.isArray(val) ? val : String(val || '').split('\n');
-  const out = [];
-  for (const raw of arr) {
-    const line = String(raw).trim().replace(/^[-•*]\s*/, '');
-    if (!line) continue;
-    for (const part of line.split(/(?<=[a-z0-9]{3}[.!?])\s+(?=[A-Z(])/)) {
-      const p = part.trim();
-      if (p) out.push(p);
-    }
-  }
-  return out;
-}
-
+// The generated pane renders the SAME structure as the product pipeline. Delegate to the
+// single renderer (renderMarkdown.js → noteToMarkdown) so structure lives in ONE place:
+// merged Subjective narrative + Associated Symptoms sub-block, terse dissolved Objective,
+// numbered Assessment & Plan. Keeps the two renderers from drifting.
 function renderSchemaMarkdown(note) {
-  const L = [];
-  const s = note.subjective, pmh = note.past_medical_history, o = note.objective;
-  // A labelled block: bold sub-header, then each value line/sentence as its own "- " bullet.
-  const blk = (label, val) => { const b = toBullets(val); if (b.length) { L.push(`**${label}:**`); for (const x of b) L.push(`- ${x}`); L.push(''); } };
-  L.push('**Subjective:**');
-  blk('Presenting Complaints', s.reason_for_visit);
-  blk('History of Presenting Complaint', [s.hpi_details, s.aggravating_relieving_factors, s.symptom_progression, s.previous_episodes, s.functional_impact].filter(Boolean).join('\n'));
-  blk('Associated Symptoms', s.associated_symptoms);
-  L.push('**Past Medical History:**');
-  for (const x of toBullets([pmh.medical_surgical, pmh.social && `Social history: ${pmh.social}`, pmh.family && `Family history: ${pmh.family}`, pmh.exposure, pmh.immunisation, pmh.other].filter(Boolean).join('\n'))) L.push(`- ${x}`);
-  L.push('');
-  L.push('**Objective:**');
-  blk('Vital Signs', o.vital_signs);
-  blk('Investigations', o.completed_investigations);
-  blk('Exam Findings', o.examination);
-  L.push('**Assessment & Plan:**');
-  (note.assessment_and_plan || []).forEach((it, i) => {
-    L.push(`${i + 1}. **${String(it.issue || it.diagnosis || `Issue ${i + 1}`).trim()}**`);
-    const sub = (label, val) => { for (const x of toBullets(val)) L.push(`   - ${label}${x}`); };
-    if (it.diagnosis && String(it.diagnosis).trim() !== String(it.issue || '').trim()) sub('Diagnosis: ', it.diagnosis);
-    sub('', it.assessment);
-    if ((it.differential_diagnoses || []).length) L.push(`   - Differentials: ${it.differential_diagnoses.join(', ')}`);
-    sub('Investigations planned: ', it.investigations_planned);
-    sub('Treatment planned: ', it.treatment_planned);
-    sub('Referrals: ', it.referrals);
-    L.push('');
-  });
-  return L.join('\n');
+  return noteToMarkdown(note);
 }
 
 function noteToText(note) {

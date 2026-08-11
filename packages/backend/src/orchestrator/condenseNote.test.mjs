@@ -72,5 +72,58 @@ console.log('render · A&P stays bulleted after condensing');
   ok('the redundant sentence is gone from the render', !/Severe anemia not improving on oral iron/.test(md.split('Assessment & Plan')[1] || ''));
 }
 
+console.log('condenseNote · pertinent negatives survive the Subjective merge');
+{
+  const n = note({
+    subjective: {
+      hpi_details: 'She has chest pain, shortness of breath, palpitations and a pounding sensation on exertion.',
+      associated_symptoms: 'No chest pain, shortness of breath, palpitations, or pounding sensation at rest.', // negative — must survive
+    },
+  });
+  const r = condenseNote(n, {}, () => {});
+  ok('keeps the pertinent negative even though the topic appears in the HPI above', /No chest pain/i.test(n.subjective.associated_symptoms));
+}
+{
+  // a NON-negative restatement is still dropped (dedup still works)
+  const n = note({
+    subjective: {
+      hpi_details: 'Leg weakness and body shakiness began on Monday morning at home.',
+      symptom_progression: 'Leg weakness and body shakiness began on Monday morning at home.',
+    },
+  });
+  const r = condenseNote(n, {}, () => {});
+  ok('still drops a non-negative duplicate sentence', n.subjective.symptom_progression.trim() === '' && r.withinRemoved >= 1);
+}
+
+console.log('render · merged Subjective + dissolved Objective (no Key/Exam Findings header)');
+{
+  const n = note({
+    subjective: { reason_for_visit: 'Weakness and fatigue.', hpi_details: 'Feeling weak since Monday.', associated_symptoms: 'No fever noted at any point.' },
+    objective: { vital_signs: 'BP 130/80.', examination: 'Gait normal.', completed_investigations: 'CBC pending.' },
+  });
+  const md = noteToMarkdown(n);
+  ok('Subjective is merged — no separate "Presenting Complaints" header', !/Presenting Complaints/i.test(md) && /### Subjective/.test(md));
+  ok('Objective dissolves the Key/Exam Findings subsection', !/Exam Findings/i.test(md) && !/Key Findings/i.test(md) && /### Objective/.test(md));
+  ok('Vitals stay labelled and findings render as dissolved bullets', /\*\*Vital Signs\*\*/.test(md) && /- Gait normal/.test(md) && /- CBC pending/.test(md));
+  ok('Associated Symptoms remains its own sub-block', /\*\*Associated Symptoms\*\*/.test(md) && /No fever/i.test(md));
+}
+
+console.log('render · A&P title uses the disease name, not a placeholder number');
+{
+  const n = note({ ap: [
+    { issue: '1', diagnosis: 'Diverticulitis', assessment: 'Recurrent flare.', investigations_planned: '', treatment_planned: 'Two antibiotics bid.', referrals: '' },
+    { issue: 'Issue 2', diagnosis: 'Iron deficiency anaemia', assessment: '', investigations_planned: '', treatment_planned: 'Oral iron.', referrals: '' },
+  ] });
+  const md = noteToMarkdown(n);
+  ok('numeric placeholder issue "1" → titled by the diagnosis', /1\. \*\*Diverticulitis\*\*/.test(md) && !/1\. \*\*1\*\*/.test(md));
+  ok('"Issue 2" placeholder → titled by the diagnosis', /2\. \*\*Iron deficiency anaemia\*\*/.test(md));
+}
+{
+  // a real issue name is kept as-is
+  const n = note({ ap: [{ issue: 'Left knee quadriceps tendon injury', diagnosis: '', assessment: 'Partial tear.', investigations_planned: '', treatment_planned: 'RICE.', referrals: '' }] });
+  const md = noteToMarkdown(n);
+  ok('keeps a genuine issue name', /1\. \*\*Left knee quadriceps tendon injury\*\*/.test(md));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

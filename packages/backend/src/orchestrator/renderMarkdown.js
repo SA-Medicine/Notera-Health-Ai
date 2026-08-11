@@ -30,12 +30,27 @@ export function noteToMarkdown(note) {
   if (!note) return '';
   const L = [];
 
+  // ── Subjective ──────────────────────────────────────────────────────────────
+  // ONE merged "presenting complaint + history" narrative (the detailed story at the
+  // top): the chief complaint (reason_for_visit) is folded into the front of the HPI —
+  // there is NO separate "Presenting Complaints" header. Associated Symptoms follow as
+  // their own de-duplicated sub-block (pertinent negatives preserved by condenseNote).
   const s = note.subjective || {};
-  section(L, 'Subjective', [
+  const story = [
     ...bullets(s.reason_for_visit), ...bullets(s.hpi_details), ...bullets(s.aggravating_relieving_factors),
     ...bullets(s.symptom_progression), ...bullets(s.previous_episodes), ...bullets(s.functional_impact),
-    ...bullets(s.associated_symptoms),
-  ]);
+  ];
+  const assoc = bullets(s.associated_symptoms);
+  if (story.length || assoc.length) {
+    L.push('### Subjective');
+    for (const b of story) L.push(`- ${b}`);
+    if (assoc.length) {
+      L.push('');
+      L.push('**Associated Symptoms**');
+      for (const b of assoc) L.push(`- ${b}`);
+    }
+    L.push('');
+  }
 
   const p = note.past_medical_history || {};
   section(L, 'Past Medical History', [
@@ -43,17 +58,32 @@ export function noteToMarkdown(note) {
     ...bullets(p.exposure), ...bullets(p.immunisation), ...bullets(p.other),
   ]);
 
+  // ── Objective ───────────────────────────────────────────────────────────────
+  // Terse: vitals labelled (compact + clinically important), then a single DISSOLVED
+  // findings list (examination + completed_investigations) — there is NO separate
+  // "Exam Findings"/"Key Findings" sub-section. condenseNote de-dups exam vs labs first.
   const o = note.objective || {};
-  section(L, 'Objective', [
-    ...bullets(o.vital_signs), ...bullets(o.examination), ...bullets(o.completed_investigations),
-  ]);
+  const vitals = bullets(o.vital_signs);
+  const findings = [...bullets(o.examination), ...bullets(o.completed_investigations)];
+  if (vitals.length || findings.length) {
+    L.push('### Objective');
+    if (vitals.length) { L.push('**Vital Signs**'); for (const b of vitals) L.push(`- ${b}`); }
+    if (findings.length) { if (vitals.length) L.push(''); for (const b of findings) L.push(`- ${b}`); }
+    L.push('');
+  }
 
   const ap = note.assessment_and_plan || [];
   const apItems = ap.filter((it) => it && (String(it.issue || '').trim() || String(it.diagnosis || '').trim() || String(it.assessment || '').trim() || String(it.treatment_planned || '').trim()));
   if (apItems.length) {
     L.push('### Assessment & Plan');
     apItems.forEach((it, i) => {
-      const title = String(it.issue || it.diagnosis || `Issue ${i + 1}`).trim();
+      // Title must be the PROBLEM/DIAGNOSIS NAME, never a bare placeholder like "1"/"Issue 2".
+      // If the pipeline left a numeric placeholder in `issue`, fall back to the diagnosis so
+      // the heading reads "1. Diverticulitis" (like the gold note), not "1. 1".
+      const isPlaceholder = (t) => !t || /^(?:issue|problem|point|dx|#)?\s*#?\d+\.?$/i.test(t);
+      const issue = String(it.issue || '').trim();
+      const diag = String(it.diagnosis || '').trim();
+      const title = (!isPlaceholder(issue) ? issue : '') || diag || issue || `Issue ${i + 1}`;
       L.push(`${i + 1}. **${title}**`);
       const sub = (label, val) => { for (const b of bullets(val)) L.push(`   - ${label}${b}`); };
       if (it.diagnosis && norm(it.diagnosis) !== norm(title)) sub('Diagnosis: ', it.diagnosis);

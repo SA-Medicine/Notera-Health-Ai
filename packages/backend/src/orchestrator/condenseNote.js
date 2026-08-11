@@ -18,6 +18,10 @@ const splitLines = (v) => String(v || '').split('\n').map((x) => x.trim()).filte
 // sentence split that never breaks on abbreviations ("Dr.", "e.g.", "St.")
 const splitSentences = (line) => String(line).split(/(?<=[a-z0-9]{3}[.!?])\s+(?=[A-Z(])/).map((s) => s.trim()).filter(Boolean);
 const wordsOf = (s) => norm(s).split(' ').filter((w) => w.length > 2);
+// Pertinent negatives ("No fever", "denies chest pain", "no chest pain, SOB") are clinically
+// required and must survive de-dup even when the same topic word appears in the narrative
+// above (e.g. HPI mentions "fever", Associated Symptoms says "No fever" — keep BOTH).
+const isPertinentNegative = (s) => /(^|\b)(no|not|non|never|nil|none|neg|negative|without|absent|denies|denied|deny)\b/i.test(String(s || ''));
 
 function jaccard(a, b) {
   if (!a.length || !b.length) return 0;
@@ -47,6 +51,8 @@ function dedupWithinSection(obj, threshold, log) {
       for (const s of splitSentences(line)) {
         const w = wordsOf(s);
         if (w.length < 4) { kept.push(s); continue; }
+        // Never drop a pertinent negative, even if its topic appears in the story above.
+        if (isPertinentNegative(s)) { seen.push(w); kept.push(s); continue; }
         const dup = seen.some((a) => jaccard(w, a) >= threshold || containment(w, a) >= 0.85);
         if (dup) { removed++; log(`[upgrade:condense] dropped duplicate sentence within a section: "${s.slice(0, 80)}"`); continue; }
         seen.push(w); kept.push(s);

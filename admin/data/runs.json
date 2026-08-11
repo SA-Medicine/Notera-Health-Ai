@@ -1,5 +1,32 @@
 [
   {
+    "id": "2026-08-11T15-43-34-738Z-8875",
+    "command": "node eval/run_eval.mjs bs me location-7",
+    "status": "passed",
+    "startedAt": "2026-08-11T15:43:34.738Z",
+    "finishedAt": "2026-08-11T15:46:30.970Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-11_15-43-34"
+  },
+  {
+    "id": "2026-08-11T14-43-30-671Z-8673",
+    "command": "node eval/run_eval.mjs kl am bs",
+    "status": "passed",
+    "startedAt": "2026-08-11T14:43:30.671Z",
+    "finishedAt": "2026-08-11T14:52:07.148Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-11_14-43-30"
+  },
+  {
+    "id": "2026-08-11T14-22-52-595Z-378c",
+    "command": "node eval/run_eval.mjs bs ah-2 kt tr location-6",
+    "status": "interrupted",
+    "startedAt": "2026-08-11T14:22:52.595Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
     "id": "2026-08-06T13-24-43-702Z-e979",
     "command": "node eval/run_eval.mjs hyperkalemia-htn wegovy-refill-dose",
     "status": "passed",
