@@ -70,9 +70,9 @@ Past Medical History:
 Objective:
 - vital_signs: measured or reported vital signs (HR, BP, temp, RR, SpO2).
 - examination: physical or mental state examination findings, including system-specific exams.
-- completed_investigations: ONLY completed investigations with explicitly mentioned results. Do NOT include planned/ordered tests here.
-Assessment & Plan: an ARRAY, one object per issue/request/problem explicitly identified. For each:
-- issue: issue, request, problem or condition name.
+- completed_investigations: ONLY completed investigations that have a result. For EACH, write the test name WITH its result value/units and any flag, and the result DATE when stated — e.g. "Haemoglobin 88 g/L (low) — 2026-06-01", "HbA1c 6.4% (borderline)", "TSH normal". Never list a test name without its result. Do NOT include planned/ordered tests here.
+Assessment & Plan: an ARRAY, one object per issue/request/problem explicitly identified. Keep genuinely distinct problems SEPARATE (e.g. left knee and right knee are two entries). For each:
+- issue: the problem or condition NAME (e.g. "Diverticulitis", "Left knee injury") — never a bare number or placeholder.
 - diagnosis: diagnosis ONLY if explicitly stated by the clinician. Do NOT infer, summarise or create a diagnosis.
 - differential_diagnoses: ONLY if differentials were explicitly listed. Do NOT generate possibilities.
 - investigations_planned: tests the clinician stated will be arranged.

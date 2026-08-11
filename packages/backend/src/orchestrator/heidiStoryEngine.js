@@ -48,8 +48,10 @@ Subjective — reason_for_visit; hpi_details (duration, timing, location, qualit
 context); aggravating_relieving_factors; symptom_progression; previous_episodes;
 functional_impact; associated_symptoms (focal + systemic, including pertinent negatives).
 Past Medical History — medical_surgical; social; family; exposure; immunisation; other.
-Objective — vital_signs; examination (exam findings only); completed_investigations (results only,
-never planned tests).
+Objective — vital_signs; examination (exam findings only, NO medications); completed_investigations
+(each completed test WITH its result value/units, flag, and date when stated —
+e.g. "Haemoglobin 88 g/L (low) — 2026-06-01", "TSH normal"; never a test name without its result;
+never planned tests; never medications).
 Assessment & Plan — one entry per real problem: issue, diagnosis (only if explicitly stated),
 assessment (interpretation/status/response — NOT a retell of the history), differential_diagnoses
 (only if explicitly listed), investigations_planned, treatment_planned, referrals.

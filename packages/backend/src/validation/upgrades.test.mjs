@@ -1,5 +1,5 @@
 // Unit tests for the deterministic upgrade guardrails. Run: node packages/backend/src/validation/upgrades.test.mjs
-import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition } from './upgrades.js';
+import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition, stripMedicationsFromObjective } from './upgrades.js';
 import { reconcileMedications, normalizeMedications, _clearCache } from '../services/rxnorm.js';
 import { noteToMarkdown } from '../orchestrator/renderMarkdown.js';
 
@@ -319,6 +319,46 @@ console.log('R · de-repetition (degenerate loop guard)');
   const n = baseNote({ subjective: { reason_for_visit: 'pain pain pain pain in the knee' } });
   stripRepetition(n, () => {});
   ok('collapses repeated words', n.subjective.reason_for_visit === 'pain in the knee');
+}
+
+console.log('G(dates) · lab result dates survive natural-language grounding');
+{
+  const note = { subjective: {}, past_medical_history: {}, objective: { completed_investigations: 'Haemoglobin 88 g/L (low) — 2026-06-01.' }, assessment_and_plan: [], metadata: { flags: [] } };
+  const r = enforceDateGrounding(note, 'her haemoglobin came back at 88 on june 1st', () => {});
+  ok('keeps an ISO lab date when the transcript says "june 1st"', /2026-06-01/.test(note.objective.completed_investigations) && r.ungrounded === 0);
+}
+{
+  // fabricated date, not in transcript → stripped WITHOUT leaving a dangling "—"
+  const note = { subjective: {}, past_medical_history: {}, objective: { completed_investigations: 'Haemoglobin 88 g/L (low) — 2019-03-15.' }, assessment_and_plan: [], metadata: { flags: [] } };
+  enforceDateGrounding(note, 'her haemoglobin was 88, no date given', () => {});
+  const out = note.objective.completed_investigations;
+  ok('strips an ungrounded date and leaves no dangling separator', /Haemoglobin 88 g\/L \(low\)\.?$/.test(out) && !/[—–]\s*\.?$/.test(out));
+}
+
+console.log('A2 · stripMedicationsFromObjective');
+{
+  const note = {
+    subjective: { hpi_details: '' },
+    objective: {
+      vital_signs: 'BP 128/80.',
+      examination: 'Chest clear.\nAmlodipine 5 mg daily.',              // bare med NAME leaked into exam
+      completed_investigations: 'Haemoglobin 130 g/L (normal).\nDigoxin level 0.9 (therapeutic).\nMetformin.',
+    },
+    assessment_and_plan: [{ issue: 'Hypertension', diagnosis: '', assessment: '', investigations_planned: '', treatment_planned: '', referrals: '' }],
+    metadata: { medications_mentioned: ['Amlodipine', 'Metformin', 'Digoxin'], flags: [] },
+  };
+  const r = stripMedicationsFromObjective(note, note.metadata.medications_mentioned, () => {});
+  ok('removes a bare medication name from examination', !/Amlodipine/i.test(note.objective.examination) && /Chest clear/.test(note.objective.examination));
+  ok('removes a bare medication name from investigations', !/^Metformin\.?$/im.test(note.objective.completed_investigations));
+  ok('KEEPS a genuine drug-level lab result', /Digoxin level 0\.9/.test(note.objective.completed_investigations));
+  ok('KEEPS a normal lab result', /Haemoglobin 130/.test(note.objective.completed_investigations));
+  ok('relocates the stray medication into the Plan', /Amlodipine 5 mg daily/i.test(note.assessment_and_plan[0].treatment_planned) && r.moved >= 2);
+}
+{
+  // no known meds → no-op (never touches objective)
+  const note = { subjective: {}, objective: { examination: 'Gait normal.', completed_investigations: 'TSH normal.' }, assessment_and_plan: [], metadata: { medications_mentioned: [], flags: [] } };
+  const r = stripMedicationsFromObjective(note, [], () => {});
+  ok('no-op when there are no known medications', r.moved === 0 && /Gait normal/.test(note.objective.examination));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

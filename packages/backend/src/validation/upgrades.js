@@ -173,6 +173,45 @@ export function flagSuspiciousValues(note, log = () => {}) {
   return { flags };
 }
 
+// ── A2 · objective medication scrubber ───────────────────────────────────────
+// Objective documents vitals, exam findings and lab RESULTS only — never medications.
+// routeMedicationToPlan (A) moves dosed/actioned med lines out, but a BARE medication
+// NAME (no dose/action) slips through. Remove any Objective line naming a known
+// medication and relocate it to the Plan — UNLESS the line is a genuine lab about a drug
+// (e.g. "Digoxin level 0.9", "INR 2.3 on warfarin"), which is a valid result and stays.
+const DRUG_LEVEL_CTX = /\b(levels?|concentration|trough|peak|inr|ratio|assay|titre|titer|g\/l|mmol|mg\/dl|ng\/ml|mcg\/l|iu\/l|units?\/l|%)\b/i;
+const escapeRxLit = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function stripMedicationsFromObjective(note, meds = [], log = () => {}) {
+  if (!note || !note.objective) return { moved: 0 };
+  const names = [...new Set((meds || []).map((m) => String(m).trim()).filter((m) => m.length >= 3))]
+    .sort((a, b) => b.length - a.length);
+  if (!names.length) { log('[upgrade:objective-meds] no known medications to screen'); return { moved: 0 }; }
+  const medRx = new RegExp('\\b(' + names.map(escapeRxLit).join('|') + ')\\b', 'i');
+  const primary = (note.assessment_and_plan || [])[0];
+  let moved = 0;
+  for (const key of ['examination', 'completed_investigations', 'vital_signs']) {
+    if (typeof note.objective[key] !== 'string') continue;
+    const kept = [];
+    for (const line of splitLines(note.objective[key])) {
+      // a medication name, and NOT a lab/drug-level result → it does not belong in Objective
+      if (medRx.test(line) && !DRUG_LEVEL_CTX.test(line) && !LAB_KW.test(line)) {
+        if (primary) {
+          const cur = splitLines(primary.treatment_planned);
+          if (!cur.some((e) => norm(e) === norm(line))) cur.push(line);
+          primary.treatment_planned = cur.join('\n');
+        }
+        moved++;
+        log(`[upgrade:objective-meds] removed medication from Objective.${key}${primary ? ' → Plan' : ''}: "${line}"`);
+        continue;
+      }
+      kept.push(line);
+    }
+    note.objective[key] = kept.join('\n');
+  }
+  if (!moved) log('[upgrade:objective-meds] no stray medications in Objective');
+  return { moved };
+}
+
 // ── B · blank / phatic encounter detector ────────────────────────────────────
 const PHATIC_RX = /\b(hello|hi|hey|good (?:morning|afternoon|evening)|how are you|how's it going|thanks?|thank you|goodbye|bye|see you|take care|no worries|okay|alright|yeah|yes|no|please|welcome|have a (?:good|nice)|nice to (?:meet|see))\b/gi;
 const MED_HINT_RX = /\b(pain|ache|fever|cough|rash|swelling|nausea|vomit|dizz|bleed|pressure|diabet|infection|medication|medicine|tablet|dose|mg|blood|test|scan|referral|symptom|diagnos|prescrib|allergy|injury|breath|chest|headache|throat|stomach|clinic|exam|treatment)\b/i;
@@ -376,6 +415,28 @@ const dateRe = () => new RegExp(`\\b(?:\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}\\/\\d{1
 const escapeRx = (s) => String(s).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 const yearsIn = (s) => [...String(s || '').matchAll(YEAR_G)].map((m) => m[0]);
 
+// A date is "grounded" if the transcript states it in ANY common form. Lab dates are
+// frequently spoken naturally ("june 1st") but extracted as ISO ("2026-06-01"); a strict
+// literal check would wrongly strip a real result date, so match month-name/day and
+// numeric M/D forms too. Only used to DECIDE keep-vs-strip; never invents a date.
+const MONTH_ABBR = { 1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'aug', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dec' };
+function dateGroundedInTranscript(tok, tLower, tYears) {
+  const t = String(tok).toLowerCase();
+  if (tLower.includes(t)) return true;                                  // literal match
+  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) {
+    const [, y, mo, d] = iso; const moN = Number(mo), dN = Number(d);
+    const abbr = MONTH_ABBR[moN];
+    const monthDay = abbr && new RegExp(`\\b${abbr}[a-z]*\\.?\\s+${dN}(?:st|nd|rd|th)?\\b`, 'i').test(tLower);
+    const dayMonth = abbr && new RegExp(`\\b${dN}(?:st|nd|rd|th)?\\s+${abbr}[a-z]*\\b`, 'i').test(tLower);
+    const numeric = new RegExp(`\\b(?:${moN}[\\/-]${dN}|${dN}[\\/-]${moN})(?:[\\/-]\\d{2,4})?\\b`).test(tLower);
+    if (monthDay || dayMonth || numeric) return true;
+    return tYears.has(y);                                              // else fall back to the year
+  }
+  const ys = yearsIn(tok);
+  return ys.length > 0 && ys.every((y) => tYears.has(y));
+}
+
 export function enforceDateGrounding(note, transcript = '', log = () => {}, opts = {}) {
   const mode = opts.mode || process.env.UPGRADE_DATE_MODE || 'strip';   // 'strip' | 'flag'
   const nowYear = new Date().getFullYear();
@@ -391,12 +452,18 @@ export function enforceDateGrounding(note, transcript = '', log = () => {}, opts
         const tok = m[0]; checked++;
         const ys = yearsIn(tok);
         for (const y of ys) { const yn = Number(y); if (yn > nowYear || yn < nowYear - 130) flags.push({ type: 'implausible_date', field: 'note', message: `Date "${tok}" has an implausible year (${y}) — likely a transcription / de-identification artifact; verify.`, severity: 'warning' }); }
-        const grounded = tLower.includes(tok.toLowerCase()) || (ys.length > 0 && ys.every((y) => tYears.has(y)));
+        const grounded = dateGroundedInTranscript(tok, tLower, tYears);
         if (!grounded) {
           ungrounded++;
           flags.push({ type: 'ungrounded_date', field: 'note', message: `Date "${tok}" is not supported by the transcript — ${mode === 'strip' ? 'removed' : 'flagged'} (possible hallucination).`, severity: 'critical' });
-          log(`[upgrade:date-grounding] ungrounded date "${tok}" (year not in transcript) — ${mode === 'strip' ? 'stripped from' : 'flagged in'}: "${line}"`);
-          if (mode === 'strip') newLine = newLine.replace(new RegExp(`\\s*(?:\\b(?:on|in|since|dated|from|until|by)\\b\\s*)?${escapeRx(tok)}`, 'i'), '').replace(/\s{2,}/g, ' ').replace(/[\s,;:–-]+$/, '').replace(/\(\s*\)/g, '').trim();
+          log(`[upgrade:date-grounding] ungrounded date "${tok}" (not in transcript) — ${mode === 'strip' ? 'stripped from' : 'flagged in'}: "${line}"`);
+          if (mode === 'strip') newLine = newLine
+            .replace(new RegExp(`\\s*(?:[—–-]\\s*)?(?:\\b(?:on|in|since|dated|from|until|by)\\b\\s*)?${escapeRx(tok)}`, 'i'), '')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/\(\s*\)/g, '')
+            .replace(/\s*[—–-]\s*(\.?)\s*$/, '$1')   // remove a now-dangling "— " separator (keep any period)
+            .replace(/[\s,;:–—-]+$/, '')
+            .trim();
         }
       }
       if (newLine) kept.push(newLine);
@@ -474,6 +541,7 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   ];
   const rep = stripRepetition(note, sink);   // FIRST: kill degenerate repetition loops
   const a = routeMedicationToPlan(note, sink);
+  const a2 = stripMedicationsFromObjective(note, meds, sink);   // bare med NAMES out of Objective
   const g = validateTemporalStatus(note, sink);
   const d = flagSuspiciousValues(note, sink);
   const ph = verifyPharmacyBinding(note, { transcript, meds }, sink);
@@ -489,6 +557,6 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   const rate = totalChecked ? +(1 - ungrounded / totalChecked).toFixed(3) : 1;
   note.metadata = note.metadata || {};
   note.metadata.grounding = { dates_checked: dt.checked, dates_ungrounded: dt.ungrounded, numbers_ungrounded: numChecked, references_stripped: nr.stripped, repetition_loops_collapsed: rep.fixed, rate };
-  sink(`[upgrade] guardrails complete — ${rep.fixed} repetition loop(s), ${a.moved} med re-routed, ${g.fixed} temporal, ${d.flags.length} value, ${ph.flags.length} pharmacy, ${np.flags.length} non-patient, ${nm.flags.length} ungrounded-number, ${dt.ungrounded} ungrounded-date, ${nr.flags.length} fabricated-reference flag(s) · grounding rate ${(rate * 100).toFixed(0)}%`);
+  sink(`[upgrade] guardrails complete — ${rep.fixed} repetition loop(s), ${a.moved + a2.moved} med re-routed (${a2.moved} bare-name from Objective), ${g.fixed} temporal, ${d.flags.length} value, ${ph.flags.length} pharmacy, ${np.flags.length} non-patient, ${nm.flags.length} ungrounded-number, ${dt.ungrounded} ungrounded-date, ${nr.flags.length} fabricated-reference flag(s) · grounding rate ${(rate * 100).toFixed(0)}%`);
   return { note, flags, logs: lines };
 }
