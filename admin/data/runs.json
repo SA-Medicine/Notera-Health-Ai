@@ -1,5 +1,59 @@
 [
   {
+    "id": "2026-08-14T16-00-43-051Z-1982",
+    "command": "node eval/run_eval.mjs location hyperkalemia-htn kl lb ka mk-5 hypotension-med-error l-knee-cyst-hip-arthritis unknown-session-5 lightheadedness-htn blood-work-celiac",
+    "status": "passed",
+    "startedAt": "2026-08-14T16:00:43.051Z",
+    "finishedAt": "2026-08-14T16:18:23.392Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-14_16-00-43"
+  },
+  {
+    "id": "2026-08-14T15-58-34-678Z-3cfc",
+    "command": "node eval/run_eval.mjs rw mb cb mm cb-2 nb-2 l-axilla-swelling-hyperchol patient-2758 lb ar ka",
+    "status": "interrupted",
+    "startedAt": "2026-08-14T15:58:34.678Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-08-14T15-58-34-668Z-96c5",
+    "command": "node eval/run_eval.mjs rw mb cb mm cb-2 nb-2 l-axilla-swelling-hyperchol patient-2758 lb ar ka",
+    "status": "interrupted",
+    "startedAt": "2026-08-14T15:58:34.668Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null
+  },
+  {
+    "id": "2026-08-14T15-37-02-213Z-678f",
+    "command": "node eval/run_eval.mjs rw mb cb mm cb-2 nb-2 l-axilla-swelling-hyperchol patient-2758 lb ar ka",
+    "status": "passed",
+    "startedAt": "2026-08-14T15:37:02.214Z",
+    "finishedAt": "2026-08-14T15:51:39.739Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-14_15-37-02"
+  },
+  {
+    "id": "2026-08-14T15-13-41-084Z-b178",
+    "command": "node eval/run_eval.mjs lb",
+    "status": "passed",
+    "startedAt": "2026-08-14T15:13:41.085Z",
+    "finishedAt": "2026-08-14T15:15:23.909Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-14_15-13-41"
+  },
+  {
+    "id": "2026-08-14T14-54-37-031Z-a954",
+    "command": "node eval/run_eval.mjs bs",
+    "status": "passed",
+    "startedAt": "2026-08-14T14:54:37.031Z",
+    "finishedAt": "2026-08-14T14:56:11.438Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-14_14-54-37"
+  },
+  {
     "id": "2026-08-11T15-43-34-738Z-8875",
     "command": "node eval/run_eval.mjs bs me location-7",
     "status": "passed",

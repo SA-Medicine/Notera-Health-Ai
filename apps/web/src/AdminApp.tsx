@@ -10,6 +10,7 @@ import { Overview } from '@/screens/overview'
 import { Run } from '@/screens/run'
 import { Patients } from '@/screens/patients'
 import { Results } from '@/screens/results'
+import { Critique } from '@/screens/critique'
 import { Metrics } from '@/screens/metrics'
 import { Prompts } from '@/screens/prompts'
 import { Upgrader } from '@/screens/upgrader'
@@ -39,6 +40,7 @@ function Shell() {
           {tab === 'run' && <Run onStatus={setStatus} />}
           {tab === 'patients' && <Patients />}
           {tab === 'results' && <Results setTab={setTab} target={resultsTarget} clearTarget={() => setResultsTarget(null)} />}
+          {tab === 'critique' && <Critique />}
           {tab === 'metrics' && <Metrics openInResults={openInResults} />}
           {tab === 'prompts' && <Prompts setTab={setTab} />}
           {tab === 'upgrader' && <Upgrader />}

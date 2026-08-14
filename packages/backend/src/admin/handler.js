@@ -658,6 +658,7 @@ const AGENT_LOG_PATTERNS = {
   'qa-validator': [/\[PromptAgent\] qa-validator/, /QA Validator/i, /V31 QA/i, /Running deep QA/i, /QA Flags/i, /Missing Required Entity/i, /HARD FAIL/i, /Missing Medication/i, /Missing Numeric/i, /Missing Temporal/i, /Retry signal/i, /note is complete/i],
   'compression': [/\[PromptAgent\] compression/, /Compression Engine/i],
   'judge-clinical': [/\[PromptAgent\] judge-clinical/, /Judge/i],
+  'hallucination-remover': [/\[PromptAgent\] hallucination-remover/, /\[hallucination-remover\]/i],
 };
 const stripAnsiSrv = (s) => String(s || '').replace(/\x1b\[[0-9;]*m/g, '');
 // Get the full stdout for a result run. Prefer the per-run pipeline log the eval
@@ -1278,6 +1279,45 @@ Score objectively, evidence-based, never rewarding fluent-but-unsupported text. 
       return json(res, 200, { ok: false, error: e.message, hint: 'Comparison needs GEMINI_API_KEY (or GEMINI_PROXY_URL) in the admin server env.' });
     }
   }
+  // ── Second Opinion: independent DeepSeek critique of the generated note (no gold) ──
+  if (p === '/api/results/critique') {
+    const isPost = req.method === 'POST';
+    const body = isPost ? await readBody(req) : {};
+    const d = safeRunDir(isPost ? body.dir : u.searchParams.get('dir'));
+    const f = safeName(isPost ? body.name : u.searchParams.get('name'));
+    if (!d || !f) return json(res, 400, { error: 'bad args' });
+    const cacheFp = path.join(RESULTS, d, f.replace(/\.md$/, '') + '.critique.json');
+    if (!isPost) { try { return json(res, 200, { cached: true, ...JSON.parse(fs.readFileSync(cacheFp, 'utf8')) }); } catch { return json(res, 200, { cached: false }); } }
+    // pull the GENERATED note out of the fixture .md
+    let generated = '';
+    try {
+      const mdText = fs.readFileSync(path.join(RESULTS, d, f), 'utf8');
+      const secs = []; let cur = { title: '_head', body: [] };
+      for (const ln of mdText.split('\n')) { const mm = ln.match(/──\s*(.+?)\s*──/); if (mm) { secs.push(cur); cur = { title: mm[1], body: [] }; } else cur.body.push(ln); }
+      secs.push(cur);
+      const findSec = (rx) => { const s = secs.find((x) => rx.test(x.title)); return s ? s.body.join('\n').trim() : ''; };
+      generated = findSec(/generated/i);
+    } catch { return json(res, 404, { error: 'fixture not found' }); }
+    if (!generated) return json(res, 404, { error: 'no generated note in fixture' });
+    // resolve the source transcript (gold fixture on disk, else the imported patient in the DB)
+    const base = f.replace(/\.(md|json|txt)$/i, '');
+    let transcript = '';
+    try { const raw = fs.readFileSync(path.join(GOLD, base + '.txt'), 'utf8'); const idx = raw.search(/^\s*Subjective\s*:/im); transcript = (idx === -1 ? raw : raw.slice(0, idx)).trim(); }
+    catch { try { const lab = await getLab(); const pt = await lab.getPatientBySlug(base); transcript = pt ? (pt.transcript_clean || pt.transcript_raw || '') : ''; } catch { /* no transcript */ } }
+    // optional: hand the reviewer the published generation prompts as context
+    let promptContext = '';
+    try { promptContext = listPromptRecs().map((r) => { const v = r.publishedVersion ? readPromptVersion(r.id, r.publishedVersion) : null; return v && v.systemInstruction ? `# ${r.label || r.id}\n${v.systemInstruction}` : ''; }).filter(Boolean).join('\n\n'); } catch { /* prompts optional */ }
+    try {
+      const { critiqueNote } = await import(pathToFileURL(path.join(__dirname, '..', 'services', 'deepseek.js')).href);
+      const out = await critiqueNote({ transcript, note: generated, promptContext });
+      if (out.ok === false) return json(res, 200, out);
+      try { fs.writeFileSync(cacheFp, JSON.stringify(out, null, 2)); } catch {}
+      return json(res, 200, { cached: true, ...out });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: e.message, hint: 'The Second Opinion reviewer needs DEEPSEEK_API_KEY in the backend .env.' });
+    }
+  }
+
   // delete a run entirely: its result dir, captured stdout log, runs.json entry, history line
   if ((m = p.match(/^\/api\/results\/([^/]+)$/)) && req.method === 'DELETE') {
     const d = safeRunDir(m[1]); if (!d) return json(res, 400, { error: 'bad run' });

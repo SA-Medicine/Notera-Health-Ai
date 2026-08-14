@@ -1,0 +1,17 @@
+{
+  "id": "hallucination-remover",
+  "agent": "HallucinationRemoverAgent",
+  "file": "backend/src/orchestrator/hallucinationRemover.js",
+  "label": "hallucination-remover-systemprompt",
+  "stage": "Cleanup",
+  "description": "Final DeepSeek pass: deletes every hallucination the transcript does not support (remove-only, grounded).",
+  "kind": "agent",
+  "vars": [],
+  "publishedVersion": 1,
+  "draft": null,
+  "updatedAt": "2026-08-14T14:54:02.120Z",
+  "active": true,
+  "order": 6,
+  "freeform": false,
+  "maxOutputTokens": null
+}
