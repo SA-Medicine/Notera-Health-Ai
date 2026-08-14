@@ -28,6 +28,7 @@ const PIPELINE: { k: 'prompt' | 'js'; id?: string; label?: string }[] = [
   { k: 'js', label: 'Recall Analyzer' }, { k: 'prompt', id: 'fact-recovery' },
   { k: 'js', label: 'Problem Graph → Engines' }, { k: 'js', label: 'Story / Narrative' },
   { k: 'prompt', id: 'qa-validator' }, { k: 'js', label: 'FHIR Export' },
+  { k: 'prompt', id: 'hallucination-remover' },
 ]
 
 export function Prompts({ setTab }: { setTab: (t: TabId) => void }) {

@@ -214,6 +214,27 @@ export async function generateNote(input, opts = {}) {
   // by dropping sentences that just repeat the detail above, and merge duplicate exam lines.
   try { condenseNote(note, {}, (l) => console.log(l)); } catch (e) { console.warn('[upgrade:condense] skipped:', e.message); }
 
+  // FINAL AGENT — Hallucination Remover (DeepSeek). Runs LAST on the assembled note: audits
+  // every statement against the transcript and DELETES anything unsupported (invented names,
+  // dates, doses, lab values, meds, findings, negations). Remove-only, grounded; records the
+  // exact removals in metadata + [hallucination-remover] logs. Gated + timeboxed so it can
+  // never block or wipe a note. Reuses the Second-Opinion engine.
+  if (process.env.HALLUCINATION_REMOVER !== '0') {
+    try {
+      const { deepseekEnabled } = await import('../services/deepseek.js');
+      if (deepseekEnabled()) {
+        const { removeHallucinations } = await import('./hallucinationRemover.js');
+        const budget = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 150000;
+        await Promise.race([
+          removeHallucinations(note, { transcript, log: (l) => console.log(l) }),
+          new Promise((resolve) => setTimeout(() => { console.warn(`[hallucination-remover] skipped — exceeded ${budget}ms (DeepSeek slow/unreachable)`); resolve(null); }, budget)),
+        ]);
+      } else {
+        console.log('[hallucination-remover] OFF — set DEEPSEEK_API_KEY to enable the final hallucination-removal pass');
+      }
+    } catch (e) { console.warn('[hallucination-remover] skipped:', e.message); }
+  }
+
   // Deterministic Markdown render of the FINAL structured note in the fixed Heidi/gold
   // schema (section headings + one bullet per sentence + numbered A&P). This is what the UI
   // shows and the eval compares, so the structure is always the schema + points. Falls back

@@ -36,6 +36,8 @@ export interface AgentRunRow { id: number; agent_id: string; seq: number; status
 export interface RerunResult { ok: boolean; mode?: string; error?: string; hint?: string; agentRunId?: number; attempt?: number; output?: string; outputParsed?: any; metrics?: Record<string, number>; runId?: string; slug?: string }
 export interface CompareDim { name: string; notera: number; gold: number; comment: string }
 export interface Comparison { cached: boolean; ok?: boolean; error?: string; hint?: string; raw?: string; overall_score?: number; verdict?: string; dimensions?: CompareDim[]; notera_missing?: string[]; notera_extra?: string[]; key_differences?: string[]; summary?: string; generatedAt?: string }
+export interface CritiqueDim { name: string; score: number; comment: string }
+export interface Critique { cached: boolean; ok?: boolean; error?: string; hint?: string; raw?: string; overall_score?: number; verdict?: string; one_liner?: string; dimensions?: CritiqueDim[]; strengths?: string[]; weaknesses?: string[]; safety_issues?: string[]; hallucinations?: string[]; omissions?: string[]; recommendations?: string[]; brutal_summary?: string; model?: string; generatedAt?: string }
 
 // ── System Upgrader ──
 export const UPGRADER_AGENTS = ['observation-extractor', 'clinical-story', 'qa-validator', 'fact-recovery', 'encounter-classifier']
@@ -63,6 +65,8 @@ export const api = {
   transcript: (name: string) => jget<{ ok: boolean; source?: string; fixture?: string; transcript?: string; gold?: string; error?: string }>(`/backend/api/results/transcript?name=${encodeURIComponent(name)}`),
   compareGet: (dir: string, name: string) => jget<Comparison>(`/backend/api/results/compare?dir=${dir}&name=${encodeURIComponent(name)}`),
   compareRun: (dir: string, name: string) => jpost<Comparison>('/backend/api/results/compare', { dir, name }),
+  critiqueGet: (dir: string, name: string) => jget<Critique>(`/backend/api/results/critique?dir=${dir}&name=${encodeURIComponent(name)}`),
+  critiqueRun: (dir: string, name: string) => jpost<Critique>('/backend/api/results/critique', { dir, name }),
   deleteRun: (dir: string) => fetch('/backend/api/results/' + encodeURIComponent(dir), { method: 'DELETE' }),
   patients: () => jget<{ patients: Patient[]; error?: string; hint?: string }>('/backend/api/patients'),
   importPatients: (sessions: any) => jpost<ImportResult>('/backend/api/patients/import', sessions),
