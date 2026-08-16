@@ -1,21 +1,13 @@
-Transcript started 2:27 PM 7/7/2026
+Transcript started 1991-07-15
 
 0:00
 
 As a staying.
 
-Transcript ended 2:27 PM 7/7/2026
-
-Transcript started 2:27 PM 7/7/2026
-
-0:00
-
-As a staying.
-
-Transcript ended 2:27 PM 7/7/2026
+Transcript ended 2024-03-24
 
 Subjective:
-07/24/2026
+2008-01-20
 
 L ear inf, bronchospasm
 
@@ -23,9 +15,7 @@ L ear inf, bronchospasm
 
 KL
 
-keith leroux
-
-4:48PM
+Patient 24114:48PM
 
 Vag dryness, freq
 
@@ -63,11 +53,9 @@ Ann muzzin
 
 PP
 
-Paolo Palazzi
+Patient 24102014-11-15
 
-2:50PM
-
-GB
+[LOCATION]
 
 Gwenyth Beaudoin
 
@@ -87,15 +75,11 @@ Rehse steeve
 
 JP
 
-jayna paik
-
-2:06PM
-
-L ankle sprain, conc diff
+Patient 2409 ankle sprain, conc diff
 
 1:58PM
 
-KP
+[LOCATION]
 
 kelvin paik
 
@@ -103,7 +87,7 @@ kelvin paik
 
 RW
 
-Rebecca wright
+Patient 2408
 
 1:28PM
 
@@ -111,11 +95,11 @@ SP
 
 sheri peroni
 
-1:20PM
+1991-10-24
 
 CP
 
-Charlotte peroni
+[LOCATION] peroni
 
 1:07PM
 
@@ -123,11 +107,11 @@ Untitled session
 
 12:51PM
 
-07/23/2026
+2006-02-20
 
 Untitled session
 
-5:36PM
+2019-06-07
 
 COPD exacerbation
 

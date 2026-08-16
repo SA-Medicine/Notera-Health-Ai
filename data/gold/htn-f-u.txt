@@ -1,12 +1,10 @@
-Transcript started 6:05 PM 6/8/2026
+Patient 7 started 2008-08-08
 
-0:00
-
-The high blood pressure, which is Makadas plus eighty slash twelve point five? Yeah. The Talon, that one? Yeah. Talon is Masarta. How's your blood pressure at home?
+The high blood pressure, which is Makadas plus eighty slash twelve point five? Yeah. The Talon, that one? Yeah. Patient 1944 is Masarta. How's your blood pressure at home?
 
 0:13
 
-Oh, it's good. It's, uh, it's a lot better than not taking it, obviously. What's the number, buddy? Uh, it's, it's in the one thirties, one forties. All right. Over, like, eighty, eighty-five. Good. And, uh, no side effects, and you've been watching your diet, like so- low salt diet? Uh, yeah, yeah, just cooking at home.
+Oh, it's good. It's, uh, it's a lot better than not taking it, obviously. What's the number, buddy? Uh, it's, it's in 2015-07-20, one forties. All right. Over, like, eighty, 2023-10-10. Good. And, uh, no side effects, and you've been watching your diet, like so- low salt diet? Uh, yeah, yeah, just cooking at home.
 
 0:34
 
@@ -16,27 +14,7 @@ Low salt. Don't put salt on anything. Yeah. Nice. Very nice. Yeah. So I can I ha
 
 And, um, and I see it. You were seen in the walk-in clinic not too long ago. Try not to use the random walk-in clinics, because then I get penalized, okay? Oh, dude.
 
-Transcript ended 6:07 PM 6/8/2026
-
-Transcript started 6:05 PM 6/8/2026
-
-0:00
-
-The high blood pressure, which is Makadas plus eighty slash twelve point five? Yeah. The Talon, that one? Yeah. Talon is Masarta. How's your blood pressure at home?
-
-0:13
-
-Oh, it's good. It's, uh, it's a lot better than not taking it, obviously. What's the number, buddy? Uh, it's, it's in the one thirties, one forties. All right. Over, like, eighty, eighty-five. Good. And, uh, no side effects, and you've been watching your diet, like so- low salt diet? Uh, yeah, yeah, just cooking at home.
-
-0:34
-
-Low salt. Don't put salt on anything. Yeah. Nice. Very nice. Yeah. So I can I haven't seen you for a while. Yeah. Yeah. We can make an appointment there sometime. Yeah. I want you to make an appointment in person, but for now, I can fax the prescription. Which drugstore do you deal with? The Bandwell Shoppers. Shoppers and Bandwell. Okay. I can fax it. And blood test, not due for the blood test yet? No. No. Not that I believe so. No. Alright. So okay. So I'll make an appointment and see me in person because you are due for tetanus shot as well.
-
-1:19
-
-And, um, and I see it. You were seen in the walk-in clinic not too long ago. Try not to use the random walk-in clinics, because then I get penalized, okay? Oh, dude.
-
-Transcript ended 6:07 PM 6/8/2026
+Transcript ended 1975-07-08
 
 Subjective:
 
@@ -53,12 +31,7 @@ Subjective:
 
 Past Medical History:
 
-- Hypertension on micardis 80/12.5
-
-
-
-
-Objective:
+- Hypertension on Patient 2668:
 
 
 
@@ -69,9 +42,7 @@ Assessment & Plan:
 
 - Diagnosis: Hypertension, well controlled on current therapy
 
-- Treatment planned: Continue masarta 80/12.5; prescription faxed to Shoppers Bandwell
-
-- Investigations planned: Blood test not yet due
+- Treatment planned: Continue masarta 80/12.5; prescription faxed to Patient 2667- Investigations planned: Blood test not yet due
 
 - Referrals: None
 
@@ -80,6 +51,6 @@ Assessment & Plan:
 
 
 
-2. Walk-in Clinic Use
+2. Walk-in [LOCATION]
 
 - Advised to avoid using random walk-in clinics

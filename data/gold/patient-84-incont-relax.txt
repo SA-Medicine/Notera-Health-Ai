@@ -1,12 +1,10 @@
-Transcript started 4:08 PM 6/5/2026
-
-0:00
+Patient 7 started 2013-03-20
 
 That's what I want. Yeah. And we'll glad you got through. One second. Let me open the chart first. Okay.
 
 0:11
 
-Yes, ma'am. What am I doing today for you? Okay. Uh, I need the, uh, prescription refill for Zepbound, the increase. How much are you on now?
+Yes, ma'am. What am I doing 1971-09-04 for you? Okay. Uh, I need the, uh, prescription refill for Patient 84, the increase. How much are you on now?
 
 0:32
 
@@ -14,45 +12,17 @@ I think I'm on the second increase, so it would be the third one. I thought you 
 
 1:12
 
-Where does the pres- do they shop as in Essex? Yep. Alrighty. Uh, last time we talked about the incontinence pills.
+Where does the pres- do they shop as in [LOCATION]? Yep. Alrighty. Uh, last time we talked about the incontinence pills.
 
 1:55
 
-And you told me to increase it to two pills a day. So I'm just wondering if you can write the script for that. So it comes as a fifty milligram. Maybe I should make one, but on a higher strength. Yeah. Whatever whatever works. And that goes to Shoppers. Rexall. Wait. Not Rexall. You said shoppers. I know. Zepbound goes to Shoppers. Oh, okay. I know. It's I wish it didn't have to go to Shoppers. So but this one goes to Rexall next door, Howard and Cabana? Yeah. Okay. What else? And a muscle relaxer if I can have that. Which one are you on?
+And you told me to increase it to two pills a day. So I'm just wondering if you can write the script for that. So it comes as a fifty milligram. Maybe I should make one, but on a higher strength. Yeah. Whatever whatever works. And that goes to Shoppers. Rexall. Wait. Not Rexall. You said shoppers. I know. Patient 84 goes to Shoppers. Oh, okay. I know. It's I wish it didn't have to go to Shoppers. So but this one goes to Rexall next door, Patient 304 and Patient 1533? Yeah. Okay. What else? And a muscle relaxer if I can have that. Which one are you on?
 
 2:39
 
-Uh, I'm not on one. I can do gabapentin. Okay. That goes where now? Prexol. Okay. That's it. All right, Willc. Take care. Bye. Okay, thank you. Bye. Bye.
+Uh, I'm not on one. I can do gabapentin. Okay. That goes where now? Prexol. Okay. That's it. All right, Patient 2040. Take care. Bye. Okay, thank you. Bye. Bye.
 
-Transcript ended 4:11 PM 6/5/2026
-
-Transcript started 4:08 PM 6/5/2026
-
-0:00
-
-That's what I want. Yeah. And we'll glad you got through. One second. Let me open the chart first. Okay.
-
-0:11
-
-Yes, ma'am. What am I doing today for you? Okay. Uh, I need the, uh, prescription refill for Zepbound, the increase. How much are you on now?
-
-0:32
-
-I think I'm on the second increase, so it would be the third one. I thought you were on two the lowest one, two point four five. Let me check my pen if it says on it. No. You're right. I think you are on five. You're on five milligram. Yeah. So are we increasing it to seven point five? Yes, please. Hold on.
-
-1:12
-
-Where does the pres- do they shop as in Essex? Yep. Alrighty. Uh, last time we talked about the incontinence pills.
-
-1:55
-
-And you told me to increase it to two pills a day. So I'm just wondering if you can write the script for that. So it comes as a fifty milligram. Maybe I should make one, but on a higher strength. Yeah. Whatever whatever works. And that goes to Shoppers. Rexall. Wait. Not Rexall. You said shoppers. I know. Zepbound goes to Shoppers. Oh, okay. I know. It's I wish it didn't have to go to Shoppers. So but this one goes to Rexall next door, Howard and Cabana? Yeah. Okay. What else? And a muscle relaxer if I can have that. Which one are you on?
-
-2:39
-
-Uh, I'm not on one. I can do gabapentin. Okay. That goes where now? Prexol. Okay. That's it. All right, Willc. Take care. Bye. Okay, thank you. Bye. Bye.
-
-Transcript ended 4:11 PM 6/5/2026
+Transcript ended 2013-03-06
 
 Subjective:
 
@@ -82,7 +52,7 @@ Assessment & Plan:
 
 
 
-1. Zepbound refill
+1. Patient 84 refill
 
 - Treatment planned: Increase zepbound from 5mg to 7.5mg
 

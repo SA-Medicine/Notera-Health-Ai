@@ -1,42 +1,22 @@
-Transcript started 11:11 PM 7/4/2026
+Patient 7 started 1975-01-16
 
 0:00
 
-Welcome today to my office. So I understand you are here because you have a celiac disease and you're allergic to gluten. Mhmm. How long have you had this gluten allergy for?
+Welcome 1996-01-21 to my office. So I understand you are here because you have a celiac disease and you're allergic to gluten. Mhmm. How long have you had this gluten allergy for?
 
 0:13
 
-Um, a long time. Okay. So maybe years then? Yeah, years. Like, since I was in- I noticed it in, like, elementary school, I think. Mm-hmm. But then, yeah, I think I always had it. I just didn't notice it. Just okay. So do you have Apien with you? Mm-hmm. Carry that? Okay. So when was your last... Have you had any reaction lately? Yeah. Uh, when was the last reaction?
+Um, a long time. Okay. So maybe years then? Yeah, years. Like, since I was in- I noticed it in, like, elementary school, I think. Mm-hmm. But then, yeah, I think I always had it. I just didn't notice it. Just okay. So do you have Patient 1052 with you? Mm-hmm. Carry that? Okay. So when was your last... Have you had any reaction lately? Yeah. Uh, when was the last reaction?
 
 0:40
 
-I think the last reaction was about a month ago. Okay. And you have to use the EpiPen? Yes. Okay. So you're avoiding the gluten foods then? Mhmm. Okay. So other than gluten, allergy, do you have any other medical problems? Asthma. And yeah. What are you taking for that? BO once a day. Okay. Anything else that's bothering you today? No. Do you have any headaches, any chest pain, any shortness of breath, any tummy pain? Nothing? Nothing. Okay. Can I so let's examine you. Let's examine your lungs. Okay. Your lungs are fine. Your blood pressure is one twenty over eighty.
+I think the last reaction was 2020-04-04. Okay. And you have to use the EpiPen? Yes. Okay. So you're avoiding the gluten foods then? Mhmm. Okay. So other than gluten, allergy, do you have any other medical problems? Asthma. And yeah. What are you taking for that? BO once a day. Okay. Anything else that's bothering you 1985-05-18? No. Do you have any headaches, any chest pain, any shortness of breath, any tummy pain? Nothing? Nothing. Okay. Can I so let's examine you. Let's examine your lungs. Okay. Your lungs are fine. Your blood pressure is one twenty over eighty.
 
 1:20
 
-And I see that you had a recent blood test done, and all the blood test is okay other than your ESR, which seems like it's a little elevated. But other than that, everything else is fine. So let's do today is so let's continue with the celiac disease treatment, and I'll give you a script for EpiPen today. And, yeah, I will ask the allergy specialist to see you. So and for your asthma, we'll continue your Breo, and we'll send you for some lung function test, and I'll see you back in a month. Okay, Nish? Okay. Alright.
+And I see that you had a recent blood test done, and all the blood test is okay other than your ESR, which seems like it's a little elevated. But other than that, everything else is fine. So let's do 1989-05-21 is so let's continue with the celiac disease treatment, and I'll give you a script for EpiPen 1997-04-30. And, yeah, I will ask the allergy specialist to see you. So and for your asthma, we'll continue your Patient 417, and we'll send you for some lung function test, and I'll see you back in 2009-09-13. Okay, Patient 1051? Okay. Alright.
 
-Transcript ended 11:13 PM 7/4/2026
-
-Transcript started 11:11 PM 7/4/2026
-
-0:00
-
-Welcome today to my office. So I understand you are here because you have a celiac disease and you're allergic to gluten. Mhmm. How long have you had this gluten allergy for?
-
-0:13
-
-Um, a long time. Okay. So maybe years then? Yeah, years. Like, since I was in- I noticed it in, like, elementary school, I think. Mm-hmm. But then, yeah, I think I always had it. I just didn't notice it. Just okay. So do you have Apien with you? Mm-hmm. Carry that? Okay. So when was your last... Have you had any reaction lately? Yeah. Uh, when was the last reaction?
-
-0:40
-
-I think the last reaction was about a month ago. Okay. And you have to use the EpiPen? Yes. Okay. So you're avoiding the gluten foods then? Mhmm. Okay. So other than gluten, allergy, do you have any other medical problems? Asthma. And yeah. What are you taking for that? BO once a day. Okay. Anything else that's bothering you today? No. Do you have any headaches, any chest pain, any shortness of breath, any tummy pain? Nothing? Nothing. Okay. Can I so let's examine you. Let's examine your lungs. Okay. Your lungs are fine. Your blood pressure is one twenty over eighty.
-
-1:20
-
-And I see that you had a recent blood test done, and all the blood test is okay other than your ESR, which seems like it's a little elevated. But other than that, everything else is fine. So let's do today is so let's continue with the celiac disease treatment, and I'll give you a script for EpiPen today. And, yeah, I will ask the allergy specialist to see you. So and for your asthma, we'll continue your Breo, and we'll send you for some lung function test, and I'll see you back in a month. Okay, Nish? Okay. Alright.
-
-Transcript ended 11:13 PM 7/4/2026
+Transcript ended 1980-07-04
 
 Subjective:
 
@@ -44,7 +24,7 @@ Subjective:
 
 - Duration: Years - noticed in elementary school, likely always had it
 
-- Recent Reaction: Last reaction approximately 1 month ago, required EpiPen use
+- Recent Reaction: Last reaction 1976-03-28, required EpiPen use
 
 - Current Management: Avoiding gluten foods, carries EpiPen
 

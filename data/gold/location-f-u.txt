@@ -1,8 +1,8 @@
-Transcript started 5:06 PM 6/25/2026
+Patient 7 started 2001-10-10
 
 0:00
 
-I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to Malta? Oh, it was really nice. Did a lot of walking.
+I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to [LOCATION]? Oh, it was really nice. Did a lot of walking.
 
 0:12
 
@@ -18,39 +18,15 @@ And your ADL is three point five, and it is it it is the worst ever. Last time i
 
 2:03
 
-Flaxseed. Okay. I'll give you three to six months. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
+Flaxseed. Okay. I'll give you 1983-03-28. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
 
-Transcript ended 5:09 PM 6/25/2026
-
-Transcript started 5:06 PM 6/25/2026
-
-0:00
-
-I'm good. How are you? Good. Thank you. Hello. How was this white blood cell thing? How was your trip to Malta? Oh, it was really nice. Did a lot of walking.
-
-0:12
-
-Yeah. It turned turned my hair blonde. Which is weird. But I know it was it was very nice. Glad to come back home, though. Oh, yeah. Yeah. Yeah. Anyway, since the last visit, you had your mammogram done? Yes. That's fine. Yes. And then you had your birth test done.
-
-0:34
-
-Yes. Okay. That shows your hemoglobin is fine at one thirty six. Your B12 is fine. Your urine, there was you got to drink a little bit more water, but otherwise it's fine. Your sugars are fine. Your sodium is fine. Your liver is fine. Your sugars are fine. Your kidneys are fine. Your cholesterol is high. Well, I can I think we eat a lot of stuff that we don't normally eat Yeah. Alta. Yeah. So I can see that. So now I I just need to get back to normal. Right. Your total cholesterol was four point seven six, and your non HDL is four point two.
-
-1:20
-
-And your ADL is three point five, and it is it it is the worst ever. Last time it was three point four. So you better take care of your cholesterol. Okay. Watch your diet. What what is bad stuff to have that that were bringing your cholesterol up? Anything white, anything red meat, anything with the white bread, white rice, white pasta, like like yeah. So more of flaxseeds are good for cholesterol. Okay. I did I did one time have that. Maybe I'll get it again. Let me write a note for flaxseeds.
-
-2:03
-
-Flaxseed. Okay. I'll give you three to six months. You work it out, and then we'll see. Go from there. Okay. Okay. That's good then. Alright. Okay. Thank you. Is that
-
-Transcript ended 5:09 PM 6/25/2026
+Transcript ended 2024-01-01
 
 Subjective:
 
 - Follow-up for blood test results
 
-- Recent trip to Malta; reports eating differently than usual during travel
+- Recent trip to [LOCATION]; reports eating differently than usual during travel
 
 
 
@@ -76,10 +52,10 @@ Assessment & Plan:
 
 
 
-1. Hypercholesterolaemia
+1. [LOCATION]
 
 - Diagnosis: Elevated cholesterol
 
 - Treatment planned: Dietary modifications - avoid white bread, white rice, white pasta, red meat; flaxseeds recommended
 
-- Rtc in 3-6 months for repeat lipid panel
+- Rtc in 2013-05-23 for repeat lipid panel

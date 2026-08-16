@@ -1,34 +1,18 @@
-Transcript started 4:33 PM 7/13/2026
+Patient 7 started 2008-07-27
 
 0:00
 
-Third year or I'm running fourth year. Yes. So I'm going to never had a problem too because
+Third year or I'm running 1997-01-10. Yes. So I'm going to never had a problem too because
 
 0:11
 
-That's good. Alright. You have to come back on next week. Yeah. I have an appointment. Alright. This is the TB test with the blood number of four c a two six c two expiry date of eight o'clock.
+That's good. Alright. You have to come back on 1992-12-09. Yeah. I have an appointment. Alright. This is the TB test with the blood number of four c a two six c 1982-07-16 of 1976-05-11.
 
 0:32
 
-Okay. I'll see you in Wednesday. Okay. Anything? That's it. Alright. I'll see you in Wednesday. Take care, guys. Bye for going away.
+Okay. I'll see you in 2016-06-25. Okay. Anything? That's it. Alright. I'll see you in 1989-05-28. Take care, guys. Bye for going away.
 
-Transcript ended 4:34 PM 7/13/2026
-
-Transcript started 4:33 PM 7/13/2026
-
-0:00
-
-Third year or I'm running fourth year. Yes. So I'm going to never had a problem too because
-
-0:11
-
-That's good. Alright. You have to come back on next week. Yeah. I have an appointment. Alright. This is the TB test with the blood number of four c a two six c two expiry date of eight o'clock.
-
-0:32
-
-Okay. I'll see you in Wednesday. Okay. Anything? That's it. Alright. I'll see you in Wednesday. Take care, guys. Bye for going away.
-
-Transcript ended 4:34 PM 7/13/2026
+Transcript ended 1992-10-01
 
 Subjective:
 
@@ -53,6 +37,6 @@ Assessment & Plan:
 
 1. TB test
 
-- Treatment planned: TB test administered; Lot number 4ca26c2, expiry date 08/2026
+- Treatment planned: TB test administered; Lot number 4ca26c2, expiry date 2010-02-25
 
-- rtc Wednesday for reading
+- rtc 1994-07-16 for reading

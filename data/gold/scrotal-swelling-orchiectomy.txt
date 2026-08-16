@@ -1,56 +1,30 @@
-Transcript started 3:09 PM 7/22/2026
-
-0:00
+Patient 7 started 2026-02-24
 
 I am okay. Did you get I got the results of your ultrasound of your scrotum. Did you get the results? Did you talk to anybody? Did you see doctor Alzheimer's?
 
 0:10
 
-Yep. I went over there yesterday. Oh, you saw so before that, you saw somebody else. Who was that? Who is HA? HA. I saw a doctor eltime on vacation during the summer for his replacement fever.
+Yep. I went over there 2008-03-16. Oh, you saw so before that, you saw somebody else. Who was that? Who is HA? HA. I saw a doctor eltime on vacation during 2015-07-11 for his replacement fever.
 
 0:30
 
-What's his name? Doctor Eber. Or I'm sorry. Not Eber. E c ah. And I screwed it up to where I turned around and not just come on. Anyways, he turned around and he wanted to operate. Oh, you saw Doctor. Elsden's associate yesterday. Yes? Yes. That's right. Okay. So is he going is he going to do surgery on you? Because they're remember, we did an ultrasound, and that showed the swelling, and they're not sure whether it's an abscess or something else. Oh, that's what they turned around initially. That's what he said. It's probably an infection. But when he was looking at it, he says, ah.
+What's his name? Doctor Patient 220. Or I'm sorry. Not Eber. E c ah. And I screwed it up to where I turned around and not just come on. Anyways, he turned around and he wanted to operate. Oh, you saw Doctor. Patient 219's associate 2004-10-24. Yes? Yes. That's right. Okay. So is he going is he going to do surgery on you? Because they're remember, we did an ultrasound, and that showed the swelling, and they're not sure whether it's an abscess or something else. Oh, that's what they turned around initially. That's what he said. It's probably an infection. But when he was looking at it, he says, ah.
 
 1:11
 
-I don't think I think this is more than, uh, this is more than an infection. But what they want to do is they just want to remove it, and it helps, uh, I guess they don't do biopsies or anything and just take them out. Yeah, he's going to take care of that test is out. Yeah. One of them anyways. And then, uh, what else? Uh, he turned around and, uh, told me to stop the, uh, the Jardiance and see how the swelling. When is the surgery? He didn't tell me. I know he got so many yesterday. Oh, okay. So he's going. His office is going to call you for surgery, eh? Yeah. All right. All right. I just want to make sure that you know about it and then it's been taken care of.
+I don't think I think this is more than, uh, this is more than an infection. But what they want to do is they just want to remove it, and it helps, uh, I guess they don't do biopsies or anything and just take them out. Yeah, he's going to take care of that test is out. Yeah. One of them anyways. And then, uh, what else? Uh, he turned around and, uh, told me to stop the, uh, the Jardiance and see how the swelling. When is the surgery? He didn't tell me. I know he got so many 2000-11-17. Oh, okay. So he's going. His office is going to call you for surgery, eh? Yeah. All right. All right. I just want to make sure that you know about it and then it's been taken care of.
 
 1:55
 
-Yeah, for sure. Oh, so I was trying to get ahold of you yesterday, but, uh, the phone that I, I mean, I was trying to get on hold a little bit too long. But thank you for calling us. Nobody's in? On Friday. I have an appointment with you on Friday. Okay, good luck. All the best. Bye. Bye-bye now.
+Yeah, for sure. Oh, so I was trying to get ahold of you 2014-09-28, but, uh, the phone that I, I mean, I was trying to get on hold a little bit too long. But thank you for calling us. Nobody's in? On 1987-08-09. I have an appointment with you on 1976-09-06. Okay, good luck. All the best. Bye. Bye-bye now.
 
-Transcript ended 3:11 PM 7/22/2026
-
-Transcript started 3:09 PM 7/22/2026
-
-0:00
-
-I am okay. Did you get I got the results of your ultrasound of your scrotum. Did you get the results? Did you talk to anybody? Did you see doctor Alzheimer's?
-
-0:10
-
-Yep. I went over there yesterday. Oh, you saw so before that, you saw somebody else. Who was that? Who is HA? HA. I saw a doctor eltime on vacation during the summer for his replacement fever.
-
-0:30
-
-What's his name? Doctor Eber. Or I'm sorry. Not Eber. E c ah. And I screwed it up to where I turned around and not just come on. Anyways, he turned around and he wanted to operate. Oh, you saw Doctor. Elsden's associate yesterday. Yes? Yes. That's right. Okay. So is he going is he going to do surgery on you? Because they're remember, we did an ultrasound, and that showed the swelling, and they're not sure whether it's an abscess or something else. Oh, that's what they turned around initially. That's what he said. It's probably an infection. But when he was looking at it, he says, ah.
-
-1:11
-
-I don't think I think this is more than, uh, this is more than an infection. But what they want to do is they just want to remove it, and it helps, uh, I guess they don't do biopsies or anything and just take them out. Yeah, he's going to take care of that test is out. Yeah. One of them anyways. And then, uh, what else? Uh, he turned around and, uh, told me to stop the, uh, the Jardiance and see how the swelling. When is the surgery? He didn't tell me. I know he got so many yesterday. Oh, okay. So he's going. His office is going to call you for surgery, eh? Yeah. All right. All right. I just want to make sure that you know about it and then it's been taken care of.
-
-1:55
-
-Yeah, for sure. Oh, so I was trying to get ahold of you yesterday, but, uh, the phone that I, I mean, I was trying to get on hold a little bit too long. But thank you for calling us. Nobody's in? On Friday. I have an appointment with you on Friday. Okay, good luck. All the best. Bye. Bye-bye now.
-
-Transcript ended 3:11 PM 7/22/2026
+Transcript ended 1994-07-07
 
 Subjective:
 
 - Follow-up regarding scrotal ultrasound results
 
-- Saw Dr. Elsden's associate yesterday who reviewed the ultrasound findings
+- Saw Dr. Patient 219's associate 1970-09-04 who reviewed the ultrasound findings
 
 - Ultrasound showed swelling; initially thought to be infection, however on examination appears to be more than infection
 
@@ -86,10 +60,10 @@ Assessment & Plan:
 
 - Diagnosis: Pending surgical pathology
 
-- Treatment planned: Orchidectomy (one testicle); stop jardiance to monitor effect on swelling
+- Treatment planned: [LOCATION] (one testicle); stop jardiance to monitor effect on swelling
 
 - Referrals: None
 
 - Investigations planned: None
 
-- Follow-up appointment Friday
+- Follow-up appointment 1997-05-16

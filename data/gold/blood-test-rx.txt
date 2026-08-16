@@ -1,4 +1,4 @@
-Transcript started 3:00 PM 6/15/2026
+Patient 7 started 1973-07-10
 
 0:00
 
@@ -10,33 +10,13 @@ Which lab? On the dynamic yet? It's on Google? Yeah. Yeah. Maybe. Yeah. Maybe th
 
 0:33
 
-So I'll give you the paper for the blood test. Yeah, sure. Sure. Ready? Which are? This one. Says you're in so much. Here we go. Zavanti. Yeah. Yeah. Sorry. I couldn't remember the name. Zavanti. Yeah. I know. And they had the hard time to find the prescription, which I wrote in December. You wrote one, you know? Yeah. December. So let me get you the paper. One second.
+So I'll give you the paper for the blood test. Yeah, sure. Sure. Ready? Which are? This one. Says you're in so much. Here we go. Patient 1778. Yeah. Yeah. Sorry. I couldn't remember the name. Patient 1778. Yeah. I know. And they had the hard time to find the prescription, which I wrote in 2012-07-06. You wrote one, you know? Yeah. 2011-01-06. So let me get you the paper. One second.
 
 1:18
 
 There you go. Thank you so much. All right then. Take care. Bye. Okay.
 
-Transcript ended 3:01 PM 6/15/2026
-
-Transcript started 3:00 PM 6/15/2026
-
-0:00
-
-Well, we don't get the mammogram for you. How about your blood test? You're due for the blood test. Okay. Can I send you where do you usually go for the blood test?
-
-0:13
-
-Which lab? On the dynamic yet? It's on Google? Yeah. Yeah. Maybe. Yeah. Maybe that's something I can do to I'm sorry? Yeah. Most of the time, this is what I want.
-
-0:33
-
-So I'll give you the paper for the blood test. Yeah, sure. Sure. Ready? Which are? This one. Says you're in so much. Here we go. Zavanti. Yeah. Yeah. Sorry. I couldn't remember the name. Zavanti. Yeah. I know. And they had the hard time to find the prescription, which I wrote in December. You wrote one, you know? Yeah. December. So let me get you the paper. One second.
-
-1:18
-
-There you go. Thank you so much. All right then. Take care. Bye. Okay.
-
-Transcript ended 3:01 PM 6/15/2026
+Transcript ended 1972-01-11
 
 Subjective:
 
@@ -44,7 +24,7 @@ Subjective:
 
 - Mammogram not obtained
 
-- Difficulty locating prescription written in December
+- Difficulty locating prescription written in 2003-07-11
 
 
 

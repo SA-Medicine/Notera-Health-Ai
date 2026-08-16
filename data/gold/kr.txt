@@ -1,8 +1,8 @@
-Transcript started 5:39 PM 6/30/2026
+Patient 7 started 1976-10-31
 
 0:00
 
-All right, Kristen. Shoot. Um, I was wondering if I could just get another year on these that we.
+All right, Patient 376. Shoot. Um, I was wondering if I could just get 1975-06-13 on these that we.
 
 0:10
 
@@ -12,27 +12,11 @@ For yourself? Yes. Yeah. Alasina twenty one. That's your birth control. Yes. Oka
 
 Shall I fax the prescription or shall I print it? What else? For you? That's it. Oh, I love the. I like them.
 
-Transcript ended 5:39 PM 6/30/2026
-
-Transcript started 5:39 PM 6/30/2026
-
-0:00
-
-All right, Kristen. Shoot. Um, I was wondering if I could just get another year on these that we.
-
-0:10
-
-For yourself? Yes. Yeah. Alasina twenty one. That's your birth control. Yes. Okay. And you take it for that? Same reason? Yes. K. No side effects, headaches, drinking, numbness, stinking, not none of that, no discharge, no nothing. No. Alright. And your physical tax is appreciated. Correct?
-
-0:31
-
-Shall I fax the prescription or shall I print it? What else? For you? That's it. Oh, I love the. I like them.
-
-Transcript ended 5:39 PM 6/30/2026
+Transcript ended 2017-11-13
 
 Subjective:
 
-- Reason for Visit: Request for 1 yr refill of alesina 21 for contraception
+- Reason for Visit: Request for 1998-01-13 refill of alesina 21 for contraception
 
 - Side Effects: Denies headaches, numbness, discharge
 
@@ -55,7 +39,7 @@ Assessment & Plan:
 
 - Diagnosis: Contraception
 
-- Treatment planned: alesina 21 refill for 1 yr
+- Treatment planned: alesina 21 refill for 1978-10-07
 
 - Referrals: None
 

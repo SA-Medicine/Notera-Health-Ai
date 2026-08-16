@@ -36,6 +36,26 @@ export interface AgentRunRow { id: number; agent_id: string; seq: number; status
 export interface RerunResult { ok: boolean; mode?: string; error?: string; hint?: string; agentRunId?: number; attempt?: number; output?: string; outputParsed?: any; metrics?: Record<string, number>; runId?: string; slug?: string }
 export interface CompareDim { name: string; notera: number; gold: number; comment: string }
 export interface Comparison { cached: boolean; ok?: boolean; error?: string; hint?: string; raw?: string; overall_score?: number; verdict?: string; dimensions?: CompareDim[]; notera_missing?: string[]; notera_extra?: string[]; key_differences?: string[]; summary?: string; generatedAt?: string }
+export interface MetricDef { key: string; canonicalKey?: string; label: string; family: string; system: string | null; unit: string; polarity: 'higher_better' | 'lower_better' | 'target'; severity: 'critical' | 'major' | 'minor'; isGate?: boolean; metricGroup?: number | null; description?: string }
+export interface MetricRegistry { families: string[]; headline: string[]; defs: MetricDef[] }
+export interface RunIndexEntry { dir: string; hasData: boolean; n: number; fixtures: string[]; summary: Record<string, number> | null }
+export interface RunSummary {
+  cached: boolean; ok?: boolean; error?: string; hint?: string; dir?: string
+  n_fixtures: number; n_scored: number; avg_overall: number | null
+  verdict_counts: Record<string, number>
+  dimension_averages: { name: string; notera: number | null; gold: number | null; gap: number | null }[]
+  worst_fixtures: { fixture: string; score: number; verdict: string; why?: string }[]
+  best_fixtures: { fixture: string; score: number; verdict: string }[]
+  metrics: Record<string, number> | null
+  headline: string | null; recurring_missing: string[]; recurring_fabrications: string[]
+  failure_themes: { theme: string; count: number; examples: string[] }[]
+  recommendations: string[]; narrative: string
+  synthesized: boolean; synthError: string | null; model: string | null; generatedAt: string
+}
+export interface CompareRunCell { dir: string; mean: number | null; n: number; delta: number | null; ciLow: number | null; ciHigh: number | null; significant: boolean; underpowered: boolean; improved: boolean | null; verdict: string }
+export interface CompareMetric { key: string; meta: MetricDef; base: number | null; baseN: number; runs: CompareRunCell[] }
+export interface CompareFixture { fixture: string; base: number | null; runs: (number | null)[]; delta: number | null; contributionPct: number | null }
+export interface CompareResult { ok?: boolean; error?: string; baseDir: string; base: { n: number }; runs: { dir: string; n: number }[]; metrics: CompareMetric[]; perFixture: { focusKey: string | null; rows: CompareFixture[] }; power: { focusKey: string | null; focusLabel: string; nFixtures: number; mde: number | null } }
 export interface CritiqueDim { name: string; score: number; comment: string }
 export interface Critique { cached: boolean; ok?: boolean; error?: string; hint?: string; raw?: string; overall_score?: number; verdict?: string; one_liner?: string; dimensions?: CritiqueDim[]; strengths?: string[]; weaknesses?: string[]; safety_issues?: string[]; hallucinations?: string[]; omissions?: string[]; recommendations?: string[]; brutal_summary?: string; model?: string; generatedAt?: string }
 
@@ -100,6 +120,12 @@ export const api = {
   history: () => jget<any[]>('/backend/api/metrics/history'),
   metricRun: (dir: string) => jget<{ summary: any; rows: any[] }>(`/backend/api/metrics/run/${dir}`),
   compare: (a: string, b: string) => jget<any>(`/backend/api/metrics/compare?a=${a}&b=${b}`),
+  metricsRegistry: () => jget<MetricRegistry>('/backend/api/metrics/registry'),
+  runIndex: () => jget<RunIndexEntry[]>('/backend/api/metrics/run-index'),
+  runSummaryGet: (dir: string) => jget<RunSummary>(`/backend/api/metrics/run-summary?dir=${dir}`),
+  runSummaryRun: (dir: string) => jpost<RunSummary>('/backend/api/metrics/run-summary', { dir }),
+  compareRuns: (baseDir: string, runDirs: string[], opts?: { focusKey?: string; system?: string | null }) =>
+    jpost<CompareResult>('/backend/api/metrics/compare-runs', { baseDir, runDirs, focusKey: opts?.focusKey, system: opts?.system ?? null }),
   prompts: () => jget<{ readOnly: boolean; prompts: PromptMeta[] }>('/backend/api/prompts'),
   prompt: (id: string) => jget<PromptDetail>('/backend/api/prompts/' + id),
   promptVersion: (id: string, v: number) => jget<{ systemInstruction: string }>(`/backend/api/prompts/${id}/version/${v}`),

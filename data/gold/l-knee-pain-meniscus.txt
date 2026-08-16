@@ -1,8 +1,6 @@
-Transcript started 3:46 PM 7/3/2026
+Patient 7 started 2013-04-10
 
-0:00
-
-All right. Um, I saw you in April because of the pain in the left knee. Yeah.
+All right. Um, I saw you in 2024-01-30 because of the pain in the left knee. Yeah.
 
 0:12
 
@@ -16,9 +14,7 @@ It's like I can walk on it for a couple blocks, and then I can't walk on it. Is 
 
 That that that that ligament here is torn. Okay. And there is an arthritis here as well. Okay. On the ultrasound. This is on the ultrasound. Okay. But on the MRI, which is obviously the more informative, that shows that, yeah, there is a tear of the menis medial meniscus. There is big tear here. I thought the meniscus was between the bones. Yeah. There's there's a femur. There is a meniscus here. Okay. So it it wraps up and attaches here. It starts from here and attaches from this bone. Oh, I thought it's stuff between, like Oh, that's a cartilage. So there is an it's actually torn? Yeah. Oblique tear of the horn and
 
-2:08
-
-Body of the medial meniscus, and there's a fluid in the the knee as well. Yeah. It comes and goes. Like, it it will it'll look bigger, and then it's not so much. So let's have the orthopedic surgeon see you. Okay. Have you seen any orthopedic surgeon before? He did the guy in Shop. Kubadi. Yeah. He did my right knee. You want to see him for this too? Sure. Why not? It seemed to work the first time. He he he went in and cleaned that knee, the right knee. Correct? You can clean arthritis out. Is that right? You can you can make it a little nicer, but he's going to repair this meniscus. Okay. Or at least Is that like a scoping? Yeah. Scoping thing. Arthroscoping.
+1981-12-03 of the medial meniscus, and there's a fluid in the the knee as well. Yeah. It comes and goes. Like, it it will it'll look bigger, and then it's not so much. So let's have the orthopedic surgeon see you. Okay. Have you seen any orthopedic surgeon before? He did the guy in [LOCATION]. Patient 1059. Yeah. He did my right knee. You want to see him for this too? Sure. Why not? It seemed to work the first time. He he he went in and cleaned that knee, the right knee. Correct? You can clean arthritis out. Is that right? You can you can make it a little nicer, but he's going to repair this meniscus. Okay. Or at least Is that like a scoping? Yeah. Scoping thing. Arthroscoping.
 
 2:51
 
@@ -28,43 +24,11 @@ Please assess bilium known to you now for left knee pain and instability. Um, pa
 
 ultrasound and MRI. When you looked at the X-ray, you said my right knee was actually worse than my looked worse than my left knee. How is it feeling-wise? It's, it's, it's okay, but there are days. Talk to him about that, too, but let's see what he says. Okay. Anything else? No, I'm good. All right, buddy.
 
-Transcript ended 3:50 PM 7/3/2026
-
-Transcript started 3:46 PM 7/3/2026
-
-0:00
-
-All right. Um, I saw you in April because of the pain in the left knee. Yeah.
-
-0:12
-
-I had an ultrasound. Right. And then MRI, something. How's your pain going? It's sometimes it'll just be sitting here, and then and then it just flares up, and it just starts throbbing, and then then it goes away.
-
-0:32
-
-It's like I can walk on it for a couple blocks, and then I can't walk on it. Is it is it giving way? Is it When I go downstairs, I have to watch which leg I put down. I gotta put this leg down first, and it's gotta be straight. If I try and go down the stair with my knee bent and put my body weight on it, it just it totally just the pain just shoots up. So you had an ultrasound and the MRI? I had an MRI Good for you. Some days Where was the MRI done? At Hotel D. I was surprised. Yeah. Because I had the ultrasound. I forget what day it was. In the either ways, there is an arthritis in the inner side of the left knee and possible meniscal tear.
-
-1:18
-
-That that that that ligament here is torn. Okay. And there is an arthritis here as well. Okay. On the ultrasound. This is on the ultrasound. Okay. But on the MRI, which is obviously the more informative, that shows that, yeah, there is a tear of the menis medial meniscus. There is big tear here. I thought the meniscus was between the bones. Yeah. There's there's a femur. There is a meniscus here. Okay. So it it wraps up and attaches here. It starts from here and attaches from this bone. Oh, I thought it's stuff between, like Oh, that's a cartilage. So there is an it's actually torn? Yeah. Oblique tear of the horn and
-
-2:08
-
-Body of the medial meniscus, and there's a fluid in the the knee as well. Yeah. It comes and goes. Like, it it will it'll look bigger, and then it's not so much. So let's have the orthopedic surgeon see you. Okay. Have you seen any orthopedic surgeon before? He did the guy in Shop. Kubadi. Yeah. He did my right knee. You want to see him for this too? Sure. Why not? It seemed to work the first time. He he he went in and cleaned that knee, the right knee. Correct? You can clean arthritis out. Is that right? You can you can make it a little nicer, but he's going to repair this meniscus. Okay. Or at least Is that like a scoping? Yeah. Scoping thing. Arthroscoping.
-
-2:51
-
-Please assess bilium known to you now for left knee pain and instability. Um, patient had, um, ultrasound and X-ray and MRI done, right? Done, which showed meniscal tear, meniscal tear. Please assess. Thanks. So I'll send the referral along with these copies of the...
-
-3:33
-
-ultrasound and MRI. When you looked at the X-ray, you said my right knee was actually worse than my looked worse than my left knee. How is it feeling-wise? It's, it's, it's okay, but there are days. Talk to him about that, too, but let's see what he says. Okay. Anything else? No, I'm good. All right, buddy.
-
-Transcript ended 3:50 PM 7/3/2026
+Transcript ended 2007-08-13
 
 Subjective:
 
-- Presenting Complaint: Left knee pain - follow-up from April visit
+- Presenting Complaint: Left knee pain - follow-up from 1992-05-23 visit
 
 - Onset/Duration: Intermittent flares, throbbing at rest, comes and goes
 
@@ -78,19 +42,14 @@ Subjective:
 
 - Associated Symptoms: Instability, giving way sensation, intermittent swelling that varies in size
 
-- Right Knee: Some days symptomatic, X-ray showed worse than left
+- Right Knee: 2017-03-19 symptomatic, X-ray showed worse than left
 
 
 
 
 Past Medical History:
 
-- History of right knee arthroscopy by Dr. kubadi
-
-
-
-
-Objective:
+- History of right knee arthroscopy by Dr. Patient 2520:
 
 - Ultrasound: Arthritis on inner side of left knee, possible meniscal tear, ligament tear, arthritis present
 
@@ -114,7 +73,7 @@ Assessment & Plan:
 
 - Treatment planned: None
 
-- Referrals: Dr. kubadi (orthopedic surgery) for assessment - referral sent with copies of ultrasound and MRI
+- Referrals: Dr. Patient 1059 (orthopedic surgery) for assessment - referral sent with copies of ultrasound and MRI
 
 
 

@@ -1,208 +1,387 @@
 import * as React from 'react'
-import { api, type LabRun, type TrendPoint, type AgentStat, type HeatCell, type MetricRow } from '@/lib/api'
-import { cn, fmtNum } from '@notera/ui/lib/utils'
-import { Card } from '@notera/ui/components/ui/card'
+import { api, type ResultRun, type RunIndexEntry, type CompareResult, type CompareRunCell } from '@/lib/api'
+import { cn, shortId } from '@notera/ui/lib/utils'
+import { md } from '@notera/ui/lib/md'
 import { EmptyState, Skeleton } from '@notera/ui/components/ui/skeleton'
-import { TrendingUp, TrendingDown, Minus, Database } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ResponsiveContainer } from 'recharts'
+import { Button } from '@notera/ui/components/ui/button'
+import { toast } from 'sonner'
+import { GitCompare, TrendingUp, Info, ChevronRight, AlertTriangle, ShieldCheck, Copy, FileBarChart, Sparkles, CheckCircle2, Ghost, ListChecks } from 'lucide-react'
+import type { RunSummary } from '@/lib/api'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts'
 
-const CORE: [string, string][] = [['section_coverage', 'Coverage'], ['similarity_to_gold', 'Similarity'], ['story_flow', 'Story/Flow'], ['omission_rate', 'Omission'], ['schema_valid', 'Schema']]
-const COLORS = ['#34d399', '#60a5fa', '#c084fc', '#fb7185', '#fbbf24', '#7dd3fc', '#f472b6', '#a3e635']
-const lower_is_better = (k: string) => /omission|missing|error|unsupported/i.test(k)
-const label = (k: string) => (CORE.find(([kk]) => kk === k)?.[1]) || k.replace(/^qa_/, 'qa: ').replace(/_/g, ' ')
+const FAMILY_LABEL: Record<string, string> = { equivalence: 'Equivalence', structure: 'Structure', missing_info: 'Missing info', quality: 'Quality', story_flow: 'Story / flow' }
+const num = (v: number | null | undefined, d = 3) => (v == null ? '—' : (v as number).toFixed(d))
+const signed = (v: number | null | undefined, d = 3) => (v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(d))
 
-// color a 0..1-ish score → red..green (flip for lower-is-better)
-function heat(v: number | null, k: string) {
-  if (v == null) return 'transparent'
-  let n = v > 1.5 ? v / 5 : v            // qa_* often 0..5; core 0..1
-  n = Math.max(0, Math.min(1, n)); if (lower_is_better(k)) n = 1 - n
-  const h = Math.round(n * 130)          // 0=red → 130=green
-  return `hsl(${h} 65% 45% / 0.85)`
+function deltaTone(c: CompareRunCell) {
+  if (c.n < 2 || c.delta == null || c.improved == null) return 'text-muted-foreground'
+  const base = c.improved ? 'text-success' : 'text-destructive'
+  return c.underpowered ? cn(base, 'opacity-55') : base
 }
+const arrow = (c: CompareRunCell) => (c.improved == null ? '·' : c.improved ? '▲' : '▼')
 
 export function Metrics({ openInResults }: { openInResults: (dir: string, file?: string) => void }) {
-  const [runs, setRuns] = React.useState<LabRun[] | null>(null)
-  const [dbErr, setDbErr] = React.useState<string | null>(null)
-  const [trend, setTrend] = React.useState<TrendPoint[]>([])
-  const [sel, setSel] = React.useState<number | null>(null)
-  const [cmpA, setCmpA] = React.useState<number | null>(null)
-  const [cmpB, setCmpB] = React.useState<number | null>(null)
-  const [heatRows, setHeatRows] = React.useState<HeatCell[]>([])
-  const [agents, setAgents] = React.useState<AgentStat[]>([])
-  const [cmp, setCmp] = React.useState<{ a: MetricRow[]; b: MetricRow[] } | null>(null)
-  const [hidden, setHidden] = React.useState<Set<string>>(new Set())
+  const [runs, setRuns] = React.useState<ResultRun[] | null>(null)
+  const [idx, setIdx] = React.useState<RunIndexEntry[]>([])
+  const [tab, setTab] = React.useState<'summary' | 'compare' | 'trend'>('summary')
+  const [baseDir, setBaseDir] = React.useState('')
+  const [against, setAgainst] = React.useState<string[]>([])
+  const [system, setSystem] = React.useState<'both' | 'notera' | 'heidi'>('both')
+  const [famFilter, setFamFilter] = React.useState<string | null>(null)
+  const [regressOnly, setRegressOnly] = React.useState(false)
+  const [focusKey, setFocusKey] = React.useState<string | undefined>(undefined)
+  const [cmp, setCmp] = React.useState<CompareResult | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [hist, setHist] = React.useState<any[]>([])
+
+  const idxMap = React.useMemo(() => Object.fromEntries(idx.map((e) => [e.dir, e])), [idx])
+  const fixturesOf = React.useCallback((dir: string) => new Set(idxMap[dir]?.fixtures || []), [idxMap])
+  const shared = React.useCallback((a: string, b: string) => { const A = fixturesOf(a); let n = 0; for (const f of fixturesOf(b)) if (A.has(f)) n++; return n }, [fixturesOf])
+  const bestMatch = React.useCallback((base: string, list: RunIndexEntry[]) => {
+    const cands = list.filter((e) => e.dir !== base && e.hasData)
+    if (!cands.length) return ''
+    return cands.map((e) => ({ dir: e.dir, s: shared(base, e.dir) })).sort((a, b) => b.s - a.s)[0].dir
+  }, [shared])
 
   React.useEffect(() => {
-    api.labRuns().then((d) => {
-      setRuns(d.runs || []); setDbErr(d.error ? (d.hint || d.error) : null)
-      if (d.runs?.length) { setSel(d.runs[0].id); setCmpA(d.runs[1]?.id ?? d.runs[0].id); setCmpB(d.runs[0].id) }
-    }).catch(() => setRuns([]))
-    api.labTrend().then((d) => setTrend(d.points || [])).catch(() => {})
+    Promise.all([api.resultRuns().catch(() => [] as ResultRun[]), api.runIndex().catch(() => [] as RunIndexEntry[])]).then(([r, ix]) => {
+      setRuns(r); setIdx(ix)
+      const withData = ix.filter((e) => e.hasData)
+      const base = (withData[0]?.dir) || r[1]?.dir || r[0]?.dir || ''
+      setBaseDir((b) => b || base)
+      setAgainst((a) => a.length ? a : (base ? [bestMatch(base, ix)].filter(Boolean) : []))
+    })
+    api.history().then(setHist).catch(() => {})
   }, [])
-  React.useEffect(() => { if (sel == null) return; api.labHeatmap(sel).then((d) => setHeatRows(d.rows || [])).catch(() => {}); api.labAgents(sel).then((d) => setAgents(d.rows || [])).catch(() => {}) }, [sel])
-  React.useEffect(() => { if (cmpA == null || cmpB == null) return; api.labCompare(cmpA, cmpB).then(setCmp).catch(() => {}) }, [cmpA, cmpB])
 
-  const runLabel = (id: number | null) => runs?.find((r) => r.id === id)?.label || ''
+  const runCompare = React.useCallback(async () => {
+    if (!baseDir || !against.length) { setCmp(null); return }
+    setLoading(true)
+    try { const c = await api.compareRuns(baseDir, against.filter((d) => d !== baseDir), { focusKey, system: system === 'both' ? null : system }); setCmp(c.ok === false ? null : c) }
+    catch { setCmp(null) }
+    setLoading(false)
+  }, [baseDir, against, focusKey, system])
+  React.useEffect(() => { runCompare() }, [baseDir, against, focusKey, system])
 
-  const metricKeys = React.useMemo(() => [...new Set(trend.map((p) => p.metric_key))].sort((a, b) => {
-    const ia = CORE.findIndex(([k]) => k === a), ib = CORE.findIndex(([k]) => k === b)
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
-  }), [trend])
-  const chartData = React.useMemo(() => {
-    const by: Record<string, any> = {}
-    for (const p of trend) { const row = by[p.run_no] || (by[p.run_no] = { run: '#' + p.run_no }); row[p.metric_key] = Number(p.value) }
-    return Object.values(by)
-  }, [trend])
+  if (runs === null) return <div className="p-6"><Skeleton className="h-40 w-full" /></div>
+  if (!runs.length) return <div className="p-6"><EmptyState icon="📊" title="No runs yet" hint="Run the tester; metrics and comparisons appear here." /></div>
 
-  const kpis = React.useMemo(() => {
-    const byRun: Record<number, Record<string, number[]>> = {}
-    for (const p of trend) { (byRun[p.run_no] ||= {}); (byRun[p.run_no][p.metric_key] ||= []).push(Number(p.value)) }
-    const nums = Object.keys(byRun).map(Number).sort((a, b) => b - a)
-    const latest = nums[0], prev = nums[1]
-    const avg = (rn: number, k: string) => { const a = byRun[rn]?.[k]; return a && a.length ? a.reduce((s, v) => s + v, 0) / a.length : null }
-    return CORE.slice(0, 4).map(([k, lbl]) => ({ k, lbl, val: latest != null ? avg(latest, k) : null, delta: (latest != null && prev != null) ? ((avg(latest, k) ?? 0) - (avg(prev, k) ?? 0)) : null }))
-  }, [trend])
+  const toggleAgainst = (dir: string) => setAgainst((a) => a.includes(dir) ? a.filter((x) => x !== dir) : [...a, dir])
+  const metricsShown = (cmp?.metrics || [])
+    .filter((m) => !famFilter || m.meta.family === famFilter)
+    .filter((m) => !regressOnly || m.runs.some((r) => r.improved === false && !r.underpowered))
+  const families = [...new Set((cmp?.metrics || []).map((m) => m.meta.family))]
+  const primaryShared = against[0] ? shared(baseDir, against[0]) : 0
+  const noOverlap = against.length > 0 && against.every((d) => shared(baseDir, d) === 0)
+  const baseSummary = idxMap[baseDir]?.summary || null
 
-  const heatPatients = React.useMemo(() => {
-    const byP: Record<string, { name: string; slug: string; cells: Record<string, number | null> }> = {}
-    for (const r of heatRows) { const e = byP[r.slug] || (byP[r.slug] = { name: r.name, slug: r.slug, cells: {} }); if (r.metric_key) e.cells[r.metric_key] = r.metric_value }
-    return Object.values(byP)
-  }, [heatRows])
-  const heatKeys = React.useMemo(() => [...new Set(heatRows.map((r) => r.metric_key).filter(Boolean) as string[])].sort((a, b) => {
-    const ia = CORE.findIndex(([k]) => k === a), ib = CORE.findIndex(([k]) => k === b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
-  }), [heatRows])
-
-  const cmpDeltas = React.useMemo(() => {
-    if (!cmp) return []
-    const avg = (rows: MetricRow[]) => { const m: Record<string, number[]> = {}; for (const r of rows) (m[r.metric_key] ||= []).push(Number(r.metric_value)); const o: Record<string, number> = {}; for (const k in m) o[k] = m[k].reduce((s, v) => s + v, 0) / m[k].length; return o }
-    const A = avg(cmp.a), B = avg(cmp.b); const keys = [...new Set([...Object.keys(A), ...Object.keys(B)])]
-    return keys.map((k) => ({ k, a: A[k], b: B[k], d: (B[k] ?? 0) - (A[k] ?? 0) }))
-  }, [cmp])
-
-  if (runs === null) return <div className="p-4 sm:p-6 space-y-5"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
-  if (dbErr) return <div className="p-6"><EmptyState icon="🗄️" title="Testing Lab database not connected" hint={dbErr} /></div>
-  if (!runs.length) return <div className="p-6"><EmptyState icon="📊" title="No runs yet" hint="Run the tester (or db:reset to backfill past runs) to populate the dashboard." /></div>
+  const copyMarkdown = () => {
+    if (!cmp) return
+    const head = ['Metric', 'Family', 'n', 'Base', ...cmp.runs.map((r) => shortId(r.dir) + ' Δ')]
+    const rows = metricsShown.map((m) => [m.meta.label, FAMILY_LABEL[m.meta.family] || m.meta.family, String(m.runs[0]?.n ?? 0), num(m.base, 3), ...m.runs.map((r) => (r.n >= 2 ? `${signed(r.delta, 3)} (${r.verdict})` : 'unpaired'))])
+    const md = ['| ' + head.join(' | ') + ' |', '| ' + head.map(() => '---').join(' | ') + ' |', ...rows.map((r) => '| ' + r.join(' | ') + ' |')].join('\n')
+    navigator.clipboard.writeText(md).then(() => toast.success('Copied table as markdown')).catch(() => {})
+  }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1400px]">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-lg font-semibold text-foreground flex items-center gap-2"><Database className="w-5 h-5 text-primary" /> Metrics dashboard</h1>
-        <div className="text-xs text-muted-foreground">{runs.length} runs · {trend.length} metric points</div>
+    <div className="p-4 sm:p-6 flex flex-col gap-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><GitCompare className="w-4 h-4 text-primary" /> Metrics</div>
+        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {([['summary', 'Run report'], ['compare', 'Compare'], ['trend', 'Trend']] as const).map(([t, lbl]) => <button key={t} onClick={() => setTab(t)} className={cn('px-3 py-1.5', tab === t ? 'bg-raised text-foreground' : 'text-muted-foreground hover:bg-accent')}>{lbl}</button>)}
+        </div>
+        <div className="flex-1" />
+        <span className="text-[11px] text-muted-foreground">{idx.filter((e) => e.hasData).length}/{runs.length} runs with data</span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((k) => (
-          <Card key={k.k} className="p-4">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">{k.lbl}</div>
-            <div className="text-2xl font-bold text-foreground tabular-nums mt-1">{k.val == null ? '—' : fmtNum(k.val, 2)}</div>
-            {k.delta != null && (
-              <div className={cn('text-xs mt-1 flex items-center gap-1', (lower_is_better(k.k) ? -k.delta : k.delta) >= 0 ? 'text-success' : 'text-destructive')}>
-                {k.delta === 0 ? <Minus className="w-3 h-3" /> : (lower_is_better(k.k) ? -k.delta : k.delta) > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {k.delta > 0 ? '+' : ''}{fmtNum(k.delta, 3)} vs prev
-              </div>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      <Card className="p-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <div className="text-sm font-semibold text-foreground flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Trend across runs</div>
-          <div className="flex flex-wrap gap-1.5">
-            {metricKeys.map((k, i) => (
-              <button key={k} onClick={() => setHidden((h) => { const n = new Set(h); n.has(k) ? n.delete(k) : n.add(k); return n })}
-                className={cn('text-[11px] px-2 py-0.5 rounded-full border transition', hidden.has(k) ? 'border-border text-muted-foreground/50 line-through' : 'border-transparent')}
-                style={{ background: hidden.has(k) ? 'transparent' : COLORS[i % COLORS.length] + '22', color: hidden.has(k) ? undefined : COLORS[i % COLORS.length] }}>
-                {label(k)}
-              </button>
-            ))}
+      {tab === 'compare' && <>
+        <div className="rounded-xl border border-border bg-surface p-3 flex flex-col gap-3">
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <span className="text-muted-foreground text-xs uppercase tracking-wide w-16">Baseline</span>
+            <select value={baseDir} onChange={(e) => { setBaseDir(e.target.value); setAgainst([bestMatch(e.target.value, idx)].filter(Boolean)) }} className="h-8 bg-background border border-border rounded-lg px-2 text-sm">
+              {runs.map((r) => { const e = idxMap[r.dir]; return <option key={r.dir} value={r.dir}>{shortId(r.dir)} · {e ? (e.hasData ? e.n + ' fx' : 'no data') : '?'}</option> })}
+            </select>
+            <span className="text-[10px] text-muted-foreground">📌 pinned</span>
+          </div>
+          <div className="flex items-start gap-2 flex-wrap text-sm">
+            <span className="text-muted-foreground text-xs uppercase tracking-wide w-16 pt-1.5">Against</span>
+            <div className="flex-1 flex items-center gap-1.5 flex-wrap max-h-24 overflow-auto">
+              {runs.filter((r) => r.dir !== baseDir).map((r) => {
+                const on = against.includes(r.dir); const e = idxMap[r.dir]; const sh = e?.hasData ? shared(baseDir, r.dir) : -1
+                return <button key={r.dir} onClick={() => toggleAgainst(r.dir)} title={sh < 0 ? 'no results' : `${sh} shared fixtures`}
+                  className={cn('px-2 py-1 rounded-md border text-xs transition flex items-center gap-1', on ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-background text-muted-foreground hover:bg-accent', sh < 0 && 'opacity-40')}>
+                  {shortId(r.dir)}{sh < 0 ? <span className="text-[9px] text-destructive/70">∅</span> : sh > 0 ? <span className="text-[9px] text-success/80">{sh}∩</span> : <span className="text-[9px] text-warning/70">0∩</span>}
+                </button>
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap text-xs border-t border-border pt-2.5">
+            <span className="text-muted-foreground">system</span>
+            {(['both', 'notera', 'heidi'] as const).map((s) => <label key={s} className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={system === s} onChange={() => setSystem(s)} className="accent-primary" /> {s}</label>)}
+            <span className="text-border">·</span>
+            <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={regressOnly} onChange={(e) => setRegressOnly(e.target.checked)} className="accent-primary" /> regressions only</label>
+            <div className="flex-1" />
+            {cmp?.power && <span className="text-muted-foreground">{primaryShared} shared · smallest detectable Δ on {cmp.power.focusLabel} ≈ <b className="text-foreground/80">{num(cmp.power.mde, 2)}</b></span>}
           </div>
         </div>
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 6, right: 12, bottom: 0, left: -18 }}>
-              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-              <XAxis dataKey="run" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-              <RTooltip contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              {metricKeys.filter((k) => !hidden.has(k)).map((k) => <Line key={k} type="monotone" dataKey={k} name={label(k)} stroke={COLORS[metricKeys.indexOf(k) % COLORS.length]} dot={{ r: 2 }} strokeWidth={2} connectNulls />)}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Inspect run</span>
-        <select value={sel ?? ''} onChange={(e) => setSel(Number(e.target.value))} className="h-9 bg-surface border border-border rounded-lg px-2 text-sm">
-          {runs.map((r) => <option key={r.id} value={r.id}>#{r.run_no} · {r.label.replace(/^run_/, '')} ({r.patient_count})</option>)}
+        {/* gates strip for the baseline */}
+        {baseSummary && <div className="flex items-center gap-2 flex-wrap text-xs">
+          <ShieldCheck className="w-3.5 h-3.5 text-primary" /><span className="text-muted-foreground">Baseline gates:</span>
+          {[
+            { label: 'Coverage ≥ 0.80', ok: (baseSummary.avg_section_coverage ?? 0) >= 0.8, val: num(baseSummary.avg_section_coverage, 2) },
+            { label: 'Schema valid = 1', ok: (baseSummary.schema_validity ?? 0) >= 1, val: num(baseSummary.schema_validity, 2) },
+            { label: 'Unsupported meds = 0', ok: (baseSummary.total_unsupported_meds ?? 0) === 0, val: String(baseSummary.total_unsupported_meds ?? '—') },
+          ].map((g) => <span key={g.label} className={cn('px-2 py-0.5 rounded-md border', g.ok ? 'border-success/40 text-success bg-success/5' : 'border-destructive/40 text-destructive bg-destructive/5')}>{g.ok ? '✓' : '✕'} {g.label} <span className="opacity-60">({g.val})</span></span>)}
+        </div>}
+
+        {/* no-overlap guidance */}
+        {noOverlap && <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="text-warning font-medium">No shared fixtures with the baseline</div>
+            <div className="text-muted-foreground text-xs mt-0.5">A paired comparison needs the two runs to have run the same fixtures. The selected run{against.length > 1 ? 's' : ''} share 0. Deltas below are <b>unpaired</b> (each run's own mean, not comparable per-fixture).</div>
+          </div>
+          {bestMatch(baseDir, idx) && shared(baseDir, bestMatch(baseDir, idx)) > 0 && <button onClick={() => setAgainst([bestMatch(baseDir, idx)])} className="text-xs px-2 py-1 rounded-md border border-primary text-primary hover:bg-primary/10 shrink-0">Use best match ({shared(baseDir, bestMatch(baseDir, idx))}∩)</button>}
+        </div>}
+
+        {families.length > 1 && <div className="flex items-center gap-1.5 flex-wrap">
+          <button onClick={() => setFamFilter(null)} className={cn('px-2 py-0.5 rounded-md text-[11px] border', !famFilter ? 'border-primary text-foreground bg-primary/10' : 'border-border text-muted-foreground')}>all</button>
+          {families.map((f) => <button key={f} onClick={() => setFamFilter(f)} className={cn('px-2 py-0.5 rounded-md text-[11px] border', famFilter === f ? 'border-primary text-foreground bg-primary/10' : 'border-border text-muted-foreground')}>{FAMILY_LABEL[f] || f}</button>)}
+          <div className="flex-1" />
+          <button onClick={copyMarkdown} className="text-[11px] px-2 py-0.5 rounded-md border border-border text-muted-foreground hover:text-foreground flex items-center gap-1"><Copy className="w-3 h-3" /> copy md</button>
+        </div>}
+
+        {loading && <Skeleton className="h-64 w-full" />}
+        {!loading && !cmp && <EmptyState icon="⚖️" title="Pick a baseline and at least one run with data" hint="Comparison is paired over shared fixtures." />}
+        {!loading && cmp && <>
+          <div className="rounded-xl border border-border bg-surface overflow-x-auto">
+            <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                <tr>
+                  <th className="text-left font-medium px-3 py-2">Metric</th>
+                  <th className="text-left font-medium px-2 py-2 hidden sm:table-cell">Family</th>
+                  <th className="text-right font-medium px-2 py-2">n</th>
+                  <th className="text-right font-medium px-2 py-2">Base</th>
+                  {cmp.runs.map((r) => <th key={r.dir} className="text-right font-medium px-3 py-2">{shortId(r.dir)}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {metricsShown.map((m) => (
+                  <tr key={m.key} onClick={() => setFocusKey(m.key)} className={cn('border-b border-border/50 cursor-pointer hover:bg-accent/40', focusKey === m.key && 'bg-accent/60', m.meta.severity === 'critical' && 'border-l-2 border-l-destructive/60')}>
+                    <td className="px-3 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-foreground/90">{m.meta.label}</span>
+                        {m.meta.isGate && <span className="text-[9px] px-1 rounded bg-warning/15 text-warning">gate</span>}
+                        <span className="text-[9px] text-muted-foreground">{m.meta.polarity === 'lower_better' ? '↓ better' : m.meta.polarity === 'higher_better' ? '↑ better' : ''}</span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground text-xs hidden sm:table-cell">{FAMILY_LABEL[m.meta.family] || m.meta.family}</td>
+                    <td className="px-2 py-1.5 text-right text-muted-foreground">{m.runs[0]?.n ?? '—'}</td>
+                    <td className="px-2 py-1.5 text-right text-foreground/70">{num(m.base, m.meta.unit === 'count' ? 1 : 3)}</td>
+                    {m.runs.map((r) => (
+                      <td key={r.dir} className="px-3 py-1.5 text-right">
+                        {r.n >= 2 ? <>
+                          <div className={cn('font-medium', deltaTone(r))}>{arrow(r)} {signed(r.delta, m.meta.unit === 'count' ? 1 : 3)}</div>
+                          {r.ciLow != null && <div className="text-[9px] text-muted-foreground">[{num(r.ciLow, 2)},{num(r.ciHigh, 2)}]{r.underpowered ? ' · indic.' : r.significant ? ' · sig' : ''}</div>}
+                        </> : <div className="text-muted-foreground">{r.mean != null ? <span title="unpaired — no shared fixtures">{num(r.mean, m.meta.unit === 'count' ? 1 : 3)} <span className="text-[9px] opacity-60">unpaired</span></span> : 'no data'}</div>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {metricsShown.length === 0 && <tr><td colSpan={4 + cmp.runs.length} className="px-3 py-6 text-center text-muted-foreground text-sm">No metrics match the filter.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Info className="w-3 h-3" /> Paired over shared fixtures. Grey = underpowered (n&lt;8 or CI crosses 0). "unpaired" = the run's own mean when it shares no fixtures with the baseline. Click a metric to drill in.</p>
+
+          {cmp.perFixture.focusKey && cmp.perFixture.rows.some((f) => f.delta != null) && <div className="rounded-xl border border-border bg-surface overflow-hidden">
+            <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground flex items-center gap-1.5">
+              <ChevronRight className="w-3.5 h-3.5" /> Per-fixture · <b className="text-foreground/80">{(cmp.metrics.find((m) => m.key === cmp.perFixture.focusKey)?.meta.label) || cmp.perFixture.focusKey}</b> · Δ vs baseline · contribution = share of the aggregate move
+            </div>
+            <div className="max-h-[46vh] overflow-auto">
+              <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <thead className="text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border sticky top-0 bg-surface">
+                  <tr><th className="text-left font-medium px-3 py-2">Fixture</th><th className="text-right font-medium px-2 py-2">Base</th>{cmp.runs.map((r) => <th key={r.dir} className="text-right font-medium px-2 py-2">{shortId(r.dir)}</th>)}<th className="text-right font-medium px-2 py-2">Δ</th><th className="text-left font-medium px-3 py-2 w-40">contribution</th></tr>
+                </thead>
+                <tbody>
+                  {cmp.perFixture.rows.filter((f) => f.base != null || f.runs.some((v) => v != null)).map((f) => (
+                    <tr key={f.fixture} onClick={() => openInResults(cmp.runs[0]?.dir || cmp.baseDir, f.fixture + '.md')} className={cn('border-b border-border/40 cursor-pointer hover:bg-accent/40', f.delta != null && f.delta !== 0 && 'border-l-2', f.delta != null && f.delta < 0 && 'border-l-destructive/50', f.delta != null && f.delta > 0 && 'border-l-success/50')}>
+                      <td className="px-3 py-1.5 text-foreground/85 font-mono text-xs truncate max-w-[16rem]">{f.fixture}</td>
+                      <td className="px-2 py-1.5 text-right text-muted-foreground">{num(f.base, 2)}</td>
+                      {f.runs.map((v, i) => <td key={i} className="px-2 py-1.5 text-right text-foreground/80">{num(v, 2)}</td>)}
+                      <td className={cn('px-2 py-1.5 text-right font-medium', f.delta == null || f.delta === 0 ? 'text-muted-foreground' : f.delta > 0 ? 'text-success' : 'text-destructive')}>{f.delta == null ? '—' : signed(f.delta, 2)}</td>
+                      <td className="px-3 py-1.5">
+                        {f.contributionPct != null && f.contributionPct > 0 && <div className="flex items-center gap-1.5"><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.min(100, f.contributionPct)}%` }} /></div><span className="text-[10px] text-muted-foreground w-9 text-right">{f.contributionPct}%</span></div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>}
+        </>}
+      </>}
+
+      {tab === 'summary' && <SummaryPanel runs={runs} idx={idx} defaultDir={baseDir} openInResults={openInResults} />}
+      {tab === 'trend' && <TrendPanel hist={hist} />}
+    </div>
+  )
+}
+
+// ── Run report: the "Eval Analyst" — aggregate all comparison scores + LLM synthesis ──
+function VBar({ label, notera, gold }: { label: string; notera: number | null; gold: number | null }) {
+  const pct = (v: number | null) => (v == null ? 0 : Math.max(0, Math.min(100, (v / 5) * 100)))
+  return (
+    <div className="grid grid-cols-[7rem_1fr] items-center gap-3 text-sm">
+      <span className="text-foreground/80">{label}</span>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-primary">Notera</span><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary" style={{ width: `${pct(notera)}%` }} /></div><span className="w-8 text-right font-mono text-xs">{notera ?? '—'}</span></div>
+        <div className="flex items-center gap-2"><span className="text-[10px] w-10 text-warning">Gold</span><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-warning" style={{ width: `${pct(gold)}%` }} /></div><span className="w-8 text-right font-mono text-xs">{gold ?? '—'}</span></div>
+      </div>
+    </div>
+  )
+}
+function List({ title, items, tone, Icon }: { title: string; items?: string[]; tone: string; Icon: any }) {
+  const list = items || []
+  return (
+    <div className="rounded-xl border border-border bg-surface p-3">
+      <div className={cn('flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide mb-2', list.length ? tone : 'text-muted-foreground')}><Icon className="w-3.5 h-3.5" />{title} <span className="text-muted-foreground font-normal">({list.length})</span></div>
+      {list.length === 0 ? <div className="text-muted-foreground/50 text-sm">—</div> : <ul className="space-y-1.5">{list.map((x, i) => <li key={i} className="text-sm text-foreground/85 flex gap-2"><span className={cn('mt-[7px] w-1.5 h-1.5 rounded-full shrink-0', tone.replace('text-', 'bg-'))} />{x}</li>)}</ul>}
+    </div>
+  )
+}
+
+function SummaryPanel({ runs, idx, defaultDir, openInResults }: { runs: ResultRun[]; idx: RunIndexEntry[]; defaultDir: string; openInResults: (dir: string, file?: string) => void }) {
+  const [dir, setDir] = React.useState(defaultDir)
+  const [rep, setRep] = React.useState<RunSummary | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  React.useEffect(() => { if (!dir && defaultDir) setDir(defaultDir) }, [defaultDir])
+  React.useEffect(() => { setRep(null); if (dir) api.runSummaryGet(dir).then((r) => { if (r.cached) setRep(r) }).catch(() => {}) }, [dir])
+  const gen = async () => { if (!dir || busy) return; setBusy(true); try { const r = await api.runSummaryRun(dir); setRep(r); if (r.ok === false) toast.error(r.error || 'Run report unavailable'); else toast.success('Run report ready') } catch { toast.error('Run report failed') } setBusy(false) }
+  const idxMap = Object.fromEntries(idx.map((e) => [e.dir, e]))
+  const vc = rep?.verdict_counts || {}
+  const total = (vc.notera_better || 0) + (vc.gold_better || 0) + (vc.equivalent || 0) || 1
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><FileBarChart className="w-4 h-4 text-primary" /> Run report</div>
+        <span className="text-xs text-muted-foreground">Eval-Analyst summary of every comparison + score in a run</span>
+        <div className="flex-1" />
+        <select value={dir} onChange={(e) => setDir(e.target.value)} className="h-8 bg-background border border-border rounded-lg px-2 text-sm">
+          {runs.map((r) => { const e = idxMap[r.dir]; return <option key={r.dir} value={r.dir}>{shortId(r.dir)} · {e ? (e.hasData ? e.n + ' fx' : 'no data') : '?'}</option> })}
         </select>
+        <Button size="sm" onClick={gen} disabled={busy || !dir}>{busy ? 'Analyzing…' : rep?.generatedAt ? 'Regenerate' : 'Generate report'}</Button>
       </div>
 
-      <Card className="p-4 overflow-x-auto">
-        <div className="text-sm font-semibold text-foreground mb-3">Fixture heatmap <span className="text-muted-foreground font-normal">— click a cell to open the note vs gold</span></div>
-        {!heatPatients.length ? <div className="text-sm text-muted-foreground">No per-fixture metrics for this run.</div> : (
-          <table className="text-sm border-separate" style={{ borderSpacing: 2 }}>
-            <thead><tr><th className="text-left px-2 text-xs text-muted-foreground font-medium">Patient</th>{heatKeys.map((k) => <th key={k} className="px-2 text-xs text-muted-foreground font-medium">{label(k)}</th>)}</tr></thead>
-            <tbody>
-              {heatPatients.map((p) => (
-                <tr key={p.slug}>
-                  <td className="px-2 py-1 text-foreground/90 whitespace-nowrap">{p.name}</td>
-                  {heatKeys.map((k) => {
-                    const v = p.cells[k]
-                    return <td key={k} onClick={() => openInResults(runLabel(sel), p.slug + '.md')}
-                      title={`${p.name} · ${label(k)}: ${v == null ? '—' : v} (click to open)`}
-                      className="px-2 py-1 text-center rounded cursor-pointer font-mono text-xs text-white/95"
-                      style={{ background: heat(v as number | null, k), minWidth: 62 }}>{v == null ? '—' : fmtNum(v as number, 2)}</td>
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      {busy && <div className="space-y-3"><Skeleton className="h-28 w-full" /><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><Skeleton className="h-28" /><Skeleton className="h-28" /></div></div>}
+      {!busy && !rep && <div className="min-h-[40vh] flex items-center justify-center rounded-xl border border-dashed border-border bg-surface/40"><div className="text-center max-w-md px-8 py-10"><div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4"><FileBarChart className="w-7 h-7 text-primary" /></div><div className="text-foreground font-semibold text-lg mb-1.5">Generate a run report</div><p className="text-sm text-muted-foreground leading-relaxed">Aggregates every per-fixture comparison score in this run, then an LLM synthesizes the recurring gaps vs gold, failure themes, and prioritized fixes. Needs comparisons generated in Results (or Auto on).</p><Button size="sm" className="mt-5" onClick={gen} disabled={!dir}>Generate report</Button></div></div>}
+      {!busy && rep?.ok === false && <div className="rounded-xl border border-warning/40 bg-warning/5 p-4"><div className="font-semibold text-warning mb-1 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Run report unavailable</div><div className="text-sm text-muted-foreground">{rep.error}</div>{rep.hint && <div className="text-xs text-muted-foreground mt-1">{rep.hint}</div>}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-4 overflow-x-auto">
-          <div className="text-sm font-semibold text-foreground mb-3">Per-agent stats</div>
-          {!agents.length ? <div className="text-sm text-muted-foreground">No agent I/O captured for this run.</div> : (
-            <table className="w-full text-sm min-w-[420px]">
-              <thead className="text-muted-foreground text-xs uppercase"><tr><th className="text-left py-1">Agent</th><th>Calls</th><th>Errors</th><th>Latency</th><th>Tok in/out</th></tr></thead>
-              <tbody>{agents.map((a) => (
-                <tr key={a.agent_id} className="border-t border-border/60">
-                  <td className="py-1.5 font-mono text-xs text-foreground/90">{a.agent_id}</td>
-                  <td className="text-center tabular-nums">{a.calls}</td>
-                  <td className={cn('text-center tabular-nums', a.errors > 0 && 'text-destructive')}>{a.errors}</td>
-                  <td className="text-center tabular-nums text-muted-foreground">{a.avg_latency_ms == null ? '—' : Math.round(a.avg_latency_ms) + 'ms'}</td>
-                  <td className="text-center tabular-nums text-muted-foreground">{a.avg_tokens_in == null ? '—' : `${Math.round(a.avg_tokens_in)}/${Math.round(a.avg_tokens_out || 0)}`}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-        </Card>
-
-        <Card className="p-4 overflow-x-auto">
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            <span className="text-sm font-semibold text-foreground">Compare</span>
-            <select value={cmpA ?? ''} onChange={(e) => setCmpA(Number(e.target.value))} className="h-8 bg-surface border border-border rounded-lg px-2 text-xs">{runs.map((r) => <option key={r.id} value={r.id}>#{r.run_no}</option>)}</select>
-            <span className="text-muted-foreground text-xs">→</span>
-            <select value={cmpB ?? ''} onChange={(e) => setCmpB(Number(e.target.value))} className="h-8 bg-surface border border-border rounded-lg px-2 text-xs">{runs.map((r) => <option key={r.id} value={r.id}>#{r.run_no}</option>)}</select>
+      {!busy && rep && rep.ok !== false && <>
+        {/* headline + score + verdict split */}
+        <div className="rounded-xl border border-border bg-gradient-to-br from-surface to-surface/40 p-5 flex items-center gap-5 flex-wrap">
+          <div className="text-center">
+            <div className={cn('text-4xl font-bold tabular-nums', (rep.avg_overall ?? 0) >= 80 ? 'text-success' : (rep.avg_overall ?? 0) >= 55 ? 'text-warning' : 'text-destructive')}>{rep.avg_overall ?? '—'}</div>
+            <div className="text-[10px] text-muted-foreground">avg / 100 · {rep.n_scored} scored</div>
           </div>
-          {!cmpDeltas.length ? <div className="text-sm text-muted-foreground">Pick two runs to compare.</div> : (
-            <table className="w-full text-sm">
-              <thead className="text-muted-foreground text-xs uppercase"><tr><th className="text-left py-1">Metric</th><th>A</th><th>B</th><th>Δ</th></tr></thead>
-              <tbody>{cmpDeltas.map((d) => {
-                const good = (lower_is_better(d.k) ? -d.d : d.d) > 0.0005, bad = (lower_is_better(d.k) ? -d.d : d.d) < -0.0005
-                return <tr key={d.k} className="border-t border-border/60">
-                  <td className="py-1.5 text-foreground/90">{label(d.k)}</td>
-                  <td className="text-center tabular-nums text-muted-foreground">{d.a == null ? '—' : fmtNum(d.a, 2)}</td>
-                  <td className="text-center tabular-nums text-muted-foreground">{d.b == null ? '—' : fmtNum(d.b, 2)}</td>
-                  <td className={cn('text-center tabular-nums font-medium', good && 'text-success', bad && 'text-destructive')}>{d.d > 0 ? '+' : ''}{fmtNum(d.d, 3)}</td>
-                </tr>
-              })}</tbody>
-            </table>
-          )}
-        </Card>
+          <div className="min-w-0 flex-1">
+            {rep.headline ? <p className="text-base text-foreground/90 font-medium leading-snug mb-2">{rep.headline}</p> : <p className="text-sm text-muted-foreground mb-2">Aggregate report (LLM synthesis {rep.synthError ? 'unavailable: ' + rep.synthError : 'off'}).</p>}
+            <div className="flex items-center gap-0.5 h-2.5 rounded-full overflow-hidden max-w-md">
+              <div className="h-full bg-success" style={{ width: `${(vc.notera_better || 0) / total * 100}%` }} title={`Notera better: ${vc.notera_better || 0}`} />
+              <div className="h-full bg-muted-foreground/50" style={{ width: `${(vc.equivalent || 0) / total * 100}%` }} title={`Equivalent: ${vc.equivalent || 0}`} />
+              <div className="h-full bg-destructive" style={{ width: `${(vc.gold_better || 0) / total * 100}%` }} title={`Gold better: ${vc.gold_better || 0}`} />
+            </div>
+            <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success" /> Notera {vc.notera_better || 0}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/50" /> tie {vc.equivalent || 0}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-destructive" /> gold {vc.gold_better || 0}</span>
+              {rep.model && <span className="flex items-center gap-1 ml-2"><Sparkles className="w-3 h-3" />{rep.model}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* dimension averages + metric strip */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border bg-surface p-4 space-y-2.5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Dimension averages · Notera vs Gold</div>
+            {rep.dimension_averages.map((d) => <VBar key={d.name} label={d.name} notera={d.notera} gold={d.gold} />)}
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Run metrics</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {rep.metrics ? Object.entries(rep.metrics).map(([k, v]) => <div key={k} className="flex items-center justify-between"><span className="text-muted-foreground text-xs">{k.replace(/^avg_|^total_/, '').replace(/_/g, ' ')}</span><span className="font-mono tabular-nums">{typeof v === 'number' ? v.toFixed(k.includes('meds') ? 0 : 3) : String(v)}</span></div>) : <span className="text-muted-foreground text-sm">no metric summary</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* themes + lists */}
+        {rep.failure_themes?.length > 0 && <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Failure themes across the run</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {rep.failure_themes.map((t, i) => <div key={i} className="border border-border rounded-lg p-2.5"><div className="flex items-center justify-between mb-1"><span className="text-sm font-medium text-foreground/90">{t.theme}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{t.count}×</span></div>{(t.examples || []).length > 0 && <ul className="text-xs text-muted-foreground space-y-0.5">{t.examples.slice(0, 4).map((e, j) => <li key={j}>· {e}</li>)}</ul>}</div>)}
+          </div>
+        </div>}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <List title="Recurring gaps vs gold" items={rep.recurring_missing} tone="text-warning" Icon={CheckCircle2} />
+          <List title="Recurring fabrications" items={rep.recurring_fabrications} tone="text-destructive" Icon={Ghost} />
+          <List title="Recommendations" items={rep.recommendations} tone="text-info" Icon={ListChecks} />
+        </div>
+
+        {/* worst / best fixtures */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border bg-surface p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-destructive mb-2">Weakest fixtures</div>
+            <div className="space-y-1">{rep.worst_fixtures.map((f) => <button key={f.fixture} onClick={() => openInResults(dir, f.fixture + '.md')} className="w-full flex items-center gap-2 text-left text-sm px-2 py-1 rounded hover:bg-accent/40"><span className="font-mono text-xs text-destructive w-8">{f.score}</span><span className="font-mono text-xs text-foreground/85 truncate flex-1">{f.fixture}</span><span className="text-[10px] text-muted-foreground">{String(f.verdict || '').replace(/_/g, ' ')}</span></button>)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-success mb-2">Strongest fixtures</div>
+            <div className="space-y-1">{rep.best_fixtures.map((f) => <button key={f.fixture} onClick={() => openInResults(dir, f.fixture + '.md')} className="w-full flex items-center gap-2 text-left text-sm px-2 py-1 rounded hover:bg-accent/40"><span className="font-mono text-xs text-success w-8">{f.score}</span><span className="font-mono text-xs text-foreground/85 truncate flex-1">{f.fixture}</span><span className="text-[10px] text-muted-foreground">{String(f.verdict || '').replace(/_/g, ' ')}</span></button>)}</div>
+          </div>
+        </div>
+
+        {rep.narrative && <div className="rounded-xl border border-border bg-surface p-4"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5"><FileBarChart className="w-3.5 h-3.5 text-primary" /> Analyst narrative</div><div className="md text-sm text-foreground/90 leading-relaxed" dangerouslySetInnerHTML={{ __html: md.render(rep.narrative) }} /></div>}
+        {rep.generatedAt && <p className="text-[10px] text-muted-foreground">generated {new Date(rep.generatedAt).toLocaleString()} · {rep.n_fixtures} fixtures{rep.synthesized ? '' : ' · aggregate only (LLM synthesis off)'}</p>}
+      </>}
+    </div>
+  )
+}
+
+const TREND_FAMILIES: { family: string; series: { key: string; label: string; color: string }[] }[] = [
+  { family: 'equivalence', series: [{ key: 'avg_section_coverage', label: 'Coverage', color: '#34d399' }, { key: 'avg_similarity_to_gold', label: 'Similarity', color: '#60a5fa' }] },
+  { family: 'missing_info', series: [{ key: 'avg_omission_rate', label: 'Omission (↓)', color: '#fb7185' }] },
+  { family: 'story_flow', series: [{ key: 'avg_story_flow', label: 'Story flow', color: '#c084fc' }] },
+  { family: 'structure', series: [{ key: 'schema_validity', label: 'Schema valid', color: '#fbbf24' }] },
+]
+
+function TrendPanel({ hist }: { hist: any[] }) {
+  const [n, setN] = React.useState(20)
+  if (!hist.length) return <EmptyState icon="📈" title="No trend history yet" hint="Each completed run appends a point." />
+  const data = hist.slice(-n).map((h) => ({ ...h, name: shortId(String(h.runId || '')).slice(-8) }))
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 text-xs">
+        <TrendingUp className="w-3.5 h-3.5 text-primary" /><span className="text-muted-foreground">last</span>
+        {[10, 20, 30, 999].map((k) => <button key={k} onClick={() => setN(k)} className={cn('px-2 py-0.5 rounded border text-[11px]', n === k ? 'border-primary text-foreground' : 'border-border text-muted-foreground')}>{k === 999 ? 'all' : k}</button>)}
+        <span className="text-muted-foreground ml-2">score metrics only · one chart per family · uniform 0–1 axis</span>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {TREND_FAMILIES.map((fam) => (
+          <div key={fam.family} className="rounded-xl border border-border bg-surface p-3">
+            <div className="text-xs font-semibold text-foreground/80 mb-2">{FAMILY_LABEL[fam.family] || fam.family}</div>
+            <ResponsiveContainer width="100%" height={150}>
+              <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="currentColor" className="text-muted-foreground" />
+                <YAxis domain={[0, 1]} tick={{ fontSize: 9 }} stroke="currentColor" className="text-muted-foreground" />
+                <RTooltip contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} />
+                {fam.series.map((s) => <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} dot={false} strokeWidth={2} connectNulls />)}
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-3 mt-1">{fam.series.map((s) => <span key={s.key} className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} />{s.label}</span>)}</div>
+          </div>
+        ))}
       </div>
     </div>
   )

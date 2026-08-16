@@ -1,4 +1,4 @@
-Transcript started 4:19 PM 6/11/2026
+Patient 7 started 2016-02-04 Patient 1499
 
 0:00
 
@@ -6,29 +6,13 @@ I just needed a refill on my Synthroid. And that is one fifty micrograms a day? 
 
 0:11
 
-Is it? I don't believe so. I think we just did it maybe December, right? Six months ago. Yeah. And you're feeling okay on one fifty? Yeah. Yeah. I feel really good. Okay. I can fax the prescription. Which drugs do we deal with?
+Is it? I don't believe so. I think we just did it maybe 1999-12-21, right? 1983-01-06. Yeah. And you're feeling okay on one fifty? Yeah. Yeah. I feel really good. Okay. I can fax the prescription. Which drugs do we deal with?
 
 0:34
 
 Can you send it to the WeCare Pharmacy at the Met campus? At the Met campus? Sure. I'll take care of that, hon. Perfect. Thank you so much. No worries. Take care. You too. Bye bye. Bye bye.
 
-Transcript ended 4:20 PM 6/11/2026
-
-Transcript started 4:19 PM 6/11/2026
-
-0:00
-
-I just needed a refill on my Synthroid. And that is one fifty micrograms a day? Yep. And the blood test is not due yet.
-
-0:11
-
-Is it? I don't believe so. I think we just did it maybe December, right? Six months ago. Yeah. And you're feeling okay on one fifty? Yeah. Yeah. I feel really good. Okay. I can fax the prescription. Which drugs do we deal with?
-
-0:34
-
-Can you send it to the WeCare Pharmacy at the Met campus? At the Met campus? Sure. I'll take care of that, hon. Perfect. Thank you so much. No worries. Take care. You too. Bye bye. Bye bye.
-
-Transcript ended 4:20 PM 6/11/2026
+Transcript ended 2025-11-22
 
 Subjective:
 
@@ -38,7 +22,7 @@ Subjective:
 
 - Response to Treatment: Feeling well on current dose
 
-- Blood Test Status: Last completed approximately December (6 months ago), not yet due
+- Blood Test Status: Last completed 1989-07-191991-08-17), not yet due
 
 
 
@@ -57,7 +41,7 @@ Assessment & Plan:
 
 1. Synthroid refill
 
-- Diagnosis: On synthroid 150 mcg daily
+- Diagnosis: On synthroid 150 mcg 1976-10-27
 
 - Treatment planned: Refill synthroid 150 mcg daily
 

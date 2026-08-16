@@ -1,48 +1,28 @@
-Transcript started 1:59 PM 7/20/2026
+Patient 7 started 1987-04-23
 
 0:00
 
-Hello? Hi, Kristen. Hi. How are you? Doctor. Adderall on calling.
+Hello? Hi, Patient 376. Hi. How are you? Doctor. Adderall on calling.
 
 0:13
 
-Yep. Um, so I just I thought when I was in there in April or May that you did refills on my prescriptions, but apparently not. Which one? So I just need the Tepta and the Veracamol SR one twenty.
+Yep. Um, so I just I thought when I was in there in 1979-07-02 or 2010-12-28 that you did refills on my prescriptions, but apparently not. Which one? So I just need the Tepta and the Veracamol SR 1997-10-28.
 
 0:33
 
-All right. So, yeah. Okay. And the tacta and verapamil both are working for you, correct? Yes. And tact- Yeah, I've been on those a long time. Yeah. Okay. And you take TECTA once a day, every day? Yes. And so in- I take the te- the verapamil is once a day in the evenings, and then, uh, the TECTA is twice a day, morning and night. Okay, yeah. And where do I fax it? Brady's in Essex? Brady's in Essex, please. I'll take care of that. What else? Thank you very much. That's it. All right, sweetheart, take care.
+All right. So, yeah. Okay. And the tacta and verapamil both are working for you, correct? Yes. And tact- Yeah, I've been on those a long time. Yeah. Okay. And you take TECTA once a day, every day? Yes. And so in- I take the te- the verapamil is once a day in the evenings, and then, uh, the TECTA is twice a day, morning and night. Okay, yeah. And where do I fax it? Patient 375's in [LOCATION]? Patient 375's in [LOCATION], please. I'll take care of that. What else? Thank you very much. That's it. All right, sweetheart, take care.
 
 1:16
 
 Thank you. You too. Bye bye.
 
-Transcript ended 2:01 PM 7/20/2026
-
-Transcript started 1:59 PM 7/20/2026
-
-0:00
-
-Hello? Hi, Kristen. Hi. How are you? Doctor. Adderall on calling.
-
-0:13
-
-Yep. Um, so I just I thought when I was in there in April or May that you did refills on my prescriptions, but apparently not. Which one? So I just need the Tepta and the Veracamol SR one twenty.
-
-0:33
-
-All right. So, yeah. Okay. And the tacta and verapamil both are working for you, correct? Yes. And tact- Yeah, I've been on those a long time. Yeah. Okay. And you take TECTA once a day, every day? Yes. And so in- I take the te- the verapamil is once a day in the evenings, and then, uh, the TECTA is twice a day, morning and night. Okay, yeah. And where do I fax it? Brady's in Essex? Brady's in Essex, please. I'll take care of that. What else? Thank you very much. That's it. All right, sweetheart, take care.
-
-1:16
-
-Thank you. You too. Bye bye.
-
-Transcript ended 2:01 PM 7/20/2026
+Transcript ended 2007-06-01
 
 Subjective:
 
 - Reason for Visit: Prescription refill request for TECTA and verapamil SR 120
 
-- Current Medications: TECTA bid (morning and night), verapamil SR 120 once daily in evenings
+- Current Medications: TECTA bid 1984-03-22), verapamil SR 120 once daily in evenings
 
 - Medication Efficacy: Both medications working well
 
@@ -65,4 +45,4 @@ Assessment & Plan:
 
 1. Prescription refill request
 
-- Treatment planned: TECTA and verapamil SR 120 refills faxed to Brady's in Essex
+- Treatment planned: TECTA and verapamil SR 120 refills faxed to Patient 375's in [LOCATION]
