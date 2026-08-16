@@ -1,4 +1,4 @@
-Transcript started 4:18 PM 7/2/2026
+Transcript started 2014-12-15
 
 0:00
 
@@ -8,31 +8,13 @@ Hello. Hello? Hi. Oh, sorry. I think I have the wrong number. So sorry.
 
 0:32
 
-Hello? Hi, is this Ali? Yes, it is. Dr. Agarwan Kohli. Hi, how are you? I'm good. How can I help you? Um, I need a refill of my Ciprolex. Okay. And that is ten milligrams, one fill once a day? Yes. And it's helping you, I would imagine? Yes. Okay. Where do I fax the prescription to? Uh, the Shoppers in Amit, I believe it's Sandwich Street. All right. I can do that. And anything-- And no side effects, and you're tolerating this better?
+Hello? Hi, is this Patient 531? Yes, it is. Dr. Patient 1145. Hi, how are you? I'm good. How can I help you? Um, I need a refill of my Ciprolex. Okay. And that is ten milligrams, one fill once a day? Yes. And it's helping you, I would imagine? Yes. Okay. Where do I fax the prescription to? Uh, the Shoppers in Patient 847, I believe it's [LOCATION]. All right. I can do that. And anything-- And no side effects, and you're tolerating this better?
 
 1:13
 
-Yes. Yeah. Perfect. Okay. I'll fax it. Anything else? No, ma'am. Okay then. Take care. K. Thank you. Bye.
+Yes. Yeah. Perfect. Okay. I'll fax it. Anything else? No, ma'am. Okay then. Take care. Patient 4 Thank you. Bye.
 
-Transcript ended 4:20 PM 7/2/2026
-
-Transcript started 4:18 PM 7/2/2026
-
-0:00
-
-Hello. Hello? Hi. Oh, sorry. I think I have the wrong number. So sorry.
-
-0:12
-
-0:32
-
-Hello? Hi, is this Ali? Yes, it is. Dr. Agarwan Kohli. Hi, how are you? I'm good. How can I help you? Um, I need a refill of my Ciprolex. Okay. And that is ten milligrams, one fill once a day? Yes. And it's helping you, I would imagine? Yes. Okay. Where do I fax the prescription to? Uh, the Shoppers in Amit, I believe it's Sandwich Street. All right. I can do that. And anything-- And no side effects, and you're tolerating this better?
-
-1:13
-
-Yes. Yeah. Perfect. Okay. I'll fax it. Anything else? No, ma'am. Okay then. Take care. K. Thank you. Bye.
-
-Transcript ended 4:20 PM 7/2/2026
+Transcript ended 1981-05-18
 
 Subjective:
 
@@ -63,4 +45,4 @@ Assessment & Plan:
 
 1. Ciprolex refill
 
-- Treatment planned: ciprolex 10mg once daily - refill to be faxed to Shoppers, Sandwich Street, Amit
+- Treatment planned: ciprolex 10mg once 1987-09-07 - refill to be faxed to Shoppers, Sandwich Street, Patient 847

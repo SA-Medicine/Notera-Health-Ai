@@ -1,8 +1,6 @@
-Transcript started 1:22 PM 7/10/2026
+Patient 7 started 1978-06-23
 
-0:00
-
-So the lab test, last time I saw you was on July 2nd, which was like six, a week ago. And you were you're you're still pregnant right now instead of six weeks pregnant. Correct? Correct. And we did send the referral to Doctor. Polsky, and we sent you for some blood test and the urine analysis. Right. Your hemoglobin is a little low, but that's probably your baseline. I think it's better than before because of your kidney issues.
+So the lab test, last time I saw you was on 1983-09-07, which was like 1983-07-20. And you were you're you're still pregnant right now instead of 2001-03-28 pregnant. Correct? Correct. And we did send the referral to Doctor. Patient 510, and we sent you for some blood test and the urine analysis. Right. Your hemoglobin is a little low, but that's probably your baseline. I think it's better than before because of your kidney issues.
 
 0:31
 
@@ -10,41 +8,21 @@ Yeah. Uh, your blood group is O positive, which is good. Uh, uh, the, the, yeah,
 
 0:58
 
-Treat all the pregnant women with this infection, even if they do not have symptoms. Do you have any symptoms? I mean, sometimes it hurts to pee, but, like, I just wait a little too long to go pee. Yeah. But it burns when the pee comes or ends? No. Do you go to the bathroom more often? Than I normally do. Yeah. But I just Pregnancy. Right. Right. Yeah. So I want to treat you with the nitrofurantoin. Is that okay? Yeah. That's fine. Okay. So drink water, and then I'll put the Macrobid. That is the only pill that's safe in pregnancy. Okay. And how long is that for? Five days. Five days? Okay. Alright. Thank you. And where do I send
+Treat all the pregnant women with this infection, even if they do not have symptoms. Do you have any symptoms? I mean, sometimes it hurts to pee, but, like, I just wait a little too long to go pee. Yeah. But it burns when the pee comes or ends? No. Do you go to the bathroom more often? Than I normally do. Yeah. But I just Pregnancy. Right. Right. Yeah. So I want to treat you with the nitrofurantoin. Is that okay? Yeah. That's fine. Okay. So drink water, and then I'll put the Patient 152. That is the only pill that's safe in pregnancy. Okay. And how long is that for? 1981-09-20. 2017-07-09? Okay. Alright. Thank you. And where do I send
 
 1:43
 
-Prescription to? Uh, MetaPose. On EV, eh? Yep. Okay, I'll take care of it. Okay, thank you. Take care. Bye for now. Bye.
+Prescription to? Uh, Patient 753. On EV, eh? Yep. Okay, I'll take care of it. Okay, thank you. Take care. Bye for now. Bye.
 
-Transcript ended 1:24 PM 7/10/2026
-
-Transcript started 1:22 PM 7/10/2026
-
-0:00
-
-So the lab test, last time I saw you was on July 2nd, which was like six, a week ago. And you were you're you're still pregnant right now instead of six weeks pregnant. Correct? Correct. And we did send the referral to Doctor. Polsky, and we sent you for some blood test and the urine analysis. Right. Your hemoglobin is a little low, but that's probably your baseline. I think it's better than before because of your kidney issues.
-
-0:31
-
-Yeah. Uh, your blood group is O positive, which is good. Uh, uh, the, the, yeah, your kidneys are a little low, EGFR of thirty because of the kidney transplant. Yeah. The only issue with, with you i- is this, the urine test had some infection. Mm-hmm. And it says it will be sensitive to microfurrant points. So, uh, so-
-
-0:58
-
-Treat all the pregnant women with this infection, even if they do not have symptoms. Do you have any symptoms? I mean, sometimes it hurts to pee, but, like, I just wait a little too long to go pee. Yeah. But it burns when the pee comes or ends? No. Do you go to the bathroom more often? Than I normally do. Yeah. But I just Pregnancy. Right. Right. Yeah. So I want to treat you with the nitrofurantoin. Is that okay? Yeah. That's fine. Okay. So drink water, and then I'll put the Macrobid. That is the only pill that's safe in pregnancy. Okay. And how long is that for? Five days. Five days? Okay. Alright. Thank you. And where do I send
-
-1:43
-
-Prescription to? Uh, MetaPose. On EV, eh? Yep. Okay, I'll take care of it. Okay, thank you. Take care. Bye for now. Bye.
-
-Transcript ended 1:24 PM 7/10/2026
+Transcript ended 2004-01-08
 
 Subjective:
 
-- Follow-up for lab results from 07/02/2026
+- Follow-up for lab results from 1991-06-03
 
-- Currently 6 weeks pregnant
+- Currently 1974-01-04 pregnant
 
-- Referral sent to Dr. Polsky
+- Referral sent to Dr. Patient 510
 
 - Occasional dysuria - attributes to delaying urination
 
@@ -66,7 +44,7 @@ Past Medical History:
 
 Objective:
 
-- Lab results (07/02/2026): Hemoglobin slightly low (likely baseline, improved from previous due to kidney issues), blood group O pos, eGFR 30 (secondary to kidney transplant), urinalysis pos for infection with sensitivity to nitrofurantoin
+- Lab results (2025-01-20): Hemoglobin slightly low (likely baseline, improved from previous due to kidney issues), blood group O pos, eGFR 30 (secondary to kidney transplant), urinalysis pos for infection with sensitivity to nitrofurantoin
 
 
 
@@ -80,7 +58,7 @@ Assessment & Plan:
 
 - Diagnosis: Urinary tract infection
 
-- Treatment planned: nitrofurantoin (macrobid) x 5 days - safe in pregnancy
+- Treatment planned: nitrofurantoin (macrobid) x 1996-12-08 - safe in pregnancy
 
 - Advised to increase fluid intake
 
@@ -91,6 +69,6 @@ Assessment & Plan:
 
 2. Early pregnancy
 
-- Currently 6 weeks pregnant
+- Currently 2016-10-14 pregnant
 
-- Referrals made: Dr. Polsky
+- Referrals made: Dr. Patient 510

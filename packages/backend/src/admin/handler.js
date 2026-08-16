@@ -1355,6 +1355,67 @@ Score objectively, evidence-based, never rewarding fluent-but-unsupported text. 
     return json(res, 200, { a: A.summary, b: B.summary, fixtures: flips });
   }
 
+  // ── Metrics v2 · registry (typed metric defs for the UI) ──────────────────────
+  if (p === '/api/metrics/registry') {
+    const { describeMetric, FAMILIES, HEADLINE_KEYS } = await import(pathToFileURL(path.join(__dirname, '..', 'metrics', 'registry.js')).href);
+    // describe whatever keys appear in the latest run so the UI has labels/polarity
+    let keys = new Set(HEADLINE_KEYS);
+    try { const latest = listResultRuns()[0]; if (latest) { const s = JSON.parse(fs.readFileSync(path.join(RESULTS, latest.dir, '_summary.json'), 'utf8')); for (const r of (s.rows || [])) for (const k of Object.keys(r)) keys.add(k); } } catch {}
+    return json(res, 200, { families: FAMILIES, headline: HEADLINE_KEYS, defs: [...keys].map((k) => describeMetric(k)) });
+  }
+
+  // ── Metrics v2 · run report (Eval Analyst: aggregate all comparisons + LLM synth) ─
+  if (p === '/api/metrics/run-summary') {
+    const isPost = req.method === 'POST';
+    const body = isPost ? await readBody(req) : {};
+    const d = safeRunDir(isPost ? body.dir : u.searchParams.get('dir'));
+    if (!d) return json(res, 400, { error: 'dir required' });
+    const cacheFp = path.join(RESULTS, d, '_run_summary.json');
+    if (!isPost) { try { return json(res, 200, { cached: true, ...JSON.parse(fs.readFileSync(cacheFp, 'utf8')) }); } catch { return json(res, 200, { cached: false }); } }
+    // gather every per-fixture comparison + the metric summary
+    let compares = [], metricSummary = null;
+    try {
+      const dir = path.join(RESULTS, d);
+      for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.compare.json'))) {
+        try { const c = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); if (c && c.ok !== false) compares.push({ fixture: f.replace(/\.compare\.json$/, ''), ...c }); } catch {}
+      }
+      try { metricSummary = JSON.parse(fs.readFileSync(path.join(dir, '_summary.json'), 'utf8')).summary || null; } catch {}
+    } catch { return json(res, 404, { error: 'run not found' }); }
+    if (!compares.length) return json(res, 200, { ok: false, error: 'no comparison scores in this run', hint: 'Open Results and generate comparisons (or turn on Auto) for this run first.' });
+    try {
+      const { buildRunSummary } = await import(pathToFileURL(path.join(__dirname, '..', 'metrics', 'runSummary.js')).href);
+      const out = await buildRunSummary(compares, metricSummary);
+      try { fs.writeFileSync(cacheFp, JSON.stringify(out, null, 2)); } catch {}
+      return json(res, 200, { ok: true, cached: true, dir: d, ...out });
+    } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
+  // ── Metrics v2 · run index (fixture sets per run, for overlap-aware selection) ─
+  if (p === '/api/metrics/run-index') {
+    const out = [];
+    for (const rr of listResultRuns()) {
+      let rows = [], summary = null;
+      try { const s = JSON.parse(fs.readFileSync(path.join(RESULTS, rr.dir, '_summary.json'), 'utf8')); rows = s.rows || []; summary = s.summary || null; } catch {}
+      out.push({ dir: rr.dir, hasData: rows.length > 0, n: rows.length, fixtures: rows.map((r) => String(r.id)).filter(Boolean), summary });
+    }
+    return json(res, 200, out);
+  }
+
+  // ── Metrics v2 · N-run paired comparison workbench (P2) ───────────────────────
+  if (p === '/api/metrics/compare-runs' && req.method === 'POST') {
+    const body = await readBody(req);
+    const baseDir = safeRunDir(body.baseDir);
+    const runDirs = (Array.isArray(body.runDirs) ? body.runDirs : []).map(safeRunDir).filter((d) => d && d !== baseDir);
+    if (!baseDir || !runDirs.length) return json(res, 400, { error: 'baseDir and at least one distinct runDir required' });
+    const load = (d) => { try { return JSON.parse(fs.readFileSync(path.join(RESULTS, d, '_summary.json'), 'utf8')).rows || []; } catch { return []; } };
+    const baseRows = load(baseDir);
+    if (!baseRows.length) return json(res, 404, { error: 'baseline run has no per-fixture rows (re-run the tester)' });
+    const targets = runDirs.map((d) => ({ dir: d, rows: load(d) }));
+    const { buildComparison } = await import(pathToFileURL(path.join(__dirname, '..', 'metrics', 'compare.js')).href);
+    const out = buildComparison(baseRows, targets, { focusKey: body.focusKey, system: body.system || null });
+    return json(res, 200, { ok: true, baseDir, ...out });
+  }
+
   // ── prompts registry ───────────────────────────────────────────────────────
   if (p === '/api/prompts' && req.method === 'GET') {
     return json(res, 200, { readOnly: PROMPTS_READONLY, prompts: listPromptRecs().map((r) => ({

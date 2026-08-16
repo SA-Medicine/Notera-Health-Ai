@@ -1,54 +1,28 @@
-Transcript started 4:31 PM 6/5/2026
+Patient 7 started 1990-09-10
 
-0:00
-
-0:10
-
-Hello? Hi, Sandy. Hi, Sheila. Doctor. How are you? Oh, good. How are you? Doctor. Adaro. Yeah. How are you? Good. How can I help you? Okay.
+Hello? Hi, Patient 956. Hi, Patient 2036. Doctor. How are you? Oh, good. How are you? Doctor. Adaro. Yeah. How are you? Good. How can I help you? Okay.
 
 0:34
 
-Yeah, I need them all pills for Goldi. All of them. Okay, honey. No, I just gave it to him, honey. No, no, I got the red one, the green one, not too many. And for, uh, thyroid, not too many. Yeah, all the all of them, please. No, it's not for you, it's for Gordi, hey? For Gordi, for Gordi, no more me, for Gordi. I need for Gordi. One second, I don't have-- I have your chart, not Gordi's chart. No, no, Gordi, Gordi. I don't need for me, I cooperation, doctor.
+Yeah, I need them all pills for Patient 2035. All of them. Okay, honey. No, I just gave it to him, honey. No, no, I got the red one, the green one, not too many. And for, uh, thyroid, not too many. Yeah, all the all of them, please. No, it's not for you, it's for Patient 2034, hey? For Patient 2034, for Patient 2034, no more me, for Patient 2034. I need for Patient 2034. One second, I don't have-- I have your chart, not Patient 2034's chart. No, no, Patient 2034, Patient 2034. I don't need for me, I cooperation, doctor.
 
 1:15
 
-Okay, so which drug drugs does Gordon need? I want to order all of them. All right. Where do I send it to? To McGregor. Okay. Good. I decide to go over vision for my arm. Oh, good. Good to charge. Ah, very painful. I go to charge. Okay. Good doc, good doctor, right? Yeah, he's a good doctor. Yes.
+Okay, so which drug drugs does Patient 94 need? I want to order all of them. All right. Where do I send it to? To Patient 206. Okay. Good. I decide to go over vision for my arm. Oh, good. Good to charge. Ah, very painful. I go to charge. Okay. Good doc, good doctor, right? Yeah, he's a good doctor. Yes.
 
 1:58
 
-So I'll do all the prescriptions for six months.
+So I'll do all the prescriptions for 2023-09-26.
 
-Transcript ended 4:33 PM 6/5/2026
-
-Transcript started 4:31 PM 6/5/2026
-
-0:00
-
-0:10
-
-Hello? Hi, Sandy. Hi, Sheila. Doctor. How are you? Oh, good. How are you? Doctor. Adaro. Yeah. How are you? Good. How can I help you? Okay.
-
-0:34
-
-Yeah, I need them all pills for Goldi. All of them. Okay, honey. No, I just gave it to him, honey. No, no, I got the red one, the green one, not too many. And for, uh, thyroid, not too many. Yeah, all the all of them, please. No, it's not for you, it's for Gordi, hey? For Gordi, for Gordi, no more me, for Gordi. I need for Gordi. One second, I don't have-- I have your chart, not Gordi's chart. No, no, Gordi, Gordi. I don't need for me, I cooperation, doctor.
-
-1:15
-
-Okay, so which drug drugs does Gordon need? I want to order all of them. All right. Where do I send it to? To McGregor. Okay. Good. I decide to go over vision for my arm. Oh, good. Good to charge. Ah, very painful. I go to charge. Okay. Good doc, good doctor, right? Yeah, he's a good doctor. Yes.
-
-1:58
-
-So I'll do all the prescriptions for six months.
-
-Transcript ended 4:33 PM 6/5/2026
+Transcript ended 1983-06-07
 
 Subjective:
 
-- Requesting refills for Gordi's medications - all pills including thyroid medication
+- Requesting refills for Patient 2034's medications - all pills including thyroid medication
 
-- Prescriptions to be sent to McGregor pharmacy
+- Prescriptions to be sent to Patient 206 pharmacy
 
-- 6-month supply requested
+- 2025-02-03 supply requested
 
 
 
@@ -67,4 +41,4 @@ Assessment & Plan:
 
 1. Medication refills for Gordi
 
-- Treatment planned: All medications refilled for 6 months, sent to McGregor pharmacy
+- Treatment planned: All medications refilled for 2014-02-23, sent to Patient 206 pharmacy

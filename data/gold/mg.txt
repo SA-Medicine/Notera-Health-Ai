@@ -1,4 +1,4 @@
-Transcript started 2:39 PM 7/22/2026
+Patient 7 started 1978-11-07
 
 0:00
 
@@ -6,65 +6,37 @@ From you. So last time I saw you was, uh, maybe young, June.
 
 0:10
 
-We did the B12 then. We talked about that nodule in the lung, in the left lower nodule, which has been stable, they said, about one point two centimeters. But your other CAT scan is scheduled for next April twenty twenty seven, but your protein urea was really high for which you were going to see Doctor. Bega. And you did see Bega.
+We did the B12 then. We talked about that nodule in the lung, in the left lower nodule, which has been stable, they said, about one point two centimeters. But your other CAT scan is scheduled for 1979-07-03, but your protein urea was really high for which you were going to see Doctor. Patient 224. And you did see Patient 224.
 
 0:34
 
-You haven't seen Bega yet? I thought you said January. I thought you just said that I I I did see Beggar. No. No. I called, and I got in January. And the other doctor for the lung Yeah. I thought he said January. Doctor. Gillette. Yeah. Is it April? He's just gonna schedule another No. He said stable, solid nodule in the left lower lung. There is no change when he had compared with the last November. I have requested another CAT scan in April of twenty
+You haven't seen Patient 224 yet? I thought you said 2018-08-04. I thought you just said that I I I did see Patient 223. No. No. I called, and I got in 1995-07-19. And the other doctor for the lung Yeah. I thought he said 2017-01-07. Doctor. Gillette. Yeah. Is it 1975-04-18? He's just gonna schedule another No. He said stable, solid nodule in the left lower lung. There is no change when he had compared with 1996-12-24. I have requested another CAT scan in 2015-12-16
 
 1:16
 
-Seven. Okay. They haven't called me or nothing like that. Okay. And then, you know, yeah, you just the only big thing is now the protein in the urine. And it was sixty something. Right? You said that? Yeah. Sixty seven point seven. It's it says, yeah, you have seen him when it was even two hundred. So, okay. We'll see him in January. That's he said. Yeah. Okay. What brought you here today? What am I doing today for you? B twelve. Which arm do you want the turkey? This one.
+Seven. Okay. They haven't called me or nothing like that. Okay. And then, you know, yeah, you just the only big thing is now the protein in the urine. And it was sixty something. Right? You said that? Yeah. Sixty seven point seven. It's it says, yeah, you have seen him when it was even two hundred. So, okay. We'll see him in 1980-03-06. That's he said. Yeah. Okay. What brought you here 1991-12-14? What am I doing 2015-05-10 for you? B twelve. Which arm do you want the [LOCATION]? This one.
 
 1:56
 
-You don't have diabetes, right? No. Just the blood pressure. Right? So let me take this. Yeah. You take the blood pressure pills? Yes. Wait. Why are you on Foxega? What the kidneys? Yeah. That's what they put you on. Yeah. Jardiance before. Yeah. I tried to take Jardiance. Jardiance. Yeah. But you're okay on Foxega? Yeah. Nobody wants to put you on currently
+You don't have diabetes, right? No. Just the blood pressure. Right? So let me take this. Yeah. You take the blood pressure pills? Yes. Wait. Why are you on Patient 222? What the kidneys? Yeah. That's what they put you on. Yeah. Jardiance before. Yeah. I tried to take Jardiance. Jardiance. Yeah. But you're okay on Patient 222? Yeah. Nobody wants to put you on currently
 
 2:36
 
 That's for the protein to protect your protein. Alrighty. Anything else? Nope. That's it. Alright, beautiful. Have fun. You too. Bye bye. Have a great day.
 
-Transcript ended 2:42 PM 7/22/2026
-
-Transcript started 2:39 PM 7/22/2026
-
-0:00
-
-From you. So last time I saw you was, uh, maybe young, June.
-
-0:10
-
-We did the B12 then. We talked about that nodule in the lung, in the left lower nodule, which has been stable, they said, about one point two centimeters. But your other CAT scan is scheduled for next April twenty twenty seven, but your protein urea was really high for which you were going to see Doctor. Bega. And you did see Bega.
-
-0:34
-
-You haven't seen Bega yet? I thought you said January. I thought you just said that I I I did see Beggar. No. No. I called, and I got in January. And the other doctor for the lung Yeah. I thought he said January. Doctor. Gillette. Yeah. Is it April? He's just gonna schedule another No. He said stable, solid nodule in the left lower lung. There is no change when he had compared with the last November. I have requested another CAT scan in April of twenty
-
-1:16
-
-Seven. Okay. They haven't called me or nothing like that. Okay. And then, you know, yeah, you just the only big thing is now the protein in the urine. And it was sixty something. Right? You said that? Yeah. Sixty seven point seven. It's it says, yeah, you have seen him when it was even two hundred. So, okay. We'll see him in January. That's he said. Yeah. Okay. What brought you here today? What am I doing today for you? B twelve. Which arm do you want the turkey? This one.
-
-1:56
-
-You don't have diabetes, right? No. Just the blood pressure. Right? So let me take this. Yeah. You take the blood pressure pills? Yes. Wait. Why are you on Foxega? What the kidneys? Yeah. That's what they put you on. Yeah. Jardiance before. Yeah. I tried to take Jardiance. Jardiance. Yeah. But you're okay on Foxega? Yeah. Nobody wants to put you on currently
-
-2:36
-
-That's for the protein to protect your protein. Alrighty. Anything else? Nope. That's it. Alright, beautiful. Have fun. You too. Bye bye. Have a great day.
-
-Transcript ended 2:42 PM 7/22/2026
+Transcript ended 1989-04-11
 
 Subjective:
 
 - B12 injection requested
 
-- Last seen June for B12 injection
+- Last seen 2003-08-30 for B12 injection
 
-- Left lower lung nodule - stable at 1.2 cm per Dr. gillette; no change compared to November; CAT scan scheduled April 2027
+- Left lower lung nodule - stable at 1.2 cm per Dr. gillette; no change compared to 1991-06-13; CAT scan scheduled 2019-11-02
 
 - Proteinuria elevated at 67.7 (previously 200)
 
-- Scheduled to see Dr. bega in January for proteinuria
+- Scheduled to see Dr. Patient 224 in 2003-06-15 for proteinuria
 
 - Tried jardiance previously, now on foxega for kidney protection
 
@@ -100,7 +72,7 @@ Assessment & Plan:
 
 1. B12 injection
 
-- Treatment planned: B12 injection administered today
+- Treatment planned: B12 injection administered 1985-07-01
 
 
 
@@ -109,7 +81,7 @@ Assessment & Plan:
 
 - Diagnosis: Stable solid nodule in left lower lung
 
-- Investigations planned: CAT scan April 2027
+- Investigations planned: CAT scan 2001-08-19
 
 
 
@@ -118,12 +90,7 @@ Assessment & Plan:
 
 - Diagnosis: Proteinuria
 
-- Referrals made: Dr. bega - appointment scheduled January
-
-
-
-
-4. Hypertension
+- Referrals made: Dr. Patient 224 - appointment scheduled 1975-09-15. Hypertension
 
 - Treatment planned: Continue current blood pressure medication
 

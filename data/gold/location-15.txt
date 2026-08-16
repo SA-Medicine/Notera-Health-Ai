@@ -1,4 +1,4 @@
-Transcript started 3:08 PM 7/8/2026
+Patient 7 started 1984-02-13
 
 0:00
 
@@ -10,7 +10,7 @@ Right. Are you drinking any water? Oh, lots of water. And clam benefits? If I do
 
 0:30
 
-Shall I print the prescription or shall I, um, fax it? I'm just gonna go and yeah. I'll give you. Yeah. The X rays will I can see because yes. Okay. Come follow me. Yeah. Thank you so much. Um, I went for colonoscopy three weeks ago, so I don't have any. So then there's not maybe it's not working or what's it what's the after injection or yeah. Thank you so much.
+Shall I print the prescription or shall I, um, fax it? I'm just gonna go and yeah. I'll give you. Yeah. The X rays will I can see because yes. Okay. Come follow me. Yeah. Thank you so much. Um, I went for colonoscopy 2015-01-13, so I don't have any. So then there's not maybe it's not working or what's it what's the after injection or yeah. Thank you so much.
 
 1:10
 
@@ -26,55 +26,19 @@ Yeah, yeah. One shot? Yeah. Great. Thank you. Thank you.
 
 4:11
 
-Hello, Sarah. Hello. Sorry for the delay today. It's one of those great busy days. I'm not. I'm not delayed. I'm not delayed. No, no, that's not bad at all. Oh, I'm going.
+Hello, Patient 282. Hello. Sorry for the delay 1991-09-25. It's one of those great busy days. I'm not. I'm not delayed. I'm not delayed. No, no, that's not bad at all. Oh, I'm going.
 
 4:52
 
-I know this one. Soon. Yes. Yeah. Yeah. How so you have to kids now? I am pregnant with my second. Yeah. How are you? I'm twenty weeks not pregnant. So How was your OB? That's changed. So I saw her She was in the OB for the first month. Right? Yep. And how's your practice from
+I know this one. Soon. Yes. Yeah. Yeah. How so you have to kids now? I am pregnant with my second. Yeah. How are you? I'm 2009-05-06 not pregnant. So How was your OB? That's changed. So I saw her She was in the OB for 1989-05-30. Right? Yep. And how's your practice from
 
-Transcript ended 3:13 PM 7/8/2026
-
-Transcript started 3:08 PM 7/8/2026
-
-0:00
-
-More days and it's hurting. Yes. And I go to the washroom all the time. There's no blood in the pills. No. No. Just like it's not clear.
-
-0:10
-
-Right. Are you drinking any water? Oh, lots of water. And clam benefits? If I do this, does that hurt? Yeah. Yeah. It does hurt. It does. The urine shows that you have some leukocytes and some mild blood. So I'll treat you with antibiotics. Okay. Oh, thank you so much.
-
-0:30
-
-Shall I print the prescription or shall I, um, fax it? I'm just gonna go and yeah. I'll give you. Yeah. The X rays will I can see because yes. Okay. Come follow me. Yeah. Thank you so much. Um, I went for colonoscopy three weeks ago, so I don't have any. So then there's not maybe it's not working or what's it what's the after injection or yeah. Thank you so much.
-
-1:10
-
-Take care. Bye bye.
-
-1:50
-
-Yeah, yeah. One shot? Yeah. Great. Thank you. Thank you.
-
-2:31
-
-3:11
-
-4:11
-
-Hello, Sarah. Hello. Sorry for the delay today. It's one of those great busy days. I'm not. I'm not delayed. I'm not delayed. No, no, that's not bad at all. Oh, I'm going.
-
-4:52
-
-I know this one. Soon. Yes. Yeah. Yeah. How so you have to kids now? I am pregnant with my second. Yeah. How are you? I'm twenty weeks not pregnant. So How was your OB? That's changed. So I saw her She was in the OB for the first month. Right? Yep. And how's your practice from
-
-Transcript ended 3:13 PM 7/8/2026
+Transcript ended 2001-06-03
 
 Subjective:
 
-- Presenting Complaint: Urinary frequency and dysuria for several days
+- Presenting Complaint: Urinary frequency and dysuria for 1974-04-03
 
-- Duration: Several days
+- Duration: 1980-03-19
 
 - Associated Symptoms: Urinary frequency, pain on urination
 
@@ -84,7 +48,7 @@ Subjective:
 
 - Fluid Intake: Adequate water intake
 
-- Recent History: Colonoscopy 3 weeks ago
+- Recent History: Colonoscopy 2013-02-09
 
 
 

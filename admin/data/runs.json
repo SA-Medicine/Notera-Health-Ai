@@ -1,5 +1,14 @@
 [
   {
+    "id": "2026-08-14T17-11-46-839Z-fdc2",
+    "command": "node eval/run_eval.mjs sa",
+    "status": "passed",
+    "startedAt": "2026-08-14T17:11:46.840Z",
+    "finishedAt": "2026-08-14T17:15:42.481Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-14_17-11-46"
+  },
+  {
     "id": "2026-08-14T16-00-43-051Z-1982",
     "command": "node eval/run_eval.mjs location hyperkalemia-htn kl lb ka mk-5 hypotension-med-error l-knee-cyst-hip-arthritis unknown-session-5 lightheadedness-htn blood-work-celiac",
     "status": "passed",

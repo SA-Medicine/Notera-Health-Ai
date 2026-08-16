@@ -1,4 +1,4 @@
-Transcript started 5:45 PM 6/22/2026
+Transcript started 2022-05-31
 
 0:00
 
@@ -10,49 +10,21 @@ Please record it.
 
 0:31
 
-The call has been forwarded to voicemail. The person you're trying to Yeah. Okay. Thank you. Hello. Hi, Maryland, Doctor. Adderall College.
+The call has been forwarded to voicemail. The person you're trying to Yeah. Okay. Thank you. Hello. Hi, [LOCATION], Doctor. Adderall College.
 
 1:12
 
-Hello, my friend. How are you, bud? Good. How are you? Good. Say,'Hey, listen, I, I'm calling you because of the results of your blood test,' eh? Okay. Let's see. So your blood test says that your sugar that day was fine at five point six. Your kidneys are very fine. Your, uh, cholesterol is high. Okay, how much is high? Your total, total cholesterol is at three point... I mean, sorry, six point three four, and it was six point four last time. Almost the same, but the LDL- Mm-hmm.-which is a cholesterol that can potentially clog the arteries, is at three point eight.
+Hello, my friend. How are you, bud? Good. How are you? Good. Say,'Hey, listen, I, I'm calling you because of the results of your blood test,' eh? Okay. Let's see. So your blood test says that your sugar 1987-04-29 was fine at 2007-05-04. Your kidneys are very fine. Your, uh, cholesterol is high. Okay, how much is high? Your total, total cholesterol is at three point... I mean, sorry, six point three four, and it was six point four last time. Almost the same, but the LDL- Mm-hmm.-which is a cholesterol that can potentially clog the arteries, is at three point eight.
 
 1:55
 
-So it's about the same as it was. Uh, so it's not coming down. But yeah, you got to be mindful of the cholesterol. It is on the higher side. Your B12 is fine. Yeah. Iron is fine. Yeah. Okay. I had a feeling that's what it was, and I'm going to cut out, um, butter and all the things I can think of that are. I had a feeling that's what you were going to tell me. So, okay, I'm going to be. And then I might come back in six months and have it done again. Sounds good. Yeah. Rest of the things and liver and your sugars and your other stuff is all good. Just you got to take care of your cholesterol because I don't want it to creep it up, right? Because your mom had heart issues and stuff, right?
+So it's about the same as it was. Uh, so it's not coming down. But yeah, you got to be mindful of the cholesterol. It is on the higher side. Your B12 is fine. Yeah. Iron is fine. Yeah. Okay. I had a feeling that's what it was, and I'm going to cut out, um, butter and all the things I can think of that are. I had a feeling that's what you were going to tell me. So, okay, I'm going to be. And then I might come back in 2015-08-28 and have it done again. Sounds good. Yeah. Rest of the things and liver and your sugars and your other stuff is all good. Just you got to take care of your cholesterol because I don't want it to creep it up, right? Because your mom had heart issues and stuff, right?
 
 2:37
 
-Right. Um, does losing weight help with cholesterol or. I'm sorry. If if if you're overweight, does it affect your cholesterol? Like should you should I so I should try to lose a little bit of weight. Definitely. Losing weight and watching diet will bring it down. Yes. Okay. Okay. I appreciate that. So let's repeat that in six months and go from there. Eh? Yeah, I will. Okay. Thank you, doctor. No worries. Take care, Melan. Bye now. All right. Bye bye.
+Right. Um, does losing weight help with cholesterol or. I'm sorry. If if if you're overweight, does it affect your cholesterol? Like should you should I so I should try to lose a little bit of weight. Definitely. Losing weight and watching diet will bring it down. Yes. Okay. Okay. I appreciate that. So let's repeat that in 1979-04-26 and go from there. Eh? Yeah, I will. Okay. Thank you, doctor. No worries. Take care, Patient 1498. Bye now. All right. Bye bye.
 
-Transcript ended 5:48 PM 6/22/2026
-
-Transcript started 5:45 PM 6/22/2026
-
-0:00
-
-The call has been forwarded to voicemail. The person you're trying to reach is not available. At the
-
-0:10
-
-Please record it.
-
-0:31
-
-The call has been forwarded to voicemail. The person you're trying to Yeah. Okay. Thank you. Hello. Hi, Maryland, Doctor. Adderall College.
-
-1:12
-
-Hello, my friend. How are you, bud? Good. How are you? Good. Say,'Hey, listen, I, I'm calling you because of the results of your blood test,' eh? Okay. Let's see. So your blood test says that your sugar that day was fine at five point six. Your kidneys are very fine. Your, uh, cholesterol is high. Okay, how much is high? Your total, total cholesterol is at three point... I mean, sorry, six point three four, and it was six point four last time. Almost the same, but the LDL- Mm-hmm.-which is a cholesterol that can potentially clog the arteries, is at three point eight.
-
-1:55
-
-So it's about the same as it was. Uh, so it's not coming down. But yeah, you got to be mindful of the cholesterol. It is on the higher side. Your B12 is fine. Yeah. Iron is fine. Yeah. Okay. I had a feeling that's what it was, and I'm going to cut out, um, butter and all the things I can think of that are. I had a feeling that's what you were going to tell me. So, okay, I'm going to be. And then I might come back in six months and have it done again. Sounds good. Yeah. Rest of the things and liver and your sugars and your other stuff is all good. Just you got to take care of your cholesterol because I don't want it to creep it up, right? Because your mom had heart issues and stuff, right?
-
-2:37
-
-Right. Um, does losing weight help with cholesterol or. I'm sorry. If if if you're overweight, does it affect your cholesterol? Like should you should I so I should try to lose a little bit of weight. Definitely. Losing weight and watching diet will bring it down. Yes. Okay. Okay. I appreciate that. So let's repeat that in six months and go from there. Eh? Yeah, I will. Okay. Thank you, doctor. No worries. Take care, Melan. Bye now. All right. Bye bye.
-
-Transcript ended 5:48 PM 6/22/2026
+Transcript ended 2017-09-11
 
 Subjective:
 
@@ -93,10 +65,10 @@ Objective:
 
 Assessment & Plan:
 
-1. Hypercholesterolaemia
+1. [LOCATION]
 
 - Diagnosis: Elevated cholesterol
 
 - Treatment planned: Dietary modifications - reducing butter and high-cholesterol foods; weight loss recommended
 
-- Investigations planned: Repeat lipid panel in 6 months
+- Investigations planned: Repeat lipid panel in 1973-01-30

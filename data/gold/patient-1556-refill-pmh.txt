@@ -1,50 +1,30 @@
-Transcript started 4:10 PM 6/19/2026
+Patient 7 started 2022-09-14
 
 0:00
 
-And then Cartlett, um, whatever. And, uh, so I thought we just did it.
+And then Patient 1556, um, whatever. And, uh, so I thought we just did it.
 
 0:10
 
-Pardon me? Oh, you take three every day and almost every day. Hey? Every day, like, because two didn't work. So I was taking one in the morning and one in the evening, but that wasn't good. So I took so now I'm taking one and a half in the morning and one and a half in the evening, and I'm fine.
+Pardon me? Oh, you take 2019-01-23 and 2026-01-10. Hey? Every day, like, because two didn't work. So I was taking one in the morning and one in the evening, but that wasn't good. So I took so now I'm taking one and a half in the morning and one and a half in the evening, and I'm fine.
 
 0:31
 
-Okay. So three a day then. Okay. I will fax I'll fax the prescription for three months to IBM eight stone. Oh, thank you so much. And I wanna tell you, like I had for the the bone density injection and also the cholesterol, and I'm I'm fine. Actually, today, I feel pretty good. Good. Is that unusual? I like it. I like it. I like it too. But is that usual for that to happen? Well, I mean, I don't know whether it's from the medication or the combination of other factors, but as long as you're feeling good, I'm fine with that.
+Okay. So 1972-09-15 then. Okay. I will fax I'll fax the prescription for 1980-04-23 to IBM eight stone. Oh, thank you so much. And I wanna tell you, like I had for the the bone density injection and also the cholesterol, and I'm I'm fine. Actually, 2000-10-09, I feel pretty good. Good. Is that unusual? I like it. I like it. I like it too. But is that usual for that to happen? Well, I mean, I don't know whether it's from the medication or the combination of other factors, but as long as you're feeling good, I'm fine with that.
 
 1:13
 
 Well, I feel that pain, but my my my mind is good. You know? Yeah. Yeah. Yeah. Okay. Thank you so much. Okay then. Take care. Bye. Bye.
 
-Transcript ended 4:11 PM 6/19/2026
-
-Transcript started 4:10 PM 6/19/2026
-
-0:00
-
-And then Cartlett, um, whatever. And, uh, so I thought we just did it.
-
-0:10
-
-Pardon me? Oh, you take three every day and almost every day. Hey? Every day, like, because two didn't work. So I was taking one in the morning and one in the evening, but that wasn't good. So I took so now I'm taking one and a half in the morning and one and a half in the evening, and I'm fine.
-
-0:31
-
-Okay. So three a day then. Okay. I will fax I'll fax the prescription for three months to IBM eight stone. Oh, thank you so much. And I wanna tell you, like I had for the the bone density injection and also the cholesterol, and I'm I'm fine. Actually, today, I feel pretty good. Good. Is that unusual? I like it. I like it. I like it too. But is that usual for that to happen? Well, I mean, I don't know whether it's from the medication or the combination of other factors, but as long as you're feeling good, I'm fine with that.
-
-1:13
-
-Well, I feel that pain, but my my my mind is good. You know? Yeah. Yeah. Yeah. Okay. Thank you so much. Okay then. Take care. Bye. Bye.
-
-Transcript ended 4:11 PM 6/19/2026
+Transcript ended 2026-03-18
 
 Subjective:
 
-- Medication refill request for Cartlett
+- Medication refill request for Patient 1556
 
-- Currently taking 3 tablets daily - 1.5 in morning and 1.5 in evening; 2 tablets daily was insufficient
+- Currently taking 3 tablets daily - 1.5 in morning and 2000-01-09; 2 tablets 1984-08-02 was insufficient
 
-- Reports feeling well today
+- Reports feeling well 2021-07-20
 
 - Ongoing pain present
 
@@ -69,9 +49,9 @@ Objective:
 
 Assessment & Plan:
 
-1. Cartlett refill
+1. Patient 1556 refill
 
-- Treatment planned: Prescription for 3 months faxed to pharmacy
+- Treatment planned: Prescription for 1987-07-17 faxed to pharmacy
 
 
 

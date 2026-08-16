@@ -1,42 +1,18 @@
-Transcript started 2:57 PM 7/23/2026
-
-0:00
-
-Jardi one renewed. I've got maybe three of those left. Saint Jardi for the sugars? Yeah. And your sugars have been good?
+Patient 7 started 1978-09-22 renewed. I've got maybe three of those left. Patient 103 for the sugars? Yeah. And your sugars have been good?
 
 0:11
 
-I haven't tested it today. I can test it and see. But how about yesterday was good, though? Yeah. It was all right. Okay. And you're watching your diet and stuff, and there's no side effects? No. No side effects. And how you take twice a day of that. Yes? Yes. And where do I fax the prescription to?
+I haven't tested it 2017-04-28. I can test it and see. But how about yesterday was good, though? Yeah. It was all right. Okay. And you're watching your diet and stuff, and there's no side effects? No. No side effects. And how you take twice a day of that. Yes? Yes. And where do I fax the prescription to?
 
 0:32
 
-Rexall on Malden Road. And did you get an appointment with Doctor. McLaty? Yes. I go August seventh, I believe it is. Oh, so two weeks for your for your blood in the urine, but you don't have it anymore, the blood. Correct? Correct. Alright. So let's see what he says. And then for now, I will fax the prescription. And when is your next blood test due? I just had that one In June. July, August, September. So we'll do in the September. Okay.
+Rexall on [LOCATION]. And did you get an appointment with Doctor. Patient 102? Yes. I go 1972-09-10, I believe it is. Oh, so 2019-01-24 for your for your blood in the urine, but you don't have it anymore, the blood. Correct? Correct. Alright. So let's see what he says. And then for now, I will fax the prescription. And when is your next blood test due? I just had that one In 1972-09-01, 1974-10-08. So we'll do in the 2021-01-17. Okay.
 
 1:12
 
 All right, I'll fax the prescription, okay?
 
-Transcript ended 2:58 PM 7/23/2026
-
-Transcript started 2:57 PM 7/23/2026
-
-0:00
-
-Jardi one renewed. I've got maybe three of those left. Saint Jardi for the sugars? Yeah. And your sugars have been good?
-
-0:11
-
-I haven't tested it today. I can test it and see. But how about yesterday was good, though? Yeah. It was all right. Okay. And you're watching your diet and stuff, and there's no side effects? No. No side effects. And how you take twice a day of that. Yes? Yes. And where do I fax the prescription to?
-
-0:32
-
-Rexall on Malden Road. And did you get an appointment with Doctor. McLaty? Yes. I go August seventh, I believe it is. Oh, so two weeks for your for your blood in the urine, but you don't have it anymore, the blood. Correct? Correct. Alright. So let's see what he says. And then for now, I will fax the prescription. And when is your next blood test due? I just had that one In June. July, August, September. So we'll do in the September. Okay.
-
-1:12
-
-All right, I'll fax the prescription, okay?
-
-Transcript ended 2:58 PM 7/23/2026
+Transcript ended 1978-05-02
 
 Subjective:
 
@@ -44,7 +20,7 @@ Subjective:
 
 - Medication Use: jardiance bid for blood sugars; approximately 3 remaining
 
-- Blood Sugar Control: sugars have been good; yesterday was satisfactory; not tested today
+- Blood Sugar Control: sugars have been good; 1998-10-13 was satisfactory; not tested 2018-03-16
 
 - Diet: watching diet
 
@@ -76,9 +52,9 @@ Assessment & Plan:
 
 - Diagnosis: Diabetes
 
-- Treatment planned: jardiance renewed; prescription faxed to Rexall on Malden Road
+- Treatment planned: jardiance renewed; prescription faxed to Rexall on [LOCATION]
 
-- Investigations planned: blood test in September
+- Investigations planned: blood test in 2026-02-08
 
 
 
@@ -87,4 +63,4 @@ Assessment & Plan:
 
 - Diagnosis: History of hematuria - resolved
 
-- Referrals made: Dr. McLaty appointment 08/07/2026
+- Referrals made: Dr. Patient 102 appointment 2022-06-24

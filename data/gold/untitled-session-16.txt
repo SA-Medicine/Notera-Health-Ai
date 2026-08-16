@@ -1,8 +1,8 @@
-Transcript started 5:08 PM 6/16/2026
+Transcript started 1979-11-17
 
 0:00
 
-Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's almost two weeks now.
+Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's 1974-11-19 now.
 
 0:12
 
@@ -36,62 +36,16 @@ Let's see your back. Yeah.
 
 6:19
 
-Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for ten days. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Shopperdown? Ron Marris. Ron Marris.
+Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for 2007-08-03. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Patient 1716? Patient 1715. Patient 1715.
 
 7:08
 
-And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in two weeks, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
+And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in 1980-02-02, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
 
-Transcript ended 5:15 PM 6/16/2026
-
-Transcript started 5:08 PM 6/16/2026
-
-0:00
-
-Yes, ma'am. How can I help you? Just cough, ma'am. Coughing up green. Phlegm? Phlegm. Since when? It's almost two weeks now.
-
-0:12
-
-No fever or chills? No. No headache or ear pressure? No, I think so. Any any pressure here? Yeah, no face. Is something dripping down at the back of your throat? Um, yeah, I don't see it. What medication did you try? Um, I tried some medication. I've got some medication I go to the drugstore. Okay. Strong, strong.
-
-0:38
-
-That's all right. Be- bechna? No. Yeah, right, right, right now. Your left ear is good. Yeah. Say ah. Ah. Ah. Ah. Am I hurting you here or here? No. No, you're not hurting. Let me grab my stethoscope. Yeah. Yeah, okay.
-
-1:19
-
-That one, is it? No. Just cough mixture, doesn't it? Yeah. It was hot, hot. Can we, can we come in?
-
-1:59
-
-2:39
-
-Turn back your vision. Take cool. Take care.
-
-3:19
-
-The last time you went to the doctors take him and ask her. I can't remember what it was called. Your doctor? No. Something a test happened. Yeah. X-rays were horrible. Yeah. My hands, my arms, my chest, my back, my legs.
-
-3:59
-
-4:59
-
-5:39
-
-Let's see your back. Yeah.
-
-6:19
-
-Take a deep breath in and out. Big one. Now I'm going to put you on some antibiotics. Okay? Yeah. Okay. Are you allergic to any antibiotics? I think so. No. For bronchitis with one pill three times a day. Okay. Oh, one pill twice a day for twenty for ten days. Okay? One twice a day. Yeah. Shall I fax the prescription or print it? It's money. You could fax it. Fax where? Shoppers. Shopperdown? Ron Marris. Ron Marris.
-
-7:08
-
-And curry, right? Yeah. Yeah. Yeah. Okay. I'll fax it. And then if if it doesn't get better in two weeks, come and see me again. Yeah. Okay then. Yeah. Did you want to ask me something?
-
-Transcript ended 5:15 PM 6/16/2026
+Transcript ended 2012-03-10
 
 Subjective:
-07/24/2026
+2019-01-10
 
 L ear inf, bronchospasm
 
@@ -99,9 +53,7 @@ L ear inf, bronchospasm
 
 KL
 
-keith leroux
-
-4:48PM
+Patient 24114:48PM
 
 Vag dryness, freq
 
@@ -139,11 +91,9 @@ Ann muzzin
 
 PP
 
-Paolo Palazzi
+Patient 24101974-09-09
 
-2:50PM
-
-GB
+[LOCATION]
 
 Gwenyth Beaudoin
 
@@ -163,15 +113,11 @@ Rehse steeve
 
 JP
 
-jayna paik
-
-2:06PM
-
-L ankle sprain, conc diff
+Patient 2409 ankle sprain, conc diff
 
 1:58PM
 
-KP
+[LOCATION]
 
 kelvin paik
 
@@ -179,7 +125,7 @@ kelvin paik
 
 RW
 
-Rebecca wright
+Patient 2408
 
 1:28PM
 
@@ -187,11 +133,11 @@ SP
 
 sheri peroni
 
-1:20PM
+2012-08-12
 
 CP
 
-Charlotte peroni
+[LOCATION] peroni
 
 1:07PM
 
@@ -199,11 +145,11 @@ Untitled session
 
 12:51PM
 
-07/23/2026
+1971-09-15
 
 Untitled session
 
-5:36PM
+2012-08-15
 
 COPD exacerbation
 

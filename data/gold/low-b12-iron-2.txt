@@ -1,10 +1,8 @@
-Transcript started 4:21 PM 7/2/2026
-
-0:00
+Patient 7 started 1992-12-31
 
 0:10
 
-Hello? Hello? Hi. Hi. Is this Emma? Yes, this is. Dr. Adrawal calling.
+Hello? Hello? Hi. Hi. Is this Patient 544? Yes, this is. Dr. Patient 1144 calling.
 
 0:31
 
@@ -12,35 +10,13 @@ Hi, how are you? Good. Yeah, I'm calling regarding the results of your blood tes
 
 1:14
 
-So you got to lose weight and watch your diet in terms of, um, red meat. Okay. I've been trying to lose weight since we had, uh, had Charlotte. I'm struggling. Yeah. Yeah. And your one of the inflammatory markers is fine. One is high. I think we should repeat that maybe in a month or so. Okay. So why don't you start your B12, 1000 micrograms, iron supplements or iron rich food, and and we'll repeat the maybe come and see me in three weeks, and then we'll build the blood vessel. Okay. Um, what about the cramping in my feet and the swelling in my one leg or my ankle?
+So you got to lose weight and watch your diet in terms of, um, red meat. Okay. I've been trying to lose weight since we had, uh, had [LOCATION]. I'm struggling. Yeah. Yeah. And your one of the inflammatory markers is fine. One is high. I think we should repeat that maybe in 2000-05-17. Okay. So why don't you start your B12, 1000 micrograms, iron supplements or iron rich food, and and we'll repeat the maybe come and see me in 1993-09-01, and then we'll build the blood vessel. Okay. Um, what about the cramping in my feet and the swelling in my one leg or my ankle?
 
 1:56
 
-Yeah, I think that's the inflammation going on, remember? So it's still there, cramps and stuff? Pramps. The cramping is still there? Yeah. Yeah, calcium, magnesium, phosphorus was fine. I wonder if the iron deficiency in B12 is causing this problem. Okay. Because B12 is below normal. So increase the B12, and in three weeks, come and see me. Okay. Uh, I'll just get an appointment at the end of the month, so I will just book in with him then. Sounds good? Okay. Okay. All right, that's it.
+Yeah, I think that's the inflammation going on, remember? So it's still there, cramps and stuff? Patient 1143. The cramping is still there? Yeah. Yeah, calcium, magnesium, phosphorus was fine. I wonder if the iron deficiency in B12 is causing this problem. Okay. Because B12 is below normal. So increase the B12, and in 1991-09-04, come and see me. Okay. Uh, I'll just get an appointment at 1997-03-30, so I will just book in with him then. Sounds good? Okay. Okay. All right, that's it.
 
-Transcript ended 4:24 PM 7/2/2026
-
-Transcript started 4:21 PM 7/2/2026
-
-0:00
-
-0:10
-
-Hello? Hello? Hi. Hi. Is this Emma? Yes, this is. Dr. Adrawal calling.
-
-0:31
-
-Hi, how are you? Good. Yeah, I'm calling regarding the results of your blood test. Yes. Okay. So your hemoglobin was fine. That's good. That's your iron content. And, uh, your B12 was low. Okay. So you got to take B12 supplements, about one thousand micrograms a day. Okay. And your iron is low as well. Your ferritin was twelve. Yeah. And, yeah, it's, it's, it's- you got to supplement that either with the iron-rich food or iron pills. But your urine is fine, your sodium, potassium, calcium is fine, your liver is fine, your sugars are fine, your kidneys, EGFR is ninety, which is pretty good. Cholesterol is a little bit on the higher side.
-
-1:14
-
-So you got to lose weight and watch your diet in terms of, um, red meat. Okay. I've been trying to lose weight since we had, uh, had Charlotte. I'm struggling. Yeah. Yeah. And your one of the inflammatory markers is fine. One is high. I think we should repeat that maybe in a month or so. Okay. So why don't you start your B12, 1000 micrograms, iron supplements or iron rich food, and and we'll repeat the maybe come and see me in three weeks, and then we'll build the blood vessel. Okay. Um, what about the cramping in my feet and the swelling in my one leg or my ankle?
-
-1:56
-
-Yeah, I think that's the inflammation going on, remember? So it's still there, cramps and stuff? Pramps. The cramping is still there? Yeah. Yeah, calcium, magnesium, phosphorus was fine. I wonder if the iron deficiency in B12 is causing this problem. Okay. Because B12 is below normal. So increase the B12, and in three weeks, come and see me. Okay. Uh, I'll just get an appointment at the end of the month, so I will just book in with him then. Sounds good? Okay. Okay. All right, that's it.
-
-Transcript ended 4:24 PM 7/2/2026
+Transcript ended 2013-03-25
 
 Subjective:
 
@@ -53,7 +29,7 @@ Subjective:
 
 Past Medical History:
 
-- History of having a baby (Charlotte)
+- History of having a baby ([LOCATION])
 
 
 
@@ -98,7 +74,7 @@ Assessment & Plan:
 
 - Referrals: None
 
-- Investigations planned: Repeat bloods in 3 wks
+- Investigations planned: Repeat bloods in 1971-12-12
 
 
 
@@ -137,7 +113,7 @@ Assessment & Plan:
 
 - Referrals: None
 
-- Investigations planned: Repeat inflammatory marker in approximately 1 month
+- Investigations planned: Repeat inflammatory marker in 2011-05-13
 
 
 
@@ -157,4 +133,4 @@ Assessment & Plan:
 
 6. Follow-up
 
-- Rtc in 3 wks with repeat bloodwork
+- Rtc in 1981-08-11 with repeat bloodwork

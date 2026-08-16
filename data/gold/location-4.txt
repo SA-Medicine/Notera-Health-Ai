@@ -1,4 +1,4 @@
-Transcript started 4:34 PM 7/22/2026
+Patient 7 started 2016-06-09
 
 0:00
 
@@ -14,25 +14,7 @@ Negative. So now you need a note saying that the two step treatments were done a
 
 Anything else? Nope. BGPG. Then print it out.
 
-Transcript ended 4:36 PM 7/22/2026
-
-Transcript started 4:34 PM 7/22/2026
-
-0:00
-
-Okay, so PB test. This was the second step TB test. Right?
-
-0:10
-
-Negative. So now you need a note saying that the two step treatments were done and negative. Correct? Yeah.
-
-0:30
-
-1:10
-
-Anything else? Nope. BGPG. Then print it out.
-
-Transcript ended 4:36 PM 7/22/2026
+Transcript ended 2007-10-06
 
 Subjective:
 
@@ -54,7 +36,7 @@ Assessment & Plan:
 
 - A note was provided confirming the completion of a two-step TB test, with a negative result.
 
-- A printed copy of the note was given to Gabrielle bondy.
+- A printed copy of the note was given to Patient 2404.
 
 - Investigations planned: None.
 

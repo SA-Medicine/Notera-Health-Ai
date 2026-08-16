@@ -1,4 +1,4 @@
-Transcript started 4:21 PM 6/11/2026
+Patient 7 started 2018-04-30 Patient 1499
 
 0:00
 
@@ -14,29 +14,9 @@ And are you increased the the fibers? I have, and I drink a lot of water. I eat 
 
 1:16
 
-Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Molin Shoppers, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
+Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Patient 1821, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
 
-Transcript ended 4:23 PM 6/11/2026
-
-Transcript started 4:21 PM 6/11/2026
-
-0:00
-
-All right, how about you? Hello? Phone call appointment'cause I needed- Hello?-refill on my cons- oh, hi. Sorry, I had to move out of my office.
-
-0:12
-
-Um, I I had to make a phone appointment because I needed a refill on my Constella. Okay. And that's two we had increased the dose to two ninety. Eh? Yeah. Correct. How is that coming along for chronic constipation? It's it's better. Yeah. Is it perfect? No. But I don't know if I'll ever get perfect.
-
-0:32
-
-And are you increased the the fibers? I have, and I drink a lot of water. I eat fruit, vegetables. I don't know what more to I I mean, I'm active. I I'm at at a good weight and in shape, so I I don't know what else to kinda add to it at this point. But Metamucil? Which one? The fibers, like Metamucil. I haven't I mean, I do it through food, but I've not added that, but maybe I I mean, and then I read stuff that says sometimes if you add fiber, it kinda makes it worse because it balls things up too much. Yeah. Yeah. It's a very fine balance. Yeah. Yeah.
-
-1:16
-
-Right. So I, I mean, I still, I guess, need to play around. I'm not sure. So where do I fax this prescription to? Uh, Molin Shoppers, please. Okay, okay, I'll take care of that. Okay, thank you. Have a good day.
-
-Transcript ended 4:23 PM 6/11/2026
+Transcript ended 2006-12-27 Patient 1499
 
 Subjective:
 
@@ -75,4 +55,4 @@ Assessment & Plan:
 
 - Treatment planned: Constella 290mcg refill
 
-- Prescription faxed to Molin Shoppers
+- Prescription faxed to Patient 1821

@@ -1,34 +1,18 @@
-Transcript started 12:51 PM 6/22/2026
+Patient 7 started 2012-03-31
 
 0:00
 
-Harry? Hi. Doctor. Dr. Agarwal calling. Yeah. Okay. So do you so what medication again you wanted?
+Harry? Hi. Doctor. Dr. Patient 244 calling. Yeah. Okay. So do you so what medication again you wanted?
 
 0:10
 
-The allergy medicine. Just the Rupol then? Just the pills. Right? Not Yeah. Just the just just the pills. So you tried Blackstein and Rupol. So which one are you on now? I like the Black Blackstein's better. Okay. And it goes to Rexhall on Malden? Yeah. I go to the Rexol and Massages clinic there.
+The allergy medicine. Just the Patient 85 then? Just the pills. Right? Not Yeah. Just the just just the pills. So you tried Patient 1549 and Patient 85. So which one are you on now? I like [LOCATION] better. Okay. And it goes to Rexhall on [LOCATION]? Yeah. I go to the Rexol and Massages clinic there.
 
 0:31
 
-Wait. No. No. You go to Rexall in Malden in La Salle. No? No. I go to the one in beside you now. I live in I live on Cavanaugh. Okay. And you take one a day every day? Yeah. And it helps, obviously? Yeah. Well, it dies off at around the one that you're giving me, the last one, dies off at around two, three o'clock. But the the other one, the Blexton, is better. It lasts the whole day. Alright. I'll fax that then. Okay? Alright. Thank you so much. Okay. Bye. Bye.
+Wait. No. No. You go to [LOCATION] in [LOCATION] in [LOCATION]. No? No. I go to the one in beside you now. I live in I live on Patient 1010. Okay. And you take 2013-01-16? Yeah. And it helps, obviously? Yeah. Well, it dies off at around the one that you're giving me, the last one, dies off at around two, three o'clock. But the the other one, the Patient 1548, is better. It lasts 2008-04-10. Alright. I'll fax that then. Okay? Alright. Thank you so much. Okay. Bye. Bye.
 
-Transcript ended 12:52 PM 6/22/2026
-
-Transcript started 12:51 PM 6/22/2026
-
-0:00
-
-Harry? Hi. Doctor. Dr. Agarwal calling. Yeah. Okay. So do you so what medication again you wanted?
-
-0:10
-
-The allergy medicine. Just the Rupol then? Just the pills. Right? Not Yeah. Just the just just the pills. So you tried Blackstein and Rupol. So which one are you on now? I like the Black Blackstein's better. Okay. And it goes to Rexhall on Malden? Yeah. I go to the Rexol and Massages clinic there.
-
-0:31
-
-Wait. No. No. You go to Rexall in Malden in La Salle. No? No. I go to the one in beside you now. I live in I live on Cavanaugh. Okay. And you take one a day every day? Yeah. And it helps, obviously? Yeah. Well, it dies off at around the one that you're giving me, the last one, dies off at around two, three o'clock. But the the other one, the Blexton, is better. It lasts the whole day. Alright. I'll fax that then. Okay? Alright. Thank you so much. Okay. Bye. Bye.
-
-Transcript ended 12:52 PM 6/22/2026
+Transcript ended 1984-09-12
 
 Subjective:
 
@@ -36,9 +20,9 @@ Subjective:
 
 - Current medication: Blexten - one daily
 
-- Previous trial: Rupall - wears off around 2-3pm; Blexten preferred as it lasts all day
+- Previous trial: Rupall - wears off around 2003-04-10; Blexten preferred as it lasts 2017-06-05
 
-- Pharmacy: Rexall on Malden
+- Pharmacy: [LOCATION] on [LOCATION]
 
 
 
@@ -59,4 +43,4 @@ Assessment & Plan:
 
 - Diagnosis: Allergies
 
-- Treatment planned: Blexten - one daily; prescription faxed to Rexall on Malden
+- Treatment planned: Blexten - one daily; prescription faxed to Rexall on [LOCATION]
