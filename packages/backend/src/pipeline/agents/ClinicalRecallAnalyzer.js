@@ -128,17 +128,31 @@ export class ClinicalRecallAnalyzer {
 
     console.log("🚀 JS Clinical Recall Analyzer Scores:", scores);
 
+    // A category is only worth RECOVERY if it is GENUINELY EMPTY (nothing of that type was
+    // extracted). The keyword-coverage above is noisy (it reported medication:0 even when 5
+    // drugs were extracted), which made recovery re-extract already-captured entities into
+    // duplicate ORPHAN NODES. So for categories we can count, gate on count===0; for the two
+    // we can't count directly (life_safety, procedure) fall back to coverage.
+    const nEntity = (pred) => entities.filter(pred).length;
+    const extractedCount = {
+      diagnosis: nEntity((e) => /diagnosis/i.test(e.entity_type || '')),
+      medication: nEntity((e) => /medication/i.test(e.entity_type || '')) + (extractedData.current_medications || []).length + (extractedData.medication_decisions || []).length,
+      follow_up: (extractedData.follow_ups || []).length + nEntity((e) => /follow_up|referral/i.test(e.entity_type || '')),
+      lab_result: (extractedData.numeric_data || []).length + nEntity((e) => /lab_result/i.test(e.entity_type || '')),
+      investigation: (extractedData.investigations || []).length + (extractedData.orders || []).length + nEntity((e) => /investigation/i.test(e.entity_type || '')),
+    };
     const missingCategories = [];
-    if (lifeSafetyCoverage < 100) missingCategories.push("life_safety");
-    if (diagnosisCoverage < 100) missingCategories.push("diagnosis");
-    if (medicationCoverage < 100) missingCategories.push("medication");
-    if (followupCoverage < 100) missingCategories.push("follow_up");
-    if (numericCoverage < 100) missingCategories.push("lab_result"); // using lab_result or vitals
-    if (investigationCoverage < 100) missingCategories.push("investigation");
-    if (procedureCoverage < 100) missingCategories.push("procedure");
+    const consider = (cat, cov, count) => { if (cov < 100 && (count === undefined || count === 0)) missingCategories.push(cat); };
+    consider("life_safety", lifeSafetyCoverage);                         // no direct count → coverage
+    consider("diagnosis", diagnosisCoverage, extractedCount.diagnosis);
+    consider("medication", medicationCoverage, extractedCount.medication);
+    consider("follow_up", followupCoverage, extractedCount.follow_up);
+    consider("lab_result", numericCoverage, extractedCount.lab_result);
+    consider("investigation", investigationCoverage, extractedCount.investigation);
+    consider("procedure", procedureCoverage);                           // no direct count → coverage
 
-    const needsRecovery = missingCategories.length > 0 || overall < 95;
+    const needsRecovery = missingCategories.length > 0;
 
-    return { scores, needsRecovery, missingCategories };
+    return { scores: { ...scores, extractedCount }, needsRecovery, missingCategories };
   }
 }

@@ -35,7 +35,7 @@ RULES (in priority order):
 2. COMPLETENESS — capture EVERY clinically relevant fact from the transcript. In particular the PLAN: every new or changed medication WITH its dose/frequency, the destination pharmacy, any referral, and the exact return-to-clinic timing. Also record ALL investigation results, including normal ones (e.g. "B12 normal", "cholesterol normal").
 3. CONCISENESS — short clinical points, not prose. Omit small talk and non-actionable filler. Do not repeat the same fact across sections at the same level of detail.
 4. STRUCTURE — Subjective and Objective may stay detailed; Assessment & Plan is concise: one numbered problem each, with a diagnosis and terse plan points.
-5. NO REPETITION — state each event/timeline ONCE. Do not restate the same history in multiple sub-headings.
+5. NO REPETITION — state each event, timeline, trigger, medication and symptom ONCE, including PARAPHRASED restatements. If the same trigger/medication/symptom/progression is described in different words across multiple Subjective bullets or sub-headings (e.g. "triggered by stress and lack of sleep" then later "triggers include stress and poor sleep"), keep only the first mention and delete the rest. Never duplicate the same fact across Subjective and Assessment.
 6. PRESERVE SPECIFICS — keep exact details verbatim: a specific month/date (e.g. "February" — never generalize to "within the last year"), exact medication names and patient wording ("pumps", "pantoprazole"). Never downgrade a specific to a vague phrase.
 7. NO EMBELLISHMENT — do not add parenthetical asides (e.g. "(squeezing fingers)"), and do not invent extra "denies X" items the transcript never mentioned.
 8. MERGE THE SUBJECTIVE STORY — "reason_for_visit" is the ONE-LINE chief complaint only; the full narrative goes in "hpi_details" as one flowing chronological story. Do NOT restate the chief complaint verbatim inside hpi_details. There is a single presenting-complaint/history story, not two.
@@ -99,11 +99,27 @@ function looksPopulated(n) {
   return anySub || (n.assessment_and_plan || []).length > 0;
 }
 
-export async function tightenNote(currentNote, { llm, transcript = '', log = () => {}, maxOutputTokens } = {}) {
+export async function tightenNote(currentNote, { llm, transcript = '', log = () => {}, maxOutputTokens, missingFacts = [], medications = [] } = {}) {
   if (!llm || !transcript.trim() || !currentNote) return currentNote;
   try {
     const draft = noteToMarkdown(currentNote);
-    const user = `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nDRAFT NOTE (fix omissions, remove unsupported/filler content, keep only transcript-grounded facts):\n${draft}\n\nReturn ONLY the corrected JSON.`;
+    // MEDICATION MUST-INCLUDE — the extractor's grounded drug list. Every one that the transcript
+    // supports must appear in the note with its exact name/dose (never generalized to "a medication"
+    // or dropped). GROUNDING (rule 1) still governs — an item not in the transcript is ignored.
+    const meds = (medications || []).filter((m) => typeof m === 'string' && m.trim()).slice(0, 30);
+    const medBlock = meds.length
+      ? `\n\nMEDICATIONS DETECTED IN THIS ENCOUNTER — every one below is from the transcript. Ensure EACH appears in the note by its EXACT name and dose (in Assessment & Plan or the medication list); never generalize a named drug to "a medication"/"current medication", and never drop one:\n- ${meds.join('\n- ')}`
+      : '';
+    // The QA validator already identified extracted facts the slot-filler dropped. Give the
+    // tightener that checklist — but GROUNDING (rule 1) still governs, so it only re-includes
+    // items it can verify in the transcript; anything unsupported is ignored, never fabricated.
+    const mf = (missingFacts || []).filter((f) => typeof f === 'string' && f.trim()).slice(0, 20);
+    const mfBlock = mf.length
+      ? `\n\nMISSING FACTS CHECKLIST — the QA validator flagged these as dropped from the draft. Add each one that is SUPPORTED by the transcript to its correct section (verbatim specifics: drug names, doses, lot numbers, imaging findings, referral names, follow-up intervals). If a checklist item is NOT in the transcript, ignore it — never fabricate:\n- ${mf.join('\n- ')}`
+      : '';
+    const user = `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nDRAFT NOTE (fix omissions, remove unsupported/filler content, keep only transcript-grounded facts):\n${draft}${mfBlock}${medBlock}\n\nReturn ONLY the corrected JSON.`;
+    if (mf.length) log(`[upgrade:tightener] re-including ${mf.length} QA-flagged dropped fact(s)`);
+    if (meds.length) log(`[upgrade:tightener] enforcing ${meds.length} grounded medication(s) present`);
     const raw = await llm.generateContent(SYS, user, null, { maxOutputTokens: maxOutputTokens || Number(process.env.TIGHTENER_MAX_OUTPUT_TOKENS) || 16384, thinkingBudget: 0 });
     const parsed = safeParse(raw);
     if (!parsed || typeof parsed !== 'object') { log('[upgrade:tightener] no valid JSON returned — keeping draft'); return currentNote; }

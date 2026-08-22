@@ -6,9 +6,9 @@
   "stage": "Narrative",
   "description": "V31 Heidi slot filler — maps the fact graph into the note's subjective slots. Registry-backed; falls back to the in-code prompt until a version is published.",
   "vars": [],
-  "publishedVersion": 4,
+  "publishedVersion": 7,
   "draft": null,
-  "updatedAt": "2026-08-22T09:09:11.364Z",
+  "updatedAt": "2026-08-22T17:39:15.501Z",
   "active": true,
   "order": null
 }

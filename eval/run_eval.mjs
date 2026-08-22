@@ -45,6 +45,11 @@ let OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
   } catch { /* no .env */ }
 })();
 
+// The eval corpus (data/gold) is de-identified with synthetic ISO-date placeholders — neutralize
+// them by default HERE (this is a separate process from the production backend, so the clinician
+// path keeps real dates). Override with NORMALIZE_DEID_DATES=0.
+if (process.env.NORMALIZE_DEID_DATES === undefined) process.env.NORMALIZE_DEID_DATES = '1';
+
 const { generateNote } = await import(pathToFileURL(path.join(ROOT, 'packages', 'backend', 'src', 'orchestrator', 'generateNote.js')).href);
 const { scoreNote, aggregate } = await import(pathToFileURL(path.join(__dirname, 'metrics.mjs')).href);
 // Single source of truth for note structure — the "Notera — generated" pane renders this.

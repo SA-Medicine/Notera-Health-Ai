@@ -132,13 +132,17 @@ export async function removeHallucinations(note, { transcript = '', promptContex
   const clip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + '\n…[truncated]…' : s; };
   const user = `=== TRANSCRIPT (sole source of truth) ===\n${clip(transcript, 14000)}\n\n=== SOAP NOTE (JSON — report only CLEARLY fabricated spans to delete) ===\n${clip(JSON.stringify(inputNote), 12000)}\n\n${promptContext ? `=== GENERATION PROMPT (context only) ===\n${clip(promptContext, 2500)}\n\n` : ''}List ONLY spans you are CONFIDENT are fabricated. Return ONLY the JSON object.`;
   const maxTokens = Number(process.env.HALLUCINATION_MAX_TOKENS || 2048);
+  log(`[hallucination-remover] auditing note (transcript ${transcript.length} chars, note ${JSON.stringify(inputNote).length} chars) via ${llm.model || 'gemini'}`);
   // Runs on the MAIN-PIPELINE LLM (Gemini). Small output (a list, not the whole note) → fast.
   // Retry once on a parse failure (the model occasionally wraps the JSON in stray text).
+  const _t0 = Date.now();
   const call = async (sys) => { try { return parseJson(await llm.generateContent(sys, user, null, { maxOutputTokens: maxTokens })); } catch (e) { log('[hallucination-remover] LLM error — ' + e.message); return null; } };
   let data = await call(system);
   if (!data) { log('[hallucination-remover] retrying once (parse/LLM)'); data = await call(system + '\n\nIMPORTANT: return ONLY the raw JSON object, nothing else.'); }
   if (!data) { log('[hallucination-remover] skipped — no valid JSON from the LLM'); return { ok: false, removed: [] }; }
   const removals = Array.isArray(data.removed) ? data.removed.filter((x) => x && x.text) : [];
+  log(`[hallucination-remover] LLM returned ${removals.length} candidate span(s) in ${Date.now() - _t0}ms`);
+  for (const c of removals.slice(0, 40)) log(`[hallucination-remover]   • candidate${c.confident === false ? ' (unconfident)' : ''} ${c.field ? '[' + c.field + '] ' : ''}"${String(c.text || '').slice(0, 100)}"${c.reason ? ' — ' + c.reason : ''}`);
   const { total, applied, skipped } = applyRemovals(note, removals, log);
   note.metadata = note.metadata || {};
   note.metadata.hallucinations_removed = applied;

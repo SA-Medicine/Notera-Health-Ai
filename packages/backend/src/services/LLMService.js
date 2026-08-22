@@ -93,7 +93,10 @@ export class LLMService {
     if (options.thinkingBudget !== undefined) body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget };
     else if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') body.generationConfig.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
     else body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
+    if (options.temperature !== undefined) body.generationConfig.temperature = options.temperature;
+    else if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
+    if (Array.isArray(options.stopSequences) && options.stopSequences.length) body.generationConfig.stopSequences = options.stopSequences;
+    if (options.candidateCount) body.generationConfig.candidateCount = options.candidateCount;
     if (responseSchema) {
       body.generationConfig.responseMimeType = 'application/json';
       if (typeof responseSchema === 'object') body.generationConfig.responseSchema = responseSchema;
