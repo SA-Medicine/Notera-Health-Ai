@@ -620,20 +620,104 @@ export function flagLateralityInversion(note, transcript = '', log = () => {}) {
   return { flags };
 }
 
+// ── D7 · dropped-agenda completeness detector (Fix A) ────────────────────────
+// The #1 recurring gap is dropped SECONDARY agenda items on multi-issue visits: refill
+// requests, offered-and-declined referrals, and allied-health context. Deterministic +
+// flag-only: if the transcript clearly raises one and the note never mentions it, surface it.
+const _noteAllText = (note) => {
+  const parts = [];
+  for (const o of [note.subjective, note.past_medical_history, note.objective]) if (o) for (const k of Object.keys(o)) if (typeof o[k] === 'string') parts.push(o[k]);
+  for (const p of (note.assessment_and_plan || [])) for (const f of ['issue', 'diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) if (typeof p[f] === 'string') parts.push(p[f]);
+  return parts.join(' \n ').toLowerCase();
+};
+const AGENDA_REFILL_RX = /\b(refill|renew(?:al|ed|ing)?|re-?fill|repeat prescription|prescription renewal)\b/i;
+const AGENDA_DECLINE_RX = /\b(declin\w+|refus\w+|not interested|no thank|don'?t want|deferred|postpon\w+|hold off)\b/i;
+const AGENDA_REFERRAL_RX = /\b(referral|refer(?:red)? to|specialist|injection|physio|surgery|procedure|scope|scan)\b/i;
+const AGENDA_ALLIED_RX = /\b(physio(?:therapy)?|physical therapy|massage therapy|pilates|chiropract\w*|occupational therapy|acupuncture)\b/i;
+export function flagDroppedAgenda(note, transcript = '', log = () => {}) {
+  const flags = [];
+  const T = String(transcript); const nt = _noteAllText(note);
+  if (AGENDA_REFILL_RX.test(T) && !AGENDA_REFILL_RX.test(nt)) {
+    flags.push({ type: 'dropped_agenda_refill', field: 'assessment_and_plan', message: 'The transcript includes a prescription refill/renewal request that the note does not capture — verify the refill is in the plan.', severity: 'major' });
+    log('[upgrade:agenda] refill/renewal request in transcript is missing from the note');
+  }
+  // offered-and-declined intervention: both a referral/procedure word AND a decline word in the transcript
+  if (AGENDA_REFERRAL_RX.test(T) && AGENDA_DECLINE_RX.test(T) && !AGENDA_DECLINE_RX.test(nt)) {
+    flags.push({ type: 'dropped_declined_option', field: 'assessment_and_plan', message: 'The transcript discusses an offered-and-declined/deferred referral or procedure that the note does not record — capture the option and that it was declined.', severity: 'major' });
+    log('[upgrade:agenda] offered-and-declined referral/procedure missing from the note');
+  }
+  if (AGENDA_ALLIED_RX.test(T) && !AGENDA_ALLIED_RX.test(nt)) {
+    flags.push({ type: 'dropped_allied_health', field: 'note', message: 'The transcript mentions allied-health therapy (physio/massage/Pilates/chiro) that the note omits — verify it is documented.', severity: 'minor' });
+    log('[upgrade:agenda] allied-health context missing from the note');
+  }
+  if (!flags.length) log('[upgrade:agenda] no dropped secondary-agenda items detected');
+  return { flags };
+}
+
+// ── D8 · generic medication downgrade detector (Fix B) ───────────────────────
+// Notera sometimes GENERALIZES a specific drug ("Cipralex" → "an oral medication"). Flag a
+// generic placeholder in the plan when the transcript names a specific drug the note dropped.
+const GENERIC_MED_RX = /\b(oral (?:medication|diabetes medication|antibiotic|agent)|an? (?:antibiotic|oral agent|oral medication|medication)|the medication|generic (?:medication|version|equivalent)|medication (?:was )?(?:started|prescribed|given|continued)|started on (?:a )?medication)\b/i;
+export function flagGenericMedDowngrade(note, transcript = '', meds = [], log = () => {}) {
+  const flags = [];
+  const T = String(transcript).toLowerCase();
+  const specific = [...new Set((meds || []).map((m) => String(m).trim()).filter((m) => m.length >= 4))];
+  for (const p of (note.assessment_and_plan || [])) {
+    for (const line of splitLines(p.treatment_planned)) {
+      if (!GENERIC_MED_RX.test(line)) continue;
+      const ln = line.toLowerCase();
+      const txDrug = specific.find((d) => T.includes(d.toLowerCase()) && !ln.includes(d.toLowerCase()));
+      flags.push({ type: 'medication_generalized', field: `assessment_and_plan["${p.issue || '?'}"].treatment_planned`, message: `Plan "${line.slice(0, 80)}" uses a GENERIC medication placeholder${txDrug ? ` — the transcript names a specific drug ("${txDrug}")` : ''}; use the exact medication name from the transcript, not a category.`, severity: 'major' });
+      log(`[upgrade:generic-med] generic placeholder in plan: "${line.slice(0, 80)}"${txDrug ? ` (transcript has "${txDrug}")` : ''}`);
+    }
+  }
+  if (!flags.length) log('[upgrade:generic-med] no generic medication downgrades found');
+  return { flags };
+}
+
+// ── D9 · de-identification placeholder leak (Fix) ────────────────────────────
+// The de-identified corpus replaces real names/drugs with tokens like "Patient 84",
+// "Dr. Patient 774", "[LOCATION]", "[NAME_1]". When one of these lands in a clinical slot
+// (esp. a medication name — e.g. "Patient 84" standing in for Zepbound in mr-2) the note reads
+// as a fabricated entity. Flag every leak; CRITICAL when it sits in a medication/plan slot.
+const DEID_LEAK_RX = /\bPatient \d{1,4}\b|\bDr\.?\s+Patient \d{1,4}\b|\[LOCATION\]|\[NAME_?\d*\]|\[REDACTED\]/;
+export function flagDeidPlaceholderLeak(note, log = () => {}) {
+  const flags = [];
+  const scan = (text, field, critical) => {
+    if (typeof text !== 'string') return;
+    const m = text.match(DEID_LEAK_RX);
+    if (!m) return;
+    flags.push({ type: 'deid_placeholder_leak', field, message: `A de-identification placeholder ("${m[0]}") leaked into the note at ${field}; it is standing in for a real name/medication and must be verified or removed, not documented as a clinical entity.`, severity: critical ? 'critical' : 'warning' });
+    log(`[upgrade:deid-leak] placeholder "${m[0]}" in ${field}${critical ? ' (medication/plan slot — critical)' : ''}`);
+  };
+  for (const [sec, obj] of [['subjective', note.subjective], ['past_medical_history', note.past_medical_history], ['objective', note.objective]]) {
+    if (obj) for (const k of Object.keys(obj)) if (typeof obj[k] === 'string') scan(obj[k], `${sec}.${k}`, false);
+  }
+  const ap = note.assessment_and_plan || [];
+  for (let i = 0; i < ap.length; i++) for (const f of ['issue', 'diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) {
+    scan(ap[i][f], `assessment_and_plan[${i}].${f}`, /treatment_planned|issue|diagnosis/.test(f));
+  }
+  if (!flags.length) log('[upgrade:deid-leak] no de-identification placeholders in the note');
+  return { flags };
+}
+
 // ── C(2) · multi-system fallback ─────────────────────────────────────────────
 // A narrow single-disease label (anemia, gynecology, …) makes the SOAP generator drop
 // other active problems. When ≥3 distinct organ systems are discussed, fall back to the
 // comprehensive general_primary_care template so nothing is suppressed.
+// NOTE: no trailing \b — these are word STEMS ("diabet" must match "diabetes", "diarrh"
+// must match "diarrhea"). A trailing \b silently broke multi-system detection, under-firing
+// the comprehensive template and dropping problems in multi-complaint encounters.
 const SYSTEM_RX = {
-  cardio: /\b(blood pressure|hypertension|cholesterol|lipid|statin|palpitation|chest pain)\b/i,
-  endo: /\b(diabet|thyroid|vitamin d|a1c|hba1c|insulin)\b/i,
-  gi: /\b(stomach|abdominal|bowel|constipat|diarrh|nausea|reflux|gastro|liver|ulcer)\b/i,
-  gyn: /\b(pregnan|menstru|period|pelvic|ovarian|pcos|contracept|conceive|\blmp\b)\b/i,
-  resp: /\b(cough|shortness of breath|asthma|copd|wheeze|congestion)\b/i,
-  msk: /\b(joint|back pain|knee|shoulder|arthritis|sprain|fracture)\b/i,
-  derm: /\b(rash|lesion|eczema|acne|dermatitis)\b/i,
-  psych: /\b(anxiety|depress|adhd|\badd\b|mood|insomnia)\b/i,
-  heme: /\b(anemia|anaemia|iron|ferritin|b12|lymphocyt|\bcbc\b)\b/i,
+  cardio: /\b(blood pressure|hypertension|cholesterol|lipid|statin|palpitation|chest pain)/i,
+  endo: /\b(diabet|thyroid|vitamin d|a1c|hba1c|insulin)/i,
+  gi: /\b(stomach|abdominal|bowel|constipat|diarrh|nausea|reflux|gastro|liver|ulcer)/i,
+  gyn: /\b(pregnan|menstru|period|pelvic|ovarian|pcos|contracept|conceive|\blmp\b)/i,
+  resp: /\b(cough|shortness of breath|asthma|copd|wheeze|congestion)/i,
+  msk: /\b(joint|back pain|knee|shoulder|arthritis|sprain|fracture)/i,
+  derm: /\b(rash|lesion|eczema|acne|dermatitis)/i,
+  psych: /\b(anxiety|depress|adhd|\badd\b|mood|insomnia)/i,
+  heme: /\b(anemia|anaemia|iron|ferritin|b12|lymphocyt|\bcbc\b)/i,
 };
 const NARROW_TYPES = new Set(['anemia', 'diabetes', 'hypertension', 'lipids', 'gynecology', 'dermatology', 'musculoskeletal', 'mental_health', 'weight_loss', 'acute_injury']);
 export function multiSystemFallback(encounterType, transcript = '', log = () => {}) {
@@ -645,6 +729,37 @@ export function multiSystemFallback(encounterType, transcript = '', log = () => 
     return 'general_primary_care';
   }
   return encounterType;
+}
+
+// ── Deterministic encounter classifier (latency: replaces the Agent-0 LLM call) ──
+// The classifier's answer only selects an A&P template and is frequently overridden by the
+// multi-system heuristic anyway. This keyword classifier produces the same contract (a type
+// string, after adminRefillFailsafe + multiSystemFallback) with ZERO latency. Set
+// ENCOUNTER_CLASSIFIER=1 to fall back to the LLM agent.
+const ENCOUNTER_TYPE_RX = [
+  ['acute_injury', /\b(fracture|sprain|laceration|dislocat|fell|twisted|broke|broken|injur(?:y|ed)|trauma|wound|stitches|concussion)\b/i],
+  ['pregnancy', /\b(pregnan|prenatal|antenatal|obstetric|gestation|trimester)\b/i],
+  ['gynecology', /\b(pelvic|contracept|menstru|\bperiod\b|endometrios|ovarian|\bpcos\b|pap smear|menopaus|\blmp\b)\b/i],
+  ['dermatology', /\b(rash|lesion|acne|eczema|dermatitis|\bmole\b|psoriasis|hives|skin lesion)\b/i],
+  ['mental_health', /\b(depress|anxiety|\badhd\b|\badd\b|panic|bipolar|\bptsd\b|suicid)\b/i],
+  ['diabetes', /\b(diabet|hba1c|\ba1c\b|insulin|metformin|jardiance|glucose control)\b/i],
+  ['weight_loss', /\b(wegovy|zepbound|saxenda|obesity|weight loss|weight management|bariatric)\b/i],
+  ['lipids', /\b(cholesterol|lipid panel|\bstatin\b|\bldl\b|\bhdl\b|triglycerid|atorvastatin|rosuvastatin)\b/i],
+  ['hypertension', /\b(blood pressure|hypertension|amlodipine|perindopril|ramipril|antihypertensive)\b/i],
+  ['anemia', /\b(anaemia|anemia|iron deficien|ferritin|\bb12\b|hemoglobin (?:low|of))\b/i],
+  ['musculoskeletal', /\b(back pain|knee pain|shoulder pain|osteoarthritis|arthritis|joint pain|tendonitis|bursitis)\b/i],
+];
+export function classifyEncounterDeterministic(transcript, log = () => {}) {
+  const t = String(transcript || '');
+  const systems = Object.entries(SYSTEM_RX).filter(([, rx]) => rx.test(t)).map(([k]) => k);
+  let type = 'general_primary_care';
+  if (systems.length < 3) {                       // ≥3 systems → comprehensive template
+    for (const [name, rx] of ENCOUNTER_TYPE_RX) { if (rx.test(t)) { type = name; break; } }
+    if (type === 'general_primary_care' && /\b(refill|renew(?:al)?|re-?fill|prescription renewal)\b/i.test(t)) type = 'medication_refill';
+  }
+  type = adminRefillFailsafe(type, t, log);
+  type = multiSystemFallback(type, t, log);
+  return type;
 }
 
 // ── E · benchmarking-prompt detector (contract-drift guard) ──────────────────
@@ -688,10 +803,13 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   const lb = flagLabAnalyteBinding(note, transcript, sink);  // lab value↔analyte misbinding
   const dv = flagDateAsValue(note, sink);                    // synthetic date replacing a value (safety)
   const lat = flagLateralityInversion(note, transcript, sink); // left/right inversion (safety)
+  const ag = flagDroppedAgenda(note, transcript, sink);      // dropped secondary agenda items (completeness)
+  const gm = flagGenericMedDowngrade(note, transcript, meds, sink); // generic med downgrade (fidelity)
+  const dl = flagDeidPlaceholderLeak(note, sink);            // de-id placeholder leaked into a clinical slot
   const nm = flagUngroundedNumbers(note, transcript, sink);
   const dt = enforceDateGrounding(note, transcript, sink);
   const nr = groundNamedReferences(note, transcript, sink);
-  const flags = [...d.flags, ...ph.flags, ...np.flags, ...cs.flags, ...lb.flags, ...dv.flags, ...lat.flags, ...nm.flags, ...dt.flags, ...nr.flags];
+  const flags = [...d.flags, ...ph.flags, ...np.flags, ...cs.flags, ...lb.flags, ...dv.flags, ...lat.flags, ...ag.flags, ...gm.flags, ...dl.flags, ...nm.flags, ...dt.flags, ...nr.flags];
   // Fact-grounding rating: share of dates + measurement numbers that trace to the transcript.
   const numChecked = (nm.flags.filter((f) => f.type === 'ungrounded_number').length);
   const totalChecked = dt.checked + numChecked;              // numbers only counted when ungrounded (flagged)

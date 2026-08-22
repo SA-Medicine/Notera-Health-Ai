@@ -51,6 +51,15 @@ export async function generateNote(input, opts = {}) {
     const { turns } = await transcribeFromGcs(input.audioUri);
     transcript = turnsToTranscript(turns);
   }
+  // De-identification can inject synthetic ISO dates where a spoken NUMBER/relative time was,
+  // which the model then extracts as a lab value / lot number. Neutralize them — ONLY on the
+  // de-identified eval corpus (NORMALIZE_DEID_DATES=1). Default OFF so PRODUCTION transcripts
+  // keep their real, clinically-meaningful dates.
+  if (process.env.NORMALIZE_DEID_DATES === '1') {
+    const _before = transcript;
+    transcript = transcript.replace(/\b(?:19|20)\d{2}-\d{1,2}-\d{1,2}\b/g, '[date]');
+    if (transcript !== _before) console.log('[deid-normalize] neutralized synthetic ISO date placeholders in the transcript');
+  }
   if (!transcript.trim()) throw new Error('generateNote: no transcript or audioUri provided');
 
   if (persist) {
@@ -102,6 +111,16 @@ export async function generateNote(input, opts = {}) {
   const pipeline = await engine.runPipeline(safeTranscript, templateSystemPrompt, input.referenceNote || '');
   const finalNote = pipeline.finalNote;
 
+  // COMPLETENESS RECOVERY (Fix): the QA validator identifies extracted facts the V31 slot-filler
+  // DROPPED from the note (action=retry_slot_filler). Previously this signal was discarded
+  // ("retry on next run"). Capture the missing_facts here and feed them to the grounded tightener
+  // below so they are re-included — the downstream grounding guardrails strip anything unsupported,
+  // so this can only add transcript-grounded content, never fabrication.
+  const qaMissingFacts = Array.isArray(pipeline.logs?.qaValidation?.missing_facts)
+    ? pipeline.logs.qaValidation.missing_facts.filter((f) => typeof f === 'string' && f.trim())
+    : [];
+  if (qaMissingFacts.length) console.log(`[completeness] QA flagged ${qaMissingFacts.length} dropped fact(s) — passing to tightener for grounded re-inclusion`);
+
   // Auto-select specialty from the pipeline's Agent 0 encounter classifier unless
   // the caller pinned one explicitly (doc: specialty should be auto-detected).
   const detected = pipeline.logs?.encounterType || null;
@@ -113,6 +132,22 @@ export async function generateNote(input, opts = {}) {
   onProgress({ status: 'structuring', consultId });
   const story = pipeline.logs?.clinicalStory;
   const graphForMap = pipeline.logs?.clinicalObservations || {};
+
+  // MEDICATION ROBUSTNESS — the extractor reliably captures the drugs, but the slot-filler/story
+  // sometimes drops or generalizes them (Zepbound → "current medication", Tramacet dropped). Build
+  // a grounded medication checklist from the fact graph and hand it to the tightener as MUST-INCLUDE.
+  // De-identification placeholders (Patient 84, [LOCATION]) are excluded so we never force a masked
+  // token into the note. This is grounded (drugs came from the transcript via the extractor).
+  const medChecklist = (() => {
+    const g = graphForMap || {};
+    const out = new Set();
+    const add = (v) => { const s = String(v || '').trim(); if (s.length >= 3 && !/^\s*$/.test(s) && !/patient\s*\d+|\[location\]|\[name|\[redacted\]/i.test(s)) out.add(s); };
+    for (const m of (g.current_medications || [])) add(m);
+    for (const d of (g.medication_decisions || [])) if (d) add(d.medication);
+    for (const e of (g.clinical_entities || [])) if (/medication/i.test(e.entity_type || '')) add(e.medication || e.display_text);
+    return [...out].slice(0, 30);
+  })();
+  if (medChecklist.length) console.log(`[medications] ${medChecklist.length} grounded medication(s) from the extractor → tightener must-include: ${medChecklist.join(', ')}`);
   let note;
   if (story && (story.assessment_plan?.length || Object.keys(story.subjective_slots || {}).length || (story.pmh_lines || []).length)) {
     note = storyToSchema(story, graphForMap, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION, encounterType: detected, transcript });
@@ -162,12 +197,14 @@ export async function generateNote(input, opts = {}) {
   // deterministic guardrails below still run on its output (so it can't smuggle in fabrication).
   if (process.env.NOTE_TIGHTENER === '1' && llm) {
     try {
+      const _tt = Date.now();
       const budget = Number(process.env.TIGHTENER_TIMEOUT_MS) || 60000;
       note = await Promise.race([
-        tightenNote(note, { llm, transcript, log: (l) => console.log(l) }),
+        tightenNote(note, { llm, transcript, missingFacts: qaMissingFacts, medications: medChecklist, log: (l) => console.log(l) }),
         new Promise((resolve) => setTimeout(() => resolve(note), budget)),
       ]);
       note.specialty = specialtyResolved; note.metadata.encounter_id = consultId;
+      console.log(`⏱️ [Timing] upgrade:tightener: ${Date.now() - _tt}ms`);
     } catch (e) { console.warn('[upgrade:tightener] skipped:', e.message); }
   }
 
@@ -178,6 +215,18 @@ export async function generateNote(input, opts = {}) {
     const up = applyUpgradeGuardrails(note, { transcript, entities });
     if (up.flags?.length) note.metadata.flags = [...(note.metadata.flags || []), ...up.flags];
   } catch (e) { console.warn('[upgrade] guardrails skipped:', e.message); }
+
+  // The note schema only allows flag severities: info | low | warning | critical. Guardrails
+  // (and other agents) sometimes emit major/minor/high/medium — coerce every flag severity to
+  // the allowed enum so a flagged note never fails schema validation. (This was the root cause
+  // of the schema_validity regression: dropped-agenda/generic-med flags used "major"/"minor".)
+  {
+    const SEV_MAP = { critical: 'critical', warning: 'warning', low: 'low', info: 'info', major: 'warning', high: 'warning', minor: 'low', medium: 'low', error: 'critical', fatal: 'critical' };
+    for (const fl of (note.metadata?.flags || [])) {
+      if (fl && fl.severity != null) fl.severity = SEV_MAP[String(fl.severity).toLowerCase()] || 'info';
+      else if (fl) fl.severity = 'info';
+    }
+  }
 
   // 5e. RxNorm verification (upgrade D-Tier2) — opt-in (RXNORM_VERIFY=1), network-optional.
   //     Flags medications that don't resolve to a real RxNorm concept. Never blocks.
@@ -222,11 +271,25 @@ export async function generateNote(input, opts = {}) {
   if (process.env.HALLUCINATION_REMOVER !== '0' && llm) {
     try {
       const { removeHallucinations } = await import('./hallucinationRemover.js');
-      const budget = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 150000;
-      await Promise.race([
-        removeHallucinations(note, { transcript, llm, log: (l) => console.log(l) }),   // main-pipeline LLM (Gemini)
-        new Promise((resolve) => setTimeout(() => { console.warn(`[hallucination-remover] skipped — exceeded ${budget}ms (LLM slow)`); resolve(null); }, budget)),
-      ]);
+      const _ht = Date.now();
+      // DYNAMIC budget: longer transcripts legitimately need more time; short ones fail fast
+      // instead of hanging. Base 20s + 3s per 1000 transcript chars, clamped to [20s, 90s].
+      // HALLUCINATION_TIMEOUT_MS (if set) acts as a hard CEILING, not a fixed wait.
+      const dyn = Math.min(90000, Math.max(20000, 20000 + Math.round((transcript.length || 0) / 1000) * 3000));
+      const cap = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 0;
+      const budget = cap > 0 ? Math.min(cap, dyn) : dyn;
+      // IMPORTANT: clear the timer as soon as the work resolves. Previously the setTimeout was
+      // never cancelled, so a 45s timer kept firing LATER — printing "skipped — exceeded 45000ms"
+      // into unrelated fixtures' logs even though this pass had already finished in ~1s.
+      let timer = null;
+      const timeout = new Promise((resolve) => { timer = setTimeout(() => { console.warn(`[hallucination-remover] skipped — exceeded ${budget}ms (LLM slow); note kept as-is`); resolve('__timeout__'); }, budget); });
+      try {
+        const res = await Promise.race([
+          removeHallucinations(note, { transcript, llm, log: (l) => console.log(l) }),   // main-pipeline LLM (Gemini)
+          timeout,
+        ]);
+        console.log(`⏱️ [Timing] hallucination-remover: ${Date.now() - _ht}ms${res === '__timeout__' ? ' (timed out)' : ''}`);
+      } finally { if (timer) clearTimeout(timer); }
     } catch (e) { console.warn('[hallucination-remover] skipped:', e.message); }
   }
 

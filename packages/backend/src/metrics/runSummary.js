@@ -25,18 +25,23 @@ const r2 = (v) => (v == null ? null : +v.toFixed(2));
 
 /** Deterministic aggregation over the per-fixture comparison reports. */
 export function aggregateCompares(compares) {
-  const scored = compares.filter((c) => typeof c.overall_score === 'number');
+  // Exclude fixtures whose GOLD reference is corrupt (scheduling/admin/de-id noise, not a real
+  // note). Scoring Notera against them yields a false-low verdict (e.g. untitled-session-5 → 20)
+  // that dragged the average and the win/loss counts. They stay visible but don't pollute stats.
+  const valid = compares.filter((c) => !c.gold_corrupt);
+  const n_gold_corrupt = compares.length - valid.length;
+  const scored = valid.filter((c) => typeof c.overall_score === 'number');
   const avg_overall = r2(mean(scored.map((c) => c.overall_score)));
   const verdict_counts = { notera_better: 0, gold_better: 0, equivalent: 0, other: 0 };
-  for (const c of compares) { const v = String(c.verdict || 'other'); verdict_counts[v] = (verdict_counts[v] ?? verdict_counts.other) + 1; if (!(v in verdict_counts)) verdict_counts.other++; }
+  for (const c of valid) { const v = String(c.verdict || 'other'); verdict_counts[v] = (verdict_counts[v] ?? verdict_counts.other) + 1; if (!(v in verdict_counts)) verdict_counts.other++; }
   // per-dimension means (Notera vs Gold)
   const dims = {};
-  for (const c of compares) for (const d of (c.dimensions || [])) { if (!d || !d.name) continue; const k = d.name; (dims[k] ??= { notera: [], gold: [] }); if (typeof d.notera === 'number') dims[k].notera.push(d.notera); if (typeof d.gold === 'number') dims[k].gold.push(d.gold); }
+  for (const c of valid) for (const d of (c.dimensions || [])) { if (!d || !d.name) continue; const k = d.name; (dims[k] ??= { notera: [], gold: [] }); if (typeof d.notera === 'number') dims[k].notera.push(d.notera); if (typeof d.gold === 'number') dims[k].gold.push(d.gold); }
   const dimension_averages = Object.entries(dims).map(([name, v]) => ({ name, notera: r2(mean(v.notera)), gold: r2(mean(v.gold)), gap: r2((mean(v.gold) ?? 0) - (mean(v.notera) ?? 0)) }));
   const byScore = [...scored].sort((a, b) => a.overall_score - b.overall_score);
   const worst_fixtures = byScore.slice(0, 6).map((c) => ({ fixture: c.fixture, score: c.overall_score, verdict: c.verdict, why: (c.notera_missing || [])[0] || (c.summary || '').slice(0, 120) }));
   const best_fixtures = byScore.slice(-6).reverse().map((c) => ({ fixture: c.fixture, score: c.overall_score, verdict: c.verdict }));
-  return { n_fixtures: compares.length, n_scored: scored.length, avg_overall, verdict_counts, dimension_averages, worst_fixtures, best_fixtures };
+  return { n_fixtures: valid.length, n_scored: scored.length, n_gold_corrupt, avg_overall, verdict_counts, dimension_averages, worst_fixtures, best_fixtures };
 }
 
 const SYS = `You are the EVAL ANALYST for Notera — a clinical documentation engine that converts raw consultation transcripts into schema-structured SOAP notes, benchmarked against clinician "gold" reference notes. You are given the per-fixture comparison reports for ONE evaluation run (each: a 0–100 score, a verdict of notera_better/gold_better/equivalent, the facts Notera MISSED vs gold, the UNSUPPORTED extras Notera added, key differences, and a one-line summary).
@@ -55,7 +60,7 @@ Return ONLY this JSON (no markdown):
 
 /** LLM synthesis of qualitative themes (best-effort) — runs on the main-pipeline LLM (Gemini). */
 export async function synthesize(compares, { llm = null } = {}) {
-  const compact = compares.slice(0, 60).map((c) => ({
+  const compact = compares.filter((c) => !c.gold_corrupt).slice(0, 60).map((c) => ({
     fixture: c.fixture, score: c.overall_score, verdict: c.verdict,
     missing: (c.notera_missing || []).slice(0, 6), extra: (c.notera_extra || []).slice(0, 6),
     key: (c.key_differences || []).slice(0, 4), summary: String(c.summary || '').slice(0, 240),

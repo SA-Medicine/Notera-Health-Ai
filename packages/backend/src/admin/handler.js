@@ -665,6 +665,20 @@ Score objectively, evidence-based, never rewarding fluent-but-unsupported text. 
   "notera_extra": ["facts in notera not supported by gold"],
   "key_differences": ["short phrases"], "summary": "2-3 sentence verdict" }`;
 
+// A gold reference is "corrupt" when it is scheduling/admin/de-id noise rather than a real
+// clinical note (mirrors eval/metrics.mjs isGoldCorrupt). Scoring Notera against it yields a
+// false-low verdict (e.g. untitled-session-5 → 20), so we flag such fixtures and EXCLUDE them
+// from the run-report aggregate + verdict counts.
+function isGoldCorruptSrv(goldText) {
+  const t = String(goldText || '');
+  if (t.trim().length < 40) return true;
+  if (/\b(subjective|objective|assessment|plan|hpi|chief complaint|presenting complaint|diagnosis|history of)\b/i.test(t)) return false;
+  const words = (t.toLowerCase().match(/[a-z0-9][a-z0-9\-']*/g) || []);
+  const dateish = words.filter((w) => /^\d+$/.test(w) || /\d{4}-\d{1,2}-\d{1,2}/.test(w)).length;
+  const clinical = words.filter((w) => w.length > 3 && !/^\d+$/.test(w) && !/\d{4}-\d{1,2}-\d{1,2}/.test(w)).length;
+  return clinical < 15 && dateish >= clinical;
+}
+
 /** Compute (and cache) a note-vs-gold comparison for one fixture .md. Reused by autocompare. */
 async function computeComparison(dir, fileName, llm) {
   const cacheFp = path.join(RESULTS, dir, fileName.replace(/\.md$/, '') + '.compare.json');
@@ -679,10 +693,12 @@ async function computeComparison(dir, fileName, llm) {
     generated = findSec(/generated/i); gold = findSec(/gold/i);
   } catch { return { ok: false, error: 'fixture not found' }; }
   if (!generated) return { ok: false, error: 'no generated note in fixture' };
+  const goldCorrupt = isGoldCorruptSrv(gold);
   const prompt = `=== NOTERA NOTE (system under test) ===\n\n${generated}\n\n=== GOLD NOTE (reference) ===\n\n${gold || '(no gold reference available)'}\n\nCompare and return ONLY the JSON.`;
   const out = await llm.generateContent(COMPARATOR_SYS, prompt);
   const parsed = tryParseJsonSrv(out);
   if (!parsed) return { ok: false, error: 'could not parse comparison output' };
+  parsed.gold_corrupt = goldCorrupt;   // flag so the aggregate can exclude corrupt-reference fixtures
   parsed.generatedAt = new Date().toISOString();
   try { fs.writeFileSync(cacheFp, JSON.stringify(parsed, null, 2)); } catch {}
   return { ok: true, cached: true, ...parsed };

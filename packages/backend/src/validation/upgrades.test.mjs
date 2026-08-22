@@ -1,5 +1,5 @@
 // Unit tests for the deterministic upgrade guardrails. Run: node packages/backend/src/validation/upgrades.test.mjs
-import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition, stripMedicationsFromObjective, flagConsentAndStatus, flagLabAnalyteBinding, flagDateAsValue, flagLateralityInversion } from './upgrades.js';
+import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition, stripMedicationsFromObjective, flagConsentAndStatus, flagLabAnalyteBinding, flagDateAsValue, flagLateralityInversion, flagDroppedAgenda, flagGenericMedDowngrade } from './upgrades.js';
 import { reconcileMedications, normalizeMedications, _clearCache } from '../services/rxnorm.js';
 import { noteToMarkdown } from '../orchestrator/renderMarkdown.js';
 
@@ -413,6 +413,34 @@ console.log('D6 · flagLateralityInversion');
   const note = { objective: { examination: 'Right knee swollen.' }, subjective: {}, assessment_and_plan: [], metadata: {} };
   const r = flagLateralityInversion(note, 'the right knee has been painful and swollen', () => {});
   ok('no flag when laterality matches the transcript', r.flags.length === 0);
+}
+
+console.log('D7 · flagDroppedAgenda (secondary agenda completeness)');
+{
+  const note = { subjective: { hpi_details: 'Back pain for 3 weeks.' }, objective: {}, assessment_and_plan: [{ issue: 'Back pain', treatment_planned: 'Advised rest and analgesia.' }], metadata: {} };
+  const tx = 'also needs a refill of her blood pressure pills. we offered a neurology referral but she declined it because it did not help before. she has been doing physiotherapy.';
+  const r = flagDroppedAgenda(note, tx, () => {});
+  ok('flags a dropped refill request', r.flags.some((f) => f.type === 'dropped_agenda_refill'));
+  ok('flags a dropped offered-and-declined referral', r.flags.some((f) => f.type === 'dropped_declined_option'));
+  ok('flags dropped allied-health (physio) context', r.flags.some((f) => f.type === 'dropped_allied_health'));
+}
+{
+  // note already covers everything → no flags
+  const note = { subjective: {}, objective: {}, assessment_and_plan: [{ issue: 'x', treatment_planned: 'Refill of amlodipine sent. Neurology referral offered but patient declined. Continue physiotherapy.' }], metadata: {} };
+  const r = flagDroppedAgenda(note, 'refill amlodipine, referral declined, physiotherapy ongoing', () => {});
+  ok('no agenda flags when the note covers refill/declined/physio', r.flags.length === 0);
+}
+
+console.log('D8 · flagGenericMedDowngrade');
+{
+  const note = { assessment_and_plan: [{ issue: 'Anxiety', treatment_planned: 'Continue the oral medication as before.' }], metadata: {} };
+  const r = flagGenericMedDowngrade(note, 'she is on cipralex for anxiety', ['Cipralex'], () => {});
+  ok('flags a generic placeholder when the transcript names a specific drug', r.flags.some((f) => f.type === 'medication_generalized' && /Cipralex/.test(f.message)));
+}
+{
+  const note = { assessment_and_plan: [{ issue: 'x', treatment_planned: 'Continue Cipralex 10 mg daily.' }], metadata: {} };
+  const r = flagGenericMedDowngrade(note, 'on cipralex', ['Cipralex'], () => {});
+  ok('no flag when the specific drug is named', r.flags.length === 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

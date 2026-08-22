@@ -1,5 +1,6 @@
 import { createGeminiService } from '../services/LLMService.js';
 import { EncounterClassifierAgent } from './agents/EncounterClassifierAgent.js';
+import { classifyEncounterDeterministic } from '../validation/upgrades.js';
 import { ClinicalObservationExtractorAgent } from './agents/ClinicalObservationExtractorAgent.js';
 import { ClinicalRecallAnalyzer } from './agents/ClinicalRecallAnalyzer.js';
 import { FactRecoveryAgent } from './agents/FactRecoveryAgent.js';
@@ -158,11 +159,19 @@ export class PipelineEngine {
     };
 
     try {
-      // Step 1: Encounter Classifier (LLM)
+      // Step 1: Encounter Classifier. DETERMINISTIC by default (no LLM round-trip) — the type
+      // only picks an A&P template and is usually overridden by the multi-system heuristic
+      // anyway. Set ENCOUNTER_CLASSIFIER=1 to use the LLM agent instead.
       this.updateProgress(1, 9, "Agent 0: Classifying Encounter...");
       const t0 = Date.now();
-      this.llmService._agent = 'encounter-classifier';
-      const encounterType = await new EncounterClassifierAgent(this.llmService).execute(transcript);
+      let encounterType;
+      if (process.env.ENCOUNTER_CLASSIFIER === '1') {
+        this.llmService._agent = 'encounter-classifier';
+        encounterType = await new EncounterClassifierAgent(this.llmService).execute(transcript);
+      } else {
+        console.log('🏷️ [PromptAgent] encounter-classifier (deterministic — LLM disabled)');
+        encounterType = classifyEncounterDeterministic(transcript, (l) => console.log(l));
+      }
       logTiming("Agent 0 (Encounter Classifier)", t0);
       logs.encounterType = encounterType;
       logEvent("✅ Agent 0 Classification Output:", encounterType);

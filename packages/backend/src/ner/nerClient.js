@@ -26,28 +26,35 @@ async function idTokenHeaders() {
  * @param {object} opts { timeoutMs }
  * @returns {Promise<Array<{text:string,label:string,start:number,end:number,source:string,negated?:boolean}>>}
  */
+// Circuit breaker: when the NER sidecar is down (it was failing 51/51), stop paying a
+// connection timeout on every note — after N consecutive failures, skip the call entirely
+// for a cooldown window. Set NER_DISABLED=1 to skip it always.
+let _consecFail = 0, _openUntil = 0;
+const _BREAK_AFTER = Number(process.env.NER_BREAKER_THRESHOLD) || 3;
+const _COOLDOWN_MS = Number(process.env.NER_BREAKER_COOLDOWN_MS) || 600000;   // 10 min
+
 export async function extractEntities(text, opts = {}) {
+  if (process.env.NER_DISABLED === '1') return [];
+  if (Date.now() < _openUntil) return [];                 // breaker open → no network attempt
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs || 30000);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs || Number(process.env.NER_TIMEOUT_MS) || 8000);
   try {
     const headers = await idTokenHeaders();
-    const r = await fetch(`${NER_URL}/ner`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ text }),
-      signal: controller.signal,
-    });
+    const r = await fetch(`${NER_URL}/ner`, { method: 'POST', headers, body: JSON.stringify({ text }), signal: controller.signal });
     if (!r.ok) throw new Error(`NER sidecar ${r.status}: ${await r.text().catch(() => '')}`);
     const data = await r.json();
+    _consecFail = 0;                                       // success resets the breaker
     return data.entities || [];
   } catch (err) {
-    // NER is a safety net, not a hard dependency for producing a draft. Degrade
-    // gracefully: return no entities so generation still proceeds, but the
-    // orchestrator records that the cross-check could not run.
     if (opts.throwOnError) throw err;
+    _consecFail++;
+    if (_consecFail >= _BREAK_AFTER && _openUntil < Date.now()) {
+      _openUntil = Date.now() + _COOLDOWN_MS;
+      console.warn(`[nerClient] circuit OPEN after ${_consecFail} consecutive failures — skipping NER for ${Math.round(_COOLDOWN_MS / 60000)} min (set NER_DISABLED=1 to silence, or fix the sidecar)`);
+    }
     console.warn('[nerClient] extraction failed, continuing without entities:', err.message);
     return [];
-  }
+  } finally { clearTimeout(timer); }
 }
 
 /** Format entities as a grounding block for the Gemini prompt (doc 06 §2). */

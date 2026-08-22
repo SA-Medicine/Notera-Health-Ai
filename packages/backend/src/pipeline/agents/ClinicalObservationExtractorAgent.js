@@ -180,19 +180,19 @@ Rendering & Priority:
               clinical_role: { type: "STRING", enum: ["active_problem", "past_history", "negative_finding", "family_history", "observation", "care_barrier"] },
               heidi_slot: { type: "STRING", enum: ["chief_complaint", "duration_timing", "aggravating_relieving", "progression", "previous_episodes", "functional_impact", "associated_symptoms", "pmh", "objective", "problem"] },
               canonical_name: { type: "STRING" },
-              display_text: { type: "STRING" },
-              patient_term: { type: "STRING" },
-              medication: { type: "STRING" },
+              display_text: { type: "STRING", maxLength: 200 },
+              patient_term: { type: "STRING", maxLength: 120 },
+              medication: { type: "STRING", maxLength: 80 },
               medication_status: { type: "STRING", enum: ["active", "historical", "planned", "mention"] },
-              dose: { type: "STRING" },
-              frequency: { type: "STRING" },
+              dose: { type: "STRING", maxLength: 40 },
+              frequency: { type: "STRING", maxLength: 60 },
               confidence: { type: "NUMBER" },
-              source_span: { type: "STRING" },
-              source_quote: { type: "STRING" },
+              source_span: { type: "STRING", maxLength: 300 },
+              source_quote: { type: "STRING", maxLength: 300 },
               importance: { type: "STRING", enum: ["critical", "major", "minor", "background"] },
-              heidi_style_key: { type: "STRING" },
-              value: { type: "STRING" },
-              unit: { type: "STRING" },
+              heidi_style_key: { type: "STRING", maxLength: 80 },
+              value: { type: "STRING", maxLength: 60 },
+              unit: { type: "STRING", maxLength: 24 },
               numeric_type: { type: "STRING", enum: ["age", "vitals", "lab_result", "other"] },
               actor: { type: "STRING", enum: ["patient", "physician", "family_member", "other"] },
               status: { type: "STRING", enum: ["active", "resolved", "worsening", "improving", "chronic", "suspected", "ruled_out", "unknown"] },
@@ -266,11 +266,11 @@ Rendering & Priority:
             type: "OBJECT",
             properties: {
               numeric_type: { type: "STRING", enum: ["weight", "height", "bmi", "blood_pressure", "pulse", "temperature", "lab", "age", "dose"] },
-              test_name: { type: "STRING" },
-              value: { type: "STRING" },
-              unit: { type: "STRING" },
+              test_name: { type: "STRING", maxLength: 80 },
+              value: { type: "STRING", maxLength: 60 },
+              unit: { type: "STRING", maxLength: 24 },
               is_plausible: { type: "BOOLEAN" },
-              source_text: { type: "STRING" },
+              source_text: { type: "STRING", maxLength: 300 },
               observation_date: { type: "STRING" },
               date_precision: { type: "STRING", enum: ["exact", "month", "relative"] }
             },
@@ -324,7 +324,9 @@ Rendering & Priority:
     // it generous time + a retry so a single slow response can't crash the whole note.
     const resultStr = await (async () => {
       const _cfg = loadPromptConfig('observation-extractor');
-      const _opts = { ...({ timeoutMs: 180000, retries: 1, maxOutputTokens: 65536 }) };
+      // temperature 0 + candidateCount 1 remove the sampling variance that seeds the
+      // degenerate repetition loops; the schema's maxLength caps any that still start.
+      const _opts = { timeoutMs: 180000, retries: 1, maxOutputTokens: 65536, temperature: 0, candidateCount: 1 };
       if (_cfg.maxOutputTokens) _opts.maxOutputTokens = _cfg.maxOutputTokens;
       return this.llm.generateContent(systemInstruction, prompt, _cfg.freeform ? null : responseSchema, _opts);
     })();
