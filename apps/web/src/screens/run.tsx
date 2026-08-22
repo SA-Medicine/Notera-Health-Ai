@@ -22,7 +22,7 @@ export function Run({ onStatus }: { onStatus: (s: string) => void }) {
   const [to, setTo] = React.useState(10)
   const [picked, setPicked] = React.useState<Set<string>>(new Set())
   const [q, setQ] = React.useState('')
-  const [runId, setRunId] = React.useState<string | null>(null)
+  const [runId, setRunId] = React.useState<string | null>(() => (typeof window !== 'undefined' ? localStorage.getItem('notera_run') : null))
   const [history, setHistory] = React.useState<RunRec[]>([])
   const [filter, setFilter] = React.useState('')
   const { lines, status, setStatus } = useRunStream(runId)
@@ -56,6 +56,20 @@ export function Run({ onStatus }: { onStatus: (s: string) => void }) {
   React.useEffect(() => { api.runPatients().then((d) => { setPts(d.patients || []); setOnDiskCount(d.onDiskCount || 0) }).catch(() => {}); loadHist() }, [loadHist])
   React.useEffect(() => { onStatus(status); if (status !== 'running' && runId) { loadHist(); if (status === 'passed') { toast.success('Run passed'); autoCompareLatest() } else if (status === 'failed' || status === 'error') toast.error('Run ' + status) } }, [status])
   React.useEffect(() => { const el = paneRef.current; if (el) el.scrollTop = el.scrollHeight }, [lines])
+  // Live progress: poll the run registry while a scan is running so a 150-patient run shows done/total.
+  const [curProg, setCurProg] = React.useState<{ done: number; total: number; current: string | null; phase: string } | null>(null)
+  React.useEffect(() => {
+    if (status !== 'running') { setCurProg(null); return }
+    let stopped = false
+    const tick = async () => { try { const rs = await api.runs(); const r = rs.find((x) => x.id === runId); if (!stopped) setCurProg((r?.progress as any) || null) } catch {} }
+    tick(); const iv = setInterval(tick, 3000); return () => { stopped = true; clearInterval(iv) }
+  }, [status, runId])
+  const resume = async (id: string) => { try { const r = await api.resumeRun(id); if (r.ok && r.runId) { setRunId(r.runId); setStatus('running'); onStatus('running'); loadHist(); toast.success('Resumed remaining fixtures') } else toast.error(r.error || 'Cannot resume') } catch { toast.error('Resume failed') } }
+  const retry = async (id: string) => { try { const r = await api.retryRun(id); if (r.ok && r.runId) { setRunId(r.runId); setStatus('running'); onStatus('running'); loadHist(); toast.success('Re-running (fresh)') } else toast.error(r.error || 'Cannot retry') } catch { toast.error('Retry failed') } }
+  // Persist the active run across page refresh, and auto-reconnect to whatever is still running.
+  React.useEffect(() => { if (runId) localStorage.setItem('notera_run', runId); else localStorage.removeItem('notera_run') }, [runId])
+  React.useEffect(() => { if (runId) return; api.runs().then((rs) => { const r = rs.find((x) => x.status === 'running'); if (r) { setRunId(r.id); setStatus('running') } }).catch(() => {}) }, [])
+  React.useEffect(() => { if (status !== 'running' && status !== 'idle' && runId) localStorage.removeItem('notera_run') }, [status, runId])
 
   const chosen = () => (mode === 'all' ? [] : mode === 'range' ? rangeSel : [...picked])
   const willRun = mode === 'all' ? onDiskCount : mode === 'range' ? rangeSel.length : picked.size
@@ -91,7 +105,9 @@ export function Run({ onStatus }: { onStatus: (s: string) => void }) {
         {status !== 'running'
           ? <Button onClick={start} disabled={willRun === 0 || tooMany}><Play className="w-4 h-4" /> Run {willRun > 0 ? `(${willRun})` : ''}</Button>
           : <Button variant="destructive" onClick={stop}><Square className="w-4 h-4" /> Stop</Button>}
-        <StatusPill status={status} /><div className="flex-1" />
+        <StatusPill status={status} />
+        {curProg && curProg.total ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-40 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary transition-[width]" style={{ width: `${(curProg.done / curProg.total) * 100}%` }} /></div><span className="tabular-nums">{curProg.done}/{curProg.total}{curProg.current ? ` · ${curProg.current}` : ''}</span></div> : null}
+        <div className="flex-1" />
         <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter logs…" className="w-48" />
         <Button variant="outline" size="sm" onClick={download}><Download className="w-3.5 h-3.5" /> Log</Button>
       </div>
@@ -158,7 +174,12 @@ export function Run({ onStatus }: { onStatus: (s: string) => void }) {
       <div>
         <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recent runs</div>
         <div className="flex gap-2 flex-wrap">
-          {history.slice(0, 8).map((h) => <button key={h.id} onClick={() => setRunId(h.id)} className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition', runId === h.id ? 'border-primary/50 bg-raised' : 'border-border bg-surface hover:bg-accent')}><StatusPill status={h.status} /><span className="font-mono text-muted-foreground">{(h.command || '').replace('node eval/run_eval.mjs', 'eval').trim() || 'eval'}</span></button>)}
+          {history.slice(0, 8).map((h) => <div key={h.id} className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition', runId === h.id ? 'border-primary/50 bg-raised' : 'border-border bg-surface hover:bg-accent')}>
+            <button onClick={() => setRunId(h.id)} className="flex items-center gap-2"><StatusPill status={h.status} /><span className="font-mono text-muted-foreground">{(h.command || '').replace('node eval/run_eval.mjs', 'eval').replace(/--resume \S+/, '↻').trim() || 'eval'}</span></button>
+            {h.progress && h.progress.total ? <span className="text-muted-foreground tabular-nums">{h.progress.done}/{h.progress.total}</span> : null}
+            {h.status === 'interrupted' && <button onClick={() => resume(h.id)} title="Continue the remaining fixtures" className="text-primary hover:underline">Resume</button>}
+            {h.status !== 'running' && <button onClick={() => retry(h.id)} title="Re-run these fixtures from scratch" className="text-muted-foreground hover:text-foreground hover:underline">Retry</button>}
+          </div>)}
           {history.length === 0 && <span className="text-muted-foreground text-sm">No runs yet.</span>}
         </div>
       </div>

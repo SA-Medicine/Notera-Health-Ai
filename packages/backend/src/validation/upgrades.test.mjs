@@ -1,5 +1,5 @@
 // Unit tests for the deterministic upgrade guardrails. Run: node packages/backend/src/validation/upgrades.test.mjs
-import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition, stripMedicationsFromObjective } from './upgrades.js';
+import { routeMedicationToPlan, validateTemporalStatus, flagSuspiciousValues, isBlankEncounter, applyUpgradeGuardrails, verifyPharmacyBinding, flagNonPatientContext, adminRefillFailsafe, looksLikeBenchmarkingPrompt, flagUngroundedNumbers, multiSystemFallback, enforceDateGrounding, groundNamedReferences, stripRepetition, stripMedicationsFromObjective, flagConsentAndStatus, flagLabAnalyteBinding, flagDateAsValue, flagLateralityInversion } from './upgrades.js';
 import { reconcileMedications, normalizeMedications, _clearCache } from '../services/rxnorm.js';
 import { noteToMarkdown } from '../orchestrator/renderMarkdown.js';
 
@@ -359,6 +359,60 @@ console.log('A2 · stripMedicationsFromObjective');
   const note = { subjective: {}, objective: { examination: 'Gait normal.', completed_investigations: 'TSH normal.' }, assessment_and_plan: [], metadata: { medications_mentioned: [], flags: [] } };
   const r = stripMedicationsFromObjective(note, [], () => {});
   ok('no-op when there are no known medications', r.moved === 0 && /Gait normal/.test(note.objective.examination));
+}
+
+console.log('D3 · flagConsentAndStatus (declined / completed-as-plan)');
+{
+  const note = { subjective: {}, objective: {}, assessment_and_plan: [
+    { issue: 'Diabetes', treatment_planned: 'Start Jardiance 10 mg daily.', referrals: '' },
+    { issue: 'Contraception', treatment_planned: 'Will fax birth control renewal to pharmacy.', referrals: '' },
+  ], metadata: { flags: [] } };
+  const transcript = 'patient declined jardiance, does not want it. the birth control renewal was already faxed earlier today.';
+  const r = flagConsentAndStatus(note, transcript, () => {});
+  ok('flags a declined intervention written as an active plan', r.flags.some((f) => f.type === 'declined_intervention_planned'));
+  ok('flags an already-completed action written as a future plan', r.flags.some((f) => f.type === 'completed_action_planned'));
+  ok('declined flag is critical severity', r.flags.find((f) => f.type === 'declined_intervention_planned')?.severity === 'critical');
+}
+{
+  // no false positive when the plan already records the decline / nothing declined
+  const note = { subjective: {}, objective: {}, assessment_and_plan: [{ issue: 'DM', treatment_planned: 'Patient declined Jardiance; continue metformin.', referrals: '' }], metadata: { flags: [] } };
+  const r = flagConsentAndStatus(note, 'patient declined jardiance', () => {});
+  ok('no flag when the note already records it as declined', !r.flags.some((f) => f.type === 'declined_intervention_planned'));
+}
+
+console.log('D4 · flagLabAnalyteBinding');
+{
+  const note = { objective: { completed_investigations: 'TSH 5.2 (elevated)\nLDL 3.1' }, assessment_and_plan: [], metadata: {} };
+  const r = flagLabAnalyteBinding(note, 'cholesterol came back at 5.2, and the tsh was normal. ldl was 3.1.', () => {});
+  ok('flags a value bound to the wrong analyte (5.2 → TSH but transcript says cholesterol)', r.flags.some((f) => f.type === 'lab_value_misbound' && /5\.2/.test(f.message)));
+  ok('does NOT flag a correctly-bound value (LDL 3.1)', !r.flags.some((f) => /3\.1/.test(f.message)));
+}
+{
+  const note = { objective: { completed_investigations: 'TSH 2.6 (normal)' }, assessment_and_plan: [], metadata: {} };
+  const r = flagLabAnalyteBinding(note, 'her tsh was 2.6', () => {});
+  ok('no flag when analyte↔value binding matches the transcript', r.flags.length === 0);
+}
+
+console.log('D5 · flagDateAsValue (synthetic date replacing a value)');
+{
+  const note = { objective: { completed_investigations: 'eGFR 2006-08-20\nHaemoglobin 130 (normal)' }, assessment_and_plan: [{ issue: 'TB', treatment_planned: 'Return to read PPD on 2024-06-03.' }], metadata: {} };
+  const r = flagDateAsValue(note, () => {});
+  ok('flags an eGFR value that became a date', r.flags.some((f) => f.type === 'date_as_value' && /egfr/i.test(f.message)));
+  ok('strips the corrupt date and marks value unavailable', /eGFR \[value unavailable\]/.test(note.objective.completed_investigations));
+  ok('keeps a real numeric lab result', /Haemoglobin 130/.test(note.objective.completed_investigations));
+  ok('does NOT touch a legitimate return date', /Return to read PPD on 2024-06-03/.test(note.assessment_and_plan[0].treatment_planned) && !r.flags.some((f) => /PPD/.test(f.message)));
+}
+
+console.log('D6 · flagLateralityInversion');
+{
+  const note = { objective: { examination: 'Left index finger tender, unable to make a fist.' }, subjective: {}, assessment_and_plan: [], metadata: {} };
+  const r = flagLateralityInversion(note, 'patient injured the right index finger yesterday', () => {});
+  ok('flags a left/right inversion vs the transcript', r.flags.some((f) => f.type === 'laterality_inversion' && /index finger/.test(f.message)));
+}
+{
+  const note = { objective: { examination: 'Right knee swollen.' }, subjective: {}, assessment_and_plan: [], metadata: {} };
+  const r = flagLateralityInversion(note, 'the right knee has been painful and swollen', () => {});
+  ok('no flag when laterality matches the transcript', r.flags.length === 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

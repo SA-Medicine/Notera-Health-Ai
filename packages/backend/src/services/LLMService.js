@@ -8,8 +8,8 @@
 const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export const MODEL_TIERS = {
-  pro:   process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_PRO || 'gemini-3.5-flash',
-  flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.5-flash',
+  pro:   process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_PRO || 'gemini-3.7-flash',
+  flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.7-flash',
 };
 
 export class LLMService {

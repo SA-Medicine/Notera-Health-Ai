@@ -19,7 +19,7 @@ export const jpost = <T = any>(u: string, b?: any) => jsend<T>(u, 'POST', b)
 export const jput = <T = any>(u: string, b?: any) => jsend<T>(u, 'PUT', b)
 
 // ── types ─────────────────────────────────────────────────────
-export interface RunRec { id: string; command: string; status: string; startedAt: string; finishedAt: string | null; resultDir: string | null }
+export interface RunRec { id: string; command: string; status: string; startedAt: string; finishedAt: string | null; resultDir: string | null; progress?: { done: number; total: number; current: string | null; phase: string } | null }
 export interface ResultRun { dir: string; id: string; summary: Record<string, number> | null }
 export interface FixtureRow { file: string; fixture: string; passed: boolean | null; score: any }
 export interface PromptMeta { id: string; agent: string; file: string; label: string; stage: string; description: string; kind: string; vars: string[]; active: boolean; order: number | null; freeform: boolean; maxOutputTokens: number | null; publishedVersion: number | null; hasDraft: boolean; updatedAt: string }
@@ -78,6 +78,8 @@ export const api = {
   runs: () => jget<RunRec[]>('/backend/api/runs'),
   startRun: (fixtures: string[]) => jpost<{ runId: string }>('/backend/api/runs', { fixtures }),
   killRun: (id: string) => jpost(`/backend/api/runs/${id}/kill`),
+  resumeRun: (id: string) => jpost<{ ok: boolean; runId?: string; error?: string }>(`/backend/api/runs/${id}/resume`, {}),
+  retryRun: (id: string) => jpost<{ ok: boolean; runId?: string; error?: string }>(`/backend/api/runs/${id}/retry`, {}),
   resultRuns: () => jget<ResultRun[]>('/backend/api/results/runs'),
   files: (dir: string) => jget<FixtureRow[]>(`/backend/api/results/${dir}/files`),
   file: (dir: string, name: string) => jget<{ content: string }>(`/backend/api/results/file?dir=${dir}&name=${encodeURIComponent(name)}`),
@@ -122,6 +124,7 @@ export const api = {
   compare: (a: string, b: string) => jget<any>(`/backend/api/metrics/compare?a=${a}&b=${b}`),
   metricsRegistry: () => jget<MetricRegistry>('/backend/api/metrics/registry'),
   runIndex: () => jget<RunIndexEntry[]>('/backend/api/metrics/run-index'),
+  failureTrend: () => jget<{ themes: { theme: string; total: number; runs: number }[]; byRun: { dir: string; avg: number | null; themes: { theme: string; count: number }[] }[] }>('/backend/api/metrics/failure-trend'),
   runSummaryGet: (dir: string) => jget<RunSummary>(`/backend/api/metrics/run-summary?dir=${dir}`),
   runSummaryRun: (dir: string) => jpost<RunSummary>('/backend/api/metrics/run-summary', { dir }),
   compareRuns: (baseDir: string, runDirs: string[], opts?: { focusKey?: string; system?: string | null }) =>
@@ -146,31 +149,28 @@ export function useRunStream(runId: string | null) {
   useEffect(() => {
     if (!runId) return
     setLines([]); setStatus('running')
-    let sseAlive = false, stopped = false
+    let stopped = false
 
     const es = new EventSource('/backend/api/runs/' + runId + '/stream'); esRef.current = es
     es.onmessage = (e) => {
-      sseAlive = true
       const d = JSON.parse(e.data)
       if (d.type === 'line') setLines((L) => [...L, { stream: d.stream, line: stripAnsi(d.line) }])
       else if (d.type === 'status') { setStatus(d.status); if (d.status !== 'running') { stopped = true; es.close() } }
     }
     es.onerror = () => es.close()
 
-    // Fallback: if a dev proxy buffers SSE, nothing would appear until the run ends.
-    // The run record carries the full captured line buffer, so poll it until the SSE
-    // proves alive (or for the whole run if it never does). Logs are always live.
+    // Always poll the run record too. Two cases it covers: (1) a dev proxy buffers SSE; (2)
+    // after a backend restart the SSE pipe to the detached run is SEVERED, but the run keeps
+    // writing its _pipeline.log which the record serves as a tail. Adopt the record's lines
+    // whenever it has MORE than we've shown, so normal live SSE is never clobbered.
     const poll = setInterval(async () => {
-      if (sseAlive || stopped) return
+      if (stopped) return
       try {
         const r: any = await jget('/backend/api/runs/' + runId)
-        if (Array.isArray(r?.lines)) setLines(r.lines.map((l: any) => ({ stream: l.stream, line: stripAnsi(l.line) })))
-        if (r?.status) {
-          setStatus(r.status)
-          if (r.status !== 'running') { stopped = true; clearInterval(poll); es.close() }
-        }
+        if (Array.isArray(r?.lines)) setLines((cur) => (r.lines.length > cur.length ? r.lines.map((l: any) => ({ stream: l.stream, line: stripAnsi(l.line) })) : cur))
+        if (r?.status) { setStatus(r.status); if (r.status !== 'running') { stopped = true; clearInterval(poll); es.close() } }
       } catch { /* keep trying */ }
-    }, 1000)
+    }, 2500)
 
     return () => { clearInterval(poll); es.close() }
   }, [runId])
