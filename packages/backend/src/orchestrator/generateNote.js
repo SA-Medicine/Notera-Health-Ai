@@ -219,19 +219,14 @@ export async function generateNote(input, opts = {}) {
   // dates, doses, lab values, meds, findings, negations). Remove-only, grounded; records the
   // exact removals in metadata + [hallucination-remover] logs. Gated + timeboxed so it can
   // never block or wipe a note. Reuses the Second-Opinion engine.
-  if (process.env.HALLUCINATION_REMOVER !== '0') {
+  if (process.env.HALLUCINATION_REMOVER !== '0' && llm) {
     try {
-      const { deepseekEnabled } = await import('../services/deepseek.js');
-      if (deepseekEnabled()) {
-        const { removeHallucinations } = await import('./hallucinationRemover.js');
-        const budget = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 150000;
-        await Promise.race([
-          removeHallucinations(note, { transcript, log: (l) => console.log(l) }),
-          new Promise((resolve) => setTimeout(() => { console.warn(`[hallucination-remover] skipped — exceeded ${budget}ms (DeepSeek slow/unreachable)`); resolve(null); }, budget)),
-        ]);
-      } else {
-        console.log('[hallucination-remover] OFF — set DEEPSEEK_API_KEY to enable the final hallucination-removal pass');
-      }
+      const { removeHallucinations } = await import('./hallucinationRemover.js');
+      const budget = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 150000;
+      await Promise.race([
+        removeHallucinations(note, { transcript, llm, log: (l) => console.log(l) }),   // main-pipeline LLM (Gemini)
+        new Promise((resolve) => setTimeout(() => { console.warn(`[hallucination-remover] skipped — exceeded ${budget}ms (LLM slow)`); resolve(null); }, budget)),
+      ]);
     } catch (e) { console.warn('[hallucination-remover] skipped:', e.message); }
   }
 

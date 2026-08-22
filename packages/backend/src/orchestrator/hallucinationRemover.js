@@ -15,8 +15,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
-import { deepseekJson } from '../services/deepseek.js';
 import { loadPrompt } from '../../prompts/registry.js';
+
+// robust JSON extraction from an LLM text response (strip fences, slice to the object)
+function parseJson(raw) {
+  const s = String(raw || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(s); } catch { /* repair */ }
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch { /* noop */ } }
+  return null;
+}
 
 // The advanced default prompt (used if the registry has no published version yet).
 export const FALLBACK_PROMPT = `You are the HALLUCINATION REMOVER — the final, uncompromising fact-checker in a clinical documentation pipeline. You receive the raw consultation TRANSCRIPT (the ONLY source of truth) and the generated SOAP NOTE (as JSON).
@@ -111,10 +119,11 @@ function applyRemovals(note, removals, log) {
  * Remove hallucinations from `note` in place, grounded in `transcript`.
  * Returns { ok, removed:[...], deleted:n }. Never throws.
  */
-export async function removeHallucinations(note, { transcript = '', promptContext = '', log = () => {}, fetchImpl } = {}) {
+export async function removeHallucinations(note, { transcript = '', promptContext = '', llm = null, log = () => {} } = {}) {
   // Emit the standard agent tag FIRST so Prompts→Logs captures this agent's block.
   log('[PromptAgent] hallucination-remover — final grounded hallucination-removal pass');
   if (!note || !transcript.trim()) { log('[hallucination-remover] skipped — no transcript'); return { ok: false, removed: [] }; }
+  if (!llm) { log('[hallucination-remover] skipped — no LLM service'); return { ok: false, removed: [] }; }
   const system = loadPrompt('hallucination-remover', FALLBACK_PROMPT);
   const inputNote = {
     subjective: note.subjective, past_medical_history: note.past_medical_history,
@@ -123,20 +132,18 @@ export async function removeHallucinations(note, { transcript = '', promptContex
   const clip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n) + '\n…[truncated]…' : s; };
   const user = `=== TRANSCRIPT (sole source of truth) ===\n${clip(transcript, 14000)}\n\n=== SOAP NOTE (JSON — report only CLEARLY fabricated spans to delete) ===\n${clip(JSON.stringify(inputNote), 12000)}\n\n${promptContext ? `=== GENERATION PROMPT (context only) ===\n${clip(promptContext, 2500)}\n\n` : ''}List ONLY spans you are CONFIDENT are fabricated. Return ONLY the JSON object.`;
   const maxTokens = Number(process.env.HALLUCINATION_MAX_TOKENS || 2048);
-  // Small output (a list, not the whole note) → fast on non-thinking flash. Retry once on a
-  // parse failure (the model occasionally emits stray text around the JSON).
-  let r = await deepseekJson({ system, user, maxTokens, temperature: 0 }, { fetchImpl });
-  if (!r.ok && /parse|non-json/i.test(String(r.error))) {
-    log('[hallucination-remover] retrying once — ' + r.error);
-    r = await deepseekJson({ system: system + '\n\nIMPORTANT: return ONLY the raw JSON object, nothing else.', user, maxTokens, temperature: 0 }, { fetchImpl });
-  }
-  if (!r.ok) { log('[hallucination-remover] skipped — ' + r.error + (r.hint ? ' (' + r.hint + ')' : '')); return { ok: false, removed: [] }; }
-  const removals = Array.isArray(r.data?.removed) ? r.data.removed.filter((x) => x && x.text) : [];
+  // Runs on the MAIN-PIPELINE LLM (Gemini). Small output (a list, not the whole note) → fast.
+  // Retry once on a parse failure (the model occasionally wraps the JSON in stray text).
+  const call = async (sys) => { try { return parseJson(await llm.generateContent(sys, user, null, { maxOutputTokens: maxTokens })); } catch (e) { log('[hallucination-remover] LLM error — ' + e.message); return null; } };
+  let data = await call(system);
+  if (!data) { log('[hallucination-remover] retrying once (parse/LLM)'); data = await call(system + '\n\nIMPORTANT: return ONLY the raw JSON object, nothing else.'); }
+  if (!data) { log('[hallucination-remover] skipped — no valid JSON from the LLM'); return { ok: false, removed: [] }; }
+  const removals = Array.isArray(data.removed) ? data.removed.filter((x) => x && x.text) : [];
   const { total, applied, skipped } = applyRemovals(note, removals, log);
   note.metadata = note.metadata || {};
   note.metadata.hallucinations_removed = applied;
   if (applied.length) {
-    log(`[hallucination-remover] deleted ${applied.length} hallucination(s) (${total} edit(s)${skipped ? `, ${skipped} kept as grounded` : ''}) · model=${r.model || 'deepseek'}`);
+    log(`[hallucination-remover] deleted ${applied.length} hallucination(s) (${total} edit(s)${skipped ? `, ${skipped} kept as grounded` : ''}) · model=${llm.model || 'gemini'}`);
     for (const h of applied.slice(0, 40)) log(`[hallucination-remover]   ✂ ${h.field ? '[' + h.field + '] ' : ''}"${String(h.text || '').slice(0, 140)}"${h.reason ? ' — ' + h.reason : ''}`);
   } else log(`[hallucination-remover] no hallucinations deleted${skipped ? ` (${skipped} candidate(s) kept as grounded)` : ' — note is fully grounded'}`);
   return { ok: true, removed: applied, deleted: total };

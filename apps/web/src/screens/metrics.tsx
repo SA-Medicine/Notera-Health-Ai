@@ -357,6 +357,9 @@ const TREND_FAMILIES: { family: string; series: { key: string; label: string; co
 
 function TrendPanel({ hist }: { hist: any[] }) {
   const [n, setN] = React.useState(20)
+  const [fail, setFail] = React.useState<{ themes: { theme: string; total: number; runs: number }[] } | null>(null)
+  React.useEffect(() => { api.failureTrend().then(setFail).catch(() => {}) }, [])
+  const maxFail = Math.max(1, ...(fail?.themes || []).map((t) => t.total))
   if (!hist.length) return <EmptyState icon="📈" title="No trend history yet" hint="Each completed run appends a point." />
   const data = hist.slice(-n).map((h) => ({ ...h, name: shortId(String(h.runId || '')).slice(-8) }))
   return (
@@ -383,6 +386,11 @@ function TrendPanel({ hist }: { hist: any[] }) {
           </div>
         ))}
       </div>
+      {!!(fail?.themes || []).length && <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Failure modes across recent runs <span className="font-normal">(from run reports)</span></div>
+        <div className="space-y-1.5">{(fail?.themes || []).map((t) => <div key={t.theme} className="grid grid-cols-[1fr_9rem] items-center gap-3 text-sm"><span className="text-foreground/85 truncate">{t.theme}</span><div className="flex items-center gap-2"><div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-destructive/70" style={{ width: `${(t.total / maxFail) * 100}%` }} /></div><span className="w-14 text-right text-[11px] text-muted-foreground tabular-nums">{t.total}× · {t.runs}r</span></div></div>)}</div>
+        <p className="text-[10px] text-muted-foreground mt-2">Total occurrences × across the runs that have a run report. Generate run reports (Run report tab) to populate this.</p>
+      </div>}
     </div>
   )
 }

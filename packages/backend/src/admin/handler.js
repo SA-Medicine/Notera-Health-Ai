@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeSession } from './session.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../../..');
@@ -48,14 +49,26 @@ fs.mkdirSync(LOGDIR, { recursive: true });
 fs.mkdirSync(SESSIONS, { recursive: true });
 
 // ── tiny state ───────────────────────────────────────────────────────────────
-const sessions = new Set();
+const session = makeSession(DATA);   // stateless signed-cookie auth (survives restarts)
 const runs = new Map();
 loadRuns();
 
 function loadRuns() {
   try {
     const arr = JSON.parse(fs.readFileSync(RUNS_DB, 'utf8'));
-    for (const r of arr) runs.set(r.id, { ...r, status: r.status === 'running' ? 'interrupted' : r.status, lines: [], listeners: new Set(), proc: null });
+    for (const r of arr) {
+      let status = r.status;
+      if (status === 'running') {
+        // The scan is detached, so after a backend restart it may STILL be running. Only
+        // mark it interrupted if its process is gone AND it didn't finish on disk.
+        const alive = r.pid && (() => { try { process.kill(r.pid, 0); return true; } catch { return false; } })();
+        if (!alive) {
+          let phase = null; try { phase = JSON.parse(fs.readFileSync(path.join(RESULTS, r.resultDir || '', '_progress.json'), 'utf8')).phase; } catch {}
+          status = phase === 'done' ? 'passed' : 'interrupted';
+        }
+      }
+      runs.set(r.id, { ...r, status, lines: [], listeners: new Set(), proc: null });
+    }
   } catch { /* fresh */ }
 }
 function persistRuns() {
@@ -68,7 +81,7 @@ const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'appli
 const safeName = (s) => String(s || '').replace(/[^A-Za-z0-9_.\- ]/g, '');
 const safeRunDir = (s) => { const n = safeName(s); return /^run_/.test(n) ? n : null; };
 function parseCookies(req) { const out = {}; (req.headers.cookie || '').split(';').forEach((c) => { const i = c.indexOf('='); if (i > 0) out[c.slice(0, i).trim()] = c.slice(i + 1).trim(); }); return out; }
-function authed(req) { return sessions.has(parseCookies(req).notera_admin); }
+function authed(req) { return !!session.verify(parseCookies(req)[session.COOKIE]); }
 // Body reader. Buffers chunks (not string concat) and, when the limit is hit, answers
 // with a real 413 instead of destroying the socket — a silent destroy surfaces to the
 // caller/proxy as an opaque `write ECONNRESET`.
@@ -107,15 +120,22 @@ async function getLab() {
 const labHint = 'Testing Lab DB not reachable. Start Postgres (npm run db:up), run npm run db:reset, and set DATABASE_URL in .env.';
 
 // ── run spawning ────────────────────────────────────────────────────────────
-function startRun(fixtures = []) {
+function startRun(fixtures = [], { resumeDir = null } = {}) {
   const id = new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(2).toString('hex');
-  const args = [(process.env.ADMIN_EVAL_ENTRY||'eval/run_eval.mjs'), ...fixtures.filter(Boolean).map(safeName)];
+  const clean = fixtures.filter(Boolean).map(safeName);
+  const entry = process.env.ADMIN_EVAL_ENTRY || 'eval/run_eval.mjs';
+  const args = [entry, ...(resumeDir ? ['--resume', resumeDir] : []), ...clean];
   const command = 'node ' + args.join(' ');
-  const rec = { id, command, status: 'running', startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, resultDir: null, lines: [], listeners: new Set(), proc: null };
+  const rec = { id, command, fixtures: clean, status: 'running', startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, resultDir: resumeDir || null, lines: [], listeners: new Set(), proc: null };
   runs.set(id, rec);
   const logStream = fs.createWriteStream(path.join(LOGDIR, id + '.log'), { flags: 'a' });
-  const proc = spawn('node', args, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: '1' } });
-  rec.proc = proc;
+  // detached + unref: the scan runs in its OWN process group, so a backend `--watch`
+  // reload / crash / deploy does NOT kill a long (150+ patient) run midway. We still pipe
+  // stdout for live streaming while the backend is up; the run also writes its own logs +
+  // incremental _summary.json / _progress.json, so nothing is lost if the pipe closes.
+  const proc = spawn('node', args, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: '1' }, detached: true });
+  rec.proc = proc; rec.pid = proc.pid;
+  try { proc.unref(); } catch {}
   const push = (chunk, stream) => {
     const text = chunk.toString();
     logStream.write(text);
@@ -139,6 +159,29 @@ function startRun(fixtures = []) {
   proc.on('error', (e) => { rec.status = 'error'; rec.finishedAt = new Date().toISOString(); rec.proc = null; for (const l of rec.listeners) l({ type: 'status', status: 'error', message: e.message }); persistRuns(); });
   persistRuns();
   return id;
+}
+
+// ── run status reconciliation + log-tail (survives a backend restart) ─────────
+const _procAlive = (pid) => { if (!pid) return false; try { process.kill(pid, 0); return true; } catch { return false; } };
+const _progressOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(RESULTS, dir || '', '_progress.json'), 'utf8')); } catch { return null; } };
+// A run whose process is gone, whose progress file finished, or which hasn't advanced in a
+// long time is NOT really "running" — flip it so the UI stops showing an eternal spinner and
+// the run becomes resumable. STALE window is well above the per-fixture timeout.
+function reconcileRunStatus(rec) {
+  if (!rec || rec.status !== 'running') return rec;
+  const pg = _progressOf(rec.resultDir);
+  if (pg && pg.phase === 'done') { rec.status = 'passed'; rec.finishedAt = rec.finishedAt || new Date().toISOString(); persistRuns(); return rec; }
+  const alive = _procAlive(rec.pid);
+  const updatedAt = pg && pg.updatedAt ? Date.parse(pg.updatedAt) : null;
+  const STALE = Number(process.env.RUN_STALE_MS) || 900000;   // 15 min (> 5 min fixture timeout + slack)
+  const stale = updatedAt ? (Date.now() - updatedAt > STALE) : !alive;
+  if (!alive || stale) { rec.status = 'interrupted'; rec.finishedAt = rec.finishedAt || new Date().toISOString(); persistRuns(); }
+  return rec;
+}
+// When the in-memory line buffer is empty (backend restarted while a detached run keeps
+// going), fall back to the run's own _pipeline.log so the UI still shows live output.
+function tailPipelineLog(dir, maxLines = 800) {
+  try { return fs.readFileSync(path.join(RESULTS, dir, '_pipeline.log'), 'utf8').split(/\r?\n/).filter(Boolean).slice(-maxLines).map((line) => ({ stream: 'out', line })); } catch { return []; }
 }
 
 // ── results / metrics readers ─────────────────────────────────────────────────
@@ -734,11 +777,18 @@ export async function adminHandler(req, res, next) {
 
   if (p === '/api/login' && req.method === 'POST') {
     const { password } = await readBody(req);
-    if (password === PASSWORD) { const tok = crypto.randomBytes(24).toString('hex'); sessions.add(tok); res.writeHead(200, { 'Set-Cookie': `notera_admin=${tok}; Path=/; HttpOnly; SameSite=Lax`, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true })); }
+    if (password === PASSWORD) { res.writeHead(200, { 'Set-Cookie': session.cookie(session.issue()), 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true })); }
     return json(res, 401, { error: 'wrong password' });
   }
-  if (p === '/api/session') return json(res, 200, { authed: authed(req) });
-  if (p === '/api/logout' && req.method === 'POST') { sessions.delete(parseCookies(req).notera_admin); return json(res, 200, { ok: true }); }
+  if (p === '/api/session') {
+    const payload = session.verify(parseCookies(req)[session.COOKIE]);
+    // sliding expiry: silently re-issue the cookie once it passes the halfway mark so an
+    // actively-used session never lapses (industry "keep me signed in" behaviour).
+    const headers = { 'Content-Type': 'application/json' };
+    if (payload && session.needsRefresh(payload)) headers['Set-Cookie'] = session.cookie(session.issue());
+    res.writeHead(200, headers); return res.end(JSON.stringify({ authed: !!payload }));
+  }
+  if (p === '/api/logout' && req.method === 'POST') { res.writeHead(200, { 'Set-Cookie': session.clearCookie(), 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true })); }
 
   if (p.startsWith('/api/') && !authed(req)) return json(res, 401, { error: 'unauthorized' });
 
@@ -777,10 +827,19 @@ export async function adminHandler(req, res, next) {
     return json(res, 200, { patients, total: patients.length, onDiskCount: onDisk.size, source: 'fixtures' });
   }
   if (p === '/api/runs' && req.method === 'GET') {
-    return json(res, 200, [...runs.values()].map(({ proc, listeners, lines, ...r }) => ({ ...r, liveLines: (runs.get(r.id)?.lines || []).length })).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 50));
+    for (const r of runs.values()) reconcileRunStatus(r);   // flip eternal-spinner / finished runs
+    const progressOf = (dir) => { try { const p = JSON.parse(fs.readFileSync(path.join(RESULTS, dir, '_progress.json'), 'utf8')); return { done: p.done, total: p.total, current: p.current, phase: p.phase }; } catch { return null; } };
+    return json(res, 200, [...runs.values()].map(({ proc, listeners, lines, ...r }) => ({ ...r, liveLines: (runs.get(r.id)?.lines || []).length, progress: r.resultDir ? progressOf(r.resultDir) : null })).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || '')).slice(0, 50));
   }
   let m;
-  if ((m = p.match(/^\/api\/runs\/([^/]+)\/kill$/)) && req.method === 'POST') { const r = runs.get(m[1]); if (r?.proc) { r.proc.kill('SIGTERM'); r.status = 'killed'; } return json(res, 200, { ok: true }); }
+  if ((m = p.match(/^\/api\/runs\/([^/]+)\/kill$/)) && req.method === 'POST') { const r = runs.get(m[1]); if (r?.proc) { try { process.kill(-r.proc.pid, 'SIGTERM'); } catch { r.proc.kill('SIGTERM'); } r.status = 'killed'; } return json(res, 200, { ok: true }); }
+  // Resume an interrupted scan: continue in its own result dir, skipping finished fixtures.
+  if ((m = p.match(/^\/api\/runs\/([^/]+)\/resume$/)) && req.method === 'POST') {
+    const r = runs.get(m[1]); if (!r || !r.resultDir) return json(res, 400, { error: 'run has no result dir to resume' });
+    if (r.status === 'running') return json(res, 400, { error: 'run is still running' });
+    const newId = startRun(r.fixtures || [], { resumeDir: r.resultDir });
+    return json(res, 200, { ok: true, runId: newId, resumeDir: r.resultDir });
+  }
   if ((m = p.match(/^\/api\/runs\/([^/]+)\/stream$/))) {
     const r = runs.get(m[1]); if (!r) return json(res, 404, { error: 'no run' });
     // Anti-buffering headers: dev proxies (Next rewrites, nginx) otherwise hold the
@@ -805,7 +864,21 @@ export async function adminHandler(req, res, next) {
     res.on('close', cleanup);
     return;
   }
-  if ((m = p.match(/^\/api\/runs\/([^/]+)$/)) && req.method === 'GET') { const r = runs.get(m[1]); if (!r) return json(res, 404, {}); const { proc, listeners, ...rest } = r; return json(res, 200, rest); }
+  if ((m = p.match(/^\/api\/runs\/([^/]+)$/)) && req.method === 'GET') {
+    const r = runs.get(m[1]); if (!r) return json(res, 404, {});
+    reconcileRunStatus(r);
+    const { proc, listeners, lines, ...rest } = r;
+    // after a backend restart the in-memory buffer is empty → serve the run's own log tail
+    const outLines = (lines && lines.length) ? lines : (r.resultDir ? tailPipelineLog(r.resultDir) : []);
+    return json(res, 200, { ...rest, lines: outLines, progress: r.resultDir ? _progressOf(r.resultDir) : null });
+  }
+  // Retry a finished/interrupted run FRESH (new result dir, same fixtures).
+  if ((m = p.match(/^\/api\/runs\/([^/]+)\/retry$/)) && req.method === 'POST') {
+    const r = runs.get(m[1]); if (!r) return json(res, 400, { error: 'no run' });
+    if (r.status === 'running') return json(res, 400, { error: 'run is still running' });
+    const newId = startRun(r.fixtures || []);
+    return json(res, 200, { ok: true, runId: newId });
+  }
 
   if (p === '/api/results/runs') return json(res, 200, listResultRuns());
   if ((m = p.match(/^\/api\/results\/([^/]+)\/files$/))) { const d = safeRunDir(m[1]); if (!d) return json(res, 400, {}); return json(res, 200, runFiles(d)); }
@@ -1252,7 +1325,9 @@ export async function adminHandler(req, res, next) {
     } catch { return json(res, 404, { error: 'fixture not found' }); }
     if (!generated) return json(res, 404, { error: 'no generated note in fixture' });
     const sys = `You are a clinical documentation comparator scoring two SOAP notes. Compare the NOTERA note (system under test) against the GOLD reference note.
-Score objectively, evidence-based, never rewarding fluent-but-unsupported text. Return ONLY valid JSON matching this schema — no prose, no markdown:
+Score objectively, evidence-based, never rewarding fluent-but-unsupported text.
+IMPORTANT: the GOLD note is de-identified and may contain SYNTHETIC or corrupted DATE artifacts (shifted years, placeholder dates). Do NOT penalize Notera for not matching a corrupted or implausible gold date, and do not treat a date mismatch as a factual error unless the transcript itself gives the date.
+Return ONLY valid JSON matching this schema — no prose, no markdown:
 {
   "overall_score": 0-100,
   "verdict": "notera_better | gold_better | equivalent",
@@ -1388,6 +1463,21 @@ Score objectively, evidence-based, never rewarding fluent-but-unsupported text. 
       try { fs.writeFileSync(cacheFp, JSON.stringify(out, null, 2)); } catch {}
       return json(res, 200, { ok: true, cached: true, dir: d, ...out });
     } catch (e) { return json(res, 200, { ok: false, error: e.message }); }
+  }
+
+  // ── Metrics v2 · failure-taxonomy trend (M): aggregate run-report failure themes ─
+  if (p === '/api/metrics/failure-trend') {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const totals = {}; const byRun = [];
+    for (const rr of listResultRuns().slice(0, 20)) {
+      let rep = null; try { rep = JSON.parse(fs.readFileSync(path.join(RESULTS, rr.dir, '_run_summary.json'), 'utf8')); } catch { continue; }
+      const themes = Array.isArray(rep.failure_themes) ? rep.failure_themes : [];
+      if (!themes.length) continue;
+      byRun.push({ dir: rr.dir, avg: rep.avg_overall ?? null, themes: themes.map((t) => ({ theme: t.theme, count: t.count || 0 })) });
+      for (const t of themes) { const k = norm(t.theme); if (!k) continue; (totals[k] ??= { theme: t.theme, total: 0, runs: 0 }); totals[k].total += (t.count || 0); totals[k].runs += 1; }
+    }
+    const themes = Object.values(totals).sort((a, b) => b.total - a.total).slice(0, 12);
+    return json(res, 200, { themes, byRun });
   }
 
   // ── Metrics v2 · run index (fixture sets per run, for overlap-aware selection) ─

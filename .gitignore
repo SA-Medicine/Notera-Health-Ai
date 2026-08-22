@@ -42,6 +42,7 @@ db/backups/
 # stdout logs here plus a run-history index; these should never be committed.
 admin/data/logs/
 admin/data/runs.json
+admin/data/.session_secret
 
 # Prompt exports (the "Export all" zip downloads locally) and misc temp/editor files
 notera-prompts-*.zip

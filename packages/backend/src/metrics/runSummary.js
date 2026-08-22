@@ -11,9 +11,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
-import { deepseekJson, deepseekEnabled } from '../services/deepseek.js';
+import { createGeminiService } from '../services/LLMService.js';
 
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+function parseJson(raw) {
+  const s = String(raw || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(s); } catch { /* repair */ }
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch { /* noop */ } }
+  return null;
+}
 const r2 = (v) => (v == null ? null : +v.toFixed(2));
 
 /** Deterministic aggregation over the per-fixture comparison reports. */
@@ -46,24 +53,28 @@ Return ONLY this JSON (no markdown):
   "narrative": "2-4 short paragraphs: overall quality, the main gaps vs gold, and what to fix next"
 }`;
 
-/** LLM synthesis of qualitative themes (best-effort). */
-export async function synthesize(compares, { fetchImpl } = {}) {
-  if (!deepseekEnabled()) return { ok: false };
+/** LLM synthesis of qualitative themes (best-effort) — runs on the main-pipeline LLM (Gemini). */
+export async function synthesize(compares, { llm = null } = {}) {
   const compact = compares.slice(0, 60).map((c) => ({
     fixture: c.fixture, score: c.overall_score, verdict: c.verdict,
     missing: (c.notera_missing || []).slice(0, 6), extra: (c.notera_extra || []).slice(0, 6),
     key: (c.key_differences || []).slice(0, 4), summary: String(c.summary || '').slice(0, 240),
   }));
   const user = `RUN comparison reports (${compact.length} fixtures):\n${JSON.stringify(compact)}\n\nProduce the executive run report as JSON.`;
-  const r = await deepseekJson({ system: SYS, user, maxTokens: 2600, temperature: 0.2 }, { fetchImpl });
-  if (!r.ok) return { ok: false, error: r.error, hint: r.hint };
-  return { ok: true, model: r.model, ...r.data };
+  try {
+    const svc = llm || await createGeminiService();
+    if (!svc) return { ok: false, error: 'no LLM service' };
+    const raw = await svc.generateContent(SYS, user, null, { maxOutputTokens: 2600 });
+    const data = parseJson(raw);
+    if (!data) return { ok: false, error: 'could not parse run-summary JSON' };
+    return { ok: true, model: svc.model || 'gemini', ...data };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 /** Full report: deterministic aggregates + metric summary + LLM synthesis. */
-export async function buildRunSummary(compares, metricSummary, { fetchImpl } = {}) {
+export async function buildRunSummary(compares, metricSummary, { llm } = {}) {
   const agg = aggregateCompares(compares);
-  const synth = await synthesize(compares, { fetchImpl });
+  const synth = await synthesize(compares, { llm });
   return {
     ...agg,
     metrics: metricSummary || null,

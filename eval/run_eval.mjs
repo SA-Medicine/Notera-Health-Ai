@@ -25,9 +25,9 @@ try { dns.setDefaultResultOrder('ipv4first'); } catch {}
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const GOLD_DIR = path.join(ROOT, 'data', 'gold');
-const RUN_ID = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+/, '').replace('T', '_');
+let RUN_ID = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+/, '').replace('T', '_');
 const RESULTS_ROOT = path.join(__dirname, 'results');
-const OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
+let OUT_DIR = path.join(RESULTS_ROOT, `run_${RUN_ID}`);
 
 // .env loader (no dependency)
 (function loadEnv() {
@@ -88,6 +88,18 @@ async function main() {
   const li = args.indexOf('--limit');
   if (li !== -1) { limit = Number(args[li + 1]); args.splice(li, 2); }
 
+  // --resume <run_dir>: continue an interrupted scan IN PLACE — reuse its output dir,
+  // seed the already-completed rows, and skip the fixtures it already finished.
+  let resumeRows = [];
+  const rsi = args.indexOf('--resume');
+  if (rsi !== -1) {
+    const rdir = args[rsi + 1]; args.splice(rsi, 2);
+    if (rdir && /^run_[\w-]+$/.test(rdir)) {
+      OUT_DIR = path.join(RESULTS_ROOT, rdir); RUN_ID = rdir.replace(/^run_/, '');
+      try { resumeRows = JSON.parse(fs.readFileSync(path.join(OUT_DIR, '_summary.json'), 'utf8')).rows || []; } catch {}
+    }
+  }
+
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   // Persist the full run stdout/stderr into the result dir so the admin dashboard
@@ -104,6 +116,8 @@ async function main() {
   // matches "patient10". Args are gold basenames like "Patient2", "done_Patient3".
   if (args.length) files = files.filter((f) => args.some((a) => path.basename(f, '.txt').toLowerCase() === a.toLowerCase()));
   files = files.slice(0, limit);
+  const doneCount = resumeRows.length;
+  if (doneCount) { const done = new Set(resumeRows.map((r) => String(r.id))); files = files.filter((f) => !done.has(path.basename(f, '.txt'))); console.log(`[resume] ${doneCount} already done, ${files.length} remaining in ${path.basename(OUT_DIR)}`); }
 
   if (lab) {
     try { labRun = await lab.createRun({ label: `run_${RUN_ID}`, status: 'running', pipelineVersion: process.env.PIPELINE_VERSION, model: process.env.GEMINI_MODEL }); }
@@ -112,17 +126,34 @@ async function main() {
   if (lab && labRun) console.log(`[lab] DB mirroring ON → run #${labRun.run_no} (id ${labRun.id}). Agent I/O will be captured for the System Upgrader.`);
   else console.warn(`[lab] DB mirroring OFF — STORE_BACKEND=${process.env.STORE_BACKEND || '(unset)'}, DATABASE_URL ${process.env.DATABASE_URL ? 'set' : '(unset)'}. Runs won't be usable by the System Upgrader.`);
 
-  const rows = [];
-  for (const f of files) {
+  // Never let a broken stdout pipe (e.g. the dashboard/backend restarted while this
+  // detached run keeps going) crash the scan. The run writes its own _pipeline.log too.
+  process.stdout.on('error', () => {}); process.stderr.on('error', () => {});
+
+  const rows = [...resumeRows];                 // seed prior results when resuming
+  const total = files.length + resumeRows.length;
+  const FIXTURE_TIMEOUT_MS = Number(process.env.RUN_FIXTURE_TIMEOUT_MS) || 300000;   // hard cap per patient
+  const CONCURRENCY = Math.max(1, Number(process.env.RUN_CONCURRENCY) || 1);          // 1 = sequential (default, clean logs)
+  // Persist partial results + progress after EVERY fixture so a large scan (150+) that is
+  // interrupted midway keeps everything done so far, and the UI can show live progress.
+  const flush = (current, phase = 'running') => {
+    try { fs.writeFileSync(path.join(OUT_DIR, '_summary.json'), JSON.stringify({ summary: aggregate(rows), rows }, null, 2)); } catch {}
+    try { fs.writeFileSync(path.join(OUT_DIR, '_progress.json'), JSON.stringify({ runId: RUN_ID, total, done: rows.length, current, phase, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, null, 2)); } catch {}
+  };
+  const processOne = async (f) => {
     const id = path.basename(f, '.txt');
     const raw = fs.readFileSync(path.join(GOLD_DIR, f), 'utf8');
     const { transcript, gold } = splitTranscriptAndGold(raw);
     process.stdout.write(`▶ ${id} … `);
     try {
-      const result = await generateNote(
-        { transcript, specialty: 'general_primary_care', noteType: 'consultation', clinicianId: 'eval', referenceNote: gold },
-        { persist: false, recordTrace: !!lab }
-      );
+      // Hard per-patient timeout so one stuck record can never freeze the whole scan.
+      const result = await Promise.race([
+        generateNote(
+          { transcript, specialty: 'general_primary_care', noteType: 'consultation', clinicianId: 'eval', referenceNote: gold },
+          { persist: false, recordTrace: !!lab }
+        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`fixture timeout > ${FIXTURE_TIMEOUT_MS}ms`)), FIXTURE_TIMEOUT_MS)),
+      ]);
       const noteText = noteToText(result.note);
       const score = scoreNote({ note: result.note, noteText, goldText: gold, entities: result.entities });
       score.id = id; score.status = result.status;
@@ -183,9 +214,17 @@ async function main() {
       console.log('FAILED —', e.message);
       rows.push({ id, error: e.message, schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] });
     }
-  }
+    flush(id);                            // checkpoint after every patient (success or fail)
+    console.log(`[progress] ${rows.length}/${total} done`);
+  };
+  // Worker pool. Default CONCURRENCY=1 keeps per-fixture logs clean (agent-log attribution);
+  // set RUN_CONCURRENCY>1 for faster large scans at the cost of interleaved logs.
+  let _i = 0;
+  const _worker = async () => { while (_i < files.length) { await processOne(files[_i++]); } };
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => _worker()));
 
   const summary = aggregate(rows);
+  flush(null, 'done');
   fs.writeFileSync(path.join(OUT_DIR, '_summary.json'), JSON.stringify({ summary, rows }, null, 2));
   console.log('\n=== SCORECARD ===');
   console.table([summary]);

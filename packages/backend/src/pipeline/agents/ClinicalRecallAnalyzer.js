@@ -98,8 +98,22 @@ export class ClinicalRecallAnalyzer {
     }
     const lifeSafetyCoverage = lsTokens ? Math.round((lsFound / lsTokens) * 100) : 100;
 
-    // Calculate Overall standard coverage
-    const overall = Math.round((numericCoverage + medicationCoverage + diagnosisCoverage + followupCoverage + lifeSafetyCoverage) / 5);
+    // 6. Investigation / test coverage (labs, imaging, orders) — was never scored, so gaps
+    //    in investigations/referrals never triggered recovery (only 'medication' fired).
+    const invKeywords = ["blood work", "bloodwork", "x-ray", "xray", "ct scan", "mri", "ultrasound", "biopsy", "culture", "requisition", "referral", "imaging", "ecg", "ekg", "urinalysis", "swab", "scan", "screening"];
+    const extractedInv = ([...(extractedData.investigations || []), ...(extractedData.orders || [])]).map((i) => JSON.stringify(i)).join(" ").toLowerCase();
+    let invTokens = 0, invFound = 0;
+    for (const kw of invKeywords) { if (transcriptLower.includes(kw)) { invTokens++; if (extractedInv.includes(kw) || factTextLower.includes(kw)) invFound++; } }
+    const investigationCoverage = invTokens ? Math.round((invFound / invTokens) * 100) : 100;
+
+    // 7. Procedure / administration coverage (injections, vaccines, TB tests, lot #, expiry).
+    const procKeywords = ["injection", "aspiration", "vaccine", "vaccination", "ppd", "tb test", "tuberculin", "lot number", "expiration", "expiry", "administered", "cortisone", "steroid shot"];
+    let procTokens = 0, procFound = 0;
+    for (const kw of procKeywords) { if (transcriptLower.includes(kw)) { procTokens++; if (factTextLower.includes(kw)) procFound++; } }
+    const procedureCoverage = procTokens ? Math.round((procFound / procTokens) * 100) : 100;
+
+    // Calculate Overall standard coverage (now across 7 categories)
+    const overall = Math.round((numericCoverage + medicationCoverage + diagnosisCoverage + followupCoverage + lifeSafetyCoverage + investigationCoverage + procedureCoverage) / 7);
 
     const scores = {
       life_safety: lifeSafetyCoverage,
@@ -107,6 +121,8 @@ export class ClinicalRecallAnalyzer {
       medication: medicationCoverage,
       followup: followupCoverage,
       numeric: numericCoverage,
+      investigation: investigationCoverage,
+      procedure: procedureCoverage,
       overall_standard: overall
     };
 
@@ -118,6 +134,8 @@ export class ClinicalRecallAnalyzer {
     if (medicationCoverage < 100) missingCategories.push("medication");
     if (followupCoverage < 100) missingCategories.push("follow_up");
     if (numericCoverage < 100) missingCategories.push("lab_result"); // using lab_result or vitals
+    if (investigationCoverage < 100) missingCategories.push("investigation");
+    if (procedureCoverage < 100) missingCategories.push("procedure");
 
     const needsRecovery = missingCategories.length > 0 || overall < 95;
 

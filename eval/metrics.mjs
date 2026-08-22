@@ -14,6 +14,30 @@ const CORE_NAMES = ['subjective', 'past_medical_history', 'objective', 'assessme
 
 const tokens = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 
+// Q4 — the gold reference dataset is de-identified and carries SYNTHETIC/corrupted date
+// artifacts (shifted years, placeholder dates). Scoring accurate Notera extractions against
+// these unfairly penalizes date terms, so we drop date-like tokens from the GOLD side of
+// similarity/omission. Lab numbers (decimals, 2–3 digit values) are kept. Toggle with
+// EVAL_IGNORE_GOLD_DATES=0.
+const IGNORE_GOLD_DATES = process.env.EVAL_IGNORE_GOLD_DATES !== '0';
+const _MONTHS = new Set(['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec']);
+const _WEEKDAYS = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+const _isDateToken = (t) => /^(19|20)\d{2}$/.test(t) || _MONTHS.has(t) || _WEEKDAYS.has(t) || /^\d{1,2}(st|nd|rd|th)$/.test(t);
+const goldTokens = (s) => (IGNORE_GOLD_DATES ? tokens(s).filter((t) => !_isDateToken(t)) : tokens(s));
+
+// Q8 — some gold references in the de-identified set are corrupt (scheduling/admin noise, not
+// a clinical note). Scoring a correct Notera note against them yields false divergence, so we
+// detect and EXCLUDE them from the gold-based metrics (similarity/omission).
+export function isGoldCorrupt(goldText) {
+  const t = String(goldText || '');
+  if (t.trim().length < 40) return true;
+  if (/\b(subjective|objective|assessment|plan|hpi|chief complaint|presenting complaint|diagnosis|history of)\b/i.test(t)) return false;
+  const words = tokens(t);
+  const dateish = words.filter((w) => _isDateToken(w) || /^\d+$/.test(w)).length;
+  const clinical = words.filter((w) => w.length > 3 && !_isDateToken(w) && !/^\d+$/.test(w)).length;
+  return clinical < 15 && dateish >= clinical;   // no SOAP structure + dominated by numbers/dates
+}
+
 export function schemaValidity(note) {
   const { valid, errors } = validateNote(note);
   return { valid, errorCount: errors.length, errors };
@@ -41,7 +65,7 @@ export function medGrounding(note, entities = []) {
 }
 
 export function similarityToGold(noteText, goldText) {
-  const a = new Set(tokens(noteText)), b = new Set(tokens(goldText));
+  const a = new Set(tokens(noteText).filter((t) => !(IGNORE_GOLD_DATES && _isDateToken(t)))), b = new Set(goldTokens(goldText));
   if (!a.size || !b.size) return 0;
   let inter = 0; for (const t of a) if (b.has(t)) inter += 1;
   return inter / new Set([...a, ...b]).size;
@@ -49,7 +73,7 @@ export function similarityToGold(noteText, goldText) {
 
 export function omission(noteText, goldText) {
   const noteSet = new Set(tokens(noteText));
-  const goldTerms = [...new Set(tokens(goldText))].filter((t) => t.length > 3);
+  const goldTerms = [...new Set(goldTokens(goldText))].filter((t) => t.length > 3);
   const missed = goldTerms.filter((t) => !noteSet.has(t));
   return { goldTerms: goldTerms.length, missed: missed.length, rate: goldTerms.length ? missed.length / goldTerms.length : 0 };
 }
@@ -85,20 +109,24 @@ export function storyFlow(note) {
 
 export function scoreNote({ note, noteText, goldText, entities }) {
   const sv = schemaValidity(note), sc = sectionCoverage(note), mg = medGrounding(note, entities);
+  const goldCorrupt = isGoldCorrupt(goldText);   // exclude gold-based metrics when the reference is corrupt
   return {
     schema_valid: sv.valid, schema_errors: sv.errorCount,
     section_coverage: +sc.coverage.toFixed(3), missing_sections: sc.missing,
     meds_checked: mg.checked, meds_unsupported: mg.unsupported, med_grounding: mg.grounded,
-    similarity_to_gold: +similarityToGold(noteText, goldText).toFixed(3),
-    omission_rate: +omission(noteText, goldText).rate.toFixed(3),
-    omission_missed: (() => { const o = omission(noteText, goldText); const noteSet = new Set(tokens(noteText)); return [...new Set(tokens(goldText))].filter((t) => t.length > 3 && !noteSet.has(t)).slice(0, 25); })(),
+    similarity_to_gold: goldCorrupt ? null : +similarityToGold(noteText, goldText).toFixed(3),
+    omission_rate: goldCorrupt ? null : +omission(noteText, goldText).rate.toFixed(3),
+    omission_missed: goldCorrupt ? [] : (() => { const noteSet = new Set(tokens(noteText)); return [...new Set(goldTokens(goldText))].filter((t) => t.length > 3 && !noteSet.has(t)).slice(0, 25); })(),
     story_flow: storyFlow(note).score,
+    gold_corrupt: goldCorrupt,
   };
 }
 
 export function aggregate(rows) {
   const n = rows.length || 1;
-  const avg = (k) => +(rows.reduce((s, r) => s + (Number(r[k]) || 0), 0) / n).toFixed(3);
+  // average only over rows that actually have a numeric value (so null/excluded gold-based
+  // metrics from corrupt-gold rows don't drag the mean to zero).
+  const avg = (k) => { const v = rows.map((r) => r[k]).filter((x) => typeof x === 'number' && isFinite(x)); return v.length ? +(v.reduce((s, x) => s + x, 0) / v.length).toFixed(3) : 0; };
   const out = {
     count: rows.length,
     schema_validity: +(rows.filter((r) => r.schema_valid).length / n).toFixed(3),

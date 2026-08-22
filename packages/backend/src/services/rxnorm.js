@@ -125,6 +125,21 @@ export async function rxcuiName(rxcui, { fetchImpl } = {}) {
 
 const _norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const _title = (s) => String(s || '').replace(/\w\S*/g, (t) => t[0].toUpperCase() + t.slice(1).toLowerCase());
+// Levenshtein for the "nearest spoken term" hint (sound-alike substitution detection).
+function _lev(a, b) {
+  a = String(a).toLowerCase(); b = String(b).toLowerCase();
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+// The transcript token most similar to `name` (drug-like words only), for a "did you mean" hint.
+function _nearestToken(name, transcript) {
+  const toks = [...new Set(String(transcript).toLowerCase().match(/[a-z][a-z'-]{3,}/g) || [])];
+  let best = null, bd = Infinity;
+  for (const t of toks) { if (_norm(t) === _norm(name)) return t; const d = _lev(name, t); if (d < bd && d <= Math.ceil(name.length * 0.5)) { bd = d; best = t; } }
+  return best;
+}
 function replaceNameInNote(note, from, to) {
   const rx = new RegExp('\\b' + String(from).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
   const fix = (t) => (typeof t === 'string' ? t.replace(rx, to) : t);
@@ -158,6 +173,17 @@ export async function normalizeMedications(note, transcript = '', { fetchImpl, l
         log(`[upgrade:rxnorm] normalized medication "${name}" → "${canonical}" (RxCUI ${hit.rxcui})`);
       } else {
         log(`[upgrade:rxnorm] verified "${name}" → RxCUI ${hit.rxcui}`);
+      }
+      // SAFETY (Q1): a drug that resolves to a REAL concept but is NOT in the transcript is the
+      // dangerous sound-alike class (Zofran → Zolpidem passes every "is it a real drug" check).
+      // Existing checks miss it because the drug IS real; catch it here as a substitution risk.
+      const canonInTx = canonical ? tLower.includes(canonical.toLowerCase()) : false;
+      if (!inTranscript && !canonInTx) {
+        const near = _nearestToken(canonical || name, transcript);
+        flags.push({ type: 'medication_not_in_transcript', field: 'assessment_and_plan.treatment_planned',
+          message: `Medication "${canonical || name}" resolves to a real drug but is NOT mentioned in the transcript${near ? ` (nearest spoken term: "${near}")` : ''} — likely a sound-alike substitution (e.g. Zofran↔Zolpidem) or a brand/generic mismatch; verify against the transcript.`,
+          severity: 'critical' });
+        log(`[upgrade:rxnorm] SAFETY: "${canonical || name}" not in transcript${near ? ` — nearest spoken "${near}"` : ''}`);
       }
     } else if (!inTranscript) {
       flags.push({ type: 'fabricated_medication', field: 'assessment_and_plan.treatment_planned', message: `Medication "${name}" is not a known RxNorm drug and is not in the transcript — possible fabrication; verify or remove.`, severity: 'critical' });

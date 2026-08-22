@@ -482,6 +482,144 @@ export function enforceDateGrounding(note, transcript = '', log = () => {}, opts
   return { flags, checked, ungrounded };
 }
 
+// ── D3 · consent & action-status flagger ────────────────────────────────────
+// Both the Eval-Analyst and the System-Upgrader converged on two patient-SAFETY issues:
+//  (a) an intervention the patient DECLINED is written as an active plan, and
+//  (b) an action ALREADY COMPLETED is written as a future plan.
+// Deterministic and FLAG-ONLY (never deletes — the prompts do the correcting; this is the
+// reviewer safety net). Grounded in transcript language.
+const DECLINE_RX = /\b(declin\w+|refus\w+|does ?n[o']?t want|do ?n[o']?t want|not interested in|against having|opted out of|prefers not to|won'?t take)\s+(?:the\s+|a\s+|any\s+)?([a-z][\w'\/-]+(?:\s+[a-z][\w'\/-]+){0,3})/gi;
+const DONE_RX = /\b(already|has been|have been|was|were|earlier today|prior to (?:the )?visit)\s+(renew\w+|fax\w+|sent|complet\w+|done|fill\w+|administered|ordered|booked|scheduled|given)\b/i;
+const FUTURE_PLAN_RX = /\b(will |plan to|to be |going to|start\w*|initiat\w*|prescrib\w*|arrange\w*|order\w*|refer\w*|fax\w*|send|renew\w*|book\w*|schedul\w*)\b/i;
+export function flagConsentAndStatus(note, transcript = '', log = () => {}) {
+  const flags = [];
+  const T = String(transcript).toLowerCase();
+  // (a) collect intervention phrases the patient declined
+  const declined = [...T.matchAll(DECLINE_RX)].map((m) => norm(m[2])).filter((x) => x.length > 3);
+  const declinedKeys = [...new Set(declined.map((d) => d.split(' ').find((w) => w.length > 3)).filter(Boolean))];
+  const transcriptDone = DONE_RX.test(T);
+  for (const p of (note.assessment_and_plan || [])) {
+    for (const line of splitLines(p.treatment_planned)) {
+      const ln = norm(line);
+      const looksPlanned = FUTURE_PLAN_RX.test(line);
+      const alreadyMarkedDeclined = /declin|refus|not want|against|opted out/i.test(line);
+      // (a) declined-as-active-plan
+      if (looksPlanned && !alreadyMarkedDeclined) {
+        for (const key of declinedKeys) {
+          if (ln.includes(key)) {
+            flags.push({ type: 'declined_intervention_planned', field: `assessment_and_plan["${p.issue || '?'}"].treatment_planned`, message: `Plan "${line.slice(0, 80)}" references an intervention the patient appears to have DECLINED — verify it is recorded as declined, not as an active order.`, severity: 'critical' });
+            log(`[upgrade:consent-status] possible declined-as-plan: "${line.slice(0, 80)}"`);
+            break;
+          }
+        }
+      }
+      // (b) already-completed action written as a future plan
+      if (looksPlanned && transcriptDone && /(renew|fax|refill|prescription|requisition|referral|birth control|contracept)/i.test(line)) {
+        flags.push({ type: 'completed_action_planned', field: `assessment_and_plan["${p.issue || '?'}"].treatment_planned`, message: `Plan "${line.slice(0, 80)}" may describe an action already COMPLETED per the transcript — verify temporal status (completed vs pending).`, severity: 'major' });
+        log(`[upgrade:consent-status] possible completed-as-plan: "${line.slice(0, 80)}"`);
+      }
+    }
+  }
+  if (!flags.length) log('[upgrade:consent-status] no declined/completed-as-plan conflicts found');
+  return { flags };
+}
+
+// ── D4 · lab value ↔ analyte binding (Q2) ────────────────────────────────────
+// Both reports flagged (lp): a numeric result attached to the WRONG analyte/panel
+// (a TSH value written against the lipid panel). Deterministic + flag-only: pair each
+// value with its nearest analyte in the note and in the transcript; flag a mismatch.
+const ANALYTE_RX = /\b(tsh|t4|t3|ldl|hdl|cholesterol|triglycerides?|trigs?|glucose|hba1c|a1c|ha?emoglobin|hgb|hb|ferritin|iron|creatinine|egfr|potassium|sodium|calcium|magnesium|phosphate|phosphorus|b12|vitamin d|wbc|platelets?|bilirubin|albumin|crp|esr|psa|inr)\b/i;
+const _canonAnalyte = (a) => String(a).toLowerCase().replace(/[^a-z0-9]/g, '').replace(/^haemoglobin$|^hemoglobin$|^hgb$/, 'hb').replace(/^a1c$/, 'hba1c').replace(/^trigs?$|^triglyceride$/, 'triglycerides');
+function _nearestAnalyte(s, numIdx) {
+  // Labs read "analyte … value", so prefer the nearest analyte that PRECEDES the number;
+  // fall back to one just after it. This beats raw char-distance (which mis-binds
+  // "cholesterol came back at 5.2, and the tsh …" to tsh).
+  const before = s.slice(Math.max(0, numIdx - 50), numIdx);
+  const rx = new RegExp(ANALYTE_RX.source, 'gi'); let m, lastBefore = null;
+  while ((m = rx.exec(before))) lastBefore = m[0];
+  if (lastBefore) return _canonAnalyte(lastBefore);
+  const after = s.slice(numIdx, Math.min(s.length, numIdx + 40)).match(ANALYTE_RX);
+  return after ? _canonAnalyte(after[0]) : null;
+}
+function _labPairs(text) {
+  const s = String(text || ''); const pairs = []; const numRx = /(\d+(?:\.\d+)?)/g; let m;
+  while ((m = numRx.exec(s))) { const a = _nearestAnalyte(s, m.index); if (a) pairs.push({ analyte: a, value: m[1] }); }
+  return pairs;
+}
+export function flagLabAnalyteBinding(note, transcript = '', log = () => {}) {
+  const flags = [];
+  if (!note.objective) return { flags };
+  const txPairs = _labPairs(transcript);
+  for (const line of splitLines(note.objective.completed_investigations)) {
+    for (const np of _labPairs(line)) {
+      const same = txPairs.filter((tp) => tp.value === np.value);
+      if (!same.length) continue;                        // value not in transcript → other guardrails cover it
+      const txAnalytes = new Set(same.map((tp) => tp.analyte));
+      if (!txAnalytes.has(np.analyte)) {
+        flags.push({ type: 'lab_value_misbound', field: 'objective.completed_investigations', message: `Value "${np.value}" is bound to "${np.analyte}" in the note, but the transcript associates ${np.value} with ${[...txAnalytes].join('/')} — verify the analyte↔value binding.`, severity: 'major' });
+        log(`[upgrade:lab-binding] "${np.value}" note→${np.analyte} vs transcript→${[...txAnalytes].join('/')}`);
+      }
+    }
+  }
+  if (!flags.length) log('[upgrade:lab-binding] lab value↔analyte bindings consistent');
+  return { flags };
+}
+
+// ── D5 · date-string-as-value corruption (Q5) ────────────────────────────────
+// Both reports: de-identification injects synthetic ISO dates where a NUMBER should be, so a
+// lab value / lot number becomes "2006-08-20" (eGFR 64 → a date). Detect an ISO date sitting
+// in a value/ID position, strip it, mark the value unavailable, and flag (critical).
+const ISO_DATE_RX = /\b(?:19|20)\d{2}-\d{1,2}-\d{1,2}\b/;
+const VALUE_CTX_RX = /\b(egfr|cholesterol|ldl|hdl|tsh|glucose|hba1c|a1c|creatinine|ferritin|potassium|sodium|level|levels|value|result|lot|serial|count|reading|titre|titer|mg|mcg|units?|ml)\b/i;
+const DATE_CTX_RX = /\b(on|date|since|dated|scheduled|return|returning|follow|next|due|appointment|rtc|book|booked|visit|ago|last)\b/i;
+export function flagDateAsValue(note, log = () => {}) {
+  const flags = [];
+  const scan = (text, field) => {
+    const kept = [];
+    for (const line of splitLines(text)) {
+      if (ISO_DATE_RX.test(line) && VALUE_CTX_RX.test(line) && !DATE_CTX_RX.test(line)) {
+        const cleaned = line.replace(ISO_DATE_RX, '').replace(/\s{2,}/g, ' ').replace(/[\s:–-]+$/, '').trim();
+        flags.push({ type: 'date_as_value', field, message: `"${line.slice(0, 80)}" has a synthetic DATE where a numeric value / ID belongs (de-identification artifact) — value corrupted; verify against the transcript.`, severity: 'critical' });
+        log(`[upgrade:date-as-value] corrupted value "${line.slice(0, 80)}" — date stripped`);
+        kept.push(cleaned ? `${cleaned} [value unavailable]` : '[value unavailable]');
+      } else kept.push(line);
+    }
+    return kept.join('\n');
+  };
+  if (note.objective && typeof note.objective.completed_investigations === 'string') note.objective.completed_investigations = scan(note.objective.completed_investigations, 'objective.completed_investigations');
+  for (const p of (note.assessment_and_plan || [])) if (typeof p.treatment_planned === 'string') p.treatment_planned = scan(p.treatment_planned, `assessment_and_plan["${p.issue || '?'}"].treatment_planned`);
+  if (!flags.length) log('[upgrade:date-as-value] no date-as-value corruption found');
+  return { flags };
+}
+
+// ── D6 · laterality inversion (Q6) ───────────────────────────────────────────
+// Both reports: note swaps left/right for an anatomical finding (left index finger vs right).
+// Flag when the note asserts a side the transcript never gives while it gives the opposite.
+const SIDE_RX = /\b(left|right)\s+([a-z]+(?:\s+[a-z]+){0,2})/gi;
+const BODY_RX = /(knee|hip|shoulder|ankle|wrist|elbow|hand|foot|feet|arm|leg|eye|ear|index finger|finger|thumb|toe|breast|flank|kidney|lung|chest|axilla|groin|testis|testicle|ovary|calf|forearm)/i;
+function _sidePairs(text) {
+  const out = []; for (const m of String(text || '').matchAll(SIDE_RX)) { const bm = m[2].toLowerCase().match(BODY_RX); if (bm) out.push({ side: m[1].toLowerCase(), part: bm[1] }); } return out;
+}
+export function flagLateralityInversion(note, transcript = '', log = () => {}) {
+  const flags = [];
+  const tx = _sidePairs(transcript);
+  if (!tx.length) { log('[upgrade:laterality] no lateralised findings in transcript'); return { flags }; }
+  const opp = (s) => (s === 'left' ? 'right' : 'left');
+  const noteText = [note.objective?.examination, note.subjective?.hpi_details, ...(note.assessment_and_plan || []).map((p) => `${p.issue || ''} ${p.assessment || ''}`)].filter(Boolean).join('\n');
+  const seen = new Set();
+  for (const np of _sidePairs(noteText)) {
+    const key = np.side + np.part; if (seen.has(key)) continue; seen.add(key);
+    const forPart = tx.filter((t) => t.part === np.part); if (!forPart.length) continue;
+    const sides = new Set(forPart.map((t) => t.side));
+    if (!sides.has(np.side) && sides.has(opp(np.side))) {
+      flags.push({ type: 'laterality_inversion', field: 'note', message: `Note says "${np.side} ${np.part}" but the transcript indicates the ${opp(np.side)} ${np.part} — verify laterality (possible left/right inversion).`, severity: 'critical' });
+      log(`[upgrade:laterality] note "${np.side} ${np.part}" vs transcript "${opp(np.side)} ${np.part}"`);
+    }
+  }
+  if (!flags.length) log('[upgrade:laterality] laterality consistent with transcript');
+  return { flags };
+}
+
 // ── C(2) · multi-system fallback ─────────────────────────────────────────────
 // A narrow single-disease label (anemia, gynecology, …) makes the SOAP generator drop
 // other active problems. When ≥3 distinct organ systems are discussed, fall back to the
@@ -546,10 +684,14 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   const d = flagSuspiciousValues(note, sink);
   const ph = verifyPharmacyBinding(note, { transcript, meds }, sink);
   const np = flagNonPatientContext(note, transcript, sink);
+  const cs = flagConsentAndStatus(note, transcript, sink);   // declined/completed-as-plan (safety)
+  const lb = flagLabAnalyteBinding(note, transcript, sink);  // lab value↔analyte misbinding
+  const dv = flagDateAsValue(note, sink);                    // synthetic date replacing a value (safety)
+  const lat = flagLateralityInversion(note, transcript, sink); // left/right inversion (safety)
   const nm = flagUngroundedNumbers(note, transcript, sink);
   const dt = enforceDateGrounding(note, transcript, sink);
   const nr = groundNamedReferences(note, transcript, sink);
-  const flags = [...d.flags, ...ph.flags, ...np.flags, ...nm.flags, ...dt.flags, ...nr.flags];
+  const flags = [...d.flags, ...ph.flags, ...np.flags, ...cs.flags, ...lb.flags, ...dv.flags, ...lat.flags, ...nm.flags, ...dt.flags, ...nr.flags];
   // Fact-grounding rating: share of dates + measurement numbers that trace to the transcript.
   const numChecked = (nm.flags.filter((f) => f.type === 'ungrounded_number').length);
   const totalChecked = dt.checked + numChecked;              // numbers only counted when ungrounded (flagged)
