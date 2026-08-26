@@ -1,5 +1,44 @@
 [
   {
+    "id": "2026-08-23T17-54-15-710Z-eb1f",
+    "command": "node eval/run_eval.mjs sz",
+    "fixtures": [
+      "sz"
+    ],
+    "status": "passed",
+    "startedAt": "2026-08-23T17:54:15.710Z",
+    "finishedAt": "2026-08-23T17:59:16.065Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-23_17-54-15",
+    "pid": 15952
+  },
+  {
+    "id": "2026-08-23T17-52-50-484Z-87f2",
+    "command": "node eval/run_eval.mjs sz-2",
+    "fixtures": [
+      "sz-2"
+    ],
+    "status": "passed",
+    "startedAt": "2026-08-23T17:52:50.484Z",
+    "finishedAt": "2026-08-23T17:57:50.857Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-23_17-52-50",
+    "pid": 6052
+  },
+  {
+    "id": "2026-08-23T17-36-42-574Z-d020",
+    "command": "node eval/run_eval.mjs routine-immunization",
+    "fixtures": [
+      "routine-immunization"
+    ],
+    "status": "passed",
+    "startedAt": "2026-08-23T17:36:42.574Z",
+    "finishedAt": "2026-08-23T17:41:42.955Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-08-23_17-36-42",
+    "pid": 18020
+  },
+  {
     "id": "2026-08-22T17-53-25-105Z-e9f0",
     "command": "node eval/run_eval.mjs jz mw rt-shoulder-t-b-oa osteoporosis-high-risk sl",
     "fixtures": [
