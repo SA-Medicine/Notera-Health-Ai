@@ -16,7 +16,6 @@ import { config } from './src/config.js';
 import { generateNote, approveNote } from './src/orchestrator/generateNote.js';
 import { store, audit } from './src/firestore/store.js';
 import { mountProxy } from './src/proxy.js';
-import { adminHandler } from './src/admin/handler.js';
 import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
 import path from 'node:path';
 
@@ -25,7 +24,11 @@ app.set('trust proxy', 1);   // behind Caddy / Vercel proxy — needed for corre
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), '.data');
 
 // Admin/Testing-Lab is a DEVELOPER tool — mounted ONLY when ENABLE_ADMIN=1 (never in prod).
+// It's also LAZY-loaded: its module writes a logs directory at import time, which a non-root
+// production container can't do, so we only import it when actually enabled.
 const ADMIN_ENABLED = process.env.ENABLE_ADMIN === '1';
+let adminHandler = null;
+if (ADMIN_ENABLED) ({ adminHandler } = await import('./src/admin/handler.js'));
 
 // CORS — in production, allow ONLY the Vercel frontend origin (credentials on). In dev, reflect origin.
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '';

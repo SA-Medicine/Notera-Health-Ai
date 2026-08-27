@@ -163,7 +163,7 @@ ADMIN_SESSION_TTL_DAYS=7
 APP_URL=https://app.aitoolsfordoctor.com
 CORS_ORIGIN=https://app.aitoolsfordoctor.com
 
-DATABASE_URL=postgres://notera_admin@postgres:5432/notera
+DATABASE_URL=postgres://notera_admin:PASTE_PG_PASSWORD_HERE@postgres:5432/notera
 
 LLM_BACKEND=vertex
 GCP_PROJECT=medproject-506019
@@ -183,14 +183,21 @@ HALLUCINATION_REMOVER=1
 NORMALIZE_DEID_DATES=0
 ```
 
-Save (Ctrl+O, Enter) and exit (Ctrl+X). Then fix the session secret line and lock permissions:
+Save (Ctrl+O, Enter) and exit (Ctrl+X). Then fill in the **two** placeholders — the session secret AND the database password — and lock permissions:
 
 ```bash
-cat /tmp/secret1        # copy the value after the = sign
-nano .env.production    # replace PASTE_SESSION_SECRET_HERE with it, save, exit
+cat /tmp/secret1              # copy the value after the = sign (the session secret)
+cat db/secrets/pg_password    # this is your database password
+nano .env.production          # replace PASTE_SESSION_SECRET_HERE and PASTE_PG_PASSWORD_HERE, save, exit
 chmod 600 .env.production secrets/sa-key.json db/secrets/pg_password
 rm /tmp/secret1
 ```
+
+> Or do the DB password automatically instead of by hand:
+> ```bash
+> PW=$(cat db/secrets/pg_password)
+> sed -i "s#PASTE_PG_PASSWORD_HERE#${PW}#" .env.production
+> ```
 
 > Simpler alternative: you already generated these exact files on your Windows PC. If you'd rather upload them, in Cloud Shell click the **⋮ menu → Upload**, upload `.env.production`, `sa-key.json`, `pg_password`, then `gcloud compute scp` them to the VM. The nano method above avoids all that.
 
@@ -213,63 +220,107 @@ The site won't answer on HTTPS yet — it needs the Cloudflare certificate (next
 
 ---
 
-## Step 7 — Cloudflare: add your domain (🟧 dashboard)
+## Step 7 — Cloudflare: create a free account & add your domain (🟧 dashboard)
 
-1. Go to **https://dash.cloudflare.com** → **Add a site** → type `aitoolsfordoctor.com` → Free plan.
-2. Cloudflare shows **two nameservers**. Go to wherever you bought the domain (your registrar), and set the domain's nameservers to those two. Wait until Cloudflare says **Active** (minutes to a few hours).
+**What Cloudflare is, in one line:** it sits *in front of* your website — it gives you free HTTPS, hides your server, blocks attacks (WAF), and speeds the site up. To do that it needs to become your domain's "DNS manager", which is what these steps set up.
+
+1. Go to **https://dash.cloudflare.com/sign-up** and create a free account (email + password), verify your email.
+2. On the dashboard click the big **+ Add a site** (or **Add a domain**). Type `aitoolsfordoctor.com` and continue.
+3. Choose the **Free $0/month** plan → Continue.
+4. Cloudflare scans your existing DNS records and shows a list. Just click **Continue** — we'll add the record we need in Step 8.
+5. Cloudflare now shows a screen titled roughly **"Change your nameservers"** with **two values** like:
+   - `dana.ns.cloudflare.com`
+   - `rob.ns.cloudflare.com`
+   Keep this tab open — you need these two.
+6. **Go to your domain registrar** (wherever you *bought* `aitoolsfordoctor.com` — e.g. GoDaddy, Namecheap, Google Domains/Squarespace). Log in → find your domain → look for **"Nameservers"** (sometimes under DNS / Manage / Advanced). Choose **"Use custom nameservers"**, **delete the existing ones**, and paste the **two Cloudflare nameservers**. Save.
+7. Back on Cloudflare, click **"Done, check nameservers"**. It can take from ~5 minutes to a few hours. When it's ready Cloudflare emails you and the site status shows a green **Active**. You can continue to Step 8 while it propagates.
+
+> Not sure who your registrar is? It's whoever you paid for the domain. If the domain is brand‑new and bought *through* Cloudflare Registrar, you can skip steps 5–7 — nameservers are already set.
 
 ---
 
-## Step 8 — Cloudflare: DNS + SSL + certificate (🟧 + 🟩)
+## Step 8 — Cloudflare: point `api` at your server + turn on HTTPS (🟧 + 🟩)
 
-**🟧 DNS tab:** add a record → Type **A**, Name **`api`**, IPv4 **= the VM IP from Step 3**, Proxy status **Proxied (orange cloud)**. Save.
+**8a — Add the DNS record (🟧).** In Cloudflare, open your domain → **DNS** (left menu) → **Add record**:
+- **Type:** `A`
+- **Name:** `api`   (this makes `api.aitoolsfordoctor.com`)
+- **IPv4 address:** `35.238.183.204`   ← your VM's IP from Step 3
+- **Proxy status:** click the toggle so it's an **orange cloud** (Proxied). This is what turns on Cloudflare's protection.
+- **Save.**
 
-**🟧 SSL/TLS → Overview:** set mode to **Full (strict)**.
+**8b — Set SSL mode (🟧).** Left menu → **SSL/TLS** → **Overview** → choose **Full (strict)**. (This means: encrypt browser→Cloudflare *and* Cloudflare→your server, and verify the server's certificate.)
 
-**🟧 SSL/TLS → Origin Server → Create Certificate** (hostname `api.aitoolsfordoctor.com`). It shows an **Origin Certificate** and a **Private Key**. Keep this page open.
+**8c — Create the server's certificate (🟧).** Left menu → **SSL/TLS** → **Origin Server** → **Create Certificate** → leave defaults → **Create**. The page now shows two text boxes:
+- **Origin Certificate** (starts with `-----BEGIN CERTIFICATE-----`)
+- **Private Key** (starts with `-----BEGIN PRIVATE KEY-----`)
+Leave this page open — you'll copy each into the server next.
 
-**🟩 On the VM**, paste them:
+**8d — Install the certificate on the server (🟩 VM).** In your VM terminal:
 
 ```bash
-nano ~/notera/certs/origin.pem      # paste the "Origin Certificate", save+exit
-nano ~/notera/certs/origin.key      # paste the "Private Key", save+exit
-chmod 600 ~/notera/certs/origin.key
+cd ~/notera
+nano certs/origin.pem
+```
+Copy the **Origin Certificate** box from Cloudflare, paste it into nano, then **Ctrl+O, Enter** (save), **Ctrl+X** (exit). Now the key:
+```bash
+nano certs/origin.key
+```
+Copy the **Private Key** box, paste, **Ctrl+O, Enter, Ctrl+X**. Then:
+```bash
+chmod 600 certs/origin.key
 docker compose -f docker-compose.prod.yml up -d caddy
 ```
 
-Test it: `curl https://api.aitoolsfordoctor.com/healthz` (run on the VM) should print `{"ok":true,...}`.
+**8e — Test it (🟩).**
+```bash
+curl https://api.aitoolsfordoctor.com/healthz
+```
+You should see `{"ok":true,"service":"notera-backend",...}`. 🎉 If it hangs or errors, wait a couple minutes for DNS to propagate and try again (check `docker compose -f docker-compose.prod.yml logs caddy --tail=30`).
 
 ---
 
-## Step 9 — Cloudflare: lock the server so only Cloudflare can reach it (🟦 Cloud Shell)
+## Step 9 — Cloudflare: lock the server so ONLY Cloudflare can reach it (🟦 Cloud Shell)
 
-Back in **Cloud Shell** (open a new tab of it, or `exit` the VM first):
+Right now someone could still reach your server by its raw IP and skip Cloudflare's protection. This closes that door. Open a **Cloud Shell** tab (the browser terminal, not the VM). If you're inside the VM, type `exit` first. Then:
 
 ```bash
-cd ~   # or wherever; the script only needs gcloud + curl
-curl -fsSL https://raw.githubusercontent.com/<you>/notera/main/scripts/gcp-firewall-cloudflare.sh -o cf-fw.sh
-bash cf-fw.sh
+cd ~/notera 2>/dev/null || (git clone https://github.com/SA-Medicine/Notera-Health-Ai.git notera && cd notera)
+bash scripts/gcp-firewall-cloudflare.sh
 ```
 
-(Or just clone your repo in Cloud Shell and run `bash scripts/gcp-firewall-cloudflare.sh`.) This makes the API reachable **only** through Cloudflare's WAF.
+It prints `✅ Origin now reachable ONLY via Cloudflare.` From now on the API works through `api.aitoolsfordoctor.com` (Cloudflare) but the raw IP is blocked — exactly what you want.
 
 ---
 
-## Step 10 — Cloudflare: turn on the WAF + rate limiting (🟧 dashboard)
+## Step 10 — Cloudflare: turn on the firewall rules (WAF) (🟧 dashboard)
 
-- **Security → WAF → Managed rules:** enable the **Cloudflare Managed Ruleset**.
-- **Security → Bots:** turn on **Bot Fight Mode**.
-- **Security → WAF → Rate limiting rules → Create:** field = `URI Path`, condition = `equals /backend/api/auth/login`; also add hostname `equals app.aitoolsfordoctor.com`; rate **10 per 1 minute**, action **Managed Challenge**.
+These are all clicks in the Cloudflare dashboard for your domain:
 
-(Details/screically in `docs/CLOUDFLARE_SETUP.md`.)
+1. **Security → WAF → Managed rules:** make sure **Cloudflare Managed Ruleset** is **Enabled** (it usually is by default on Free).
+2. **Security → Bots:** turn **Bot Fight Mode → On**.
+3. **Security → WAF → Rate limiting rules → Create rule** (protects your login from brute‑force):
+   - **Rule name:** `login-limit`
+   - **If incoming requests match:** set **Field** = `Hostname`, **Operator** = `equals`, **Value** = `app.aitoolsfordoctor.com`; click **And**; add **Field** = `URI Path`, **Operator** = `equals`, **Value** = `/backend/api/auth/login`.
+   - **When rate exceeds:** `10` requests per `1 minute`, **counting by** `IP`.
+   - **Then take action:** `Managed Challenge`, **Duration** `10 minutes`.
+   - **Deploy.**
+
+(Your backend also locks an account after 5 wrong passwords, so this is a second layer.)
 
 ---
 
 ## Step 11 — Deploy the website (frontend) on Cloudflare Pages (🟧 dashboard)
 
-1. **Workers & Pages → Create → Pages → Connect to Git** → pick your `notera` repo.
-2. Settings: **Root directory** `apps/web`; **Build command** `npx @cloudflare/next-on-pages`; **Output directory** `.vercel/output/static`.
-3. **Environment variables** (add all three):
+This publishes your marketing site + app UI (the `apps/web` folder).
+
+1. Left sidebar → **Workers & Pages** → **Create** → **Pages** tab → **Connect to Git**.
+2. Authorize Cloudflare to access GitHub, then pick the **`SA-Medicine/Notera-Health-Ai`** repo → **Begin setup**.
+3. **Build settings:**
+   - **Framework preset:** `Next.js` (if offered) — otherwise leave "None".
+   - **Root directory:** `apps/web`
+   - **Build command:** `npx @cloudflare/next-on-pages`
+   - **Build output directory:** `.vercel/output/static`
+4. **Environment variables** → **Add variable** (add all three):
    - `BACKEND_URL` = `https://api.aitoolsfordoctor.com`
    - `NEXT_PUBLIC_SITE_URL` = `https://aitoolsfordoctor.com`
    - `NEXT_PUBLIC_APP_URL` = `https://app.aitoolsfordoctor.com`
