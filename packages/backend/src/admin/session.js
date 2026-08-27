@@ -32,9 +32,21 @@ export function makeSession(dataDir) {
   const sign = (data) => crypto.createHmac('sha256', key).update(data).digest('base64url');
   return {
     COOKIE,
-    /** Issue a signed token valid for `ttlMs` (default TTL_DAYS). */
-    issue(ttlMs = TTL_DAYS * 86400000) {
-      const payload = b64(JSON.stringify({ exp: Date.now() + ttlMs, iat: Date.now(), v: 1 }));
+    /**
+     * Issue a signed token. Backward compatible:
+     *   issue()              → legacy admin token (dev)
+     *   issue(ttlMs:number)  → legacy admin token with custom TTL
+     *   issue(user:object)   → clinician token carrying { uid, email, role }
+     *   issue(user, ttlMs)   → clinician token with custom TTL
+     */
+    issue(userOrTtl, ttlMs) {
+      let extra = {};
+      if (typeof userOrTtl === 'number') { ttlMs = userOrTtl; }
+      else if (userOrTtl && typeof userOrTtl === 'object') {
+        extra = { uid: userOrTtl.id, email: userOrTtl.email, role: userOrTtl.role || 'clinician' };
+      }
+      const ms = typeof ttlMs === 'number' ? ttlMs : TTL_DAYS * 86400000;
+      const payload = b64(JSON.stringify({ ...extra, exp: Date.now() + ms, iat: Date.now(), v: extra.uid ? 2 : 1 }));
       return `${payload}.${sign(payload)}`;
     },
     /** Verify signature + expiry. Returns the payload or null. Never throws. */

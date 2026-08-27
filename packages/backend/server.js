@@ -17,18 +17,34 @@ import { generateNote, approveNote } from './src/orchestrator/generateNote.js';
 import { store, audit } from './src/firestore/store.js';
 import { mountProxy } from './src/proxy.js';
 import { adminHandler } from './src/admin/handler.js';
+import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
+import path from 'node:path';
 
 const app = express();
+app.set('trust proxy', 1);   // behind Caddy / Vercel proxy — needed for correct req.ip & Secure cookies
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), '.data');
 
-// CORS (dev): the Next app on :3000 may call the backend directly.
+// Admin/Testing-Lab is a DEVELOPER tool — mounted ONLY when ENABLE_ADMIN=1 (never in prod).
+const ADMIN_ENABLED = process.env.ENABLE_ADMIN === '1';
+
+// CORS — in production, allow ONLY the Vercel frontend origin (credentials on). In dev, reflect origin.
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '';
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const origin = req.headers.origin || '';
+  const allow = CORS_ORIGIN
+    ? (origin === CORS_ORIGIN ? CORS_ORIGIN : CORS_ORIGIN)   // pin to the single allowed origin
+    : (origin || '*');                                       // dev: reflect
+  res.setHeader('Access-Control-Allow-Origin', allow);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Self-hosted email/password auth (login/logout/me/reset). Always mounted.
+mountAuth(app, DATA_DIR);
 
 // ── Admin / Testing-Lab API ──────────────────────────────────────────────────
 // Dispatched BEFORE express.json so the handler owns the request stream (SSE,
@@ -39,10 +55,10 @@ const ADMIN_PREFIXES = [
   '/api/lab', '/api/sessions', '/api/judge', '/api/config',
 ];
 app.use((req, res, next) => {
-  if (ADMIN_PREFIXES.some((pre) => req.path === pre || req.path.startsWith(pre + '/'))) {
-    return adminHandler(req, res, next);
-  }
-  next();
+  const isAdminPath = ADMIN_PREFIXES.some((pre) => req.path === pre || req.path.startsWith(pre + '/'));
+  if (!isAdminPath) return next();
+  if (ADMIN_ENABLED) return adminHandler(req, res, next);   // dev only
+  return res.status(404).json({ error: 'not found' });      // prod: admin surface does not exist
 });
 
 // ── Product API (clinician) ──────────────────────────────────────────────────
@@ -51,15 +67,19 @@ app.use(express.json({ limit: '10mb' }));
 // Key-safe passthrough proxy for the embedded client app (keys stay in .env).
 mountProxy(app);
 
+// Product (clinician) auth gate. Every PHI route requires a valid SESSION cookie
+// (from /api/auth/login). Service-token bearer auth is still accepted for trusted
+// server-to-server callers. The old "production → allow all" bypass is REMOVED.
+const _requireAuth = requireAuth(DATA_DIR);
 app.use((req, res, next) => {
   if (req.path === '/healthz') return next();
-  if (req.path.startsWith('/api/llm') || req.path.startsWith('/api/asr')) return next();
-  if (!config.requireAuth) return next();
+  if (req.path.startsWith('/api/auth')) return next();            // login/reset are public
+  if (req.path.startsWith('/api/llm') || req.path.startsWith('/api/asr')) return next(); // key-safe proxy
+  if (!config.requireAuth) return next();                          // dev convenience (REQUIRE_AUTH=false)
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (config.serviceTokens.length && config.serviceTokens.includes(token)) return next();
-  if (config.nodeEnv === 'production') return next();
-  return res.status(401).json({ error: 'unauthorized' });
+  if (config.serviceTokens.length && token && config.serviceTokens.includes(token)) return next();
+  return _requireAuth(req, res, next);                             // else require a real session
 });
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'notera-backend', version: config.pipelineVersion }));

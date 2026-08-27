@@ -22,6 +22,8 @@
     "test": "npm --workspace @notera/eval run test",
     "db:reset": "node db/reset.mjs",
     "db:upgrader": "node db/migrate_upgrader.mjs",
+    "db:auth": "node db/migrate_auth.mjs",
+    "db:admin": "node db/create_admin.mjs",
     "db:backfill:lab": "node db/backfill_lab.mjs",
     "db:test": "node db/test_lab_logic.mjs",
     "db:up": "docker compose -f db/docker-compose.postgres.yml up -d",

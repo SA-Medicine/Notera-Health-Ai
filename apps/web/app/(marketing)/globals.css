@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #0a6cff;
+  --ink: #0b1524;
+}
+html { scroll-behavior: smooth; }

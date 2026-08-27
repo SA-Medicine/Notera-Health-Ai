@@ -1,0 +1,80 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Notera — production stack for a single small GCP VM.
+#   Frontend is on Vercel (not here). This runs: backend + postgres + caddy(TLS).
+#   NER is intentionally omitted (NER_DISABLED=1) to keep the box small/cheap.
+#
+#   Bring up:   docker compose -f docker-compose.prod.yml up -d --build
+#   Migrate:    docker compose -f docker-compose.prod.yml exec backend node ../../db/migrate_auth.mjs
+# ─────────────────────────────────────────────────────────────────────────────
+name: notera
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: notera-postgres
+    restart: unless-stopped
+    # NO host port mapping — Postgres is reachable ONLY on the private compose network.
+    environment:
+      POSTGRES_DB: notera
+      POSTGRES_USER: notera_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      TZ: UTC
+    command: ["postgres", "-c", "log_connections=on", "-c", "log_disconnections=on"]
+    secrets: [pg_password]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [notera_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notera_admin -d notera"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: notera-backend
+    restart: unless-stopped
+    env_file: [./.env.production]
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      ENABLE_ADMIN: "0"                 # admin/testing-lab OFF in prod
+      NER_DISABLED: "1"                 # no NER sidecar
+      LLM_BACKEND: vertex               # HIPAA-covered LLM (BAA)
+      DATABASE_URL: postgres://notera_admin@postgres:5432/notera
+      DATA_DIR: /app/.data
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - backend_data:/app/.data         # persists the HMAC session secret across restarts
+      - ./secrets/sa-key.json:/app/secrets/sa-key.json:ro   # Vertex/Speech service-account key
+    networks: [notera_net]
+
+  caddy:
+    image: caddy:2
+    container_name: notera-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro                     # Cloudflare Origin Certificate + key (+ mTLS CA)
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend]
+    networks: [notera_net]
+
+networks:
+  notera_net: {}
+
+volumes:
+  pgdata: {}
+  backend_data: {}
+  caddy_data: {}
+  caddy_config: {}
+
+secrets:
+  pg_password:
+    file: ./db/secrets/pg_password
