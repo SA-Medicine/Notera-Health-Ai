@@ -39,12 +39,8 @@ services:
     restart: unless-stopped
     env_file: [./.env.production]
     environment:
-      NODE_ENV: production
-      PORT: "8080"
-      ENABLE_ADMIN: "0"                 # admin/testing-lab OFF in prod
-      NER_DISABLED: "1"                 # no NER sidecar
-      LLM_BACKEND: vertex               # HIPAA-covered LLM (BAA)
-      DATABASE_URL: postgres://notera_admin@postgres:5432/notera
+      # NOTE: do NOT set DATABASE_URL here — a compose `environment:` value overrides env_file,
+      # which would drop the password. DATABASE_URL comes from .env.production (with password).
       DATA_DIR: /app/.data
     depends_on:
       postgres: { condition: service_healthy }
