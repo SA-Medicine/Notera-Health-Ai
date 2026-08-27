@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Notera API origin — sits BEHIND Cloudflare (orange-cloud / proxied).
+# Cloudflare terminates the public TLS; this origin uses a Cloudflare ORIGIN
+# CERTIFICATE (15-yr) so the CF↔origin hop is also encrypted → SSL mode "Full (strict)".
+#
+# Provide these files on the VM (see docs/CLOUDFLARE_SETUP.md):
+#   ./certs/origin.pem        Cloudflare Origin Certificate (PEM)
+#   ./certs/origin.key        its private key
+#   ./certs/cf-origin-pull-ca.pem   Cloudflare's Authenticated-Origin-Pull CA (for mTLS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+{
+	# Trust Cloudflare's proxy IPs so req.ip / X-Forwarded-For is the REAL client,
+	# not a Cloudflare edge IP. (Refresh from https://www.cloudflare.com/ips/.)
+	servers {
+		trusted_proxies static \
+			173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 \
+			141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 \
+			197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 \
+			104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 \
+			2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 \
+			2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	}
+}
+
+api.aitoolsfordoctor.com {
+	encode gzip
+
+	# TLS from Cloudflare using the Origin Certificate.
+	tls /certs/origin.pem /certs/origin.key {
+		# Authenticated Origin Pulls (mTLS): only accept connections that present
+		# Cloudflare's client cert → the origin refuses anyone who bypasses Cloudflare.
+		# Uncomment after placing the CA file (see docs/CLOUDFLARE_SETUP.md §5).
+		# client_auth {
+		# 	mode require_and_verify
+		# 	trust_pool file /certs/cf-origin-pull-ca.pem
+		# }
+	}
+
+	reverse_proxy backend:8080 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+}

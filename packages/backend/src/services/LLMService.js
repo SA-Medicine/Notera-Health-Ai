@@ -32,8 +32,13 @@ export class LLMService {
   _endpoint(stream = false) {
     const verb = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
     if (this.backend === 'vertex') {
-      const host = `https://${this.location}-aiplatform.googleapis.com`;
-      const base = `${host}/v1/projects/${this.project}/locations/${this.location}/publishers/google/models`;
+      // `global` = Vertex's dynamic worldwide fleet → cheapest (no regional localization premium).
+      // A pinned region (e.g. us-central1) is used only when data residency/sovereignty requires it.
+      const loc = this.location;
+      const host = loc === 'global'
+        ? 'https://aiplatform.googleapis.com'
+        : `https://${loc}-aiplatform.googleapis.com`;
+      const base = `${host}/v1/projects/${this.project}/locations/${loc}/publishers/google/models`;
       return `${base}/${this.model}:${verb}`;
     }
     const key = `key=${this.apiKey}`;
