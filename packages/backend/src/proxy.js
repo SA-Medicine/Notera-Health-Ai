@@ -184,6 +184,7 @@ export function mountProxy(app) {
         enableAutomaticPunctuation: true,
       };
       if (encoding === 'LINEAR16') baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 16000);
+      else baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 48000);   // MediaRecorder WEBM/OGG Opus is 48 kHz
       const primaryModel = process.env.ASR_MODEL || 'medical_conversation';
       const runRecognize = async (model) => client.recognize({ audio: { content: audio.toString('base64') }, config: { ...baseConfig, model } });
       console.log(`[proxy ${id}] asr(google-speech) bytes=${audio.length} enc=${encoding} model=${primaryModel}`);
