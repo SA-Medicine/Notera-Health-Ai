@@ -30,6 +30,9 @@
     "db:down": "docker compose -f db/docker-compose.postgres.yml down"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.7",
     "turbo": "^2.0.0"
   },
   "engines": {
