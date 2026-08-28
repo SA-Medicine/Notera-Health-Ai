@@ -3,6 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { backendFetch } from '@/app/lib/backend';
 
+export const runtime = 'edge';   // required for Cloudflare Pages (@cloudflare/next-on-pages)
+
 export async function POST(req: NextRequest) {
   const payload = await req.json();
   // TODO(auth): attach the authenticated clinician id from the session here.
