@@ -4,11 +4,11 @@ This is the "explain it like it's my first deploy" version. Every command block 
 
 ## The 3 places you'll work
 
-| Tag | Where | How you get there |
-|---|---|---|
-| 🟦 **Cloud Shell** | A Linux terminal in your browser, `gcloud` pre‑installed | console.cloud.google.com → click the `>_` icon (top‑right) |
-| 🟩 **VM** | A terminal *inside your server*, reached from Cloud Shell | you run one SSH command from Cloud Shell (Step 4) |
-| 🟧 **Cloudflare** | Point‑and‑click dashboard, no terminal | dash.cloudflare.com |
+| Tag                     | Where                                                      | How you get there                                             |
+| ----------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| 🟦**Cloud Shell** | A Linux terminal in your browser,`gcloud` pre‑installed | console.cloud.google.com → click the`>_` icon (top‑right) |
+| 🟩**VM**          | A terminal*inside your server*, reached from Cloud Shell | you run one SSH command from Cloud Shell (Step 4)             |
+| 🟧**Cloudflare**  | Point‑and‑click dashboard, no terminal                   | dash.cloudflare.com                                           |
 
 When you see 🟦, type it in Cloud Shell. When you see 🟩, you must already be SSH'd into the VM. 🟧 means click around the Cloudflare website.
 
@@ -194,6 +194,7 @@ rm /tmp/secret1
 ```
 
 > Or do the DB password automatically instead of by hand:
+>
 > ```bash
 > PW=$(cat db/secrets/pg_password)
 > sed -i "s#PASTE_PG_PASSWORD_HERE#${PW}#" .env.production
@@ -220,28 +221,24 @@ The site won't answer on HTTPS yet — it needs the Cloudflare certificate (next
 
 ---
 
-## Step 7 — Cloudflare: create a free account & add your domain (🟧 dashboard)
+## Step 7 — Cloudflare: open your domain (🟧 dashboard)
 
-**What Cloudflare is, in one line:** it sits *in front of* your website — it gives you free HTTPS, hides your server, blocks attacks (WAF), and speeds the site up. To do that it needs to become your domain's "DNS manager", which is what these steps set up.
+**Good news — you bought the domain from Cloudflare**, so there's nothing to set up here: your domain is already a "zone" in your Cloudflare account, DNS is already managed by Cloudflare, and it's already **Active**. No nameserver changes needed.
 
-1. Go to **https://dash.cloudflare.com/sign-up** and create a free account (email + password), verify your email.
-2. On the dashboard click the big **+ Add a site** (or **Add a domain**). Type `aitoolsfordoctor.com` and continue.
-3. Choose the **Free $0/month** plan → Continue.
-4. Cloudflare scans your existing DNS records and shows a list. Just click **Continue** — we'll add the record we need in Step 8.
-5. Cloudflare now shows a screen titled roughly **"Change your nameservers"** with **two values** like:
-   - `dana.ns.cloudflare.com`
-   - `rob.ns.cloudflare.com`
-   Keep this tab open — you need these two.
-6. **Go to your domain registrar** (wherever you *bought* `aitoolsfordoctor.com` — e.g. GoDaddy, Namecheap, Google Domains/Squarespace). Log in → find your domain → look for **"Nameservers"** (sometimes under DNS / Manage / Advanced). Choose **"Use custom nameservers"**, **delete the existing ones**, and paste the **two Cloudflare nameservers**. Save.
-7. Back on Cloudflare, click **"Done, check nameservers"**. It can take from ~5 minutes to a few hours. When it's ready Cloudflare emails you and the site status shows a green **Active**. You can continue to Step 8 while it propagates.
+1. Go to **https://dash.cloudflare.com** and sign in.
+2. On the home screen you'll see **`aitoolsfordoctor.com`** in your list of websites. Click it.
+3. You're now on that domain's dashboard (left sidebar shows DNS, SSL/TLS, Security, etc.). That's where all the 🟧 steps below happen.
 
-> Not sure who your registrar is? It's whoever you paid for the domain. If the domain is brand‑new and bought *through* Cloudflare Registrar, you can skip steps 5–7 — nameservers are already set.
+Go straight to Step 8.
+
+> (For reference: if you'd bought the domain elsewhere, this step would involve pointing that registrar's nameservers at Cloudflare. You don't — it's all in one place.)
 
 ---
 
 ## Step 8 — Cloudflare: point `api` at your server + turn on HTTPS (🟧 + 🟩)
 
 **8a — Add the DNS record (🟧).** In Cloudflare, open your domain → **DNS** (left menu) → **Add record**:
+
 - **Type:** `A`
 - **Name:** `api`   (this makes `api.aitoolsfordoctor.com`)
 - **IPv4 address:** `35.238.183.204`   ← your VM's IP from Step 3
@@ -251,9 +248,10 @@ The site won't answer on HTTPS yet — it needs the Cloudflare certificate (next
 **8b — Set SSL mode (🟧).** Left menu → **SSL/TLS** → **Overview** → choose **Full (strict)**. (This means: encrypt browser→Cloudflare *and* Cloudflare→your server, and verify the server's certificate.)
 
 **8c — Create the server's certificate (🟧).** Left menu → **SSL/TLS** → **Origin Server** → **Create Certificate** → leave defaults → **Create**. The page now shows two text boxes:
+
 - **Origin Certificate** (starts with `-----BEGIN CERTIFICATE-----`)
 - **Private Key** (starts with `-----BEGIN PRIVATE KEY-----`)
-Leave this page open — you'll copy each into the server next.
+  Leave this page open — you'll copy each into the server next.
 
 **8d — Install the certificate on the server (🟩 VM).** In your VM terminal:
 
@@ -261,20 +259,26 @@ Leave this page open — you'll copy each into the server next.
 cd ~/notera
 nano certs/origin.pem
 ```
+
 Copy the **Origin Certificate** box from Cloudflare, paste it into nano, then **Ctrl+O, Enter** (save), **Ctrl+X** (exit). Now the key:
+
 ```bash
 nano certs/origin.key
 ```
+
 Copy the **Private Key** box, paste, **Ctrl+O, Enter, Ctrl+X**. Then:
+
 ```bash
 chmod 600 certs/origin.key
 docker compose -f docker-compose.prod.yml up -d caddy
 ```
 
 **8e — Test it (🟩).**
+
 ```bash
 curl https://api.aitoolsfordoctor.com/healthz
 ```
+
 You should see `{"ok":true,"service":"notera-backend",...}`. 🎉 If it hangs or errors, wait a couple minutes for DNS to propagate and try again (check `docker compose -f docker-compose.prod.yml logs caddy --tail=30`).
 
 ---
@@ -324,7 +328,7 @@ This publishes your marketing site + app UI (the `apps/web` folder).
    - `BACKEND_URL` = `https://api.aitoolsfordoctor.com`
    - `NEXT_PUBLIC_SITE_URL` = `https://aitoolsfordoctor.com`
    - `NEXT_PUBLIC_APP_URL` = `https://app.aitoolsfordoctor.com`
-4. Click **Save and Deploy**. When it finishes, open **Custom domains** on the Pages project and add: `aitoolsfordoctor.com`, `www.aitoolsfordoctor.com`, `app.aitoolsfordoctor.com` (Cloudflare adds the DNS automatically).
+5. Click **Save and Deploy**. When it finishes, open **Custom domains** on the Pages project and add: `aitoolsfordoctor.com`, `www.aitoolsfordoctor.com`, `app.aitoolsfordoctor.com` (Cloudflare adds the DNS automatically).
 
 ---
 
@@ -338,15 +342,16 @@ This publishes your marketing site + app UI (the `apps/web` folder).
 
 ## If something breaks — quick checks
 
-| Symptom | Do this (🟩 VM) |
-|---|---|
-| Site not loading | `docker compose -f docker-compose.prod.yml ps` — all "Up"? |
-| Backend errors | `docker compose -f docker-compose.prod.yml logs backend --tail=50` |
-| DB issues | `docker compose -f docker-compose.prod.yml logs postgres --tail=50` |
-| Cert/HTTPS issues | `docker compose -f docker-compose.prod.yml logs caddy --tail=50` |
+| Symptom                    | Do this (🟩 VM)                                                         |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Site not loading           | `docker compose -f docker-compose.prod.yml ps` — all "Up"?           |
+| Backend errors             | `docker compose -f docker-compose.prod.yml logs backend --tail=50`    |
+| DB issues                  | `docker compose -f docker-compose.prod.yml logs postgres --tail=50`   |
+| Cert/HTTPS issues          | `docker compose -f docker-compose.prod.yml logs caddy --tail=50`      |
 | Redeploy after code change | `git pull && docker compose -f docker-compose.prod.yml up -d --build` |
 
 ## Still to do (yours)
+
 - Confirm the real **SMTP host** for `agilepartners-ai.com` (Step 5) — ask your email provider.
 - Add images to `apps/web/public/`: `og.png`, `icon-192.png`, `icon-512.png`, `favicon.ico`.
 - **Rotate** the Google key + SMTP password you shared earlier.
