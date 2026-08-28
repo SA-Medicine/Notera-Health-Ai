@@ -29,18 +29,46 @@ export default function NewConsult() {
   const [devMode, setDevMode] = useState(true);
 
   const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   async function toggleRecord() {
     if (recording) {
-      recorderRef.current?.stop();
+      recorderRef.current?.stop();   // triggers onstop → transcription
       setRecording(false);
       return;
     }
+    setError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
       recorderRef.current = rec;
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        if (!blob.size) { setPhase(''); return; }
+        setTranscribing(true);
+        setPhase('Transcribing audio (medical ASR)…');
+        try {
+          const r = await fetch('/backend/api/asr', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d?.hint || d?.error || 'Transcription failed');
+          if (d.transcript) {
+            setTranscript((prev) => (prev ? prev.trim() + '\n' : '') + d.transcript);
+            setPhase('Transcribed ✓ — review the text, then Generate the note.');
+          } else {
+            setPhase('No speech detected — try again or paste a transcript.');
+          }
+        } catch (e) {
+          setError((e as Error).message);
+          setPhase('');
+        } finally {
+          setTranscribing(false);
+        }
+      };
       rec.start();
       setRecording(true);
       setPhase('Recording… click Stop when the consult ends.');
@@ -100,8 +128,8 @@ export default function NewConsult() {
       />
 
       <div className="row" style={{ marginTop: 12, alignItems: 'center' }}>
-        <button className="btn ghost" type="button" onClick={toggleRecord} style={{ flex: 'none' }}>
-          {recording ? '■ Stop recording' : '● Record'}
+        <button className="btn ghost" type="button" onClick={toggleRecord} disabled={transcribing} style={{ flex: 'none' }}>
+          {transcribing ? <><span className="spinner" /> Transcribing…</> : recording ? '■ Stop recording' : '● Record'}
         </button>
         <button className="btn ghost" type="button" onClick={() => setTranscript(SAMPLE)} style={{ flex: 'none' }}>
           Load sample

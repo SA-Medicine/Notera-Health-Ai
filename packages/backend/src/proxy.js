@@ -165,20 +165,43 @@ export function mountProxy(app) {
     }
   });
 
+  // Medical ASR via Google Cloud Speech-to-Text (HIPAA-covered under your BAA; uses the
+  // service-account ADC). Accepts the raw recorded audio bytes (MediaRecorder → WEBM/OPUS).
+  // Synchronous recognize handles short clips (≤ ~1 min). Returns { transcript }.
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
     const id = rid();
     try {
-      const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${groqKey()}`, 'Content-Type': req.headers['content-type'] || 'multipart/form-data' },
-        body: req.body,
-      });
-      const text = await r.text();
-      if (!r.ok) console.error(`[proxy ${id}] asr ${r.status}: ${text.slice(0, 300)}`);
-      res.status(r.status).type('application/json').send(text || `{"error":"groq ${r.status}","requestId":"${id}"}`);
+      const audio = req.body;
+      if (!audio || !audio.length) return res.status(400).json({ error: 'no audio received', requestId: id });
+      const ct = String(req.headers['content-type'] || '');
+      const encoding = /webm/i.test(ct) ? 'WEBM_OPUS' : /ogg/i.test(ct) ? 'OGG_OPUS' : /wav|l16|linear/i.test(ct) ? 'LINEAR16' : 'WEBM_OPUS';
+      const speech = (await import('@google-cloud/speech')).default;
+      const client = new speech.SpeechClient();
+      const baseConfig = {
+        languageCode: process.env.ASR_LANGUAGE || 'en-US',
+        encoding,
+        useEnhanced: true,
+        enableAutomaticPunctuation: true,
+      };
+      if (encoding === 'LINEAR16') baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 16000);
+      const primaryModel = process.env.ASR_MODEL || 'medical_conversation';
+      const runRecognize = async (model) => client.recognize({ audio: { content: audio.toString('base64') }, config: { ...baseConfig, model } });
+      console.log(`[proxy ${id}] asr(google-speech) bytes=${audio.length} enc=${encoding} model=${primaryModel}`);
+      let response;
+      try { [response] = await runRecognize(primaryModel); }
+      catch (e) {
+        // medical_conversation may not be enabled/available in every project → fall back.
+        console.warn(`[proxy ${id}] asr model '${primaryModel}' failed (${e.message}); retrying with latest_long`);
+        [response] = await runRecognize('latest_long');
+      }
+      const transcript = (response.results || []).map((r) => r.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
+      res.json({ transcript, requestId: id });
     } catch (err) {
-      console.error(`[proxy ${id}] asr exception: ${err.message}`);
-      res.status(502).json({ error: 'asr proxy: ' + err.message, requestId: id });
+      console.error(`[proxy ${id}] asr(google-speech) error: ${err.message}`);
+      const hint = /too long|sync input|exceeds|duration/i.test(err.message)
+        ? 'Recording too long for instant transcription (≈1 min max). Record in shorter segments, or ask to enable long-audio transcription.'
+        : undefined;
+      res.status(502).json({ error: 'ASR failed: ' + err.message, requestId: id, hint });
     }
   });
 }
