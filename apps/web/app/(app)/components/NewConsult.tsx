@@ -30,6 +30,7 @@ export default function NewConsult() {
 
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [autoGenerate, setAutoGenerate] = useState(true);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -57,8 +58,15 @@ export default function NewConsult() {
           const d = await r.json();
           if (!r.ok) throw new Error(d?.hint || d?.error || 'Transcription failed');
           if (d.transcript) {
-            setTranscript((prev) => (prev ? prev.trim() + '\n' : '') + d.transcript);
-            setPhase('Transcribed ✓ — review the text, then Generate the note.');
+            const full = (transcript ? transcript.trim() + '\n' : '') + d.transcript;
+            setTranscript(full);
+            setTranscribing(false);
+            if (autoGenerate) {
+              setPhase('Transcribed ✓ — generating the note…');
+              await generate(full);          // straight into the pipeline
+            } else {
+              setPhase('Transcribed ✓ — review the text, then Generate.');
+            }
           } else {
             setPhase('No speech detected — try again or paste a transcript.');
           }
@@ -77,14 +85,16 @@ export default function NewConsult() {
     }
   }
 
-  async function generate() {
+  async function generate(text?: string) {
+    const t = (text ?? transcript).trim();
+    if (!t) { setError('Nothing to generate — record or paste a transcript first.'); return; }
     setError(''); setResult(null); setLoading(true);
-    setPhase('Transcribing → extracting entities → drafting → structuring…');
+    setPhase('Extracting entities → drafting → structuring the note…');
     try {
       const res = await fetch('/api/consults', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, specialty, noteType, clinicianId: 'demo-clinician', includeLogs: devMode }),
+        body: JSON.stringify({ transcript: t, specialty, noteType, clinicianId: 'demo-clinician', includeLogs: devMode }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || 'Generation failed');
@@ -135,10 +145,13 @@ export default function NewConsult() {
           Load sample
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontWeight: 600, fontSize: 13, color: 'var(--ink-soft)', flex: 'none', cursor: 'pointer' }}>
+          <input type="checkbox" checked={autoGenerate} onChange={(e) => setAutoGenerate(e.target.checked)} style={{ width: 'auto' }} /> Auto‑generate after recording
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontWeight: 600, fontSize: 13, color: 'var(--ink-soft)', flex: 'none', cursor: 'pointer' }}>
           <input type="checkbox" checked={devMode} onChange={(e) => setDevMode(e.target.checked)} style={{ width: 'auto' }} /> Dev logs
         </label>
         <span className="muted" style={{ flex: 1, textAlign: 'right' }}>{phase}</span>
-        <button className="btn" type="button" onClick={generate} disabled={loading || !transcript.trim()} style={{ flex: 'none' }}>
+        <button className="btn" type="button" onClick={() => generate()} disabled={loading || recording || transcribing || !transcript.trim()} style={{ flex: 'none' }}>
           {loading ? <><span className="spinner" /> Generating…</> : 'Generate draft note'}
         </button>
       </div>
