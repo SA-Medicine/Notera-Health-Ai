@@ -31,55 +31,81 @@ export default function NewConsult() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [autoGenerate, setAutoGenerate] = useState(true);
+  const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const segTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stoppingRef = useRef(false);
+  const transcriptRef = useRef('');          // mirrors `transcript` so segment callbacks read the latest
+  const SEGMENT_MS = 40000;                  // cut a fresh ~40s segment (well under Speech's ~60s sync cap)
+
+  // Keep the textarea and the ref in sync (manual edits + streamed segments).
+  function updateTranscript(v: string | ((p: string) => string)) {
+    setTranscript((prev) => {
+      const next = typeof v === 'function' ? (v as (p: string) => string)(prev) : v;
+      transcriptRef.current = next;
+      return next;
+    });
+  }
+
+  async function transcribeBlob(blob: Blob): Promise<string> {
+    if (!blob || !blob.size) return '';
+    const r = await fetch('/backend/api/asr', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d?.hint || d?.error || 'Transcription failed');
+    return (d.transcript || '').trim();
+  }
+
+  // One ~40s segment: record → on stop transcribe + append → start the next (or finalize).
+  function startSegment() {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const rec = new MediaRecorder(stream);
+    recorderRef.current = rec;
+    chunksRef.current = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
+    rec.onstop = async () => {
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+      try {
+        const seg = await transcribeBlob(blob);
+        if (seg) updateTranscript((prev) => (prev ? prev.trim() + ' ' : '') + seg);
+      } catch (e) { setError((e as Error).message); }
+
+      if (!stoppingRef.current) {
+        startSegment();                       // still recording → next segment (near-seamless)
+        return;
+      }
+      // user pressed Stop → finalize the session
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setTranscribing(false);
+      const full = transcriptRef.current.trim();
+      if (autoGenerate && full) { setPhase('Transcribed ✓ — generating the note…'); await generate(full); }
+      else setPhase(full ? 'Transcribed ✓ — review the text, then Generate.' : 'No speech detected — try again.');
+    };
+    rec.start();
+    segTimerRef.current = setTimeout(() => { try { rec.stop(); } catch { /* ignore */ } }, SEGMENT_MS);
+  }
 
   async function toggleRecord() {
     if (recording) {
-      recorderRef.current?.stop();   // triggers onstop → transcription
+      // Stop: end the loop; the final segment transcribes, then (optionally) auto-generates.
+      stoppingRef.current = true;
       setRecording(false);
+      setTranscribing(true);
+      setPhase('Finishing transcription…');
+      if (segTimerRef.current) clearTimeout(segTimerRef.current);
+      try { recorderRef.current?.stop(); } catch { /* ignore */ }
       return;
     }
     setError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      recorderRef.current = rec;
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
-        if (!blob.size) { setPhase(''); return; }
-        setTranscribing(true);
-        setPhase('Transcribing audio (medical ASR)…');
-        try {
-          const r = await fetch('/backend/api/asr', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d?.hint || d?.error || 'Transcription failed');
-          if (d.transcript) {
-            const full = (transcript ? transcript.trim() + '\n' : '') + d.transcript;
-            setTranscript(full);
-            setTranscribing(false);
-            if (autoGenerate) {
-              setPhase('Transcribed ✓ — generating the note…');
-              await generate(full);          // straight into the pipeline
-            } else {
-              setPhase('Transcribed ✓ — review the text, then Generate.');
-            }
-          } else {
-            setPhase('No speech detected — try again or paste a transcript.');
-          }
-        } catch (e) {
-          setError((e as Error).message);
-          setPhase('');
-        } finally {
-          setTranscribing(false);
-        }
-      };
-      rec.start();
+      streamRef.current = stream;
+      stoppingRef.current = false;
       setRecording(true);
-      setPhase('Recording… click Stop when the consult ends.');
+      setPhase('Recording… transcript updates every ~40s. Click Stop when the consult ends.');
+      startSegment();
     } catch {
       setError('Microphone unavailable. Paste a transcript instead.');
     }
@@ -134,14 +160,14 @@ export default function NewConsult() {
         id="transcript"
         placeholder="Paste the consult transcript, or record and paste the transcription…"
         value={transcript}
-        onChange={(e) => setTranscript(e.target.value)}
+        onChange={(e) => updateTranscript(e.target.value)}
       />
 
       <div className="row" style={{ marginTop: 12, alignItems: 'center' }}>
         <button className="btn ghost" type="button" onClick={toggleRecord} disabled={transcribing} style={{ flex: 'none' }}>
           {transcribing ? <><span className="spinner" /> Transcribing…</> : recording ? '■ Stop recording' : '● Record'}
         </button>
-        <button className="btn ghost" type="button" onClick={() => setTranscript(SAMPLE)} style={{ flex: 'none' }}>
+        <button className="btn ghost" type="button" onClick={() => updateTranscript(SAMPLE)} style={{ flex: 'none' }}>
           Load sample
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontWeight: 600, fontSize: 13, color: 'var(--ink-soft)', flex: 'none', cursor: 'pointer' }}>
