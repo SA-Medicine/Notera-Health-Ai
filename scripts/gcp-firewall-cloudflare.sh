@@ -13,19 +13,22 @@ set -euo pipefail
 TAG="${TARGET_TAG:-notera-web}"
 
 echo "Fetching Cloudflare IP ranges…"
-V4="$(curl -fsSL https://www.cloudflare.com/ips-v4)"
-V6="$(curl -fsSL https://www.cloudflare.com/ips-v6)"
-RANGES="$(printf '%s\n%s\n' "$V4" "$V6" | grep -v '^$' | paste -sd, -)"
-[ -n "$RANGES" ] || { echo "Could not fetch Cloudflare ranges"; exit 1; }
+# GCP does NOT allow IPv4 and IPv6 in the same firewall rule → create TWO rules.
+V4="$(curl -fsSL https://www.cloudflare.com/ips-v4 | grep -v '^$' | paste -sd, -)"
+V6="$(curl -fsSL https://www.cloudflare.com/ips-v6 | grep -v '^$' | paste -sd, -)"
+[ -n "$V4" ] || { echo "Could not fetch Cloudflare ranges"; exit 1; }
 
-echo "Applying firewall rule notera-cf-https (443 ← Cloudflare only, tag=$TAG)…"
-if gcloud compute firewall-rules describe notera-cf-https >/dev/null 2>&1; then
-  gcloud compute firewall-rules update notera-cf-https --allow=tcp:443 --source-ranges="$RANGES"
-else
-  gcloud compute firewall-rules create notera-cf-https \
-    --direction=INGRESS --action=ALLOW --allow=tcp:443 \
-    --source-ranges="$RANGES" --target-tags="$TAG"
-fi
+upsert() {  # name  ranges
+  if gcloud compute firewall-rules describe "$1" >/dev/null 2>&1; then
+    gcloud compute firewall-rules update "$1" --allow=tcp:443 --source-ranges="$2"
+  else
+    gcloud compute firewall-rules create "$1" \
+      --direction=INGRESS --allow=tcp:443 --source-ranges="$2" --target-tags="$TAG"
+  fi
+}
+echo "Applying firewall rules (443 ← Cloudflare only, tag=$TAG)…"
+upsert notera-cf-https-v4 "$V4"
+upsert notera-cf-https-v6 "$V6"
 
 # Remove the world-open web rule (80/443 to everyone). With an Origin Certificate,
 # Caddy does NOT need port 80 (no ACME HTTP challenge), so we close it entirely.

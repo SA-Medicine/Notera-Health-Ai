@@ -9,15 +9,10 @@ const TOKEN = process.env.BACKEND_SERVICE_TOKEN || '';
 
 async function authHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (process.env.NODE_ENV === 'production' && process.env.USE_ID_TOKEN === 'true') {
-    // Cloud Run → Cloud Run: mint an ID token for the backend audience.
-    const { GoogleAuth } = await import('google-auth-library');
-    const auth = new GoogleAuth();
-    const client = await auth.getIdTokenClient(BACKEND_URL);
-    Object.assign(headers, await client.getRequestHeaders());
-  } else if (TOKEN) {
-    headers.Authorization = `Bearer ${TOKEN}`;
-  }
+  // We reach the backend over HTTPS via Cloudflare and authenticate with a shared service
+  // token (BACKEND_SERVICE_TOKEN on the frontend must match SERVICE_TOKENS on the backend).
+  // (The old Cloud Run ID-token path is removed — we don't use Cloud Run.)
+  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
   return headers;
 }
 
