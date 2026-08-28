@@ -16,6 +16,29 @@ const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH |
 const groqKey = () => process.env.GROQ_KEY_1 || process.env.GROQ_KEY_2 || process.env.GROQ_KEY || '';
 const geminiKey = () => process.env.GEMINI_API_KEY || '';
 
+// ── LLM backend selection: Vertex AI (HIPAA/BAA) vs AI Studio (API key) ──────
+const isVertex = () => (process.env.LLM_BACKEND || 'ai_studio') === 'vertex';
+let _vertexAuth = null;
+async function vertexToken() {
+  const { GoogleAuth } = await import('google-auth-library');
+  _vertexAuth = _vertexAuth || new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+  return _vertexAuth.getAccessToken();   // cached + auto-refreshed by the library
+}
+// Resolve the upstream {url, headers} for a model call, depending on the backend.
+async function resolveTarget(model, { stream = false } = {}) {
+  const verb = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+  if (isVertex()) {
+    const proj = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+    const loc = process.env.VERTEX_LOCATION || 'us-central1';
+    const host = loc === 'global' ? 'https://aiplatform.googleapis.com' : `https://${loc}-aiplatform.googleapis.com`;
+    const url = `${host}/v1/projects/${proj}/locations/${loc}/publishers/google/models/${model}:${verb}`;
+    const token = await vertexToken();
+    return { url, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } };
+  }
+  const sep = verb.includes('?') ? '&' : '?';
+  return { url: `${GEMINI_BASE}/${model}:${verb}${sep}key=${geminiKey()}`, headers: { 'Content-Type': 'application/json' } };
+}
+
 // Centralized model config from .env so gemini-3.5-flash is used to its full capacity,
 // consistently, on every call. Fills only values the caller didn't set (maxOutputTokens
 // is raised to the env floor; temperature/thinking added if configured).
@@ -40,13 +63,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rid = () => Math.random().toString(36).slice(2, 8);
 const keyTail = (k) => (k ? `…${k.slice(-4)} (${k.length})` : 'MISSING');
 
-async function callGemini(url, bodyObj, { label = 'gemini', id = rid() } = {}) {
+async function callGemini(url, bodyObj, { label = 'gemini', id = rid(), headers = { 'Content-Type': 'application/json' } } = {}) {
   const bodyStr = JSON.stringify(bodyObj);
   let attempts = 0, lastText = '', lastStatus = 0;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     attempts++;
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
+      const res = await fetch(url, { method: 'POST', headers, body: bodyStr });
       const text = await res.text();
       lastText = text; lastStatus = res.status;
       if (res.ok) return { ok: true, status: res.status, text, attempts };
@@ -81,11 +104,12 @@ function errorPayload(id, model, r, extra = {}) {
 export function mountProxy(app) {
   app.get('/api/llm/diag', async (_req, res) => {
     const id = rid(); const model = MODEL();
-    console.log(`[proxy ${id}] DIAG model=${model} key=${keyTail(geminiKey())}`);
-    const r = await callGemini(`${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`,
+    console.log(`[proxy ${id}] DIAG model=${model} backend=${isVertex() ? 'vertex' : 'ai_studio'} key=${keyTail(geminiKey())}`);
+    const { url, headers } = await resolveTarget(model);
+    const r = await callGemini(url,
       { contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }], generationConfig: { maxOutputTokens: 16 } },
-      { label: 'diag', id });
-    if (r.ok) return res.json({ ok: true, model, keyPresent: !!geminiKey(), sample: r.text.slice(0, 200) });
+      { label: 'diag', id, headers });
+    if (r.ok) return res.json({ ok: true, model, backend: isVertex() ? 'vertex' : 'ai_studio', sample: r.text.slice(0, 200) });
     res.status(r.status).json({ ok: false, keyPresent: !!geminiKey(), ...errorPayload(id, model, r) });
   });
 
@@ -93,18 +117,18 @@ export function mountProxy(app) {
     const id = rid(); const model = MODEL();
     const base = applyModelDefaults(req.body || {});
     const gc = base.generationConfig || {};
-    console.log(`[proxy ${id}] generate model=${model} key=${keyTail(geminiKey())} `
+    console.log(`[proxy ${id}] generate model=${model} backend=${isVertex() ? 'vertex' : 'ai_studio'} `
       + `bodyKB=${(JSON.stringify(base).length / 1024).toFixed(1)} schema=${!!gc.responseSchema} maxTokens=${gc.maxOutputTokens || 'default'}`);
-    const url = `${GEMINI_BASE}/${model}:generateContent?key=${geminiKey()}`;
-    let r = await callGemini(url, base, { label: 'generate', id });
+    const { url, headers } = await resolveTarget(model);
+    let r = await callGemini(url, base, { label: 'generate', id, headers });
     if (!r.ok && r.status === 500 && gc.responseSchema) {
       console.warn(`[proxy ${id}] retrying generate WITHOUT responseSchema`);
       const b = structuredClone(base); delete b.generationConfig.responseSchema;
-      r = await callGemini(url, b, { label: 'generate/no-schema', id });
+      r = await callGemini(url, b, { label: 'generate/no-schema', id, headers });
       if (!r.ok && r.status === 500) {
         console.warn(`[proxy ${id}] retrying generate with maxOutputTokens=8192`);
         b.generationConfig.maxOutputTokens = 8192;
-        r = await callGemini(url, b, { label: 'generate/low-tokens', id });
+        r = await callGemini(url, b, { label: 'generate/low-tokens', id, headers });
       }
     }
     if (r.ok) return res.status(200).type('application/json').send(r.text);
@@ -116,9 +140,10 @@ export function mountProxy(app) {
     const id = rid(); const model = MODEL();
     try {
       let upstream, lastText = '', lastStatus = 0;
+      const { url: streamUrl, headers: streamHeaders } = await resolveTarget(model, { stream: true });
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        upstream = await fetch(`${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${geminiKey()}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(applyModelDefaults(req.body || {})) });
+        upstream = await fetch(streamUrl,
+          { method: 'POST', headers: streamHeaders, body: JSON.stringify(applyModelDefaults(req.body || {})) });
         if (upstream.ok) break;
         lastText = await upstream.text().catch(() => ''); lastStatus = upstream.status;
         console.error(`[proxy ${id}] stream attempt ${attempt + 1} → ${upstream.status}: ${lastText.slice(0, 400)}`);
