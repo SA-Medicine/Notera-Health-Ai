@@ -1,18 +1,17 @@
 'use client';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auth context — MOCK for now (persists to localStorage), Firebase-ready.
-//
-// You said you'll add Firebase after. To switch: install `firebase`, create
-// web/app/lib/firebaseClient.ts, and replace the three mock functions below with
-// Firebase Auth calls (signInWithEmailAndPassword / createUserWithEmailAndPassword
-// / signInWithPopup(GoogleAuthProvider) / signOut) and subscribe to
-// onAuthStateChanged. The rest of the app (useAuth, <Protected/>, TopBar) needs
-// no changes — it only depends on { user, signIn, signUp, signInWithGoogle, signOut }.
+// Auth context — REAL email/password auth against the Notera backend.
+//   POST /backend/api/auth/login  → sets an HttpOnly session cookie (first-party
+//        via the /backend/* proxy) and returns the user.
+//   GET  /backend/api/auth/me     → restores the session on page load.
+//   POST /backend/api/auth/logout → clears the cookie.
+// There is NO public sign-up for a clinical system — accounts are created by an
+// admin (POST /api/auth/users). signUp / Google are intentionally disabled.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type User = { uid: string; email: string; name: string } | null;
+export type User = { uid: string; email: string; name: string; role?: string } | null;
 
 type AuthCtx = {
   user: User;
@@ -24,47 +23,54 @@ type AuthCtx = {
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
-const KEY = 'notera_user';
 
-function nameFromEmail(email: string) {
-  const h = email.split('@')[0].replace(/[._-]+/g, ' ');
-  return h.replace(/\b\w/g, (c) => c.toUpperCase()) || 'Clinician';
-}
+// All auth calls go through the same-origin /backend proxy so cookies stay first-party.
+const AUTH = '/backend/api/auth';
+const nameFromEmail = (email: string) =>
+  (email.split('@')[0] || 'Clinician').replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+const toUser = (u: any): User =>
+  u ? { uid: u.id || u.uid || u.email, email: u.email, name: u.fullName || u.name || nameFromEmail(u.email), role: u.role } : null;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null);
   const [ready, setReady] = useState(false);
 
+  // Restore the session from the cookie on first load.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setUser(JSON.parse(raw));
-    } catch { /* ignore */ }
-    setReady(true);
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`${AUTH}/me`, { credentials: 'include', cache: 'no-store' });
+        if (alive && r.ok) { const d = await r.json(); setUser(toUser(d.user)); }
+      } catch { /* not logged in */ }
+      finally { if (alive) setReady(true); }
+    })();
+    return () => { alive = false; };
   }, []);
 
-  const persist = useCallback((u: User) => {
-    setUser(u);
-    try { u ? localStorage.setItem(KEY, JSON.stringify(u)) : localStorage.removeItem(KEY); } catch { /* ignore */ }
+  const signIn = useCallback(async (email: string, password: string) => {
+    const r = await fetch(`${AUTH}/login`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || (r.status === 423 ? 'Account locked — try again later.' : 'Invalid email or password.'));
+    setUser(toUser(d.user));
   }, []);
 
-  // ── MOCK implementations (swap for Firebase later) ──────────────────────────
-  const signIn = useCallback(async (email: string, _password: string) => {
-    await new Promise((r) => setTimeout(r, 450)); // simulate latency
-    persist({ uid: 'demo-' + btoa(email).slice(0, 8), email, name: nameFromEmail(email) });
-  }, [persist]);
-
-  const signUp = useCallback(async (name: string, email: string, _password: string) => {
-    await new Promise((r) => setTimeout(r, 550));
-    persist({ uid: 'demo-' + btoa(email).slice(0, 8), email, name: name || nameFromEmail(email) });
-  }, [persist]);
+  const signUp = useCallback(async () => {
+    throw new Error('Accounts are created by your administrator. Please contact them for access.');
+  }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    await new Promise((r) => setTimeout(r, 500));
-    persist({ uid: 'google-demo', email: 'clinician@gmail.com', name: 'Demo Clinician' });
-  }, [persist]);
+    throw new Error('Google sign-in is not enabled. Use your email and password.');
+  }, []);
 
-  const signOut = useCallback(() => persist(null), [persist]);
+  const signOut = useCallback(() => {
+    fetch(`${AUTH}/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    setUser(null);
+  }, []);
 
   return (
     <Ctx.Provider value={{ user, ready, signIn, signUp, signInWithGoogle, signOut }}>
