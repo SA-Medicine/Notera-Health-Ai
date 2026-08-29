@@ -24,6 +24,11 @@ function mdToHtml(md: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines = esc(md || '').split('\n'); const out: string[] = []; let inList = false;
   for (const ln of lines) {
+    // Numbered A&P problem heading: "1. **Title**" → keep the number inside the bold
+    // so the whole "1. Title" stays on one line (the stylesheet block-displays a
+    // leading <strong>, which otherwise orphans the bare "1." on its own line).
+    const numHead = ln.match(/^\s*(\d+)\.\s+\*\*(.+?)\*\*\s*$/);
+    if (numHead) { if (inList) { out.push('</ul>'); inList = false; } out.push(`<p class="ap-head"><strong>${numHead[1]}. ${numHead[2]}</strong></p>`); continue; }
     if (/^\s*[-*]\s+/.test(ln)) { if (!inList) { out.push('<ul>'); inList = true; } out.push('<li>' + ln.replace(/^\s*[-*]\s+/, '') + '</li>'); continue; }
     if (inList) { out.push('</ul>'); inList = false; }
     if (/^#{1,6}\s/.test(ln)) { const h = ln.match(/^#+/)![0].length; out.push(`<h${h}>` + ln.replace(/^#+\s/, '') + `</h${h}>`); continue; }
