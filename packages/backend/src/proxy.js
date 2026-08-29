@@ -57,6 +57,25 @@ function applyModelDefaults(body) {
   return b;
 }
 
+// Extract the first file part's raw bytes from a multipart/form-data Buffer body
+// (the DAS webapp posts audio as FormData field "file"). Returns a Buffer or null.
+function extractMultipartFile(buf, contentType) {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || '');
+  if (!m) return null;
+  const boundary = Buffer.from('--' + (m[1] || m[2]).trim());
+  let start = buf.indexOf(boundary);
+  while (start !== -1) {
+    const headerEnd = buf.indexOf('\r\n\r\n', start);
+    if (headerEnd === -1) break;
+    const header = buf.slice(start, headerEnd).toString('utf8');
+    const next = buf.indexOf(boundary, headerEnd + 4);
+    if (next === -1) break;
+    if (/name="file"|filename=/i.test(header)) return buf.slice(headerEnd + 4, next - 2);
+    start = next;
+  }
+  return null;
+}
+
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_RETRIES = Number(process.env.LLM_PROXY_RETRIES || 2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -171,10 +190,20 @@ export function mountProxy(app) {
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
     const id = rid();
     try {
-      const audio = req.body;
+      let audio = req.body;
       if (!audio || !audio.length) return res.status(400).json({ error: 'no audio received', requestId: id });
       const ct = String(req.headers['content-type'] || '');
-      const encoding = /webm/i.test(ct) ? 'WEBM_OPUS' : /ogg/i.test(ct) ? 'OGG_OPUS' : /wav|l16|linear/i.test(ct) ? 'LINEAR16' : 'WEBM_OPUS';
+      // The DAS webapp sends multipart/form-data (field "file"); extract the raw audio bytes.
+      if (/multipart\/form-data/i.test(ct)) {
+        const extracted = extractMultipartFile(audio, ct);
+        if (extracted) audio = extracted;
+      }
+      // Sniff the real container from magic bytes (robust regardless of how it was sent):
+      //   WEBM/Matroska → 1A 45 DF A3;  OGG → "OggS";  WAV → "RIFF".
+      let encoding = 'WEBM_OPUS';
+      if (audio[0] === 0x1a && audio[1] === 0x45 && audio[2] === 0xdf && audio[3] === 0xa3) encoding = 'WEBM_OPUS';
+      else if (audio.slice(0, 4).toString() === 'OggS') encoding = 'OGG_OPUS';
+      else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
       const speech = (await import('@google-cloud/speech')).default;
       const client = new speech.SpeechClient();
       const baseConfig = {
@@ -196,7 +225,8 @@ export function mountProxy(app) {
         [response] = await runRecognize('latest_long');
       }
       const transcript = (response.results || []).map((r) => r.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
-      res.json({ transcript, requestId: id });
+      // Return BOTH keys so every client works: the DAS webapp reads `text`, others read `transcript`.
+      res.json({ text: transcript, transcript, requestId: id });
     } catch (err) {
       console.error(`[proxy ${id}] asr(google-speech) error: ${err.message}`);
       const hint = /too long|sync input|exceeds|duration/i.test(err.message)
