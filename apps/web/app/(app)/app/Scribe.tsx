@@ -1,15 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import './scribe.css';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
+const SEGMENT_MS = 40_000;
+
 const SPECIALTIES = [
   'general_primary_care', 'musculoskeletal', 'diabetes', 'hypertension', 'mental_health',
   'dermatology', 'gynecology', 'pediatrics', 'weight_loss', 'medication_refill',
 ];
-const SEGMENT_MS = 40_000;
 
+type Panel = 'context' | 'transcript' | 'note' | 'history';
 type Phase = 'idle' | 'recording' | 'transcribing' | 'generating' | 'done';
 type Line = { t: string; text: string };
 type HistItem = { consult_id: string; title: string | null; specialty: string | null; status: string; audio_uri: string | null; created_at: string };
@@ -20,7 +23,7 @@ const mmss = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')
 function mdToHtml(md: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines = esc(md || '').split('\n'); const out: string[] = []; let inList = false;
-  for (let ln of lines) {
+  for (const ln of lines) {
     if (/^\s*[-*]\s+/.test(ln)) { if (!inList) { out.push('<ul>'); inList = true; } out.push('<li>' + ln.replace(/^\s*[-*]\s+/, '') + '</li>'); continue; }
     if (inList) { out.push('</ul>'); inList = false; }
     if (/^#{1,6}\s/.test(ln)) { const h = ln.match(/^#+/)![0].length; out.push(`<h${h}>` + ln.replace(/^#+\s/, '') + `</h${h}>`); continue; }
@@ -31,21 +34,42 @@ function mdToHtml(md: string): string {
   return out.join('').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
 
+// tiny inline icons
+const I = {
+  mic: <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z" /></svg>,
+  micStroke: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2" /></svg>,
+  plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+  bolt: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>,
+  clock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+  cal: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+  doc: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>,
+  lines: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>,
+  trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>,
+  moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>,
+  download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>,
+  chevronD: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11"><polyline points="6 9 12 15 18 9" /></svg>,
+  globe: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" /></svg>,
+  settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>,
+};
+
 export default function Scribe() {
+  const [panel, setPanel] = useState<Panel>('transcript');
   const [phase, setPhase] = useState<Phase>('idle');
   const [lines, setLines] = useState<Line[]>([]);
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState(false);
   const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
-  const [noteType, setNoteType] = useState('consultation');
   const [patient, setPatient] = useState('');
   const [error, setError] = useState('');
   const [genStep, setGenStep] = useState(0);
-  const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<HistItem[]>([]);
   const [consultId, setConsultId] = useState<string | null>(null);
-  const [pasteMode, setPasteMode] = useState(false);
+  const [history, setHistory] = useState<HistItem[]>([]);
+  const [pasteText, setPasteText] = useState('');
+  const [elapsed, setElapsed] = useState(0);
+  const [dark, setDark] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
+  const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
@@ -56,18 +80,39 @@ export default function Scribe() {
   const stopping = useRef(false);
   const startTs = useRef(0);
   const segTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transcriptRef = useRef('');
+  const noteBodyRef = useRef<HTMLDivElement | null>(null);
+
+  const flash = (msg: string, kind: 'success' | 'error' = 'success') => { setToast({ msg, kind }); setTimeout(() => setToast(null), 2600); };
 
   const setTx = (v: string | ((p: string) => string)) =>
-    setTranscript((prev) => { const n = typeof v === 'function' ? (v as any)(prev) : v; transcriptRef.current = n; return n; });
+    setTranscript((prev) => { const n = typeof v === 'function' ? (v as (p: string) => string)(prev) : v; transcriptRef.current = n; return n; });
 
-  // ── history ────────────────────────────────────────────────────────────────
+  // dark mode ↔ body class (scribe.css uses body.dark-mode)
+  useEffect(() => {
+    document.body.classList.toggle('dark-mode', dark);
+    return () => document.body.classList.remove('dark-mode');
+  }, [dark]);
+
+  // render note into the contenteditable body when not editing
+  useEffect(() => {
+    if (!editing && noteBodyRef.current) noteBodyRef.current.innerHTML = mdToHtml(note);
+  }, [note, editing]);
+
+  // recording timer
+  useEffect(() => {
+    if (phase === 'recording') {
+      timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startTs.current) / 1000)), 1000);
+    } else if (timerRef.current) { clearInterval(timerRef.current); }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [phase]);
+
   const loadHistory = useCallback(async () => {
     try { const r = await fetch(`${API}/api/library/consults`, { credentials: 'include' }); if (r.ok) setHistory((await r.json()).consults || []); } catch { /* */ }
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // ── ASR for one audio blob ───────────────────────────────────────────────────
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
     const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob });
@@ -92,7 +137,6 @@ export default function Scribe() {
       try { const seg = await transcribeBlob(blob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
       if (!stopping.current) { startSegment(); return; }
       stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
-      // finalise the full recording
       if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
         await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
       }
@@ -110,7 +154,8 @@ export default function Scribe() {
       try { segRecRef.current?.stop(); } catch { /* */ }
       return;
     }
-    setError(''); setNote(''); setConsultId(null); setLines([]); setTx('');
+    setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0);
+    setPanel('transcript');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream; stopping.current = false; startTs.current = Date.now();
@@ -120,189 +165,288 @@ export default function Scribe() {
         fr.ondataavailable = (e) => { if (e.data.size) fullChunks.current.push(e.data); };
         fr.start(1000);
       } catch { fullRecRef.current = null; }
-      setPhase('recording'); setPasteMode(false); startSegment();
-    } catch { setError('Microphone unavailable — use “Paste transcript” instead.'); }
+      setPhase('recording'); startSegment();
+    } catch { setError('Microphone unavailable — paste a transcript below instead.'); }
   }
 
-  // ── generate the SOAP note ───────────────────────────────────────────────────
+  function loadPastedTranscript() {
+    const t = pasteText.trim(); if (!t) return;
+    setTx(t); setLines(t.split(/(?<=[.!?])\s+/).filter(Boolean).map((s, i) => ({ t: mmss(i * 5), text: s })));
+    setPhase('done'); setPasteText('');
+    flash('Transcript loaded');
+  }
+
+  function buildTranscript(): string {
+    const parts: string[] = [];
+    const c: string[] = [];
+    if (ctx.age) c.push(`Age: ${ctx.age}`);
+    if (ctx.sex) c.push(`Sex: ${ctx.sex}`);
+    if (ctx.pmhx) c.push(`PMHx: ${ctx.pmhx}`);
+    if (ctx.meds) c.push(`Current medications: ${ctx.meds}`);
+    if (c.length) parts.push('[Patient context] ' + c.join('; '));
+    parts.push(transcriptRef.current.trim());
+    return parts.join('\n');
+  }
+
   async function createSOAP() {
-    const t = transcriptRef.current.trim();
-    if (!t) { setError('Record or paste a transcript first.'); return; }
-    setError(''); setEditing(false); setPhase('generating'); setGenStep(0);
+    if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
+    setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
     const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
     try {
       const me = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? r.json() : null).catch(() => null);
       const r = await fetch(`${API}/api/consults`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: t, specialty, noteType, clinicianId: me?.user?.id || 'clinician' }),
+        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: me?.user?.id || 'clinician' }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || 'Note generation failed');
       const md = d.renderedNote || d.rawRenderedNote || '';
       setNote(md); setConsultId(d.consultId || null); setPhase('done');
-      // persist per-user + audio (best-effort)
+      flash('Note generated');
       const cid = d.consultId;
       if (cid) {
-        fetch(`${API}/api/library/consults`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultId: cid, transcript: t, renderedNote: md, title: patient || `${specialty.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty, noteType, status: 'ready' }) })
+        fetch(`${API}/api/library/consults`, {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultId: cid, transcript: transcriptRef.current.trim(), renderedNote: md, title: patient || `${specialty.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty, noteType: 'consultation', status: 'ready' }),
+        })
           .then(() => { if (fullBlob.current?.size) return fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': fullBlob.current!.type }, body: fullBlob.current! }); })
           .then(() => loadHistory()).catch(() => {});
       }
-    } catch (e) { setError((e as Error).message); setPhase(transcriptRef.current ? 'done' : 'idle'); }
+    } catch (e) { setError((e as Error).message); setPhase(transcriptRef.current ? 'done' : 'idle'); flash((e as Error).message, 'error'); }
     finally { clearInterval(stepper); }
   }
 
   async function openConsult(id: string) {
     try {
       const r = await fetch(`${API}/api/library/consults/${id}`, { credentials: 'include' });
-      const d = await r.json(); const c = d.consult;
-      if (!c) return;
-      const draft = (c.drafts || [])[c.drafts?.length - 1];
+      const d = await r.json(); const c = d.consult; if (!c) return;
+      const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
-      setTx((c.transcript?.text) || '');
-      setLines([]); setConsultId(id); setPhase('done'); setShowHistory(false);
+      setTx((c.transcript?.text) || ''); setLines([]); setConsultId(id); setPhase('done'); setEditing(false);
+      setPanel('note');
     } catch { /* */ }
   }
   async function downloadAudio(id: string) {
-    try { const r = await fetch(`${API}/api/library/consults/${id}/audio`, { credentials: 'include' }); const d = await r.json(); if (d.url) window.open(d.url, '_blank'); else setError('No audio for this consult'); } catch { /* */ }
+    try { const r = await fetch(`${API}/api/library/consults/${id}/audio`, { credentials: 'include' }); const d = await r.json(); if (d.url) window.open(d.url, '_blank'); else flash('No audio for this consult', 'error'); } catch { /* */ }
   }
   async function deleteConsult(id: string) {
     if (!confirm('Delete this consult?')) return;
     await fetch(`${API}/api/library/consults/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
     loadHistory();
   }
+  function newSession() {
+    setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setPanel('transcript');
+  }
 
+  function toggleEdit() {
+    if (editing && noteBodyRef.current) setNote(noteBodyRef.current.innerText);
+    setEditing((v) => !v);
+  }
   const copy = (plain: boolean) => {
     const text = plain ? note.replace(/[#*_`>]/g, '').replace(/\n{3,}/g, '\n\n') : note;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text); flash(plain ? 'Copied for EMR' : 'Copied');
   };
 
-  const genSteps = ['Extracting clinical facts', 'De‑identifying & drafting', 'Structuring the SOAP note', 'Grounding & final check'];
+  const genSteps = ['Extracting clinical facts', 'De-identifying & drafting', 'Structuring the SOAP note', 'Grounding & final check'];
+  const recording = phase === 'recording';
+  const dateStr = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="flex h-[calc(100vh-57px)] flex-col bg-slate-50 text-slate-900">
-      {/* Top toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
-        <input value={patient} onChange={(e) => setPatient(e.target.value)} placeholder="Patient name / ID"
-          className="w-44 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-blue-500" />
-        <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-          {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-        </select>
-        <select value={noteType} onChange={(e) => setNoteType(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-          <option value="consultation">consultation</option><option value="follow_up">follow up</option><option value="medication_refill">medication refill</option>
-        </select>
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setShowHistory(true)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50">History</button>
-          <button onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}
-            className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold text-white ${phase === 'recording' ? 'bg-red-600 animate-pulse' : 'bg-slate-800 hover:bg-slate-900'} disabled:opacity-50`}>
-            <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-white' : 'bg-red-500'}`} />
-            {phase === 'recording' ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Record'}
-          </button>
-          <button onClick={createSOAP} disabled={phase === 'recording' || phase === 'generating' || !transcript.trim()}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
-            {phase === 'generating' ? 'Creating…' : 'Create SOAP'}
-          </button>
+    <div className={`notera-shell${dark ? ' dark-mode' : ''}`}>
+      {/* ── Sidebar ── */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <div className="brand">
+            <div className="brand-icon">{I.micStroke}</div>
+            <span className="brand-name">Notera</span>
+          </div>
         </div>
-      </div>
-
-      {error && <div className="mx-4 mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-
-      {/* Split: transcript | note */}
-      <div className="grid flex-1 gap-px overflow-hidden bg-slate-200 md:grid-cols-2">
-        {/* Transcript */}
-        <section className="flex min-h-0 flex-col bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <span>{phase === 'recording' ? '● Live transcript' : 'Transcript'}</span>
-            <button onClick={() => setPasteMode((v) => !v)} className="text-blue-600 hover:underline">{pasteMode ? 'Hide paste' : 'Paste transcript'}</button>
+        <div className="sidebar-section">
+          <button className="new-session-btn" onClick={newSession}>{I.plus}<span>New session</span></button>
+        </div>
+        <nav className="sidebar-nav">
+          <div className={`nav-item${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.micStroke}<span>Scribe</span></div>
+          <div className={`nav-item${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}<span>Context</span></div>
+          <div className={`nav-item${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}<span>History</span></div>
+        </nav>
+        <div className="sidebar-spacer" />
+        <nav className="sidebar-nav sidebar-nav-lower">
+          <div className="nav-item" onClick={() => setDark((v) => !v)}>{I.settings}<span>{dark ? 'Light mode' : 'Dark mode'}</span></div>
+        </nav>
+        <div className="user-profile">
+          <div className="user-avatar">DR</div>
+          <div className="user-info">
+            <div className="user-name">Clinician</div>
+            <div className="user-email">Notera scribe</div>
           </div>
-          <div className="flex-1 overflow-auto p-4">
-            {pasteMode ? (
-              <textarea value={transcript} onChange={(e) => setTx(e.target.value)} placeholder="Paste the consultation transcript…"
-                className="h-full w-full resize-none rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-blue-500" />
-            ) : lines.length ? (
-              <div className="space-y-2">
-                {lines.map((l, i) => (
-                  <div key={i} className="flex gap-3 text-sm"><span className="shrink-0 font-mono text-xs text-slate-400">{l.t}</span><span>{l.text}</span></div>
-                ))}
-                {phase === 'transcribing' && <div className="text-sm text-slate-400">Transcribing final segment…</div>}
-              </div>
-            ) : phase === 'recording' ? (
-              <div className="flex h-full flex-col items-center justify-center text-slate-400">
-                <div className="mb-3 flex gap-1">{[0, 1, 2, 3, 4].map((i) => <span key={i} className="h-6 w-1 animate-pulse rounded bg-red-400" style={{ animationDelay: `${i * 120}ms` }} />)}</div>
-                <p className="text-sm">Listening… start speaking. Your words appear here live.</p>
-              </div>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
-                <p className="text-sm">Press <b>Record</b> to capture the consult, or <button onClick={() => setPasteMode(true)} className="text-blue-600 hover:underline">paste a transcript</button>.</p>
-              </div>
-            )}
-          </div>
-        </section>
+        </div>
+      </aside>
 
-        {/* Note */}
-        <section className="flex min-h-0 flex-col bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">SOAP note</span>
-            {note && phase === 'done' && (
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setEditing((v) => !v)} className={`rounded-md px-2.5 py-1 text-xs font-medium ${editing ? 'bg-blue-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>{editing ? 'Done' : 'Edit'}</button>
-                <button onClick={() => copy(true)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium hover:bg-slate-50">Copy to EMR</button>
-                <button onClick={() => copy(false)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium hover:bg-slate-50">Copy</button>
+      {/* ── Main ── */}
+      <main className="main-content">
+        {/* Top bar */}
+        <header className="top-bar">
+          <div className="top-bar-left">
+            <button className="trash-btn" title="New session" onClick={newSession}>{I.trash}</button>
+            <div className="session-info">
+              <div className="session-title-row">
+                <input className="session-title-input" value={patient} onChange={(e) => setPatient(e.target.value)} placeholder="Add patient name / ID" />
+                <div className={`rec-dot${recording ? ' recording' : phase === 'done' ? ' done' : ''}`} role="status" />
               </div>
-            )}
+              <div className="session-subtitle">{recording ? 'Recording…' : phase === 'done' ? 'Ready' : 'New consultation'}</div>
+            </div>
+            <div className="meta-pills">
+              <div className="meta-pill">{I.cal}<span>{dateStr}</span></div>
+              <div className="meta-pill">{I.globe}
+                <select className="pill-select" value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
+                  {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
-          <div className="flex-1 overflow-auto p-5">
-            {phase === 'generating' ? (
-              <div className="flex h-full flex-col items-center justify-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-                <div className="mt-5 space-y-1.5 text-center">
-                  {genSteps.map((s, i) => (
-                    <div key={i} className={`text-sm ${i < genStep ? 'text-emerald-600' : i === genStep ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
-                      {i < genStep ? '✓ ' : i === genStep ? '• ' : '  '}{s}
+          <div className="top-bar-right">
+            <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
+            <button className="top-create-btn" onClick={createSOAP} disabled={phase === 'generating' || !transcript.trim()}>
+              {I.bolt}{phase === 'generating' ? 'Creating…' : 'Create SOAP'}{I.chevronD}
+            </button>
+            <button className={`top-resume-btn${recording ? ' recording' : ''}`} onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
+              {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
+            </button>
+            <div className="timer-block">{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
+            <div className="mic-block">
+              {I.mic}
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Default mic</span>
+              <div className={`audio-bars${recording ? ' active' : ''}`}>
+                <div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Tab bar */}
+        <nav className="tab-bar">
+          <button className={`main-tab${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}Context</button>
+          <button className={`main-tab${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.lines}Transcript</button>
+          <button className={`main-tab${panel === 'note' ? ' active' : ''}`} onClick={() => setPanel('note')}>{I.doc}Note</button>
+          <button className={`main-tab${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}History</button>
+        </nav>
+
+        {error && <div style={{ padding: '8px 20px', background: 'var(--red-pale)', color: 'var(--red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
+
+        <div className="panels-container">
+          {/* Context */}
+          <div className={`main-panel${panel === 'context' ? ' active' : ''}`}>
+            <div className="context-form">
+              <h2 className="context-form-title">Patient Context</h2>
+              <p className="context-form-sub">Details here are injected into the AI to improve note accuracy.</p>
+              <div className="context-form-group"><label>Age</label><input value={ctx.age} onChange={(e) => setCtx({ ...ctx, age: e.target.value })} placeholder="e.g. 45" /></div>
+              <div className="context-form-group"><label>Sex</label><input value={ctx.sex} onChange={(e) => setCtx({ ...ctx, sex: e.target.value })} placeholder="e.g. Male" /></div>
+              <div className="context-form-group"><label>Past Medical History (PMHx)</label><textarea rows={3} value={ctx.pmhx} onChange={(e) => setCtx({ ...ctx, pmhx: e.target.value })} placeholder="e.g. Hypertension, Type 2 diabetes…" /></div>
+              <div className="context-form-group"><label>Current Medications</label><textarea rows={3} value={ctx.meds} onChange={(e) => setCtx({ ...ctx, meds: e.target.value })} placeholder="e.g. Lisinopril 10mg daily…" /></div>
+            </div>
+          </div>
+
+          {/* Transcript */}
+          <div className={`main-panel${panel === 'transcript' ? ' active' : ''}`}>
+            <div className="transcript-header">
+              <span className="transcript-label">Live Transcript</span>
+              <span className="seg-count">{lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : ''}</span>
+            </div>
+            <div className="transcript-box">
+              {lines.length === 0 && phase !== 'recording' ? (
+                <div className="t-empty">
+                  <div className="t-empty-icon">{I.micStroke}</div>
+                  <p className="t-empty-title">Transcript will appear here as you record</p>
+                  <p className="t-empty-sub">Or paste an existing transcript below to generate a note</p>
+                  <div className="transcript-input-card">
+                    <div className="transcript-input-header">{I.lines}<span>Paste Transcript</span></div>
+                    <textarea className="transcript-input-textarea" rows={6} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste consultation transcript here…" spellCheck={false} />
+                    <div className="transcript-input-footer">
+                      <span className="transcript-char-count">{pasteText.length} characters</span>
+                      <button className="transcript-proceed-btn" onClick={loadPastedTranscript}>{I.bolt}Load transcript</button>
                     </div>
+                  </div>
+                </div>
+              ) : (
+                <div id="transcriptLines">
+                  {lines.map((l, i) => (
+                    <div key={i} className="t-line"><span className="t-time">{l.t}</span><span className="t-text">{l.text}</span></div>
                   ))}
+                  {phase === 'recording' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Listening… speak now.</span></div>}
+                  {phase === 'transcribing' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Transcribing final segment…</span></div>}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Note */}
+          <div className={`main-panel${panel === 'note' ? ' active' : ''}`}>
+            <div className="editor-toolbar">
+              <div className="editor-toolbar-left">
+                <button className="format-btn active">{I.bolt}SOAP</button>
+              </div>
+              <div className="editor-toolbar-right">
+                {note && <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>}
+                <div className="copy-group">
+                  <button className="copy-btn" onClick={() => copy(true)} disabled={!note}>Copy to EMR</button>
+                  <button className="copy-btn" onClick={() => copy(false)} disabled={!note} style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>Copy</button>
                 </div>
               </div>
-            ) : note ? (
-              editing ? (
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} className="h-full w-full resize-none rounded-lg border border-slate-200 p-3 font-mono text-sm outline-none focus:border-blue-500" />
-              ) : (
-                <div className="text-sm leading-relaxed [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: mdToHtml(note) }} />
-              )
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
-                <p className="text-sm">No note yet.</p>
-                <p className="mt-1 text-xs">Record or paste a transcript, then press <b>Create SOAP</b>.</p>
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {/* History drawer */}
-      {showHistory && (
-        <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={() => setShowHistory(false)}>
-          <div className="h-full w-full max-w-md overflow-auto bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h2 className="font-semibold">History</h2>
-              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-700">✕</button>
             </div>
-            <div className="divide-y divide-slate-100">
-              {history.length === 0 && <p className="p-6 text-center text-sm text-slate-400">No saved consults yet.</p>}
-              {history.map((h) => (
-                <div key={h.consult_id} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50">
-                  <button onClick={() => openConsult(h.consult_id)} className="flex-1 text-left">
-                    <div className="text-sm font-medium">{h.title || 'Consult'}</div>
-                    <div className="text-xs text-slate-500">{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</div>
-                  </button>
-                  {h.audio_uri && <button onClick={() => downloadAudio(h.consult_id)} title="Download audio" className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-emerald-600">⤓</button>}
-                  <button onClick={() => deleteConsult(h.consult_id)} title="Delete" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600">✕</button>
+            <div className="note-scroll-area">
+              {phase === 'generating' ? (
+                <div className="note-empty">
+                  <div className="spinner" style={{ borderTopColor: 'var(--blue)' }} />
+                  <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                    {genSteps.map((s, i) => (
+                      <div key={i} style={{ fontSize: 13, color: i < genStep ? 'var(--green)' : i === genStep ? 'var(--text-primary)' : 'var(--text-faint)', fontWeight: i === genStep ? 700 : 500 }}>
+                        {i < genStep ? '✓ ' : i === genStep ? '• ' : '   '}{s}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : note ? (
+                <div className="note-content" style={{ display: 'block' }}>
+                  <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
+                </div>
+              ) : (
+                <div className="note-empty">
+                  {I.doc}
+                  <p className="empty-note-title">No note generated yet</p>
+                  <p className="empty-note-sub">Record or paste a transcript, then press <strong>Create SOAP</strong></p>
+                  <button className="start-hint-btn" onClick={toggleRecord}>{I.mic}Start recording</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* History */}
+          <div className={`main-panel${panel === 'history' ? ' active' : ''}`}>
+            <div className="hist-header">
+              <span className="hist-title">Session History</span>
+              <button className="link-btn" onClick={loadHistory}>Refresh</button>
+            </div>
+            <div id="historyList" style={{ overflow: 'auto', padding: '4px 0' }}>
+              {history.length === 0 ? (
+                <div className="h-empty">{I.clock}<p>No sessions saved yet</p></div>
+              ) : history.map((h) => (
+                <div key={h.consult_id} className="h-item">
+                  <div className="h-item-main" onClick={() => openConsult(h.consult_id)} style={{ cursor: 'pointer', flex: 1 }}>
+                    <div className="h-item-title">{h.title || 'Consult'}</div>
+                    <div className="h-item-meta">{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</div>
+                  </div>
+                  <div className="h-item-actions">
+                    {h.audio_uri && <button className="h-icon" title="Download audio" onClick={() => downloadAudio(h.consult_id)}>{I.download}</button>}
+                    <button className="h-icon" title="Delete" onClick={() => deleteConsult(h.consult_id)}>{I.trash}</button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
-      )}
+      </main>
+
+      {toast && <div className={`toast show ${toast.kind}`}>{toast.msg}</div>}
     </div>
   );
 }
