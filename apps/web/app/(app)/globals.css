@@ -1,3 +1,8 @@
+/* Tailwind utilities for the React scribe. Base/preflight intentionally omitted
+   so it does not reset the existing login / TopBar / consults styles below. */
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bg: #f4f6fb;
   --panel: #ffffff;
