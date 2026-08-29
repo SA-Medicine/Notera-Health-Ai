@@ -2372,3 +2372,9 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
 .notera-shell .top-create-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 .notera-shell .note-empty .spinner { width: 34px; height: 34px; border-width: 3px; }
 .notera-shell .mic-block span { white-space: nowrap; }
+
+/* Breathing room at the bottom of each panel now that the floating AI bar is gone,
+   so the last line of the note/transcript isn't flush against the viewport edge. */
+.notera-shell .note-content { padding-bottom: 56px; }
+.notera-shell .note-scroll-area { padding-bottom: 12px; }
+.notera-shell #transcriptLines { padding-bottom: 48px; }
