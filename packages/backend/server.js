@@ -127,6 +127,10 @@ app.post('/api/consults/:id/approve', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Catch-all: any unmatched /api/* route returns JSON (never Express's default HTML page),
+// so the frontend never receives "<!DOCTYPE …" where it expects JSON.
+app.use('/api', (req, res) => res.status(404).json({ error: `no such endpoint: ${req.method} ${req.originalUrl}` }));
+
 const port = config.port;
 const server = app.listen(port, () => {
   console.log(`Notera backend (unified) on :${port}  — product + admin/lab API  (llm=${config.llmBackend}, store=${config.firestoreDriver})`);
