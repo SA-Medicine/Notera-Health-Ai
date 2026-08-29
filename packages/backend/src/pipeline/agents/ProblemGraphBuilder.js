@@ -147,7 +147,7 @@ export class ProblemGraphBuilder {
     const relationships = graph.resolved_relationships || [];
 
     // Find all diagnoses and clinical impressions, plus incidental findings explicitly monitored
-    const diagnoses = entities.filter(e => {
+    let diagnoses = entities.filter(e => {
       // UNIVERSAL DENIAL GUARD (type-agnostic, all encounter types): a denied/negated
       // fact can NEVER become a problem node. e.g. "No Type 2 Diabetes" ("Two diabetes.
       // No.") must not be promoted to a numbered problem.
@@ -172,6 +172,27 @@ export class ProblemGraphBuilder {
       }
       return false;
     });
+
+    // FALLBACK (fires ONLY when nothing above qualified → A&P would be empty): the extractor
+    // sometimes labels the encounter's primary condition as clinical_context/observation
+    // instead of a diagnosis (LLM variance), which leaves the note with no numbered problem.
+    // Promote the single best grounded active condition so the plan is never blank. This is
+    // additive — it changes nothing on runs that already produced ≥1 problem.
+    if (diagnoses.length === 0) {
+      const rank = (e) => (
+        ({ critical: 4, high: 3, medium: 2, low: 1, background: 0 }[e.clinical_priority] || 0) * 10 +
+        ({ critical: 4, high: 3, medium: 2, low: 1, background: 0 }[e.render_priority] || 0)
+      );
+      const candidate = entities
+        .filter(e =>
+          !(e.is_negative === true || e.clinical_role === 'negative_finding' || e.certainty === 'negated') &&
+          e.clinical_role !== 'past_history' && e.rendered_section !== 'Past Medical History' &&
+          ['diagnosis', 'clinical_impression', 'clinical_context', 'symptom', 'problem'].includes(e.entity_type) &&
+          (e.clinical_role === 'active_problem' || e.heidi_slot === 'chief_complaint' ||
+            e.heidi_slot === 'problem' || e.render_priority === 'critical' || e.render_priority === 'high'))
+        .sort((a, b) => rank(b) - rank(a))[0];
+      if (candidate) diagnoses = [candidate];
+    }
 
     for (const diagnosis of diagnoses) {
       const certainty = mapCertainty(diagnosis);
