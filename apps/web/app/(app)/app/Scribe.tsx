@@ -19,6 +19,17 @@ type HistItem = { consult_id: string; title: string | null; specialty: string | 
 
 const mmss = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
+// Safely read a JSON response. If the backend proxy is misconfigured the request
+// falls through to Next's HTML 404 page, so guard against parsing "<!DOCTYPE …".
+async function readJson(r: Response): Promise<any> {
+  const ct = r.headers.get('content-type') || '';
+  const body = await r.text();
+  if (!ct.includes('application/json')) {
+    throw new Error(r.ok ? 'Backend returned a non-JSON response (is the API reachable?).' : `Request failed (${r.status}).`);
+  }
+  try { return JSON.parse(body); } catch { throw new Error('Backend returned an invalid response.'); }
+}
+
 // simple, safe markdown → HTML (headings, bold, lists, line breaks)
 function mdToHtml(md: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -114,15 +125,15 @@ export default function Scribe() {
   }, [phase]);
 
   const loadHistory = useCallback(async () => {
-    try { const r = await fetch(`${API}/api/library/consults`, { credentials: 'include' }); if (r.ok) setHistory((await r.json()).consults || []); } catch { /* */ }
+    try { const r = await fetch(`${API}/api/library/consults`, { credentials: 'include' }); if (r.ok) setHistory((await readJson(r)).consults || []); } catch { /* */ }
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
     const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d?.hint || d?.error || 'Transcription failed');
+    if (!r.ok) { const d = await readJson(r).catch(() => ({} as any)); throw new Error(d?.hint || d?.error || 'Transcription failed'); }
+    const d = await readJson(r);
     return (d.text || d.transcript || '').trim();
   }
 
@@ -198,12 +209,12 @@ export default function Scribe() {
     setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
     const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
     try {
-      const me = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? r.json() : null).catch(() => null);
+      const me = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
       const r = await fetch(`${API}/api/consults`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: me?.user?.id || 'clinician' }),
       });
-      const d = await r.json();
+      const d = await readJson(r);
       if (!r.ok) throw new Error(d?.error || 'Note generation failed');
       const md = d.renderedNote || d.rawRenderedNote || '';
       setNote(md); setConsultId(d.consultId || null); setPhase('done');
@@ -225,7 +236,7 @@ export default function Scribe() {
   async function openConsult(id: string) {
     try {
       const r = await fetch(`${API}/api/library/consults/${id}`, { credentials: 'include' });
-      const d = await r.json(); const c = d.consult; if (!c) return;
+      const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
       setTx((c.transcript?.text) || ''); setLines([]); setConsultId(id); setPhase('done'); setEditing(false);
@@ -233,7 +244,7 @@ export default function Scribe() {
     } catch { /* */ }
   }
   async function downloadAudio(id: string) {
-    try { const r = await fetch(`${API}/api/library/consults/${id}/audio`, { credentials: 'include' }); const d = await r.json(); if (d.url) window.open(d.url, '_blank'); else flash('No audio for this consult', 'error'); } catch { /* */ }
+    try { const r = await fetch(`${API}/api/library/consults/${id}/audio`, { credentials: 'include' }); const d = await readJson(r); if (d.url) window.open(d.url, '_blank'); else flash('No audio for this consult', 'error'); } catch { /* */ }
   }
   async function deleteConsult(id: string) {
     if (!confirm('Delete this consult?')) return;
