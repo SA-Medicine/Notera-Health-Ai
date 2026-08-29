@@ -72,7 +72,11 @@ export async function narrateNote(note, opts = {}) {
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nNOTE FIELDS to rewrite (return ONLY JSON with these exact keys):\n${JSON.stringify(src, null, 2)}`,
       schema,
-      { timeoutMs: 150000, retries: 1, maxOutputTokens: Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536, thinkingBudget: 0 }
+      // Prose generator: use its OWN cap (never the global GEMINI_MAX used by the
+      // JSON extractor). A SOAP narrative is ~1-2k tokens; a tight cap bounds any
+      // degenerate repetition loop so the request can't blow past Cloudflare's 100s.
+      // timeout kept under the edge limit so a stuck call fails before the proxy does.
+      { timeoutMs: 80000, retries: 1, maxOutputTokens: Number(process.env.NARRATIVE_MAX_OUTPUT_TOKENS) || 8192, thinkingBudget: 0 }
     );
     out = JSON.parse(String(raw).replace(/^```(json)?/i, '').replace(/```$/, '').trim());
   } catch (e) {

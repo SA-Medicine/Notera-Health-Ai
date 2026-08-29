@@ -154,12 +154,15 @@ export async function composeStory(scaffoldNote, opts = {}) {
   try {
     // A SOAP-note JSON is a few KB; cap output so a runaway/repetition can't balloon to
     // hundreds of KB (which truncates at the token limit → unterminated JSON). Configurable.
-    const storyTokens = Number(process.env.STORY_MAX_OUTPUT_TOKENS) || 24576;
+    // Full note JSON: enough room for a rich multi-problem note (~2-3k tokens) with
+    // generous headroom, but capped so a degenerate repetition can't balloon to 100s+
+    // of generation. Timeout kept under Cloudflare's 100s edge limit.
+    const storyTokens = Number(process.env.STORY_MAX_OUTPUT_TOKENS) || 16384;
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,
       NOTE_SCHEMA,
-      { timeoutMs: 180000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
+      { timeoutMs: 80000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
     );
     out = parseNoteJson(raw);
     if (!out) throw new Error('unparseable JSON (even after repair)');
