@@ -157,7 +157,7 @@ export async function composeStory(scaffoldNote, opts = {}) {
     // Full note JSON: enough room for a rich multi-problem note (~2-3k tokens) with
     // generous headroom, but capped so a degenerate repetition can't balloon to 100s+
     // of generation. Timeout kept under Cloudflare's 100s edge limit.
-    const storyTokens = Number(process.env.STORY_MAX_OUTPUT_TOKENS) || 16384;
+    const storyTokens = Math.max(Number(process.env.STORY_MAX_OUTPUT_TOKENS) || 16384, 16384);
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,
