@@ -11,6 +11,27 @@ import { getPool, withSession } from './pool.js';
 const svc = (fn) => withSession({ role: 'service' }, fn);
 const DEID_KEY = () => process.env.DEID_ENC_KEY || '';
 
+// The DB `note_status` enum is a note-lifecycle state (DRAFT/APPROVED/REJECTED/FLAGGED),
+// but the pipeline may pass a QA/guardrail result (PASS/FLAGGED/INVALID). Map the QA
+// outcome onto a valid enum value; the raw QA result still lives in `flags`/metadata.
+const NOTE_STATUS = new Set(['DRAFT', 'APPROVED', 'REJECTED', 'FLAGGED']);
+function draftStatus(s) {
+  if (!s) return null;
+  const v = String(s).toUpperCase();
+  if (NOTE_STATUS.has(v)) return v;
+  if (v === 'PASS') return 'DRAFT';
+  if (v === 'INVALID' || v === 'FAIL') return 'FLAGGED';
+  return 'DRAFT';
+}
+function finalStatus(s) {
+  if (!s) return null;
+  const v = String(s).toUpperCase();
+  if (NOTE_STATUS.has(v)) return v;
+  if (v === 'PASS') return 'APPROVED';
+  if (v === 'INVALID' || v === 'FAIL') return 'FLAGGED';
+  return 'APPROVED';
+}
+
 async function upsertClinician(client, clinicianId) {
   if (!clinicianId) return;
   await client.query(
@@ -85,7 +106,7 @@ export function pgStoreDriver() {
           `INSERT INTO clinical.drafts (draft_id, consult_id, note, rendered_note, status, flags, generated_by, created_at)
            VALUES ($1,$2,$3::jsonb,$4, COALESCE($5,'DRAFT')::clinical.note_status, COALESCE($6,'[]')::jsonb, $7, COALESCE($8, now()))
            ON CONFLICT (draft_id) DO NOTHING`,
-          [d.draftId, id, JSON.stringify(d.note ?? null), d.renderedNote || null, d.status || null,
+          [d.draftId, id, JSON.stringify(d.note ?? null), d.renderedNote || null, draftStatus(d.status),
            d.flags ? JSON.stringify(d.flags) : null, d.generatedBy || null, d.createdAt || null]
         );
         return d.draftId;
@@ -99,7 +120,7 @@ export function pgStoreDriver() {
           `INSERT INTO clinical.finals (final_id, consult_id, draft_id, note, approved_by, approved_at, status, created_at)
            VALUES ($1,$2,$3,$4::jsonb,$5,$6, COALESCE($7,'APPROVED')::clinical.note_status, now())
            ON CONFLICT (final_id) DO NOTHING`,
-          [f.finalId, id, f.draftId || null, JSON.stringify(f.note ?? null), f.approvedBy || null, f.approvedAt || null, f.status || null]
+          [f.finalId, id, f.draftId || null, JSON.stringify(f.note ?? null), f.approvedBy || null, f.approvedAt || null, finalStatus(f.status)]
         );
         return f.finalId;
       });
