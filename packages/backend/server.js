@@ -17,6 +17,7 @@ import { generateNote, approveNote } from './src/orchestrator/generateNote.js';
 import { store, audit } from './src/firestore/store.js';
 import { mountProxy } from './src/proxy.js';
 import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
+import { mountLibrary } from './src/library/libraryRoutes.js';
 import path from 'node:path';
 
 const app = express();
@@ -48,6 +49,10 @@ app.use((req, res, next) => {
 
 // Self-hosted email/password auth (login/logout/me/reset). Always mounted.
 mountAuth(app, DATA_DIR);
+
+// Per-user Library: durable history (consults + transcripts + notes) and audio
+// storage/download. Each route is gated by a valid session and scoped to the user.
+mountLibrary(app, requireAuth(DATA_DIR));
 
 // ── Admin / Testing-Lab API ──────────────────────────────────────────────────
 // Dispatched BEFORE express.json so the handler owns the request stream (SSE,

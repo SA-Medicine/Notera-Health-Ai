@@ -1,5 +1,5 @@
 /* ============================================================
-   DAS — Clinical AI Scribe  v2.0  (Extension Webapp)
+   Notera — Clinical AI Scribe  v2.0  (Extension Webapp)
    Flow: Start → [recording, 20s chunks→Whisper] → Stop →
          auto-transcribe final → auto-redirect Note → auto-generate
    Storage: chrome.storage.local (extension) | localStorage (standalone)
@@ -80,6 +80,45 @@ async function getSessions()  {
 }
 async function saveSessions(arr) { await store.set({ dasSessions: arr }); }
 
+// ── Server persistence (per-user library on the Notera backend) ──────────────
+async function serverSaveConsult(session) {
+  try {
+    const r = await fetch(NOTERA_API + '/api/library/consults', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        consultId: session.id,
+        transcript: session.transcript || '',
+        renderedNote: session.note || '',
+        title: session.patientName || session.templateLabel || 'Consult',
+        specialty: session.templateKey || null, status: 'ready',
+      }),
+    });
+    if (!r.ok) return null;
+    return (await r.json()).consultId || session.id;
+  } catch { return null; }
+}
+async function serverUploadAudio(consultId, blob) {
+  if (!consultId || !blob || !blob.size) return;
+  try {
+    await fetch(NOTERA_API + `/api/library/consults/${consultId}/audio`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob,
+    });
+  } catch { /* best-effort */ }
+}
+async function serverListConsults() {
+  try {
+    const r = await fetch(NOTERA_API + '/api/library/consults', { credentials: 'include' });
+    return r.ok ? ((await r.json()).consults || []) : [];
+  } catch { return []; }
+}
+async function serverAudioUrl(consultId) {
+  try {
+    const r = await fetch(NOTERA_API + `/api/library/consults/${consultId}/audio`, { credentials: 'include' });
+    return r.ok ? ((await r.json()).url || null) : null;
+  } catch { return null; }
+}
+
 function groqKey(cfg) {
   const keys = [cfg.groqKey1, cfg.groqKey2, cfg.groqKey3].filter(Boolean);
   if (!keys.length) return 'via-backend-proxy';
@@ -97,7 +136,7 @@ const NO_THINK = '\nCRITICAL: Output ONLY the final document. No reasoning, thin
 const TEMPLATES = {
   soap: {
     label: 'SOAP Note',
-    system: `You are DAS, an AI medical scribe. Convert the transcript into a compact, telegraphic, problem-oriented SOAP note.\${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Convert the transcript into a compact, telegraphic, problem-oriented SOAP note.\${NO_THINK}
 
 CRITICAL FORMATTING RULES:
 - Telegraphic Phrasing: Write strictly in short, concise fragments. No complete sentences. Omit pronouns (he, she, they), articles (a, an, the), and filler phrases.
@@ -140,7 +179,7 @@ ASSESSMENT & PLAN (A&P) RULES:
   },
   soap_narrative: {
     label: 'SOAP Note (Subjective)',
-    system: `You are DAS, an AI medical scribe. Write the Subjective section (History of Presenting Complaint) of a SOAP note.\${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Write the Subjective section (History of Presenting Complaint) of a SOAP note.\${NO_THINK}
 
 CRITICAL RULES FOR SUBJECTIVE SECTION (HPI):
 - Write in a professional but humanized narrative format.
@@ -152,7 +191,7 @@ CRITICAL RULES FOR SUBJECTIVE SECTION (HPI):
   },
   soap_extraction: {
     label: 'SOAP Note (Objective & A&P)',
-    system: `You are DAS, an AI medical scribe. Extract the Objective and Assessment & Plan sections of a SOAP note.\${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Extract the Objective and Assessment & Plan sections of a SOAP note.\${NO_THINK}
 
 CRITICAL RULES FOR OBJECTIVE & A&P SECTIONS:
 - Switch to a strict, telegraphic formatting style.
@@ -197,22 +236,22 @@ ASSESSMENT & PLAN (A&P) RULES:
   },
   summary: {
     label: 'Clinical Summary',
-    system: `You are DAS, an AI medical scribe. Write a concise clinical summary.${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Write a concise clinical summary.${NO_THINK}
 Sections: PATIENT PRESENTATION | KEY FINDINGS | CLINICAL DECISION | NEXT STEPS`,
   },
   referral: {
     label: 'Referral Letter',
-    system: `You are DAS, an AI medical scribe. Draft a formal referral letter.${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Draft a formal referral letter.${NO_THINK}
 Include: reason for referral, clinical summary, specific request to receiving clinician.`,
   },
   discharge: {
     label: 'Discharge Summary',
-    system: `You are DAS, an AI medical scribe. Write a discharge summary.${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Write a discharge summary.${NO_THINK}
 Sections: ADMITTING DIAGNOSIS | HOSPITAL COURSE | PROCEDURES | MEDICATIONS AT DISCHARGE | DISCHARGE CONDITION | FOLLOW-UP`,
   },
   progress: {
     label: 'Progress Note',
-    system: `You are DAS, an AI medical scribe. Write a progress note.${NO_THINK}
+    system: `You are Notera, an AI medical scribe. Write a progress note.${NO_THINK}
 Sections: INTERVAL HISTORY | CURRENT STATUS | ASSESSMENT | PLAN UPDATES`,
   },
 };
@@ -309,6 +348,15 @@ async function startRecording() {
 
   S.recorder.start(); // no timeslice — we stop/restart per chunk for valid WebM blobs
 
+  // Full-session recorder (continuous) → one playable WebM saved to the server for the record.
+  try {
+    S.fullChunks   = [];
+    S.fullBlob     = null;
+    S.fullRecorder = new MediaRecorder(S.stream, { mimeType: mime });
+    S.fullRecorder.ondataavailable = e => { if (e.data?.size > 0) S.fullChunks.push(e.data); };
+    S.fullRecorder.start(1000);
+  } catch { S.fullRecorder = null; }
+
   // Periodic chunk: stop recorder → get complete blob → restart → send to Whisper
   S.chunkTick = setInterval(() => rotateAndFlush(), CHUNK_INTERVAL_MS);
 
@@ -382,6 +430,15 @@ async function stopRecording() {
   const mime        = S.recorder?.mimeType || bestMime();
   const finalChunks = await drainRecorder(S.recorder);
   S.recorder = null;
+
+  // Stop the full-session recorder → build one playable blob for server storage.
+  try {
+    if (S.fullRecorder && S.fullRecorder.state !== 'inactive') {
+      await new Promise((resolve) => { S.fullRecorder.onstop = resolve; try { S.fullRecorder.stop(); } catch { resolve(); } });
+    }
+    if (S.fullChunks && S.fullChunks.length) S.fullBlob = new Blob(S.fullChunks, { type: mime });
+  } catch { /* ignore */ }
+  S.fullRecorder = null;
 
   // Stop mic
   S.stream?.getTracks().forEach(t => t.stop());
@@ -886,7 +943,7 @@ function showNoteUI() {
 // ── Save to history ───────────────────────────────────────────
 async function saveSessionToHistory(templateKey, templateLabel) {
   const all = await getSessions();
-  all.unshift({
+  const session = {
     id: S.sessionId, ts: Date.now(),
     templateKey, templateLabel,
     transcript: S.transcript,
@@ -895,9 +952,14 @@ async function saveSessionToHistory(templateKey, templateLabel) {
     segments:   S.segments.length,
     patientName: S.patientName,
     patientSubtitle: S.patientSubtitle,
-  });
+    hasAudio:   !!(S.fullBlob && S.fullBlob.size),
+  };
+  all.unshift(session);
   if (all.length > 100) all.splice(100);
   await saveSessions(all);
+  // Persist to the per-user server library (best-effort; local save already done).
+  const consultId = await serverSaveConsult(session);
+  if (consultId && S.fullBlob && S.fullBlob.size) serverUploadAudio(consultId, S.fullBlob);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1390,7 +1452,7 @@ async function sendAIMessage() {
   try   { apiKey = geminiKey(cfg); }
   catch (err) { bubble.textContent = err.message; $('btnSend').disabled = false; return; }
 
-  const sysPrompt = `You are DAS, an AI clinical assistant.
+  const sysPrompt = `You are Notera, an AI clinical assistant.
 TRANSCRIPT: ${S.transcript || '(none)'}
 NOTE: ${S.note || '(none)'}
 Answer the clinician's question concisely. Plain text only.`;
@@ -1493,6 +1555,7 @@ async function renderHistory() {
         <span class="h-template">${s.templateLabel || 'SOAP Note'}</span>
         <div class="h-preview">${(s.note || s.transcript || '').slice(0, 120)}…</div>
       </div>
+      ${s.hasAudio ? '<button class="h-dl" title="Download audio">⤓</button>' : ''}
       <button class="h-del" title="Delete">✕</button>`;
 
     item.querySelector('.h-item-main').addEventListener('click', () => {
@@ -1500,6 +1563,13 @@ async function renderHistory() {
       showNoteUI();
       $('noteBody').innerHTML = marked.parse(s.note || '');
       switchTab('note');
+    });
+    item.querySelector('.h-dl')?.addEventListener('click', async e => {
+      e.stopPropagation();
+      toast('Preparing audio download…');
+      const url = await serverAudioUrl(s.id);
+      if (url) window.open(url, '_blank');
+      else toast('Audio not available on the server', 'error');
     });
     item.querySelector('.h-del').addEventListener('click', async e => {
       e.stopPropagation();
@@ -1733,7 +1803,7 @@ async function init() {
   } catch (e) { console.error('Draft restore error', e); }
   if (!cfg.groqKey1 && !cfg.geminiKey) {
     // First run — remind user to set up
-    toast('Welcome to DAS — open ⚙ Settings to add your Groq & Gemini API keys', 'info');
+    toast('Welcome to Notera — open ⚙ Settings to add your Groq & Gemini API keys', 'info');
   }
 
   // Restore history count badge if any

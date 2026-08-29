@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DAS — Clinical AI Scribe</title>
-  <meta name="description" content="DAS — AI Medical Scribe. Real-time clinical documentation powered by Groq Whisper and NVIDIA NIM." />
+  <title>Notera — Clinical AI Scribe</title>
+  <meta name="description" content="Notera — AI Medical Scribe. Real-time clinical documentation powered by Groq Whisper and NVIDIA NIM." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -25,7 +25,7 @@
             <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2"/>
           </svg>
         </div>
-        <span class="brand-name">DAS</span>
+        <span class="brand-name">Notera</span>
       </div>
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Collapse sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -632,7 +632,7 @@
           </div>
         </div>
 
-        <!-- AI Drawer (Ask DAS messages) -->
+        <!-- AI Drawer (Ask Notera messages) -->
         <div class="ai-messages-area" id="aiMessagesArea" style="display:none">
           <div class="ai-quick-chips">
             <button class="ai-chip" data-q="Summarize the key findings in 2 sentences">Key findings</button>
@@ -705,7 +705,7 @@
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
           </svg>
-          DAS Settings
+          Notera Settings
         </div>
         <button class="modal-close" id="closeSettings" aria-label="Close settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -753,7 +753,7 @@
             Groq API Keys — Transcription
           </div>
           <div class="settings-info">
-            DAS uses <strong>Groq Whisper</strong> for real-time transcription. Add up to 3 keys for rate-limit cycling.
+            Notera uses <strong>Groq Whisper</strong> for real-time transcription. Add up to 3 keys for rate-limit cycling.
             Get free keys at <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a>.
           </div>
           <div class="key-row"><label class="key-label" for="groqKey1">Key 1 <span class="req">*</span></label>
@@ -788,7 +788,7 @@
             Google Gemini API Key — Note Generation
           </div>
           <div class="settings-info">
-            DAS uses <strong>Gemini 2.5 Pro</strong> to generate clinical notes.
+            Notera uses <strong>Gemini 2.5 Pro</strong> to generate clinical notes.
             Get your key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
           </div>
           <div class="key-row"><label class="key-label" for="geminiKey">Gemini Key <span class="req">*</span></label>
