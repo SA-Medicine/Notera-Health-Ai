@@ -59,7 +59,7 @@ export default function Scribe() {
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState(false);
-  const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
+  const [specialty, setSpecialty] = useState('auto');
   const [patient, setPatient] = useState('');
   const [error, setError] = useState('');
   const [genStep, setGenStep] = useState(0);
@@ -204,10 +204,11 @@ export default function Scribe() {
       setNote(md); setConsultId(d.consultId || null); setPhase('done');
       flash('Note generated');
       const cid = d.consultId;
+      const resolvedSpec = (specialty === 'auto' ? (d.detectedSpecialty || 'consult') : specialty) as string;
       if (cid) {
         fetch(`${API}/api/library/consults`, {
           method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultId: cid, transcript: transcriptRef.current.trim(), renderedNote: md, title: patient || `${specialty.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty, noteType: 'consultation', status: 'ready' }),
+          body: JSON.stringify({ consultId: cid, transcript: transcriptRef.current.trim(), renderedNote: md, title: patient || `${resolvedSpec.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty: resolvedSpec, noteType: 'consultation', status: 'ready' }),
         })
           .then(() => { if (fullBlob.current?.size) return fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': fullBlob.current!.type }, body: fullBlob.current! }); })
           .then(() => loadHistory()).catch(() => {});
@@ -299,6 +300,7 @@ export default function Scribe() {
               <div className="meta-pill">{I.cal}<span>{dateStr}</span></div>
               <div className="meta-pill">{I.globe}
                 <select className="pill-select" value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
+                  <option value="auto">Auto-detect</option>
                   {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
