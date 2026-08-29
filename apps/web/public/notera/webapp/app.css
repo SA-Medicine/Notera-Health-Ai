@@ -2325,3 +2325,7 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
   50%  { opacity: 1; }
   100% { opacity: 1; }
 }
+
+/* Notera — history download-audio button */
+.h-dl{background:none;border:0;cursor:pointer;color:var(--text-muted,#8a97ab);font-size:15px;padding:4px 8px;border-radius:6px;line-height:1}
+.h-dl:hover{background:rgba(0,0,0,.06);color:var(--green,#16a34a)}
