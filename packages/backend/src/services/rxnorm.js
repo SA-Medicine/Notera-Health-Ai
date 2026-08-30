@@ -67,6 +67,16 @@ export async function lookupRxcui(name, { fetchImpl, minScore = 50 } = {}) {
   return { rxcui: String(c.rxcui), score: Number(c.score), name: c.name || name };
 }
 
+/** Exact RxCUI for a name as-spelled (is it already a real drug, brand or generic?).
+ *  Null when there is no exact concept — i.e. the name is likely a garbled ASR artifact. */
+export async function exactRxcui(name, { fetchImpl } = {}) {
+  try {
+    const j = await _get(`${BASE()}/rxcui.json?name=${encodeURIComponent(name)}&search=1`, fetchImpl);
+    const id = j?.idGroup?.rxnormId?.[0];
+    return id ? String(id) : null;
+  } catch { return null; }
+}
+
 /** Therapeutic classes for an RxCUI (default ATC). */
 export async function classesForRxcui(rxcui, { fetchImpl, relaSource = 'ATC' } = {}) {
   const url = `${BASE()}/rxclass/class/byRxcui.json?rxcui=${encodeURIComponent(rxcui)}&relaSource=${relaSource}`;
@@ -160,30 +170,37 @@ export async function normalizeMedications(note, transcript = '', { fetchImpl, l
   const flags = []; let corrected = 0;
   const tLower = String(transcript).toLowerCase();
   const names = [...new Set((note?.metadata?.medications_mentioned || []).map((m) => String(m).trim()).filter((m) => /[a-z]/i.test(m) && m.length > 2))];
+  const CORRECT_MIN = Number(process.env.RXNORM_MIN_SCORE) || 60;
   for (const name of names) {
-    let hit; try { hit = await lookupRxcui(name, { fetchImpl }); } catch { continue; }
     const inTranscript = tLower.includes(name.toLowerCase());
+    // STEP 1 — is the name ALREADY a real drug exactly as written (brand OR generic)? If so,
+    // NEVER rewrite it: converting a valid brand (Synjardy, Breo) to its generic is a
+    // specificity regression the eval penalizes. Only run the sound-alike safety check.
+    let exact; try { exact = await exactRxcui(name, { fetchImpl }); } catch { exact = null; }
+    if (exact) {
+      if (!inTranscript) {
+        const near = _nearestToken(name, transcript);
+        flags.push({ type: 'medication_not_in_transcript', field: 'assessment_and_plan.treatment_planned',
+          message: `Medication "${name}" is a real drug but is NOT mentioned in the transcript${near ? ` (nearest spoken term: "${near}")` : ''} — possible sound-alike substitution (e.g. Zofran↔Zolpidem); verify against the transcript.`,
+          severity: 'critical' });
+        log(`[upgrade:rxnorm] SAFETY: "${name}" not in transcript${near ? ` — nearest spoken "${near}"` : ''}`);
+      } else {
+        log(`[upgrade:rxnorm] verified "${name}" (exact RxCUI ${exact}) — preserved as spoken`);
+      }
+      continue;
+    }
+    // STEP 2 — the name is NOT a real drug as written (likely garbled ASR, e.g. "gladipine",
+    // "Premafoid"). Use a CONFIDENT approximate match to correct it to the real drug.
+    let hit; try { hit = await lookupRxcui(name, { fetchImpl, minScore: CORRECT_MIN }); } catch { continue; }
     if (hit) {
       let canonical = hit.name && /[a-z]/i.test(hit.name) ? hit.name : await rxcuiName(hit.rxcui, { fetchImpl });
       canonical = canonical ? _title(String(canonical).replace(/\s*\[.*?\]\s*/g, '').trim()) : null;
-      // only apply a correction that's a clean, short name (avoid injecting verbose SIG strings)
       const cleanCorrection = canonical && canonical.length <= 40 && canonical.split(/\s+/).length <= 4;
       if (cleanCorrection && _norm(canonical) !== _norm(name)) {
         replaceNameInNote(note, name, canonical); corrected++;
-        log(`[upgrade:rxnorm] normalized medication "${name}" → "${canonical}" (RxCUI ${hit.rxcui})`);
+        log(`[upgrade:rxnorm] corrected garbled medication "${name}" → "${canonical}" (RxCUI ${hit.rxcui}, score ${hit.score})`);
       } else {
-        log(`[upgrade:rxnorm] verified "${name}" → RxCUI ${hit.rxcui}`);
-      }
-      // SAFETY (Q1): a drug that resolves to a REAL concept but is NOT in the transcript is the
-      // dangerous sound-alike class (Zofran → Zolpidem passes every "is it a real drug" check).
-      // Existing checks miss it because the drug IS real; catch it here as a substitution risk.
-      const canonInTx = canonical ? tLower.includes(canonical.toLowerCase()) : false;
-      if (!inTranscript && !canonInTx) {
-        const near = _nearestToken(canonical || name, transcript);
-        flags.push({ type: 'medication_not_in_transcript', field: 'assessment_and_plan.treatment_planned',
-          message: `Medication "${canonical || name}" resolves to a real drug but is NOT mentioned in the transcript${near ? ` (nearest spoken term: "${near}")` : ''} — likely a sound-alike substitution (e.g. Zofran↔Zolpidem) or a brand/generic mismatch; verify against the transcript.`,
-          severity: 'critical' });
-        log(`[upgrade:rxnorm] SAFETY: "${canonical || name}" not in transcript${near ? ` — nearest spoken "${near}"` : ''}`);
+        log(`[upgrade:rxnorm] "${name}" ≈ RxCUI ${hit.rxcui} but no clean correction — left as-is`);
       }
     } else if (!inTranscript) {
       flags.push({ type: 'fabricated_medication', field: 'assessment_and_plan.treatment_planned', message: `Medication "${name}" is not a known RxNorm drug and is not in the transcript — possible fabrication; verify or remove.`, severity: 'critical' });
