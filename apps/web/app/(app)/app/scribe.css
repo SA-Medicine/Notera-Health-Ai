@@ -2379,17 +2379,31 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
 .notera-shell .note-scroll-area { padding-bottom: 12px; }
 .notera-shell #transcriptLines { padding-bottom: 48px; }
 
-/* ── Note readability: rounded card, larger font, tighter section spacing ────── */
-.notera-shell .note-content { padding: 22px 24px 60px; max-width: 940px; margin: 0 auto; }
+/* ── Note readability: full-width rounded card, larger font, tighter spacing ─── */
+.notera-shell .note-scroll-area { padding: 0; }
+.notera-shell .note-content {
+  padding: 14px 16px 18px;   /* minimal left/right/bottom margin around the card */
+  max-width: none;           /* stretch full width — no narrow centered column */
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+}
 .notera-shell .note-body {
   font-size: 15px;
   line-height: 1.55;
   background: #fff;
   border: 1px solid var(--border-light);
   border-radius: 16px;
-  padding: 28px 32px;
+  padding: 26px 30px;
   box-shadow: var(--shadow-sm);
-  min-height: 200px;
+  flex: 1;                   /* stretch the card to fill the panel height */
+  width: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+}
+@media (max-width: 640px) {
+  .notera-shell .note-content { padding: 10px 10px 14px; }
+  .notera-shell .note-body { padding: 18px 16px; border-radius: 12px; }
 }
 body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgba(255,255,255,0.08); }
 /* section headings — clear but not cavernous separation */
