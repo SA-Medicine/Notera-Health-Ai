@@ -5,7 +5,7 @@ import './scribe.css';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
-const SEGMENT_MS = 40_000;
+const SEGMENT_MS = 30_000;   // transcribe every 30s so lines appear sooner (Google sync ASR cap is ~60s)
 
 const SPECIALTIES = [
   'general_primary_care', 'musculoskeletal', 'diabetes', 'hypertension', 'mental_health',
