@@ -186,11 +186,18 @@ export async function composeStory(scaffoldNote, opts = {}) {
     for (const n of (t.match(/\d+(?:\.\d+)?/g) || [])) if (!tnums.has(n)) return fallback || t; // ungrounded number → prefer scaffold
     return t;
   };
+  const numsOf = (s) => new Set(String(s || '').match(/\d+(?:\.\d+)?/g) || []);
   let revertedFields = 0;
-  const keepBest = (engineVal, scaffoldVal) => {
+  const keepBest = (engineVal, scaffoldVal, opts = {}) => {
     const e = groundNumbers(engineVal, scaffoldVal);
-    // never lose scaffold content words
     if (scaffoldVal && String(scaffoldVal).trim()) {
+      // OBJECTIVE PROTECTION: labs/exam findings are an enumeration — never drop a value the
+      // scaffold captured. If the engine version loses ANY grounded number the scaffold had
+      // (e.g. a full lab panel collapsing to just "LDH: 222"), keep the fuller scaffold.
+      if (opts.protectNumbers) {
+        const sNums = numsOf(scaffoldVal); const eNums = numsOf(e);
+        if (sNums.size > eNums.size && [...sNums].some((n) => !eNums.has(n))) { revertedFields++; return scaffoldVal; }
+      }
       const sw = contentWords(scaffoldVal); const eset = new Set(contentWords(e));
       const kept = sw.filter((w) => eset.has(w)).length;
       if (!e.trim() || (sw.length && kept / sw.length < 0.7)) { revertedFields++; return scaffoldVal; }
@@ -200,7 +207,7 @@ export async function composeStory(scaffoldNote, opts = {}) {
 
   for (const k of Object.keys(note.subjective)) note.subjective[k] = keepBest(out.subjective?.[k], scaffoldNote.subjective[k]);
   for (const k of Object.keys(note.past_medical_history)) note.past_medical_history[k] = keepBest(out.past_medical_history?.[k], scaffoldNote.past_medical_history[k]);
-  for (const k of Object.keys(note.objective)) note.objective[k] = keepBest(out.objective?.[k], scaffoldNote.objective[k]);
+  for (const k of Object.keys(note.objective)) note.objective[k] = keepBest(out.objective?.[k], scaffoldNote.objective[k], { protectNumbers: true });
   if (revertedFields) console.log(`[storyEngine] anti-loss guard kept the scaffold for ${revertedFields} field(s) (engine version dropped too much)`);
 
   // Assessment & Plan: take engine problems, drop hallucinated titles, keep at least scaffold.
