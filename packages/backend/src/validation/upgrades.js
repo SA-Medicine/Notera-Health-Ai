@@ -378,6 +378,18 @@ function groundedNumbers(transcript) {
     if (nxt === 'thousand') set.add(String(v * 1000));
     if (nxt === 'hundred') set.add(String(v * 100));
   }
+  // Colloquial spoken compounds common for doses/values: "thirty-seven" → 37, and the
+  // digit-concatenation reading "one thirty-seven" → 137, "one twenty-five" → 125. Ground both.
+  const tens = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  const ones = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+  for (let i = 0; i < words.length; i++) {
+    if (tens[words[i]] === undefined) continue;
+    let two = tens[words[i]];
+    if (ones[words[i + 1]] !== undefined) two += ones[words[i + 1]];
+    set.add(String(two));
+    const lead = ones[words[i - 1]];
+    if (lead !== undefined) set.add(String(lead) + String(two).padStart(2, '0')); // "one thirty-seven" → 137
+  }
   return set;
 }
 export function flagUngroundedNumbers(note, transcript = '', log = () => {}) {
@@ -711,8 +723,10 @@ export function flagDeidPlaceholderLeak(note, log = () => {}) {
       .replace(/\bDr\.?\s+Patient\s+\d{1,4}\b/gi, 'the specialist')   // fake provider → generic role
       .replace(/\[LOCATION\]|\[NAME_?\d*\]|\[REDACTED\]/g, '')         // strip bracket masks
       .replace(/\bPatient\s+\d{1,4}\b/gi, 'the patient');             // standalone de-id name token
-    // tidy the punctuation/whitespace left behind (" / the specialist", double spaces, "( )")
-    t = t.replace(/\(\s*\)/g, '').replace(/\s*\/\s*(?=$|\n)/g, '').replace(/\s{2,}/g, ' ')
+    // tidy what stripping a mask leaves behind: a dangling preposition ("Guardian Drugs in ." →
+    // "Guardian Drugs."), empty parens, trailing slashes, double spaces, space-before-punctuation.
+    t = t.replace(/\s+\b(in|at|to|of|on|from|the|a|an)\b\s*(?=[.,;:)\n]|$)/gi, '')
+         .replace(/\(\s*\)/g, '').replace(/\s*\/\s*(?=$|\n)/g, '').replace(/\s{2,}/g, ' ')
          .replace(/\s+([.,;:])/g, '$1').trim();
     return t;
   };
