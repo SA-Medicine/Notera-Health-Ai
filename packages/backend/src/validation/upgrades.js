@@ -801,6 +801,34 @@ export function looksLikeBenchmarkingPrompt(text) {
  * collects the log lines, and returns any flags to merge into metadata.flags.
  * @param {(line:string)=>void} log  sink for [upgrade:*] lines (default: console.log)
  */
+// ── D · lab-acronym ASR normalizer ───────────────────────────────────────────
+// Speech-to-text sometimes renders "LDL" as "ADL" (a real term — Activities of Daily
+// Living), so we fix it ONLY in an unmistakable lipid context: paired with LDL, or a bare
+// "ADL: <number>" on a line that also mentions cholesterol/lipid/HDL/triglyceride.
+export function normalizeLabAcronyms(note, log = () => {}) {
+  let fixed = 0;
+  const LIPID = /(cholesterol|lipid|\bhdl\b|triglycerid|\bldl\b)/i;
+  const fixText = (t) => {
+    if (typeof t !== 'string' || !t) return t;
+    let out = t
+      .replace(/\bADL\s*(?:\/|,|and)\s*LDL\b/gi, 'LDL')   // "ADL / LDL" duplicate → LDL
+      .replace(/\bLDL\s*(?:\/|,|and)\s*ADL\b/gi, 'LDL');
+    out = out.split('\n').map((line) =>
+      (LIPID.test(line) && /\bADL\b\s*[:=]?\s*\d/.test(line)) ? line.replace(/\bADL\b/g, 'LDL') : line
+    ).join('\n');
+    if (out !== t) fixed++;
+    return out;
+  };
+  for (const sec of ['subjective', 'objective', 'past_medical_history']) {
+    if (note[sec] && typeof note[sec] === 'object') for (const k of Object.keys(note[sec])) note[sec][k] = fixText(note[sec][k]);
+  }
+  for (const p of (note.assessment_and_plan || [])) {
+    for (const f of ['assessment', 'treatment_planned', 'investigations_planned']) if (f in p) p[f] = fixText(p[f]);
+  }
+  log(fixed ? `[upgrade:lab-acronym] normalized ${fixed} ASR lab-acronym artifact(s) (ADL→LDL in lipid context)` : '[upgrade:lab-acronym] no lab-acronym artifacts found');
+  return { fixed };
+}
+
 export function applyUpgradeGuardrails(note, { log, transcript = '', entities = [] } = {}) {
   const lines = [];
   const sink = (l) => { lines.push(l); (log || console.log)(l); };
@@ -818,6 +846,7 @@ export function applyUpgradeGuardrails(note, { log, transcript = '', entities = 
   const ph = verifyPharmacyBinding(note, { transcript, meds }, sink);
   const np = flagNonPatientContext(note, transcript, sink);
   const cs = flagConsentAndStatus(note, transcript, sink);   // declined/completed-as-plan (safety)
+  normalizeLabAcronyms(note, sink);                          // ASR lab-acronym fix (ADL→LDL, lipid context)
   const lb = flagLabAnalyteBinding(note, transcript, sink);  // lab value↔analyte misbinding
   const dv = flagDateAsValue(note, sink);                    // synthetic date replacing a value (safety)
   const lat = flagLateralityInversion(note, transcript, sink); // left/right inversion (safety)
