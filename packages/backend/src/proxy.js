@@ -215,14 +215,30 @@ export function mountProxy(app) {
       if (encoding === 'LINEAR16') baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 16000);
       else baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 48000);   // MediaRecorder WEBM/OGG Opus is 48 kHz
       const primaryModel = process.env.ASR_MODEL || 'medical_conversation';
-      const runRecognize = async (model) => client.recognize({ audio: { content: audio.toString('base64') }, config: { ...baseConfig, model } });
+      const content = audio.toString('base64');
+      const runRecognize = async (model) => client.recognize({ audio: { content }, config: { ...baseConfig, model } });
+      // LongRunningRecognize has NO 60s sync cap and accepts the same inline content (<10MB),
+      // so it transcribes any segment length; we await its operation (a few seconds for a clip).
+      const runLong = async (model) => {
+        const [op] = await client.longRunningRecognize({ audio: { content }, config: { ...baseConfig, model } });
+        const [r] = await op.promise();
+        return r;
+      };
       console.log(`[proxy ${id}] asr(google-speech) bytes=${audio.length} enc=${encoding} model=${primaryModel}`);
       let response;
       try { [response] = await runRecognize(primaryModel); }
       catch (e) {
-        // medical_conversation may not be enabled/available in every project → fall back.
-        console.warn(`[proxy ${id}] asr model '${primaryModel}' failed (${e.message}); retrying with latest_long`);
-        [response] = await runRecognize('latest_long');
+        const tooLong = /too long|sync input|exceeds|1 min|duration/i.test(e.message);
+        if (tooLong) {
+          // Audio > 60s → sync can't handle it; use LongRunningRecognize (latest_long).
+          console.warn(`[proxy ${id}] asr sync too long — using longRunningRecognize`);
+          response = await runLong('latest_long');
+        } else {
+          // medical_conversation may not be enabled/available in every project → fall back.
+          console.warn(`[proxy ${id}] asr model '${primaryModel}' failed (${e.message}); retrying with latest_long`);
+          try { [response] = await runRecognize('latest_long'); }
+          catch (e2) { console.warn(`[proxy ${id}] latest_long sync failed (${e2.message}); using longRunningRecognize`); response = await runLong('latest_long'); }
+        }
       }
       const transcript = (response.results || []).map((r) => r.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
       // Return BOTH keys so every client works: the DAS webapp reads `text`, others read `transcript`.
