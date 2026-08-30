@@ -2378,3 +2378,30 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
 .notera-shell .note-content { padding-bottom: 56px; }
 .notera-shell .note-scroll-area { padding-bottom: 12px; }
 .notera-shell #transcriptLines { padding-bottom: 48px; }
+
+/* ── Note readability: rounded card, larger font, tighter section spacing ────── */
+.notera-shell .note-content { padding: 22px 24px 60px; max-width: 940px; margin: 0 auto; }
+.notera-shell .note-body {
+  font-size: 15px;
+  line-height: 1.55;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-sm);
+  min-height: 200px;
+}
+body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgba(255,255,255,0.08); }
+/* section headings — clear but not cavernous separation */
+.notera-shell .note-body h1,
+.notera-shell .note-body h2,
+.notera-shell .note-body h3,
+.notera-shell .note-body h4 { font-size: 16px; font-weight: 700; margin: 18px 0 6px; letter-spacing: -0.01em; }
+.notera-shell .note-body > :first-child { margin-top: 0; }
+/* bold sub-headers rendered as <p><strong>…</strong></p> (Associated Symptoms, Vital Signs) */
+.notera-shell .note-body p > strong:first-child { display: block; margin: 14px 0 4px; font-size: 15px; }
+.notera-shell .note-body p { margin: 0 0 5px; }
+.notera-shell .note-body ul { margin: 2px 0 8px; padding-left: 22px; }
+.notera-shell .note-body li { margin-bottom: 4px; line-height: 1.55; }
+/* kill the blank-line <br> gaps — spacing now comes from element margins, so no double gaps */
+.notera-shell .note-body br { display: none; }
