@@ -701,22 +701,46 @@ export function flagGenericMedDowngrade(note, transcript = '', meds = [], log = 
 const DEID_LEAK_RX = /\bPatient \d{1,4}\b|\bDr\.?\s+Patient \d{1,4}\b|\[LOCATION\]|\[NAME_?\d*\]|\[REDACTED\]/;
 export function flagDeidPlaceholderLeak(note, log = () => {}) {
   const flags = [];
-  const scan = (text, field, critical) => {
-    if (typeof text !== 'string') return;
+  let cleaned = 0;
+  // Deterministically REMOVE the leaked token (don't just flag): a "Dr. Patient 149" fake
+  // provider becomes "the specialist", a standalone "Patient 84" becomes "the patient", and
+  // bracket masks are stripped. This kills the fabricated-entity / placeholder-referral theme.
+  const clean = (text) => {
+    if (typeof text !== 'string' || !text) return text;
+    let t = text
+      .replace(/\bDr\.?\s+Patient\s+\d{1,4}\b/gi, 'the specialist')   // fake provider → generic role
+      .replace(/\[LOCATION\]|\[NAME_?\d*\]|\[REDACTED\]/g, '')         // strip bracket masks
+      .replace(/\bPatient\s+\d{1,4}\b/gi, 'the patient');             // standalone de-id name token
+    // tidy the punctuation/whitespace left behind (" / the specialist", double spaces, "( )")
+    t = t.replace(/\(\s*\)/g, '').replace(/\s*\/\s*(?=$|\n)/g, '').replace(/\s{2,}/g, ' ')
+         .replace(/\s+([.,;:])/g, '$1').trim();
+    return t;
+  };
+  const scan = (obj, key, field, critical) => {
+    const text = obj[key];
+    if (typeof text !== 'string' || !text) return;
     const m = text.match(DEID_LEAK_RX);
     if (!m) return;
-    flags.push({ type: 'deid_placeholder_leak', field, message: `A de-identification placeholder ("${m[0]}") leaked into the note at ${field}; it is standing in for a real name/medication and must be verified or removed, not documented as a clinical entity.`, severity: critical ? 'critical' : 'warning' });
-    log(`[upgrade:deid-leak] placeholder "${m[0]}" in ${field}${critical ? ' (medication/plan slot — critical)' : ''}`);
+    const fixed = clean(text);
+    if (fixed !== text) {
+      obj[key] = fixed; cleaned++;
+      log(`[upgrade:deid-leak] removed placeholder "${m[0]}" from ${field}${critical ? ' (medication/plan slot)' : ''}`);
+    }
+    // if anything still matches after cleaning (defensive), flag it for a reviewer
+    if (DEID_LEAK_RX.test(obj[key])) {
+      flags.push({ type: 'deid_placeholder_leak', field, message: `A de-identification placeholder ("${m[0]}") leaked into the note at ${field} and could not be safely cleaned; verify or remove.`, severity: critical ? 'critical' : 'warning' });
+    }
   };
   for (const [sec, obj] of [['subjective', note.subjective], ['past_medical_history', note.past_medical_history], ['objective', note.objective]]) {
-    if (obj) for (const k of Object.keys(obj)) if (typeof obj[k] === 'string') scan(obj[k], `${sec}.${k}`, false);
+    if (obj) for (const k of Object.keys(obj)) if (typeof obj[k] === 'string') scan(obj, k, `${sec}.${k}`, false);
   }
   const ap = note.assessment_and_plan || [];
   for (let i = 0; i < ap.length; i++) for (const f of ['issue', 'diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) {
-    scan(ap[i][f], `assessment_and_plan[${i}].${f}`, /treatment_planned|issue|diagnosis/.test(f));
+    if (typeof ap[i][f] === 'string') scan(ap[i], f, `assessment_and_plan[${i}].${f}`, /treatment_planned|issue|diagnosis/.test(f));
   }
-  if (!flags.length) log('[upgrade:deid-leak] no de-identification placeholders in the note');
-  return { flags };
+  if (cleaned) log(`[upgrade:deid-leak] cleaned ${cleaned} de-identification placeholder(s) from the note`);
+  else if (!flags.length) log('[upgrade:deid-leak] no de-identification placeholders in the note');
+  return { flags, cleaned };
 }
 
 // ── C(2) · multi-system fallback ─────────────────────────────────────────────
