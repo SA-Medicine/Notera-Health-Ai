@@ -5,7 +5,8 @@ import './scribe.css';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
-const SEGMENT_MS = 30_000;   // transcribe every 30s so lines appear sooner (Google sync ASR cap is ~60s)
+const SEGMENT_MS = 20_000;   // 20s chunks: well under Google's 60s sync cap even with WebM/Opus
+                             // duration over-measurement, so fast sync recognize always works.
 
 const SPECIALTIES = [
   'general_primary_care', 'musculoskeletal', 'diabetes', 'hypertension', 'mental_health',
