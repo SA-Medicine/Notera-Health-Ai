@@ -99,20 +99,38 @@ export function condenseNote(note, opts = {}, log = () => {}) {
   collect(note.objective);
 
   // 2) Condense each A&P assessment: drop sentences that repeat above detail.
+  // A plan-ACTION verb marks a legitimate plan step (continue X, refer, order, RTC…) that must
+  // NEVER be pruned even if it echoes a fact above — only pure narrative echoes are bleed.
+  const ACTION_RX = /\b(continu|start|start(?:ed|ing)?|initiat|increas|decreas|titrat|refer|referral|order|arrang|schedul|rtc|return|follow.?up|monitor|repeat|x-?ray|ultrasound|mri|\bct\b|prescrib|renew|refill|advis|counsel|educat|await|review|discontinu|\bstop\b|\bhold\b|switch|trial|sampl|inject|vaccinat|consider|recommend|plan|await)\b/i;
   let removed = 0;
   for (const p of (note.assessment_and_plan || [])) {
-    if (typeof p.assessment !== 'string') continue;
-    const kept = [];
-    for (const line of splitLines(p.assessment)) {
-      for (const s of splitSentences(line)) {
-        const w = wordsOf(s);
-        if (w.length < 4) { kept.push(s); continue; }   // keep short crisp points as-is
-        const dup = above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
-        if (dup) { removed++; log(`[upgrade:condense] dropped redundant A&P sentence (already detailed above): "${s.slice(0, 90)}"`); continue; }
-        kept.push(s);
+    if (typeof p.assessment === 'string') {
+      const kept = [];
+      for (const line of splitLines(p.assessment)) {
+        for (const s of splitSentences(line)) {
+          const w = wordsOf(s);
+          if (w.length < 4) { kept.push(s); continue; }   // keep short crisp points as-is
+          const dup = above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
+          if (dup) { removed++; log(`[upgrade:condense] dropped redundant A&P sentence (already detailed above): "${s.slice(0, 90)}"`); continue; }
+          kept.push(s);
+        }
       }
+      p.assessment = kept.join('\n');
     }
-    p.assessment = kept.join('\n');
+    // Subjective-narrative BLEED into the Plan: drop a treatment line ONLY when it echoes history
+    // already stated above AND carries no plan-action verb (so "Continue Amlodipine 5mg", "Refer
+    // to ENT", "RTC 2 weeks" are always preserved — only duplicated HPI narrative is removed).
+    if (typeof p.treatment_planned === 'string') {
+      const kept = [];
+      for (const line of splitLines(p.treatment_planned)) {
+        const w = wordsOf(line);
+        const isBleed = w.length >= 4 && !ACTION_RX.test(line) &&
+          above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
+        if (isBleed) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P treatment: "${line.slice(0, 90)}"`); continue; }
+        kept.push(line);
+      }
+      p.treatment_planned = kept.join('\n');
+    }
   }
 
   // 3) Dedup Objective: an exam-finding line identical to a completed-investigation line → one.
