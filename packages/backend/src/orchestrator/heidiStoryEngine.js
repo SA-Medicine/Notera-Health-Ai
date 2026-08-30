@@ -189,15 +189,11 @@ export async function composeStory(scaffoldNote, opts = {}) {
   let revertedFields = 0;
   const keepBest = (engineVal, scaffoldVal) => {
     const e = groundNumbers(engineVal, scaffoldVal);
-    // Prefer the composer's CONCISE, grouped narrative. Only fall back to the verbose
-    // deterministic scaffold when the engine output is empty or dropped the LARGE MAJORITY
-    // of content words (gross loss). Threshold loosened 0.7 → 0.4 so a legitimate concise
-    // rewrite (which naturally rephrases and keeps ~50-60% of exact words) is NOT rejected —
-    // that rejection was what forced the long, flat scaffold Subjective through.
+    // never lose scaffold content words
     if (scaffoldVal && String(scaffoldVal).trim()) {
       const sw = contentWords(scaffoldVal); const eset = new Set(contentWords(e));
       const kept = sw.filter((w) => eset.has(w)).length;
-      if (!e.trim() || (sw.length && kept / sw.length < 0.4)) { revertedFields++; return scaffoldVal; }
+      if (!e.trim() || (sw.length && kept / sw.length < 0.7)) { revertedFields++; return scaffoldVal; }
     }
     return e || scaffoldVal || '';
   };
