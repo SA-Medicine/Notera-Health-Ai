@@ -662,17 +662,35 @@ export function flagGenericMedDowngrade(note, transcript = '', meds = [], log = 
   const flags = [];
   const T = String(transcript).toLowerCase();
   const specific = [...new Set((meds || []).map((m) => String(m).trim()).filter((m) => m.length >= 4))];
+  let swapped = 0;
   for (const p of (note.assessment_and_plan || [])) {
-    for (const line of splitLines(p.treatment_planned)) {
-      if (!GENERIC_MED_RX.test(line)) continue;
+    const lines = splitLines(p.treatment_planned);
+    if (!lines.length) continue;
+    let changed = false;
+    const out = lines.map((line) => {
+      if (!GENERIC_MED_RX.test(line)) return line;
       const ln = line.toLowerCase();
-      const txDrug = specific.find((d) => T.includes(d.toLowerCase()) && !ln.includes(d.toLowerCase()));
+      // Specific drugs the extractor captured AND that appear verbatim in the transcript,
+      // but are NOT already present in this line.
+      const cands = specific.filter((d) => T.includes(d.toLowerCase()) && !ln.includes(d.toLowerCase()));
+      if (cands.length === 1) {
+        // UNAMBIGUOUS: exactly one grounded specific drug is missing here → substitute it for the
+        // generic placeholder phrase. Deterministic and grounded (the drug is spoken in the
+        // transcript), so this restores brand/name specificity without fabricating anything.
+        const fixed = line.replace(GENERIC_MED_RX, cands[0]);
+        if (fixed !== line) { swapped++; changed = true; log(`[upgrade:generic-med] replaced generic placeholder with grounded drug "${cands[0]}"`); return fixed; }
+      }
+      // Ambiguous (0 or >1 grounded candidates) → flag for reviewer, never guess.
+      const txDrug = cands[0];
       flags.push({ type: 'medication_generalized', field: `assessment_and_plan["${p.issue || '?'}"].treatment_planned`, message: `Plan "${line.slice(0, 80)}" uses a GENERIC medication placeholder${txDrug ? ` — the transcript names a specific drug ("${txDrug}")` : ''}; use the exact medication name from the transcript, not a category.`, severity: 'major' });
       log(`[upgrade:generic-med] generic placeholder in plan: "${line.slice(0, 80)}"${txDrug ? ` (transcript has "${txDrug}")` : ''}`);
-    }
+      return line;
+    });
+    if (changed) p.treatment_planned = out.join('\n');
   }
-  if (!flags.length) log('[upgrade:generic-med] no generic medication downgrades found');
-  return { flags };
+  if (swapped) log(`[upgrade:generic-med] substituted ${swapped} grounded drug name(s) for generic placeholder(s)`);
+  if (!swapped && !flags.length) log('[upgrade:generic-med] no generic medication downgrades found');
+  return { flags, swapped };
 }
 
 // ── D9 · de-identification placeholder leak (Fix) ────────────────────────────
