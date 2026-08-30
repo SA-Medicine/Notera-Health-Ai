@@ -10,6 +10,27 @@
 'use strict';
 
 import express from 'express';
+import { spawn } from 'node:child_process';
+
+// Transcode ANY browser audio container (WebM/Opus, Ogg/Opus, etc.) to headerless 16 kHz mono
+// 16-bit PCM via ffmpeg. Google STT then reads an exact duration from the sample count (bytes /
+// 2 / 16000), so short clips no longer fail as "Sync input too long" (MediaRecorder omits the
+// WebM duration/cues metadata). Resolves null on any failure so the caller can fall back.
+function transcodePcm16k(inputBuf) {
+  return new Promise((resolve) => {
+    let ff;
+    try {
+      ff = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '16000', '-f', 's16le', '-acodec', 'pcm_s16le', 'pipe:1']);
+    } catch { return resolve(null); }
+    const out = []; const err = [];
+    ff.stdout.on('data', (d) => out.push(d));
+    ff.stderr.on('data', (d) => err.push(d));
+    ff.on('error', () => resolve(null));
+    ff.on('close', (code) => resolve(code === 0 && out.length ? Buffer.concat(out) : null));
+    ff.stdin.on('error', () => {});
+    ff.stdin.write(inputBuf); ff.stdin.end();
+  });
+}
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.7-flash';
@@ -198,12 +219,22 @@ export function mountProxy(app) {
         const extracted = extractMultipartFile(audio, ct);
         if (extracted) audio = extracted;
       }
-      // Sniff the real container from magic bytes (robust regardless of how it was sent):
-      //   WEBM/Matroska → 1A 45 DF A3;  OGG → "OggS";  WAV → "RIFF".
-      let encoding = 'WEBM_OPUS';
-      if (audio[0] === 0x1a && audio[1] === 0x45 && audio[2] === 0xdf && audio[3] === 0xa3) encoding = 'WEBM_OPUS';
-      else if (audio.slice(0, 4).toString() === 'OggS') encoding = 'OGG_OPUS';
-      else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
+      // PRIMARY PATH: transcode to headerless 16 kHz mono PCM so Google reads an exact duration.
+      // This is what makes short WebM/Opus clips work reliably (the container has no duration).
+      let encoding, content;
+      const pcm = await transcodePcm16k(audio);
+      if (pcm && pcm.length) {
+        encoding = 'LINEAR16';
+        content = pcm.toString('base64');
+      } else {
+        // Fallback (ffmpeg unavailable): sniff the container from magic bytes and send as-is.
+        //   WEBM/Matroska → 1A 45 DF A3;  OGG → "OggS";  WAV → "RIFF".
+        encoding = 'WEBM_OPUS';
+        if (audio[0] === 0x1a && audio[1] === 0x45 && audio[2] === 0xdf && audio[3] === 0xa3) encoding = 'WEBM_OPUS';
+        else if (audio.slice(0, 4).toString() === 'OggS') encoding = 'OGG_OPUS';
+        else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
+        content = audio.toString('base64');
+      }
       const speech = (await import('@google-cloud/speech')).default;
       const client = new speech.SpeechClient();
       const baseConfig = {
@@ -212,10 +243,11 @@ export function mountProxy(app) {
         useEnhanced: true,
         enableAutomaticPunctuation: true,
       };
-      if (encoding === 'LINEAR16') baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 16000);
-      else baseConfig.sampleRateHertz = Number(process.env.ASR_SAMPLE_RATE || 48000);   // MediaRecorder WEBM/OGG Opus is 48 kHz
+      // PCM path is fixed at 16 kHz; the raw-fallback Opus path is 48 kHz.
+      baseConfig.sampleRateHertz = encoding === 'LINEAR16'
+        ? Number(process.env.ASR_SAMPLE_RATE || 16000)
+        : Number(process.env.ASR_SAMPLE_RATE || 48000);
       const primaryModel = process.env.ASR_MODEL || 'medical_conversation';
-      const content = audio.toString('base64');
       const runRecognize = async (model) => client.recognize({ audio: { content }, config: { ...baseConfig, model } });
       // LongRunningRecognize has NO 60s sync cap and accepts the same inline content (<10MB),
       // so it transcribes any segment length; we await its operation (a few seconds for a clip).
@@ -235,7 +267,8 @@ export function mountProxy(app) {
           }
         }
       };
-      console.log(`[proxy ${id}] asr(google-speech) bytes=${audio.length} enc=${encoding} model=${primaryModel}`);
+      const approxSec = encoding === 'LINEAR16' && content ? Math.round(Buffer.byteLength(content, 'base64') / 2 / 16000) : null;
+      console.log(`[proxy ${id}] asr(google-speech) in=${audio.length}B enc=${encoding}${approxSec != null ? ` ~${approxSec}s` : ''} model=${primaryModel}`);
       let response;
       try { [response] = await runRecognize(primaryModel); }
       catch (e) {
