@@ -157,16 +157,14 @@ export async function composeStory(scaffoldNote, opts = {}) {
     // Full note JSON: enough room for a rich multi-problem note (~2-3k tokens) with
     // generous headroom, but capped so a degenerate repetition can't balloon to 100s+
     // of generation. Timeout kept under Cloudflare's 100s edge limit.
-    // Bounded (this is the note-prose generator that can hit a degenerate repetition loop).
-    // 16384 ≈ 64k chars — far more than any real note (~2-3k tokens) yet small enough that a
-    // runaway can't balloon past Cloudflare's 100s. Not read from env (a stale low value would
-    // truncate a rich note into invalid JSON → sparse fallback).
-    const storyTokens = 16384;
+    // Full room for the rich grouped note (original behaviour). Hardcoded so a stale low
+    // STORY_MAX_OUTPUT_TOKENS in the environment can't truncate it into the flat fallback.
+    const storyTokens = 24576;
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,
       NOTE_SCHEMA,
-      { timeoutMs: 80000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
+      { timeoutMs: 180000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
     );
     out = parseNoteJson(raw);
     if (!out) throw new Error('unparseable JSON (even after repair)');
