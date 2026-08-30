@@ -13,6 +13,10 @@ RUN npm ci --omit=dev --workspace @notera/backend || npm install --omit=dev --wo
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# ffmpeg: transcode browser WebM/Opus → raw PCM so Google STT reads an exact duration.
+# MediaRecorder omits the WebM duration/cues metadata, which otherwise makes even short
+# clips fail as "Sync input too long".
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 # non-root runtime user
 RUN useradd -m -u 10001 notera
 COPY --from=build --chown=notera:notera /app /app
