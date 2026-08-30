@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { query, one } from '../db/pool.js';
 
 const ROUNDS = 12;
