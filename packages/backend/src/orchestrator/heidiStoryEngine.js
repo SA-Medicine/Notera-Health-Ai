@@ -186,13 +186,18 @@ export async function composeStory(scaffoldNote, opts = {}) {
     for (const n of (t.match(/\d+(?:\.\d+)?/g) || [])) if (!tnums.has(n)) return fallback || t; // ungrounded number → prefer scaffold
     return t;
   };
+  let revertedFields = 0;
   const keepBest = (engineVal, scaffoldVal) => {
     const e = groundNumbers(engineVal, scaffoldVal);
-    // never lose scaffold content words
+    // Prefer the composer's CONCISE, grouped narrative. Only fall back to the verbose
+    // deterministic scaffold when the engine output is empty or dropped the LARGE MAJORITY
+    // of content words (gross loss). Threshold loosened 0.7 → 0.4 so a legitimate concise
+    // rewrite (which naturally rephrases and keeps ~50-60% of exact words) is NOT rejected —
+    // that rejection was what forced the long, flat scaffold Subjective through.
     if (scaffoldVal && String(scaffoldVal).trim()) {
       const sw = contentWords(scaffoldVal); const eset = new Set(contentWords(e));
       const kept = sw.filter((w) => eset.has(w)).length;
-      if (!e.trim() || (sw.length && kept / sw.length < 0.7)) return scaffoldVal; // engine dropped too much
+      if (!e.trim() || (sw.length && kept / sw.length < 0.4)) { revertedFields++; return scaffoldVal; }
     }
     return e || scaffoldVal || '';
   };
@@ -200,6 +205,7 @@ export async function composeStory(scaffoldNote, opts = {}) {
   for (const k of Object.keys(note.subjective)) note.subjective[k] = keepBest(out.subjective?.[k], scaffoldNote.subjective[k]);
   for (const k of Object.keys(note.past_medical_history)) note.past_medical_history[k] = keepBest(out.past_medical_history?.[k], scaffoldNote.past_medical_history[k]);
   for (const k of Object.keys(note.objective)) note.objective[k] = keepBest(out.objective?.[k], scaffoldNote.objective[k]);
+  if (revertedFields) console.log(`[storyEngine] anti-loss guard kept the scaffold for ${revertedFields} field(s) (engine version dropped too much)`);
 
   // Assessment & Plan: take engine problems, drop hallucinated titles, keep at least scaffold.
   const engineAP = Array.isArray(out.assessment_and_plan) ? out.assessment_and_plan : [];
@@ -226,8 +232,9 @@ export async function composeStory(scaffoldNote, opts = {}) {
   // Final safety: engine note must be schema-valid and not lose the plan entirely.
   const { valid } = validateNote(note);
   if (!valid || (scaffoldNote.assessment_and_plan.length && !note.assessment_and_plan.length)) {
-    console.warn('[storyEngine] guard tripped, using scaffold note');
+    console.warn(`[storyEngine] guard tripped, using scaffold note (valid=${valid}, engineAP=${note.assessment_and_plan.length}, scaffoldAP=${scaffoldNote.assessment_and_plan.length})`);
     return scaffoldNote;
   }
+  console.log(`[storyEngine] composed OK — using LLM narrative (${note.assessment_and_plan.length} A&P problem(s), ${revertedFields} field(s) reverted to scaffold)`);
   return note;
 }
