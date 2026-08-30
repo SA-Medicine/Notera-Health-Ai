@@ -164,7 +164,10 @@ export async function composeStory(scaffoldNote, opts = {}) {
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,
       NOTE_SCHEMA,
-      { timeoutMs: 180000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
+      // Time-bound (NOT token-bound) under Cloudflare's 100s edge limit: a normal composeStory
+      // finishes in ~10-15s, so 45s only ever trips a runaway/loop, which then falls back to the
+      // scaffold — keeping the whole request under 100s so it never 524s. Output length is uncapped.
+      { timeoutMs: 45000, retries: 1, maxOutputTokens: storyTokens, thinkingBudget: 0 }
     );
     out = parseNoteJson(raw);
     if (!out) throw new Error('unparseable JSON (even after repair)');

@@ -220,9 +220,20 @@ export function mountProxy(app) {
       // LongRunningRecognize has NO 60s sync cap and accepts the same inline content (<10MB),
       // so it transcribes any segment length; we await its operation (a few seconds for a clip).
       const runLong = async (model) => {
-        const [op] = await client.longRunningRecognize({ audio: { content }, config: { ...baseConfig, model } });
-        const [r] = await op.promise();
-        return r;
+        // Retry once on transient "14 UNAVAILABLE / Policy checks are unavailable".
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const [op] = await client.longRunningRecognize({ audio: { content }, config: { ...baseConfig, model } });
+            const [r] = await op.promise();
+            return r;
+          } catch (e) {
+            if (attempt < 1 && /UNAVAILABLE|Policy checks|deadline|internal/i.test(e.message)) {
+              console.warn(`[proxy ${id}] longRunningRecognize transient (${e.message}); retrying once`);
+              await new Promise((r) => setTimeout(r, 800)); continue;
+            }
+            throw e;
+          }
+        }
       };
       console.log(`[proxy ${id}] asr(google-speech) bytes=${audio.length} enc=${encoding} model=${primaryModel}`);
       let response;

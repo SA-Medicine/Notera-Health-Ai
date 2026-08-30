@@ -74,7 +74,8 @@ export async function narrateNote(note, opts = {}) {
       schema,
       // Full room (original behaviour). Hardcoded so a stale low GEMINI_MAX_OUTPUT_TOKENS
       // in the environment can't truncate the narrative into the flat fallback.
-      { timeoutMs: 150000, retries: 1, maxOutputTokens: 65536, thinkingBudget: 0 }
+      // Time-bound under Cloudflare's 100s edge limit (see heidiStoryEngine). Output uncapped.
+      { timeoutMs: 45000, retries: 1, maxOutputTokens: 65536, thinkingBudget: 0 }
     );
     out = JSON.parse(String(raw).replace(/^```(json)?/i, '').replace(/```$/, '').trim());
   } catch (e) {
