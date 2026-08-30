@@ -84,12 +84,10 @@ export class LLMService {
     let url = targets[ti].url;
     const timeoutMs = options.timeoutMs || 120000;
     const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
-    // Let the model run to its full output ceiling unless a caller explicitly caps it.
-    // Prose generators pass their own small cap (options.maxOutputTokens). Everything
-    // else — notably the JSON extractor — must NOT be throttled: floor the global
-    // default at 32768 so a low GEMINI_MAX_OUTPUT_TOKENS in the environment can't
-    // starve entity extraction (which produced truncated/garbled output).
-    const maxOutputTokens = options.maxOutputTokens || Math.max(Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 65536, 32768);
+    // Full output ceiling for every agent (extractor, QA, classifier, fact-recovery, …)
+    // unless the CALLER explicitly caps it (prose generators do). Not read from the
+    // environment, so a stale low GEMINI_MAX_OUTPUT_TOKENS can never throttle extraction.
+    const maxOutputTokens = options.maxOutputTokens || 65536;
 
     const body = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
