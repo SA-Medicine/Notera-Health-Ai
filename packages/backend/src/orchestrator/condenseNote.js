@@ -117,19 +117,21 @@ export function condenseNote(note, opts = {}, log = () => {}) {
       }
       p.assessment = kept.join('\n');
     }
-    // Subjective-narrative BLEED into the Plan: drop a treatment line ONLY when it echoes history
-    // already stated above AND carries no plan-action verb (so "Continue Amlodipine 5mg", "Refer
-    // to ENT", "RTC 2 weeks" are always preserved — only duplicated HPI narrative is removed).
-    if (typeof p.treatment_planned === 'string') {
+    // Subjective-narrative BLEED into the Plan: drop a treatment/referral line ONLY when it echoes
+    // history already stated above AND carries no plan-action verb (so "Continue Amlodipine 5mg",
+    // "Refer to ENT", "RTC 2 weeks" are always preserved — only duplicated HPI narrative is removed).
+    // The composer frequently dumps HPI into BOTH treatment_planned AND referrals, so clean both.
+    for (const fld of ['treatment_planned', 'referrals']) {
+      if (typeof p[fld] !== 'string') continue;
       const kept = [];
-      for (const line of splitLines(p.treatment_planned)) {
+      for (const line of splitLines(p[fld])) {
         const w = wordsOf(line);
         const isBleed = w.length >= 4 && !ACTION_RX.test(line) &&
           above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
-        if (isBleed) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P treatment: "${line.slice(0, 90)}"`); continue; }
+        if (isBleed) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
         kept.push(line);
       }
-      p.treatment_planned = kept.join('\n');
+      p[fld] = kept.join('\n');
     }
   }
 
