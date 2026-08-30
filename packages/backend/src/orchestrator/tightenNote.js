@@ -120,7 +120,7 @@ export async function tightenNote(currentNote, { llm, transcript = '', log = () 
     const user = `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nDRAFT NOTE (fix omissions, remove unsupported/filler content, keep only transcript-grounded facts):\n${draft}${mfBlock}${medBlock}\n\nReturn ONLY the corrected JSON.`;
     if (mf.length) log(`[upgrade:tightener] re-including ${mf.length} QA-flagged dropped fact(s)`);
     if (meds.length) log(`[upgrade:tightener] enforcing ${meds.length} grounded medication(s) present`);
-    const raw = await llm.generateContent(SYS, user, null, { maxOutputTokens: maxOutputTokens || Math.max(Number(process.env.TIGHTENER_MAX_OUTPUT_TOKENS) || 16384, 12288), thinkingBudget: 0 });
+    const raw = await llm.generateContent(SYS, user, null, { maxOutputTokens: maxOutputTokens || 16384, thinkingBudget: 0 });
     const parsed = safeParse(raw);
     if (!parsed || typeof parsed !== 'object') { log('[upgrade:tightener] no valid JSON returned — keeping draft'); return currentNote; }
     const out = buildNote(currentNote, parsed);
