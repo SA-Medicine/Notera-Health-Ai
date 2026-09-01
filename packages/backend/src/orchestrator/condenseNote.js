@@ -102,6 +102,8 @@ export function condenseNote(note, opts = {}, log = () => {}) {
   // A plan-ACTION verb marks a legitimate plan step (continue X, refer, order, RTC…) that must
   // NEVER be pruned even if it echoes a fact above — only pure narrative echoes are bleed.
   const ACTION_RX = /\b(continu|start|start(?:ed|ing)?|initiat|increas|decreas|titrat|refer|referral|order|arrang|schedul|rtc|return|follow.?up|monitor|repeat|x-?ray|ultrasound|mri|\bct\b|prescrib|renew|refill|advis|counsel|educat|await|review|discontinu|\bstop\b|\bhold\b|switch|trial|sampl|inject|vaccinat|consider|recommend|plan|await)\b/i;
+  // A plan line that OPENS with a subjective-report marker is bled HPI narrative, not a plan step.
+  const NARRATIVE_RX = /^\s*(the\s+)?(patient|pt|mother|father|caregiver|he|she|they)\b.*\b(report|reports|reported|note|notes|noted|state|states|stated|describe|describes|described|complain|complains|complained|feel|feels|felt|denies|experienc|present)/i;
   let removed = 0;
   for (const p of (note.assessment_and_plan || [])) {
     if (typeof p.assessment === 'string') {
@@ -126,9 +128,13 @@ export function condenseNote(note, opts = {}, log = () => {}) {
       const kept = [];
       for (const line of splitLines(p[fld])) {
         const w = wordsOf(line);
-        const isBleed = w.length >= 4 && !ACTION_RX.test(line) &&
-          above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
-        if (isBleed) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
+        if (w.length < 4 || ACTION_RX.test(line)) { kept.push(line); continue; }   // keep short/plan-action lines
+        // Bleed if it duplicates history stated above, OR reads as raw HPI narrative — a line
+        // that opens with a subjective-report marker ("Patient reports…", "Describes…",
+        // "History of…") is describing symptoms/history, not prescribing a plan step.
+        const isDupe = above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
+        const isNarrative = NARRATIVE_RX.test(line);
+        if (isDupe || isNarrative) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
         kept.push(line);
       }
       p[fld] = kept.join('\n');

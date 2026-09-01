@@ -160,6 +160,7 @@ export async function composeStory(scaffoldNote, opts = {}) {
     // Full room for the rich grouped note (original behaviour). Hardcoded so a stale low
     // STORY_MAX_OUTPUT_TOKENS in the environment can't truncate it into the flat fallback.
     const storyTokens = 24576;
+    llm._agent = 'story-composer';
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nSCAFFOLD (facts already extracted — keep all that the transcript supports, and add what it missed):\n${scaffoldSummary(scaffoldNote)}\n\nWrite the complete Heidi note. Return ONLY JSON.`,

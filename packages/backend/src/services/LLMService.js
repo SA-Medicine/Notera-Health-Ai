@@ -27,6 +27,27 @@ export class LLMService {
     this.apiKey = apiKey;
     this.project = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
     this.location = process.env.VERTEX_LOCATION || 'us-central1';
+    this._tokenUsage = {};   // per-agent token tally for this run (see get/resetTokenUsage)
+  }
+
+  // Per-agent token accounting. Callers set `llm._agent = '<agent>'` before a call; every
+  // response's usageMetadata is attributed to that agent and accumulated here.
+  resetTokenUsage() { this._tokenUsage = {}; }
+  getTokenUsage() {
+    const perAgent = this._tokenUsage;
+    const totals = Object.values(perAgent).reduce(
+      (a, r) => ({ prompt: a.prompt + r.prompt, output: a.output + r.output, total: a.total + r.total, calls: a.calls + r.calls }),
+      { prompt: 0, output: 0, total: 0, calls: 0 });
+    return { perAgent, totals };
+  }
+  _recordTokens(usage) {
+    const agent = this._agent || 'unknown';
+    const rec = (this._tokenUsage[agent] ||= { prompt: 0, output: 0, total: 0, calls: 0 });
+    const p = Number(usage?.promptTokenCount || 0);
+    const o = Number(usage?.candidatesTokenCount || 0);
+    const t = Number(usage?.totalTokenCount || (p + o));
+    rec.prompt += p; rec.output += o; rec.total += t; rec.calls += 1;
+    console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t} (model=${this.model})`);
   }
 
   _endpoint(stream = false) {
@@ -84,10 +105,25 @@ export class LLMService {
     let url = targets[ti].url;
     const timeoutMs = options.timeoutMs || 120000;
     const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
-    // Full output ceiling for every agent (extractor, QA, classifier, fact-recovery, …)
-    // unless the CALLER explicitly caps it (prose generators do). Not read from the
-    // environment, so a stale low GEMINI_MAX_OUTPUT_TOKENS can never throttle extraction.
-    const maxOutputTokens = options.maxOutputTokens || 65536;
+    // Output ceiling precedence: an explicit caller cap (prose generators) wins; then an
+    // OPTIONAL per-agent cap from the environment (keyed by this._agent); then the full default.
+    // Per-agent caps let you bound each stage independently, e.g.:
+    //   CLINICAL_STORY_MAX_OUTPUT_TOKENS, EXTRACTOR_MAX_OUTPUT_TOKENS,
+    //   QA_MAX_OUTPUT_TOKENS, FACT_RECOVERY_MAX_OUTPUT_TOKENS
+    const AGENT_CAP_ENV = {
+      'clinical-story': 'CLINICAL_STORY_MAX_OUTPUT_TOKENS',
+      'observation-extractor': 'EXTRACTOR_MAX_OUTPUT_TOKENS',
+      'qa-validator': 'QA_MAX_OUTPUT_TOKENS',
+      'fact-recovery': 'FACT_RECOVERY_MAX_OUTPUT_TOKENS',
+      'story-composer': 'STORY_COMPOSER_MAX_OUTPUT_TOKENS',
+      'tightener': 'TIGHTENER_MAX_OUTPUT_TOKENS',
+      'hallucination-remover': 'HALLUCINATION_REMOVER_MAX_OUTPUT_TOKENS',
+    };
+    const agentCap = Number(process.env[AGENT_CAP_ENV[this._agent]] || 0) || 0;
+    // The per-agent env cap is a HARD CEILING: clamp whatever the caller requested (or the
+    // default) so it applies even for stages that pass their own maxOutputTokens.
+    let maxOutputTokens = options.maxOutputTokens || 65536;
+    if (agentCap) maxOutputTokens = Math.min(maxOutputTokens, agentCap);
 
     const body = {
       systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -163,6 +199,7 @@ export class LLMService {
           if (attempt < retries) continue;
           throw lastErr;
         }
+        this._recordTokens(data.usageMetadata);
         return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       } catch (err) {
         const connErr = err?.name === 'TypeError' || !!err?.cause?.code || /fetch failed|ECONNREFUSED|ECONNRESET|EAI_AGAIN|ENOTFOUND|network/i.test(err?.message || '');

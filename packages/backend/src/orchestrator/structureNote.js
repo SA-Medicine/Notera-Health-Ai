@@ -91,6 +91,7 @@ export async function structureNote(noteText, opts = {}) {
 
   if (llm) {
     try {
+      llm._agent = 'structure-note';
       const raw = await llm.generateContent(
         SYS,
         `SPECIALTY: ${specialty}\nNOTE TYPE: ${noteType}\n\nCLINICIAN NOTE / TRANSCRIPT-DERIVED CONTENT:\n${noteText}\n\nReturn ONLY the JSON.`,

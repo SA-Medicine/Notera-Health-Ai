@@ -88,6 +88,9 @@ export async function generateNote(input, opts = {}) {
     () => {}
   );
   await engine.init();
+  // Reset per-agent token tallies for this run (both LLM instances: pipeline agents + orchestrator).
+  engine.llmService?.resetTokenUsage?.();
+  llm?.resetTokenUsage?.();
 
   // Optional per-agent LLM I/O recorder (Testing Lab). Wraps generateContent on the
   // pipeline LLM service (and the orchestrator's own llm); PipelineEngine tags each
@@ -190,6 +193,12 @@ export async function generateNote(input, opts = {}) {
   // 5c. RECONCILE — deterministic placement & consistency: lab/vital values → Objective,
   //     referrals → A&P, no normal-lab relists in A&P (fixes cross-section contradictions).
   try { note = reconcileNote(note); } catch (e) { console.warn('[generateNote] reconcile skipped:', e.message); }
+
+  // 5c-2. OBJECTIVE RETENTION: the story/slot-filler sometimes DROPS extracted lab results and
+  //       physical-exam findings ("Unrepresented critical entities" in the pipeline log), leaving
+  //       an empty Objective even though the transcript reviewed labs/exam. Deterministically
+  //       re-inject any extracted objective lab/exam entity that isn't anywhere in the note.
+  try { retainObjectiveEntities(note, graphForMap.clinical_entities, (l) => console.log(l)); } catch (e) { console.warn('[generateNote] objective-retention skipped:', e.message); }
 
   // 5c-tighten. Optional LLM "gold tightener" (NOTE_TIGHTENER=1): re-reads the transcript +
   // draft and rewrites gold-style — recovers dropped plan/pharmacy/RTC/normal-lab facts and
@@ -311,10 +320,19 @@ export async function generateNote(input, opts = {}) {
     await audit({ consultId, actor: 'system', action: 'draft.created', target: draftId, meta: { status: gr.status, flags: gr.flags.length } });
   }
 
+  // Merge per-agent token usage from both LLM instances → one run tally; log a summary line.
+  const tokenUsage = mergeTokenUsage(engine.llmService?.getTokenUsage?.(), llm?.getTokenUsage?.());
+  if (tokenUsage) {
+    const rows = Object.entries(tokenUsage.perAgent).sort((a, b) => b[1].total - a[1].total)
+      .map(([a, r]) => `${a}=${r.total}`).join(' ');
+    console.log(`[tokens] === run total: ${tokenUsage.totals.total} tokens (prompt=${tokenUsage.totals.prompt} output=${tokenUsage.totals.output}, ${tokenUsage.totals.calls} calls) — per agent: ${rows}`);
+  }
+
   onProgress({ status: 'ready', consultId, draftId });
   return {
     consultId, draftId, note, renderedNote, rawRenderedNote: finalNote,
     status: gr.status, flags: gr.flags, schemaErrors: gr.schemaErrors, entities, detectedSpecialty: detected,
+    tokenUsage,   // { perAgent: {agent:{prompt,output,total,calls}}, totals:{…} } — for the admin chart
     qa: pipeline.logs?.qaValidation || null,   // QA agent output incl. _metrics (for eval metrics chart)
     trace: opts.recordTrace ? trace : undefined,   // per-agent LLM I/O (Testing Lab)
     // Full pipeline logs for the Developer panel (only when requested).
@@ -324,6 +342,62 @@ export async function generateNote(input, opts = {}) {
       stages: summarizeStages(pipeline),
     } : undefined,
   };
+}
+
+// Re-inject extracted OBJECTIVE lab/exam entities that the story/slot-filler dropped from the
+// note entirely. Only appends an entity when it appears NOWHERE in the note (so it never
+// duplicates content the render already placed, and reconcileNote's moves are respected).
+function retainObjectiveEntities(note, entities, log = () => {}) {
+  if (!note || !note.objective || !Array.isArray(entities)) return;
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const noteText = norm(JSON.stringify(note));
+  const labLines = [], examLines = [];
+  const seen = new Set();
+  const present = (name) => { const n = norm(name); return n.length >= 4 && noteText.includes(n.slice(0, 16)); };
+  for (const e of entities) {
+    if (e.render_required === false) continue;
+    const type = String(e.entity_type || '');
+    const slot = String(e.heidi_slot || '');
+    const name = String(e.canonical_name || e.display_text || '').trim();
+    if (!name) continue;
+    if (/lab_result/i.test(type)) {
+      if (e.is_negative === true || e.certainty === 'negated') continue;
+      const val = (e.value != null && String(e.value).trim()) ? String(e.value).trim() : '';
+      const line = /\d/.test(name) ? name : (val ? `${name}: ${val}` : name);   // "CRP: 12.4"
+      const key = norm(line);
+      if (!key || seen.has(key) || present(name)) continue;
+      seen.add(key); labLines.push(line);
+    } else if (/physical_exam|normal_finding/i.test(type) && slot === 'objective') {
+      const key = norm(name);
+      if (!key || seen.has(key) || present(name)) continue;
+      seen.add(key); examLines.push(name);
+    }
+  }
+  const append = (field, lines) => {
+    if (!lines.length) return;
+    const cur = String(note.objective[field] || '').trim();
+    note.objective[field] = (cur ? cur + '\n' : '') + lines.join('\n');
+  };
+  append('completed_investigations', labLines);
+  append('examination', examLines);
+  if (labLines.length || examLines.length) log(`[upgrade:objective-retention] restored ${labLines.length} lab + ${examLines.length} exam finding(s) dropped by the render`);
+}
+
+// Merge per-agent token tallies from multiple LLM instances into one { perAgent, totals }.
+function mergeTokenUsage(...usages) {
+  const perAgent = {};
+  for (const u of usages) {
+    if (!u?.perAgent) continue;
+    for (const [agent, r] of Object.entries(u.perAgent)) {
+      const rec = (perAgent[agent] ||= { prompt: 0, output: 0, total: 0, calls: 0 });
+      rec.prompt += r.prompt; rec.output += r.output; rec.total += r.total; rec.calls += r.calls;
+    }
+  }
+  if (!Object.keys(perAgent).length) return null;
+  const totals = Object.values(perAgent).reduce(
+    (a, r) => ({ prompt: a.prompt + r.prompt, output: a.output + r.output, total: a.total + r.total, calls: a.calls + r.calls }),
+    { prompt: 0, output: 0, total: 0, calls: 0 });
+  return { perAgent, totals };
 }
 
 // Compact per-stage summary from the structured pipeline logs (for a quick view).

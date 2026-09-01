@@ -189,8 +189,9 @@ function listResultRuns() {
   let dirs = [];
   try { dirs = fs.readdirSync(RESULTS).filter((d) => /^run_/.test(d) && fs.statSync(path.join(RESULTS, d)).isDirectory()); } catch {}
   return dirs.sort().reverse().map((dir) => {
-    let summary = null; try { summary = JSON.parse(fs.readFileSync(path.join(RESULTS, dir, '_summary.json'), 'utf8')).summary; } catch {}
-    return { dir, id: dir.replace(/^run_/, ''), summary };
+    let summary = null, tokensByAgent = null;
+    try { const s = JSON.parse(fs.readFileSync(path.join(RESULTS, dir, '_summary.json'), 'utf8')); summary = s.summary; tokensByAgent = s.tokensByAgent || null; } catch {}
+    return { dir, id: dir.replace(/^run_/, ''), summary, tokensByAgent };
   });
 }
 // Materialize .txt run fixtures ON DEMAND for a set of slugs, pulling transcript + gold

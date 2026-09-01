@@ -68,6 +68,7 @@ export async function narrateNote(note, opts = {}) {
 
   let out;
   try {
+    llm._agent = 'narrative';
     const raw = await llm.generateContent(
       SYS,
       `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nNOTE FIELDS to rewrite (return ONLY JSON with these exact keys):\n${JSON.stringify(src, null, 2)}`,
