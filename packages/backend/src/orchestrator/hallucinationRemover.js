@@ -136,7 +136,7 @@ export async function removeHallucinations(note, { transcript = '', promptContex
   // Runs on the MAIN-PIPELINE LLM (Gemini). Small output (a list, not the whole note) → fast.
   // Retry once on a parse failure (the model occasionally wraps the JSON in stray text).
   const _t0 = Date.now();
-  const call = async (sys) => { try { return parseJson(await llm.generateContent(sys, user, null, { maxOutputTokens: maxTokens })); } catch (e) { log('[hallucination-remover] LLM error — ' + e.message); return null; } };
+  const call = async (sys) => { try { llm._agent = 'hallucination-remover'; return parseJson(await llm.generateContent(sys, user, null, { maxOutputTokens: maxTokens })); } catch (e) { log('[hallucination-remover] LLM error — ' + e.message); return null; } };
   let data = await call(system);
   if (!data) { log('[hallucination-remover] retrying once (parse/LLM)'); data = await call(system + '\n\nIMPORTANT: return ONLY the raw JSON object, nothing else.'); }
   if (!data) { log('[hallucination-remover] skipped — no valid JSON from the LLM'); return { ok: false, removed: [] }; }

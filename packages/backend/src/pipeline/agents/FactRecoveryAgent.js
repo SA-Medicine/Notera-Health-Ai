@@ -104,11 +104,25 @@ Only output facts that belong to the missing categories. Do not hallucinate.`, {
       const parsed = safeParseJson(resultStr);
 
       if (parsed.recovered_entities && parsed.recovered_entities.length > 0) {
-        const injected = parsed.recovered_entities.map(e => {
-          e.fact_origin = "agent1_5";
-          e.render_status = "extracted";
-          return e;
-        });
+        // DEDUP: recovery can now fire on big coverage gaps even when a few entities exist, so
+        // drop any recovered entity that duplicates one already captured (by normalized name or
+        // source span) — prevents duplicate ORPHAN NODES.
+        const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const existing = new Set();
+        for (const e of (entitiesObj.clinical_entities || [])) {
+          for (const k of [e.display_text, e.canonical_name, e.source_span]) { const n = norm(k); if (n) existing.add(n); }
+        }
+        const injected = parsed.recovered_entities
+          .filter((e) => {
+            const keys = [norm(e.display_text), norm(e.canonical_name), norm(e.source_span)].filter(Boolean);
+            if (keys.some((k) => existing.has(k))) return false;   // already captured → skip
+            keys.forEach((k) => existing.add(k));                  // guard against intra-batch dupes
+            return true;
+          })
+          .map((e) => { e.fact_origin = 'agent1_5'; e.render_status = 'extracted'; return e; });
+        if (injected.length < parsed.recovered_entities.length) {
+          console.log(`[FactRecovery] deduped ${parsed.recovered_entities.length - injected.length} already-captured entity(ies)`);
+        }
         entitiesObj.clinical_entities = (entitiesObj.clinical_entities || []).concat(injected);
       }
       return entitiesObj;

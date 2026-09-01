@@ -7,7 +7,7 @@ import { Button } from '@notera/ui/components/ui/button'
 import { toast } from 'sonner'
 import { GitCompare, TrendingUp, Info, ChevronRight, AlertTriangle, ShieldCheck, Copy, FileBarChart, Sparkles, CheckCircle2, Ghost, ListChecks } from 'lucide-react'
 import type { RunSummary } from '@/lib/api'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
 
 const FAMILY_LABEL: Record<string, string> = { equivalence: 'Equivalence', structure: 'Structure', missing_info: 'Missing info', quality: 'Quality', story_flow: 'Story / flow' }
 const num = (v: number | null | undefined, d = 3) => (v == null ? '—' : (v as number).toFixed(d))
@@ -223,6 +223,7 @@ export function Metrics({ openInResults }: { openInResults: (dir: string, file?:
         </>}
       </>}
 
+      {tab === 'summary' && <TokensPanel tokensByAgent={idxMap[baseDir]?.tokensByAgent || null} />}
       {tab === 'summary' && <SummaryPanel runs={runs} idx={idx} defaultDir={baseDir} openInResults={openInResults} />}
       {tab === 'trend' && <TrendPanel hist={hist} />}
     </div>
@@ -248,6 +249,43 @@ function List({ title, items, tone, Icon }: { title: string; items?: string[]; t
     <div className="rounded-xl border border-border bg-surface p-3">
       <div className={cn('flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide mb-2', list.length ? tone : 'text-muted-foreground')}><Icon className="w-3.5 h-3.5" />{title} <span className="text-muted-foreground font-normal">({list.length})</span></div>
       {list.length === 0 ? <div className="text-muted-foreground/50 text-sm">—</div> : <ul className="space-y-1.5">{list.map((x, i) => <li key={i} className="text-sm text-foreground/85 flex gap-2"><span className={cn('mt-[7px] w-1.5 h-1.5 rounded-full shrink-0', tone.replace('text-', 'bg-'))} />{x}</li>)}</ul>}
+    </div>
+  )
+}
+
+// Tokens-per-agent chart for the selected run (data from _summary.json → tokensByAgent).
+function TokensPanel({ tokensByAgent }: { tokensByAgent: Record<string, { prompt: number; output: number; total: number; calls: number }> | null }) {
+  if (!tokensByAgent || !Object.keys(tokensByAgent).length) return null
+  const rows = Object.entries(tokensByAgent)
+    .map(([agent, r]) => ({ agent: agent.replace(/-/g, ' '), prompt: r.prompt || 0, output: r.output || 0, total: r.total || 0, calls: r.calls || 0 }))
+    .sort((a, b) => b.total - a.total)
+  const grand = rows.reduce((a, r) => a + r.total, 0)
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground"><FileBarChart className="w-4 h-4 text-primary" /> Tokens per agent (this run)</div>
+        <span className="text-xs text-muted-foreground font-mono tabular-nums">{grand.toLocaleString()} total</span>
+      </div>
+      <div style={{ width: '100%', height: Math.max(180, rows.length * 34) }}>
+        <ResponsiveContainer>
+          <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.06)" />
+            <XAxis type="number" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="agent" width={160} tick={{ fontSize: 11 }} />
+            <RTooltip formatter={(v: any, n: any) => [Number(v).toLocaleString(), n]} />
+            <Bar dataKey="prompt" stackId="t" name="prompt (input)" fill="#3b82f6" />
+            <Bar dataKey="output" stackId="t" name="output" fill="#22c55e" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+        {rows.map((r) => (
+          <div key={r.agent} className="flex items-center justify-between">
+            <span className="text-muted-foreground truncate">{r.agent}</span>
+            <span className="font-mono tabular-nums">{r.total.toLocaleString()} <span className="text-muted-foreground">({r.calls}×)</span></span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

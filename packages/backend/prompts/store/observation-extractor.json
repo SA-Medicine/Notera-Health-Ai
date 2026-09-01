@@ -6,9 +6,9 @@
   "stage": "Extraction",
   "description": "Universal clinical knowledge-graph extraction from transcript",
   "vars": [],
-  "publishedVersion": 11,
+  "publishedVersion": 13,
   "draft": null,
-  "updatedAt": "2026-08-30T08:54:49.000Z",
+  "updatedAt": "2026-09-01T08:26:20.622Z",
   "active": true,
   "order": 2
 }

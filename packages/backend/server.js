@@ -133,7 +133,9 @@ app.use('/api', (req, res) => res.status(404).json({ error: `no such endpoint: $
 
 const port = config.port;
 const server = app.listen(port, () => {
-  console.log(`Notera backend (unified) on :${port}  — product + admin/lab API  (llm=${config.llmBackend}, store=${config.firestoreDriver})`);
+  // Report the ACTUAL store backend (STORE_BACKEND wins; FIRESTORE_DRIVER is the legacy fallback).
+  const storeBackend = process.env.STORE_BACKEND || (config.firestoreDriver === 'firestore' ? 'firestore' : 'memory');
+  console.log(`Notera backend (unified) on :${port}  — product + admin/lab API  (llm=${config.llmBackend}, store=${storeBackend})`);
   // RxNorm medication verification (upgrade D-Tier2): ping the source at startup so its
   // availability is visible in the logs. Enabled with RXNORM_VERIFY=1; never blocks boot.
   import('./src/services/rxnorm.js').then(({ rxnormEnabled, initRxNorm }) => {

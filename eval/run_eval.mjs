@@ -137,12 +137,21 @@ async function main() {
 
   const rows = [...resumeRows];                 // seed prior results when resuming
   const total = files.length + resumeRows.length;
+  // Per-agent token usage accumulated across every fixture in this run (for the admin chart).
+  const tokensByAgent = {};
+  const addTokens = (usage) => {
+    if (!usage?.perAgent) return;
+    for (const [agent, r] of Object.entries(usage.perAgent)) {
+      const rec = (tokensByAgent[agent] ||= { prompt: 0, output: 0, total: 0, calls: 0 });
+      rec.prompt += r.prompt || 0; rec.output += r.output || 0; rec.total += r.total || 0; rec.calls += r.calls || 0;
+    }
+  };
   const FIXTURE_TIMEOUT_MS = Number(process.env.RUN_FIXTURE_TIMEOUT_MS) || 300000;   // hard cap per patient
   const CONCURRENCY = Math.max(1, Number(process.env.RUN_CONCURRENCY) || 1);          // 1 = sequential (default, clean logs)
   // Persist partial results + progress after EVERY fixture so a large scan (150+) that is
   // interrupted midway keeps everything done so far, and the UI can show live progress.
   const flush = (current, phase = 'running') => {
-    try { fs.writeFileSync(path.join(OUT_DIR, '_summary.json'), JSON.stringify({ summary: aggregate(rows), rows }, null, 2)); } catch {}
+    try { fs.writeFileSync(path.join(OUT_DIR, '_summary.json'), JSON.stringify({ summary: aggregate(rows), rows, tokensByAgent }, null, 2)); } catch {}
     try { fs.writeFileSync(path.join(OUT_DIR, '_progress.json'), JSON.stringify({ runId: RUN_ID, total, done: rows.length, current, phase, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, null, 2)); } catch {}
   };
   const processOne = async (f) => {
@@ -164,6 +173,9 @@ async function main() {
       score.id = id; score.status = result.status;
       // merge QA-agent numeric metrics (qa_<name>) so aggregate() can trend them
       if (result.qa && result.qa._metrics) { for (const [k, v] of Object.entries(result.qa._metrics)) { if (typeof v === 'number' && isFinite(v)) score['qa_' + k] = v; } }
+      // token usage: per-fixture totals (for run-metrics averages) + accumulate per-agent for the chart
+      if (result.tokenUsage?.totals) { score.tokens_total = result.tokenUsage.totals.total; score.tokens_prompt = result.tokenUsage.totals.prompt; score.tokens_output = result.tokenUsage.totals.output; }
+      addTokens(result.tokenUsage);
       rows.push(score);
       fs.writeFileSync(path.join(OUT_DIR, `${id}.json`), JSON.stringify({ score, note: result.note, renderedNote: result.renderedNote, flags: result.flags }, null, 2));
       // Human/AI-readable side-by-side report for review.
