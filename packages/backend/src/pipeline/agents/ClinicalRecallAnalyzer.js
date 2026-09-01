@@ -142,7 +142,16 @@ export class ClinicalRecallAnalyzer {
       investigation: (extractedData.investigations || []).length + (extractedData.orders || []).length + nEntity((e) => /investigation/i.test(e.entity_type || '')),
     };
     const missingCategories = [];
-    const consider = (cat, cov, count) => { if (cov < 100 && (count === undefined || count === 0)) missingCategories.push(cat); };
+    // Recover a category when NOTHING of its type was captured (count===0), OR when coverage is
+    // SEVERELY low even though a few entities exist (count>0). The low-coverage path catches
+    // cases like fatigue-thyroid — where the extractor grabbed one investigation but missed the
+    // whole reviewed lab panel — without re-recovering near-complete categories (the < LOW gate
+    // is tight, and recovered entities are deduped downstream to avoid duplicate orphan nodes).
+    const LOW = Number(process.env.RECOVERY_LOW_COVERAGE || 40);
+    const consider = (cat, cov, count) => {
+      if (cov >= 100) return;
+      if (count === undefined || count === 0 || cov < LOW) missingCategories.push(cat);
+    };
     consider("life_safety", lifeSafetyCoverage);                         // no direct count → coverage
     consider("diagnosis", diagnosisCoverage, extractedCount.diagnosis);
     consider("medication", medicationCoverage, extractedCount.medication);
@@ -150,6 +159,16 @@ export class ClinicalRecallAnalyzer {
     consider("lab_result", numericCoverage, extractedCount.lab_result);
     consider("investigation", investigationCoverage, extractedCount.investigation);
     consider("procedure", procedureCoverage);                           // no direct count → coverage
+
+    // LAB VALUES: numericCoverage is fooled by med doses/vitals (e.g. "Seroquel 5 mg" made it
+    // 100%), so it never flags a missing lab panel. When the transcript clearly REVIEWS labs
+    // but NO lab_result entity carrying a value was captured, force lab_result recovery so the
+    // recovery agent pulls the actual analyte values (CRP, LFTs, platelets, TSH, …).
+    const LAB_REVIEW_RX = /\b(crp|c-?reactive|\balt\b|\bast\b|\balp\b|ggt|bilirubin|platelet|h[ae]?moglobin|\bhgb\b|h[ae]?matocrit|\bwbc\b|\btsh\b|egfr|creatinine|\bldl\b|\bhdl\b|cholesterol|triglycerid|ferritin|\bb12\b|glucose|\ba1c\b|hba1c|\besr\b|albumin|liver enzyme|blood (?:test|work)|lab (?:results?|values?|work)|inflammatory marker)\b/i;
+    const labResultEntities = entities.filter((e) => /lab_result/i.test(e.entity_type || '') && (e.value != null && String(e.value).trim())).length;
+    if (LAB_REVIEW_RX.test(transcript) && labResultEntities === 0 && !missingCategories.includes('lab_result')) {
+      missingCategories.push('lab_result');
+    }
 
     const needsRecovery = missingCategories.length > 0;
 
