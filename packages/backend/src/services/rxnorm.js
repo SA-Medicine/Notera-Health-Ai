@@ -114,6 +114,7 @@ export async function reconcileMedications(meds = [], { fetchImpl, log = () => {
   const flags = [];
   const names = [...new Set((meds || []).map((m) => String(m).trim()).filter((m) => /[a-z]/i.test(m) && m.length > 2))];
   for (const name of names) {
+    if (_isNonDrug(name)) { log(`[upgrade:rxnorm] skipped non-drug term "${name}" (imaging/test/procedure)`); continue; }
     let r; try { r = await checkMedication(name, { fetchImpl }); } catch { continue; }
     if (r && r.resolved === false && !r.error) {
       const hints = await spellingSuggestions(name, { fetchImpl });
@@ -133,6 +134,16 @@ export async function rxcuiName(rxcui, { fetchImpl } = {}) {
   try { const j = await _get(`${BASE()}/rxcui/${encodeURIComponent(rxcui)}/property.json?propName=RxNorm%20Name`, fetchImpl); return j?.propConceptGroup?.propConcept?.[0]?.propValue || null; } catch { return null; }
 }
 
+// Terms that are unambiguously NOT medications (imaging, screening tests, procedures).
+// The extractor occasionally lists these under medications_mentioned; looking them up wastes
+// a network round-trip AND produces noisy "unverified" flags. We ONLY skip the lookup here —
+// note content is never changed — so this cannot affect any real drug.
+const NON_DRUG_TERMS = new Set([
+  'mammogram', 'colonoscopy', 'ultrasound', 'xray', 'x-ray', 'mri', 'ctscan', 'ct', 'ecg', 'ekg',
+  'echo', 'echocardiogram', 'biopsy', 'endoscopy', 'gastroscopy', 'sigmoidoscopy', 'bloodtest',
+  'urinetest', 'stooltest', 'papsmear', 'smear', 'screening', 'dexascan', 'bonescan', 'spirometry',
+]);
+const _isNonDrug = (name) => NON_DRUG_TERMS.has(_norm(name));
 const _norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const _title = (s) => String(s || '').replace(/\w\S*/g, (t) => t[0].toUpperCase() + t.slice(1).toLowerCase());
 // Levenshtein for the "nearest spoken term" hint (sound-alike substitution detection).
@@ -172,6 +183,7 @@ export async function normalizeMedications(note, transcript = '', { fetchImpl, l
   const names = [...new Set((note?.metadata?.medications_mentioned || []).map((m) => String(m).trim()).filter((m) => /[a-z]/i.test(m) && m.length > 2))];
   const CORRECT_MIN = Number(process.env.RXNORM_MIN_SCORE) || 60;
   for (const name of names) {
+    if (_isNonDrug(name)) { log(`[upgrade:rxnorm] skipped non-drug term "${name}" (imaging/test/procedure)`); continue; }
     const inTranscript = tLower.includes(name.toLowerCase());
     // STEP 1 — is the name ALREADY a real drug exactly as written (brand OR generic)? If so,
     // NEVER rewrite it: converting a valid brand (Synjardy, Breo) to its generic is a
