@@ -67,6 +67,7 @@ const I = {
   chevronD: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11"><polyline points="6 9 12 15 18 9" /></svg>,
   globe: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" /></svg>,
   settings: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>,
+  logout: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>,
 };
 
 export default function Scribe() {
@@ -87,6 +88,7 @@ export default function Scribe() {
   const [dark, setDark] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
+  const [me, setMe] = useState<{ fullName: string; email: string; initials: string } | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
@@ -129,6 +131,29 @@ export default function Scribe() {
     try { const r = await fetch(`${API}/api/library/consults`, { credentials: 'include' }); if (r.ok) setHistory((await readJson(r)).consults || []); } catch { /* */ }
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  useEffect(() => {
+    fetch(`${API}/api/auth/me`, { credentials: 'include' })
+      .then((r) => r.ok ? readJson(r) : null)
+      .then((d) => {
+        const u = d?.user;
+        if (!u) return;
+        const name = u.full_name || u.fullName || u.email || 'Clinician';
+        const parts = name.trim().split(/\s+/);
+        const initials = parts.length >= 2
+          ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+          : name.slice(0, 2).toUpperCase();
+        setMe({ fullName: name, email: u.email || '', initials });
+      })
+      .catch(() => {});
+  }, []);
+
+  async function logout() {
+    try {
+      await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch { /* */ }
+    window.location.href = '/login';
+  }
 
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
@@ -328,12 +353,13 @@ export default function Scribe() {
         <div className="sidebar-spacer" />
         <nav className="sidebar-nav sidebar-nav-lower">
           <div className="nav-item" onClick={() => setDark((v) => !v)}>{I.settings}<span>{dark ? 'Light mode' : 'Dark mode'}</span></div>
+          <div className="nav-item nav-item-logout" onClick={logout} title="Sign out">{I.logout}<span>Log out</span></div>
         </nav>
         <div className="user-profile">
-          <div className="user-avatar">DR</div>
+          <div className="user-avatar">{me?.initials || 'DR'}</div>
           <div className="user-info">
-            <div className="user-name">Clinician</div>
-            <div className="user-email">Notera scribe</div>
+            <div className="user-name">{me?.fullName || 'Clinician'}</div>
+            <div className="user-email">{me?.email || 'Notera scribe'}</div>
           </div>
         </div>
       </aside>
