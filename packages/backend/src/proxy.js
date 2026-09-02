@@ -223,6 +223,36 @@ export function mountProxy(app) {
         else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
         content = audio.toString('base64');
       }
+      // ── Chirp 2 (Speech-to-Text V2) ─────────────────────────────────────────
+      // Billed at the STANDARD $0.016/min (same as latest_long) but much more accurate
+      // on conversational/accented medical speech — the single best value for a scribe.
+      // Regional endpoint only (default us-central1). Falls back to the proven V1 path
+      // below on ANY error, so transcription never breaks even if Chirp is unavailable.
+      const asrModel = process.env.ASR_MODEL || 'latest_long';
+      if (/^chirp/i.test(asrModel) && encoding === 'LINEAR16' && pcm && pcm.length) {
+        try {
+          const loc = process.env.ASR_V2_LOCATION || 'us-central1';
+          const { SpeechClient: SpeechClientV2 } = (await import('@google-cloud/speech')).v2;
+          const v2 = new SpeechClientV2({ apiEndpoint: `${loc}-speech.googleapis.com` });
+          const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || await v2.getProjectId();
+          const recognizer = `projects/${projectId}/locations/${loc}/recognizers/_`;
+          const [r] = await v2.recognize({
+            recognizer,
+            config: {
+              model: asrModel,   // 'chirp_2' (recommended) or 'chirp'
+              languageCodes: [process.env.ASR_LANGUAGE || 'en-US'],
+              features: { enableAutomaticPunctuation: true },
+              explicitDecodingConfig: { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 },
+            },
+            content: pcm,
+          });
+          const text = (r.results || []).map((x) => x.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
+          console.log(`[proxy ${id}] asr(chirp v2) model=${asrModel} loc=${loc} → ${text.length} chars`);
+          return res.json({ text, transcript: text, requestId: id });
+        } catch (e) {
+          console.warn(`[proxy ${id}] Chirp v2 failed (${e.message}); falling back to V1 latest_long`);
+        }
+      }
       const speech = (await import('@google-cloud/speech')).default;
       const client = new speech.SpeechClient();
       const baseConfig = {
@@ -235,7 +265,10 @@ export function mountProxy(app) {
       baseConfig.sampleRateHertz = encoding === 'LINEAR16'
         ? Number(process.env.ASR_SAMPLE_RATE || 16000)
         : Number(process.env.ASR_SAMPLE_RATE || 48000);
-      const primaryModel = process.env.ASR_MODEL || 'medical_conversation';
+      // V1 path (fallback for Chirp, or when ASR_MODEL is a V1 model). ALWAYS standard-priced:
+      // both 'chirp*' and any 'medical*' value are forced to 'latest_long' ($0.016/min) so the
+      // premium 'medical_conversation' (~$0.078/min, 5×) can NEVER be billed, even by mistake.
+      const primaryModel = /^chirp|medical/i.test(asrModel) ? 'latest_long' : asrModel;
       const runRecognize = async (model) => client.recognize({ audio: { content }, config: { ...baseConfig, model } });
       // LongRunningRecognize has NO 60s sync cap and accepts the same inline content (<10MB),
       // so it transcribes any segment length; we await its operation (a few seconds for a clip).
