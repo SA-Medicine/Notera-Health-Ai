@@ -103,7 +103,11 @@ export class LLMService {
     let ti = 0;
     let usingProxy = targets[ti].proxy;
     let url = targets[ti].url;
-    const timeoutMs = options.timeoutMs || 120000;
+    // Per-call timeout. Default 60s (was 120s): the slowest legitimate call (observation
+    // extractor) runs ~34s, so 60s is comfortable headroom while a HUNG endpoint (e.g. the
+    // qa-validator that once sat for 181s) aborts far sooner. Tunable via LLM_TIMEOUT_MS.
+    const timeoutMs = options.timeoutMs || Number(process.env.LLM_TIMEOUT_MS) || 60000;
+    let timedOutOnce = false;   // a timeout may retry at MOST once (never multiply wall-clock)
     const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
     // Output ceiling precedence: an explicit caller cap (prose generators) wins; then an
     // OPTIONAL per-agent cap from the environment (keyed by this._agent); then the full default.
@@ -212,11 +216,17 @@ export class LLMService {
           lastErr = err; continue;
         }
         const where = usingProxy ? `proxy ${url}` : 'Gemini API';
-        lastErr = err && err.name === 'AbortError'
+        const isTimeout = err && err.name === 'AbortError';
+        lastErr = isTimeout
           ? new Error(`${where} timed out after ${Math.round(timeoutMs / 1000)}s`)
           : new Error(`${where} request failed: ${err?.message || err} (cause: ${err?.cause?.code || 'n/a'})`);
-        if (attempt < retries && (err?.name === 'AbortError' || err?.name === 'TypeError' ||
-            /fetch failed|network/i.test(err?.message || ''))) continue;
+        if (attempt < retries) {
+          // A TIMEOUT retries at most ONCE — a slow endpoint rarely recovers on an immediate
+          // retry, and retrying every time is what turned a 60s hang into 181s of wall-clock.
+          if (isTimeout && !timedOutOnce) { timedOutOnce = true; continue; }
+          // Network/transient errors still retry freely.
+          if (!isTimeout && (err?.name === 'TypeError' || /fetch failed|network/i.test(err?.message || ''))) continue;
+        }
         throw lastErr;
       } finally { clearTimeout(timer); }
     }
