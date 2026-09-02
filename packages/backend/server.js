@@ -104,6 +104,46 @@ app.post('/api/consults', async (req, res) => {
   } catch (err) { console.error('[/api/consults] error', err); res.status(500).json({ error: err.message }); }
 });
 
+// ── Async note generation (avoids the Cloudflare ~100s edge timeout) ─────────
+// The synchronous POST /api/consults above holds the connection open for the whole
+// pipeline (can be >100s on long transcripts) and dies at the CDN edge. Instead:
+//   POST /api/consults/async  → returns { jobId } immediately, runs in background
+//   GET  /api/consults/job/:jobId → { status: pending|done|error, result?, error? }
+// Each request is tiny, so no single call ever approaches the edge timeout, and the
+// client can poll for up to 5 minutes (or longer) with no risk of a 524.
+const _jobs = new Map();   // jobId -> { status, result, error, createdAt }
+const JOB_TTL_MS = 15 * 60 * 1000;
+setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now - j.createdAt > JOB_TTL_MS) _jobs.delete(id); }, 60_000).unref?.();
+
+app.post('/api/consults/async', async (req, res) => {
+  const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
+  if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
+  const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  _jobs.set(jobId, { status: 'pending', createdAt: Date.now() });
+  res.status(202).json({ jobId });   // respond instantly
+  // Run the pipeline AFTER responding — never blocks the request.
+  (async () => {
+    try {
+      const result = await generateNote(
+        { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt },
+        { deidMode, includeLogs: !!req.body?.includeLogs }
+      );
+      _jobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
+    } catch (err) {
+      console.error('[/api/consults/async] error', err);
+      _jobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() });
+    }
+  })();
+});
+
+app.get('/api/consults/job/:jobId', (req, res) => {
+  const j = _jobs.get(req.params.jobId);
+  if (!j) return res.status(404).json({ status: 'error', error: 'job not found or expired' });
+  if (j.status === 'done') return res.json({ status: 'done', result: j.result });
+  if (j.status === 'error') return res.json({ status: 'error', error: j.error });
+  return res.json({ status: 'pending' });
+});
+
 app.get('/api/consults/:id', async (req, res) => {
   try {
     const c = await store.getConsult(req.params.id);
