@@ -105,9 +105,9 @@ class LocalWhisperWorker {
       request_id: requestId,
       audio_path: audioPath,
       language: languageForWhisper(),
-      beam_size: Number(process.env.ASR_WHISPER_BEAM_SIZE || 5),
+      beam_size: Number(process.env.ASR_WHISPER_BEAM_SIZE || 1),
       vad_filter: asBool(process.env.ASR_WHISPER_VAD_FILTER, true),
-      condition_on_previous_text: asBool(process.env.ASR_WHISPER_CONDITION_ON_PREVIOUS_TEXT, true),
+      condition_on_previous_text: asBool(process.env.ASR_WHISPER_CONDITION_ON_PREVIOUS_TEXT, false),
     };
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

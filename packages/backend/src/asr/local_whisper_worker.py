@@ -69,18 +69,17 @@ def load_model():
 
     model_name = os.environ.get("ASR_WHISPER_MODEL", "large-v3-turbo")
     download_root = os.environ.get("ASR_WHISPER_CACHE_DIR") or None
-    cpu_threads = int(os.environ.get("ASR_WHISPER_CPU_THREADS") or "0") or 0
+    cpu_threads = int(os.environ.get("ASR_WHISPER_CPU_THREADS") or "0") or (os.cpu_count() or 2)
 
     device, compute_type = resolve_device()
     started = time.perf_counter()
     kwargs = {
         "device": device,
         "compute_type": compute_type,
+        "cpu_threads": cpu_threads,
     }
     if download_root:
         kwargs["download_root"] = download_root
-    if cpu_threads > 0:
-        kwargs["cpu_threads"] = cpu_threads
 
     try:
         model = WhisperModel(model_name, **kwargs)
@@ -128,12 +127,26 @@ for line in sys.stdin:
         if not audio_path or not os.path.exists(audio_path):
             raise ValueError("audio file not found")
 
+        use_vad = bool(msg.get("vad_filter", True))
+        vad_kwargs = {}
+        if use_vad:
+            vad_kwargs["vad_filter"] = True
+            vad_kwargs["vad_parameters"] = dict(min_silence_duration_ms=500, speech_pad_ms=400)
+        else:
+            vad_kwargs["vad_filter"] = False
+
+        initial_prompt = os.environ.get(
+            "ASR_INITIAL_PROMPT",
+            "Clinical consultation: patient symptoms, medical history, examination, vitals, medications, dosage, assessment, and plan."
+        )
+
         segments_iter, info = MODEL.transcribe(
             audio_path,
             language=msg.get("language") or "en",
-            beam_size=int(msg.get("beam_size") or 5),
-            vad_filter=bool(msg.get("vad_filter", True)),
-            condition_on_previous_text=bool(msg.get("condition_on_previous_text", True)),
+            beam_size=int(msg.get("beam_size") or 1),
+            condition_on_previous_text=bool(msg.get("condition_on_previous_text", False)),
+            initial_prompt=initial_prompt,
+            **vad_kwargs,
         )
         segments = []
         parts = []
