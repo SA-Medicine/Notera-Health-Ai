@@ -144,71 +144,62 @@ export default function Scribe() {
     setTx((prev) => (prev ? prev.trim() + ' ' : '') + text);
   }
 
-  function rotateSegment() {
-    const stream = streamRef.current; if (!stream || stopping.current) return;
+  function startNextSegment() {
+    const stream = streamRef.current;
+    if (!stream || stopping.current) return;
+
+    const chunks: BlobPart[] = [];
     const mime = segRecRef.current?.mimeType || 'audio/webm';
-    const outgoing = segRecRef.current;
-    const outgoingChunks = [...segChunks.current];
-    segChunks.current = [];
-
-    // Start fresh recorder FIRST so there is zero audio gap
+    let rec: MediaRecorder;
     try {
-      const freshRec = new MediaRecorder(stream, { mimeType: mime });
-      segRecRef.current = freshRec;
-      freshRec.ondataavailable = (e) => { if (e.data.size) segChunks.current.push(e.data); };
-      freshRec.onstop = async () => {
-        const finalBlob = new Blob(segChunks.current, { type: mime });
-        if (finalBlob.size >= 1000) {
-          try { const seg = await transcribeBlob(finalBlob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
-        }
-        if (stopping.current) {
-          stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
-          if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
-            await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
-          }
-          if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
-          setPhase('done');
-        }
-      };
-      freshRec.start();
-    } catch { /* stream closed */ }
-
-    // Drain and transcribe outgoing recorder in background
-    if (outgoing && outgoing.state !== 'inactive') {
-      try { outgoing.stop(); } catch { /* */ }
-    }
-    const blob = new Blob(outgoingChunks, { type: mime });
-    if (blob.size >= 1000) {
-      transcribeBlob(blob).then((seg) => { if (seg) pushLine(seg); }).catch((e) => setError(e.message));
+      rec = new MediaRecorder(stream, { mimeType: mime });
+    } catch {
+      return;
     }
 
-    if (!stopping.current) {
-      segTimer.current = setTimeout(rotateSegment, SEGMENT_MS);
-    }
-  }
+    segRecRef.current = rec;
 
-  function startSegment() {
-    const stream = streamRef.current; if (!stream) return;
-    const mime = 'audio/webm';
-    const rec = new MediaRecorder(stream, { mimeType: mime });
-    segRecRef.current = rec; segChunks.current = [];
-    rec.ondataavailable = (e) => { if (e.data.size) segChunks.current.push(e.data); };
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
     rec.onstop = async () => {
-      const blob = new Blob(segChunks.current, { type: mime });
-      if (blob.size >= 1000) {
-        try { const seg = await transcribeBlob(blob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: mime });
+        if (blob.size >= 1000) {
+          try {
+            const text = await transcribeBlob(blob);
+            if (text) pushLine(text);
+          } catch (e) {
+            console.warn('ASR chunk error:', (e as Error).message);
+          }
+        }
       }
       if (stopping.current) {
-        stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
-          await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
+          await new Promise<void>((res) => {
+            fullRecRef.current!.onstop = () => res();
+            try { fullRecRef.current!.stop(); } catch { res(); }
+          });
         }
         if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
         setPhase('done');
       }
     };
+
     rec.start();
-    segTimer.current = setTimeout(rotateSegment, SEGMENT_MS);
+
+    // Rotate after SEGMENT_MS (20s):
+    segTimer.current = setTimeout(() => {
+      if (!stopping.current) {
+        // Start next segment FIRST for 0ms recording gap
+        startNextSegment();
+        // Stop current recorder to finalize and transcribe this chunk once
+        try { rec.stop(); } catch { /* */ }
+      }
+    }, SEGMENT_MS);
   }
 
   async function toggleRecord() {
@@ -229,7 +220,7 @@ export default function Scribe() {
         fr.ondataavailable = (e) => { if (e.data.size) fullChunks.current.push(e.data); };
         fr.start(1000);
       } catch { fullRecRef.current = null; }
-      setPhase('recording'); startSegment();
+      setPhase('recording'); startNextSegment();
     } catch { setError('Microphone unavailable — paste a transcript below instead.'); }
   }
 
