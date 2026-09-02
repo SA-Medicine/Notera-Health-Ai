@@ -167,11 +167,13 @@ export function mountProxy(app) {
   });
 
   // Medical ASR. Default is the existing Google Speech path for rollback compatibility.
-  // Set ASR_PROVIDER=whisper_local to use local faster-whisper large-v3-turbo.
+  // Set ASR_PROVIDER=whisper_local to use local faster-whisper.
   // Accepts raw recorded audio bytes (MediaRecorder → WEBM/OPUS) or multipart field "file".
-  // Returns { text, transcript, requestId } for frontend compatibility.
+  // Returns { text, transcript, requestId, latencyMs } for frontend compatibility.
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
     const id = rid();
+    const t0 = Date.now();
+    const startTimeStr = new Date(t0).toISOString().slice(11, 23);
     try {
       let audio = req.body;
       if (!audio || !audio.length) return res.status(400).json({ error: 'no audio received', requestId: id });
@@ -181,18 +183,26 @@ export function mountProxy(app) {
         const extracted = extractMultipartFile(audio, ct);
         if (extracted) audio = extracted;
       }
+      console.log(`[proxy ${id}] 🎙️ ASR received at ${startTimeStr} | bytes=${audio.length}B`);
       if (localWhisperEnabled()) {
         let normalized = null;
         try {
+          const tNormStart = Date.now();
           normalized = await normalizeBufferToWav16k(audio);
-          const started = Date.now();
+          const tNormMs = Date.now() - tNormStart;
+
+          const tInferStart = Date.now();
           const r = await transcribeLocalAudioFile(normalized.wavPath, { requestId: id });
+          const tInferMs = r.latency_ms ?? (Date.now() - tInferStart);
+
+          const tTotalMs = Date.now() - t0;
           const audioSec = normalized.durationSeconds || r.duration || 0;
-          const latencyMs = r.latency_ms ?? (Date.now() - started);
-          const rtf = audioSec > 0 ? latencyMs / 1000 / audioSec : null;
-          console.log(`[proxy ${id}] asr(whisper-local) in=${audio.length}B audio=${audioSec.toFixed(2)}s latency=${latencyMs}ms rtf=${rtf == null ? 'n/a' : rtf.toFixed(3)} model=${r.model} device=${r.device}/${r.compute_type}`);
+          const rtf = audioSec > 0 ? tInferMs / 1000 / audioSec : null;
+          const endTimeStr = new Date().toISOString().slice(11, 23);
+
+          console.log(`[proxy ${id}] ✅ ASR finished at ${endTimeStr} | audio=${audioSec.toFixed(2)}s | total=${tTotalMs}ms (norm=${tNormMs}ms infer=${tInferMs}ms) | RTF=${rtf == null ? 'n/a' : rtf.toFixed(3)} | model=${r.model} (${r.device}/${r.compute_type})`);
           const transcript = String(r.text || '').replace(/\s+/g, ' ').trim();
-          return res.json({ text: transcript, transcript, requestId: id });
+          return res.json({ text: transcript, transcript, requestId: id, latencyMs: tTotalMs });
         } finally {
           await cleanupTempDir(normalized?.tmpDir);
         }
