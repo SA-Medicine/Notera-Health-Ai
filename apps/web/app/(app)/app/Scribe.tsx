@@ -144,24 +144,71 @@ export default function Scribe() {
     setTx((prev) => (prev ? prev.trim() + ' ' : '') + text);
   }
 
+  function rotateSegment() {
+    const stream = streamRef.current; if (!stream || stopping.current) return;
+    const mime = segRecRef.current?.mimeType || 'audio/webm';
+    const outgoing = segRecRef.current;
+    const outgoingChunks = [...segChunks.current];
+    segChunks.current = [];
+
+    // Start fresh recorder FIRST so there is zero audio gap
+    try {
+      const freshRec = new MediaRecorder(stream, { mimeType: mime });
+      segRecRef.current = freshRec;
+      freshRec.ondataavailable = (e) => { if (e.data.size) segChunks.current.push(e.data); };
+      freshRec.onstop = async () => {
+        const finalBlob = new Blob(segChunks.current, { type: mime });
+        if (finalBlob.size >= 1000) {
+          try { const seg = await transcribeBlob(finalBlob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
+        }
+        if (stopping.current) {
+          stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
+          if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
+            await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
+          }
+          if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
+          setPhase('done');
+        }
+      };
+      freshRec.start();
+    } catch { /* stream closed */ }
+
+    // Drain and transcribe outgoing recorder in background
+    if (outgoing && outgoing.state !== 'inactive') {
+      try { outgoing.stop(); } catch { /* */ }
+    }
+    const blob = new Blob(outgoingChunks, { type: mime });
+    if (blob.size >= 1000) {
+      transcribeBlob(blob).then((seg) => { if (seg) pushLine(seg); }).catch((e) => setError(e.message));
+    }
+
+    if (!stopping.current) {
+      segTimer.current = setTimeout(rotateSegment, SEGMENT_MS);
+    }
+  }
+
   function startSegment() {
     const stream = streamRef.current; if (!stream) return;
-    const rec = new MediaRecorder(stream);
+    const mime = 'audio/webm';
+    const rec = new MediaRecorder(stream, { mimeType: mime });
     segRecRef.current = rec; segChunks.current = [];
     rec.ondataavailable = (e) => { if (e.data.size) segChunks.current.push(e.data); };
     rec.onstop = async () => {
-      const blob = new Blob(segChunks.current, { type: rec.mimeType || 'audio/webm' });
-      try { const seg = await transcribeBlob(blob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
-      if (!stopping.current) { startSegment(); return; }
-      stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
-      if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
-        await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
+      const blob = new Blob(segChunks.current, { type: mime });
+      if (blob.size >= 1000) {
+        try { const seg = await transcribeBlob(blob); if (seg) pushLine(seg); } catch (e) { setError((e as Error).message); }
       }
-      if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
-      setPhase('done');
+      if (stopping.current) {
+        stream.getTracks().forEach((t) => t.stop()); streamRef.current = null;
+        if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
+          await new Promise<void>((res) => { fullRecRef.current!.onstop = () => res(); try { fullRecRef.current!.stop(); } catch { res(); } });
+        }
+        if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
+        setPhase('done');
+      }
     };
     rec.start();
-    segTimer.current = setTimeout(() => { try { rec.stop(); } catch { /* */ } }, SEGMENT_MS);
+    segTimer.current = setTimeout(rotateSegment, SEGMENT_MS);
   }
 
   async function toggleRecord() {
