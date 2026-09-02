@@ -1,6 +1,6 @@
 // Create (or update) the first admin user.
 //   ADMIN_EMAIL=you@clinic.com ADMIN_PASSWORD='min-12-chars' node db/create_admin.mjs
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import pg from 'pg';
 
 const email = (process.env.ADMIN_EMAIL || '').toLowerCase();

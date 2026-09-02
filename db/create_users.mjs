@@ -2,7 +2,7 @@
 // Bulk create/update clinician users in PostgreSQL auth.users
 // Usage: node /app/db/create_users.mjs
 // ─────────────────────────────────────────────────────────────────────────────
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import pg from 'pg';
 
 const DOMAIN = process.env.USER_DOMAIN || 'agilepartners-ai.com';
