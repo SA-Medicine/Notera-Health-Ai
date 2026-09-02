@@ -4,37 +4,17 @@
 // Verbose error handling + centralized model config. Endpoints:
 //   POST /api/llm/generate?model=…   → Gemini generateContent (retry 5xx + schema/token fallbacks)
 //   POST /api/llm/stream?model=…      → Gemini streamGenerateContent (SSE)
-//   POST /api/asr                     → Groq Whisper transcription (multipart)
+//   POST /api/asr                     → ASR transcription (local Whisper or Google rollback)
 //   GET  /api/llm/diag                → one-shot health probe (safe to call from the browser)
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
 import express from 'express';
-import { spawn } from 'node:child_process';
-
-// Transcode ANY browser audio container (WebM/Opus, Ogg/Opus, etc.) to headerless 16 kHz mono
-// 16-bit PCM via ffmpeg. Google STT then reads an exact duration from the sample count (bytes /
-// 2 / 16000), so short clips no longer fail as "Sync input too long" (MediaRecorder omits the
-// WebM duration/cues metadata). Resolves null on any failure so the caller can fall back.
-function transcodePcm16k(inputBuf) {
-  return new Promise((resolve) => {
-    let ff;
-    try {
-      ff = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '16000', '-f', 's16le', '-acodec', 'pcm_s16le', 'pipe:1']);
-    } catch { return resolve(null); }
-    const out = []; const err = [];
-    ff.stdout.on('data', (d) => out.push(d));
-    ff.stderr.on('data', (d) => err.push(d));
-    ff.on('error', () => resolve(null));
-    ff.on('close', (code) => resolve(code === 0 && out.length ? Buffer.concat(out) : null));
-    ff.stdin.on('error', () => {});
-    ff.stdin.write(inputBuf); ff.stdin.end();
-  });
-}
+import { cleanupTempDir, extractMultipartFile, normalizeBufferToWav16k, transcodePcm16k } from './asr/audio.js';
+import { localWhisperEnabled, transcribeLocalAudioFile } from './asr/localWhisper.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.7-flash';
-const groqKey = () => process.env.GROQ_KEY_1 || process.env.GROQ_KEY_2 || process.env.GROQ_KEY || '';
 const geminiKey = () => process.env.GEMINI_API_KEY || '';
 
 // ── LLM backend selection: Vertex AI (HIPAA/BAA) vs AI Studio (API key) ──────
@@ -76,25 +56,6 @@ function applyModelDefaults(body) {
   if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') gc.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
   else gc.thinkingConfig = { thinkingBudget: 0 };
   return b;
-}
-
-// Extract the first file part's raw bytes from a multipart/form-data Buffer body
-// (the DAS webapp posts audio as FormData field "file"). Returns a Buffer or null.
-function extractMultipartFile(buf, contentType) {
-  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || '');
-  if (!m) return null;
-  const boundary = Buffer.from('--' + (m[1] || m[2]).trim());
-  let start = buf.indexOf(boundary);
-  while (start !== -1) {
-    const headerEnd = buf.indexOf('\r\n\r\n', start);
-    if (headerEnd === -1) break;
-    const header = buf.slice(start, headerEnd).toString('utf8');
-    const next = buf.indexOf(boundary, headerEnd + 4);
-    if (next === -1) break;
-    if (/name="file"|filename=/i.test(header)) return buf.slice(headerEnd + 4, next - 2);
-    start = next;
-  }
-  return null;
 }
 
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -205,9 +166,10 @@ export function mountProxy(app) {
     }
   });
 
-  // Medical ASR via Google Cloud Speech-to-Text (HIPAA-covered under your BAA; uses the
-  // service-account ADC). Accepts the raw recorded audio bytes (MediaRecorder → WEBM/OPUS).
-  // Synchronous recognize handles short clips (≤ ~1 min). Returns { transcript }.
+  // Medical ASR. Default is the existing Google Speech path for rollback compatibility.
+  // Set ASR_PROVIDER=whisper_local to use local faster-whisper large-v3-turbo.
+  // Accepts raw recorded audio bytes (MediaRecorder → WEBM/OPUS) or multipart field "file".
+  // Returns { text, transcript, requestId } for frontend compatibility.
   app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
     const id = rid();
     try {
@@ -218,6 +180,22 @@ export function mountProxy(app) {
       if (/multipart\/form-data/i.test(ct)) {
         const extracted = extractMultipartFile(audio, ct);
         if (extracted) audio = extracted;
+      }
+      if (localWhisperEnabled()) {
+        let normalized = null;
+        try {
+          normalized = await normalizeBufferToWav16k(audio);
+          const started = Date.now();
+          const r = await transcribeLocalAudioFile(normalized.wavPath, { requestId: id });
+          const audioSec = normalized.durationSeconds || r.duration || 0;
+          const latencyMs = r.latency_ms ?? (Date.now() - started);
+          const rtf = audioSec > 0 ? latencyMs / 1000 / audioSec : null;
+          console.log(`[proxy ${id}] asr(whisper-local) in=${audio.length}B audio=${audioSec.toFixed(2)}s latency=${latencyMs}ms rtf=${rtf == null ? 'n/a' : rtf.toFixed(3)} model=${r.model} device=${r.device}/${r.compute_type}`);
+          const transcript = String(r.text || '').replace(/\s+/g, ' ').trim();
+          return res.json({ text: transcript, transcript, requestId: id });
+        } finally {
+          await cleanupTempDir(normalized?.tmpDir);
+        }
       }
       // PRIMARY PATH: transcode to headerless 16 kHz mono PCM so Google reads an exact duration.
       // This is what makes short WebM/Opus clips work reliably (the container has no duration).
@@ -288,11 +266,16 @@ export function mountProxy(app) {
       // Return BOTH keys so every client works: the DAS webapp reads `text`, others read `transcript`.
       res.json({ text: transcript, transcript, requestId: id });
     } catch (err) {
-      console.error(`[proxy ${id}] asr(google-speech) error: ${err.message}`);
+      const provider = localWhisperEnabled() ? 'whisper-local' : 'google-speech';
+      console.error(`[proxy ${id}] asr(${provider}) error: ${err.message}`);
       const hint = /too long|sync input|exceeds|duration/i.test(err.message)
         ? 'Recording too long for instant transcription (≈1 min max). Record in shorter segments, or ask to enable long-audio transcription.'
         : undefined;
-      res.status(502).json({ error: 'ASR failed: ' + err.message, requestId: id, hint });
+      const localReason = /ffmpeg|codec|invalid data|conversion/i.test(err.message) ? 'audio conversion failed'
+        : /timed out|timeout/i.test(err.message) ? 'transcription timed out'
+        : /worker|model|faster|whisper|python/i.test(err.message) ? 'local ASR unavailable'
+        : 'transcription failed';
+      res.status(502).json({ error: provider === 'whisper-local' ? `ASR failed: ${localReason}` : 'ASR failed: ' + err.message, requestId: id, hint });
     }
   });
 }

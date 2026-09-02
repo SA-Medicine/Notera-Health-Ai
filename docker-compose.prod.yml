@@ -42,10 +42,12 @@ services:
       # NOTE: do NOT set DATABASE_URL here — a compose `environment:` value overrides env_file,
       # which would drop the password. DATABASE_URL comes from .env.production (with password).
       DATA_DIR: /app/.data
+      ASR_WHISPER_CACHE_DIR: /app/.cache/huggingface
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
       - backend_data:/app/.data         # persists the HMAC session secret across restarts
+      - asr_model_cache:/app/.cache/huggingface
       - ./secrets/sa-key.json:/app/secrets/sa-key.json:ro   # Vertex/Speech service-account key
     networks: [notera_net]
 
@@ -68,6 +70,7 @@ networks:
 volumes:
   pgdata: {}
   backend_data: {}
+  asr_model_cache: {}
   caddy_data: {}
   caddy_config: {}
 
