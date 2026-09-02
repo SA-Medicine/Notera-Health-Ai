@@ -280,18 +280,32 @@ export default function Scribe() {
     }
     setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
     const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
-    // 85s timeout — stays under Cloudflare's 100s limit
-    const abort = new AbortController();
-    const abortTimer = setTimeout(() => abort.abort(), 85_000);
+    // Async job + polling: the pipeline can run >100s on long transcripts, which would die at
+    // Cloudflare's edge timeout if we held one long request. Instead we kick off a background
+    // job and poll a tiny status endpoint every 3s for up to 5 minutes — no request ever
+    // approaches the edge timeout, so there is effectively no client-side timeout.
+    const POLL_MS = 3_000, MAX_WAIT_MS = 5 * 60_000;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     try {
-      const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include', signal: abort.signal }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
-      const r = await fetch(`${API}/api/consults`, {
+      const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
+      const start = await fetch(`${API}/api/consults/async`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        signal: abort.signal,
         body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician' }),
       });
-      const d = await readJson(r);
-      if (!r.ok) throw new Error(d?.error || 'Note generation failed');
+      const startBody = await readJson(start);
+      if (!start.ok || !startBody?.jobId) throw new Error(startBody?.error || 'Could not start note generation');
+      const jobId = startBody.jobId as string;
+      // Poll until the job finishes (or errors, or we hit the 5-minute ceiling).
+      let d: any = null; const t0 = Date.now();
+      for (;;) {
+        await sleep(POLL_MS);
+        const pr = await fetch(`${API}/api/consults/job/${jobId}`, { credentials: 'include' }).catch(() => null);
+        const pj = pr ? await readJson(pr).catch(() => null) : null;
+        if (pj?.status === 'done') { d = pj.result; break; }
+        if (pj?.status === 'error') throw new Error(pj.error || 'Note generation failed');
+        if (Date.now() - t0 > MAX_WAIT_MS) throw new Error('Note generation is taking longer than 5 minutes — it may still finish; check History shortly.');
+        // status 'pending' (or a transient network blip) → keep polling
+      }
       const md = d.renderedNote || d.rawRenderedNote || '';
       setNote(md); setConsultId(d.consultId || null); setPhase('done');
       flash('Note generated');
@@ -306,11 +320,11 @@ export default function Scribe() {
           .then(() => loadHistory()).catch(() => {});
       }
     } catch (e) {
-      const msg = (e as Error).name === 'AbortError' ? 'Note generation timed out (>85 s). Please try a shorter transcript or check server status.' : (e as Error).message;
+      const msg = (e as Error).message || 'Note generation failed';
       setError(msg); setPhase(transcriptRef.current ? 'done' : 'idle'); flash(msg, 'error');
+      loadHistory();   // the backend may have finished after we gave up — surface it in History
     } finally {
       clearInterval(stepper);
-      clearTimeout(abortTimer);
     }
   }
 
@@ -320,8 +334,15 @@ export default function Scribe() {
       const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
-      setTx((c.transcript?.text) || ''); setLines([]); setConsultId(id); setPhase('done'); setEditing(false);
-      setHistoryView(true);   // show the SAVED transcript (read-only), not the live paste box
+      const savedTx = (c.transcript?.text) || '';
+      setTx(savedTx);
+      // Render the saved transcript as timestamped rows, exactly like the live transcript.
+      const parts = savedTx.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
+      const segs = (parts.length > 1 ? parts : savedTx.split(/(?<=[.!?])\s+/))
+        .map((s) => s.trim()).filter(Boolean);
+      setLines(segs.map((s, i) => ({ t: mmss(i * 5), text: s })));
+      setConsultId(id); setPhase('done'); setEditing(false);
+      setHistoryView(true);   // read-only saved transcript, not the live paste box
       setPanel('note');
     } catch { /* */ }
   }
@@ -455,13 +476,15 @@ export default function Scribe() {
           <div className={`main-panel${panel === 'transcript' ? ' active' : ''}`}>
             <div className="transcript-header">
               <span className="transcript-label">{historyView ? 'Saved Transcript' : 'Live Transcript'}</span>
-              <span className="seg-count">{historyView ? 'From history · read-only' : (lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : '')}</span>
+              <span className="seg-count">{lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : ''}</span>
             </div>
             <div className="transcript-box">
               {historyView ? (
-                transcript.trim() ? (
-                  <div className="saved-transcript" style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.7, color: 'var(--text-primary)', padding: '4px 2px' }}>
-                    {transcript}
+                lines.length ? (
+                  <div id="transcriptLines">
+                    {lines.map((l, i) => (
+                      <div key={i} className="t-line"><span className="t-time">{l.t}</span><span className="t-text">{l.text}</span></div>
+                    ))}
                   </div>
                 ) : (
                   <div className="t-empty">

@@ -284,7 +284,10 @@ export async function generateNote(input, opts = {}) {
       // DYNAMIC budget: longer transcripts legitimately need more time; short ones fail fast
       // instead of hanging. Base 20s + 3s per 1000 transcript chars, clamped to [20s, 90s].
       // HALLUCINATION_TIMEOUT_MS (if set) acts as a hard CEILING, not a fixed wait.
-      const dyn = Math.min(90000, Math.max(20000, 20000 + Math.round((transcript.length || 0) / 1000) * 3000));
+      // Capped at 25s (was 90s): on long transcripts this pass was burning ~53s and then
+      // being SKIPPED anyway (no quality change), which pushed total time past the edge
+      // timeout. 25s is enough for it to finish on normal notes and fail-fast otherwise.
+      const dyn = Math.min(25000, Math.max(15000, 15000 + Math.round((transcript.length || 0) / 1000) * 3000));
       const cap = Number(process.env.HALLUCINATION_TIMEOUT_MS) || 0;
       const budget = cap > 0 ? Math.min(cap, dyn) : dyn;
       // IMPORTANT: clear the timer as soon as the work resolves. Previously the setTimeout was
