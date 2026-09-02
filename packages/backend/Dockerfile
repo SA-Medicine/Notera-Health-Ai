@@ -13,13 +13,18 @@ RUN npm ci --omit=dev --workspace @notera/backend || npm install --omit=dev --wo
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
-# ffmpeg: transcode browser WebM/Opus → raw PCM so Google STT reads an exact duration.
-# MediaRecorder omits the WebM duration/cues metadata, which otherwise makes even short
-# clips fail as "Sync input too long".
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# ffmpeg: standardize browser WebM/Opus/Ogg/MP4/WAV to 16 kHz mono PCM WAV for local ASR.
+# Python venv: isolates faster-whisper from the Node app dependency tree.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /opt/notera-asr-venv \
+  && /opt/notera-asr-venv/bin/pip install --upgrade pip \
+  && /opt/notera-asr-venv/bin/pip install "faster-whisper>=1.2.0,<2" nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
+ENV ASR_PYTHON=/opt/notera-asr-venv/bin/python
+ENV LD_LIBRARY_PATH=/opt/notera-asr-venv/lib/python3.11/site-packages/nvidia/cublas/lib:/opt/notera-asr-venv/lib/python3.11/site-packages/nvidia/cudnn/lib
 # non-root runtime user
 RUN useradd -m -u 10001 notera
 COPY --from=build --chown=notera:notera /app /app
+RUN mkdir -p /app/.cache/huggingface && chown -R notera:notera /app/.cache
 USER notera
 WORKDIR /app/packages/backend
 EXPOSE 8080

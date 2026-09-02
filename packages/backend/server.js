@@ -142,6 +142,11 @@ const server = app.listen(port, () => {
     if (rxnormEnabled()) initRxNorm();
     else console.log('[rxnorm] medication verification is OFF (set RXNORM_VERIFY=1 to enable).');
   }).catch(() => {});
+  if ((process.env.ASR_PROVIDER || 'google').toLowerCase() === 'whisper_local') {
+    import('./src/asr/localWhisper.js').then(({ preloadLocalWhisper }) => preloadLocalWhisper()
+      .then((m) => console.log(`[asr:whisper] ready model=${m.model} device=${m.device}/${m.compute_type} load=${m.load_ms}ms`))
+      .catch((e) => console.error(`[asr:whisper] startup failed: ${e.message}`))).catch(() => {});
+  }
 });
 server.requestTimeout = 0;
 server.headersTimeout = 0;
