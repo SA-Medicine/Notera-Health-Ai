@@ -294,6 +294,14 @@ input  { font-family: inherit; }
 /* Lower Nav */
 .sidebar-nav-lower { padding-bottom: 4px; }
 
+/* Logout nav item — red on hover */
+.nav-item-logout { cursor: pointer; }
+.nav-item-logout:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+}
+.nav-item-logout:hover svg { stroke: #f87171; }
+
 /* Promo */
 .sidebar-promo {
   padding: 6px 12px;
