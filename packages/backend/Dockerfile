@@ -17,10 +17,9 @@ ENV NODE_ENV=production
 # Python venv: isolates faster-whisper from the Node app dependency tree.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/notera-asr-venv \
-  && /opt/notera-asr-venv/bin/pip install --upgrade pip \
-  && /opt/notera-asr-venv/bin/pip install "faster-whisper>=1.2.0,<2" nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
+  && /opt/notera-asr-venv/bin/pip install --no-cache-dir --upgrade pip \
+  && /opt/notera-asr-venv/bin/pip install --no-cache-dir "faster-whisper>=1.2.0,<2"
 ENV ASR_PYTHON=/opt/notera-asr-venv/bin/python
-ENV LD_LIBRARY_PATH=/opt/notera-asr-venv/lib/python3.11/site-packages/nvidia/cublas/lib:/opt/notera-asr-venv/lib/python3.11/site-packages/nvidia/cudnn/lib
 # non-root runtime user
 RUN useradd -m -u 10001 notera
 COPY --from=build --chown=notera:notera /app /app
