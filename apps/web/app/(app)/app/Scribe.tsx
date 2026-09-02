@@ -89,6 +89,7 @@ export default function Scribe() {
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
   const [me, setMe] = useState<{ fullName: string; email: string; initials: string } | null>(null);
+  const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
@@ -234,7 +235,7 @@ export default function Scribe() {
       try { segRecRef.current?.stop(); } catch { /* */ }
       return;
     }
-    setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0);
+    setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
     setPanel('transcript');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -251,6 +252,7 @@ export default function Scribe() {
 
   function loadPastedTranscript() {
     const t = pasteText.trim(); if (!t) return;
+    setHistoryView(false);
     setTx(t); setLines(t.split(/(?<=[.!?])\s+/).filter(Boolean).map((s, i) => ({ t: mmss(i * 5), text: s })));
     setPhase('done'); setPasteText('');
     flash('Transcript loaded');
@@ -270,13 +272,23 @@ export default function Scribe() {
 
   async function createSOAP() {
     if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
+    // Guard: once a note is generated, the user must start a new session
+    if (note) {
+      setError('A note has already been created for this session. Start a new session to generate another.');
+      setPanel('note');
+      return;
+    }
     setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
     const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
+    // 85s timeout — stays under Cloudflare's 100s limit
+    const abort = new AbortController();
+    const abortTimer = setTimeout(() => abort.abort(), 85_000);
     try {
-      const me = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
+      const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include', signal: abort.signal }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
       const r = await fetch(`${API}/api/consults`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: me?.user?.id || 'clinician' }),
+        signal: abort.signal,
+        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician' }),
       });
       const d = await readJson(r);
       if (!r.ok) throw new Error(d?.error || 'Note generation failed');
@@ -293,8 +305,13 @@ export default function Scribe() {
           .then(() => { if (fullBlob.current?.size) return fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': fullBlob.current!.type }, body: fullBlob.current! }); })
           .then(() => loadHistory()).catch(() => {});
       }
-    } catch (e) { setError((e as Error).message); setPhase(transcriptRef.current ? 'done' : 'idle'); flash((e as Error).message, 'error'); }
-    finally { clearInterval(stepper); }
+    } catch (e) {
+      const msg = (e as Error).name === 'AbortError' ? 'Note generation timed out (>85 s). Please try a shorter transcript or check server status.' : (e as Error).message;
+      setError(msg); setPhase(transcriptRef.current ? 'done' : 'idle'); flash(msg, 'error');
+    } finally {
+      clearInterval(stepper);
+      clearTimeout(abortTimer);
+    }
   }
 
   async function openConsult(id: string) {
@@ -304,6 +321,7 @@ export default function Scribe() {
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
       setTx((c.transcript?.text) || ''); setLines([]); setConsultId(id); setPhase('done'); setEditing(false);
+      setHistoryView(true);   // show the SAVED transcript (read-only), not the live paste box
       setPanel('note');
     } catch { /* */ }
   }
@@ -316,7 +334,7 @@ export default function Scribe() {
     loadHistory();
   }
   function newSession() {
-    setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setPanel('transcript');
+    setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
 
   function toggleEdit() {
@@ -389,8 +407,12 @@ export default function Scribe() {
           </div>
           <div className="top-bar-right">
             <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
-            <button className="top-create-btn" onClick={createSOAP} disabled={phase === 'generating' || !transcript.trim()}>
-              {I.bolt}{phase === 'generating' ? 'Creating…' : 'Create SOAP'}{I.chevronD}
+            <button className="top-create-btn" onClick={createSOAP}
+              disabled={phase === 'generating' || !transcript.trim() || !!note}
+              title={note ? 'Note already generated — start a new session' : ''}
+              style={note ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+            >
+              {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
             </button>
             <button className={`top-resume-btn${recording ? ' recording' : ''}`} onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
               {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
@@ -432,11 +454,22 @@ export default function Scribe() {
           {/* Transcript */}
           <div className={`main-panel${panel === 'transcript' ? ' active' : ''}`}>
             <div className="transcript-header">
-              <span className="transcript-label">Live Transcript</span>
-              <span className="seg-count">{lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : ''}</span>
+              <span className="transcript-label">{historyView ? 'Saved Transcript' : 'Live Transcript'}</span>
+              <span className="seg-count">{historyView ? 'From history · read-only' : (lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : '')}</span>
             </div>
             <div className="transcript-box">
-              {lines.length === 0 && phase !== 'recording' ? (
+              {historyView ? (
+                transcript.trim() ? (
+                  <div className="saved-transcript" style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.7, color: 'var(--text-primary)', padding: '4px 2px' }}>
+                    {transcript}
+                  </div>
+                ) : (
+                  <div className="t-empty">
+                    <div className="t-empty-icon">{I.lines}</div>
+                    <p className="t-empty-title">No transcript was saved for this consult</p>
+                  </div>
+                )
+              ) : lines.length === 0 && phase !== 'recording' ? (
                 <div className="t-empty">
                   <div className="t-empty-icon">{I.micStroke}</div>
                   <p className="t-empty-title">Transcript will appear here as you record</p>
@@ -489,8 +522,11 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className="note-content" style={{ display: 'block' }}>
+                <div className="note-content">
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
+                  <div className="note-done-banner">
+                    ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult
+                  </div>
                 </div>
               ) : (
                 <div className="note-empty">
