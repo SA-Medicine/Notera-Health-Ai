@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './scribe.css';
+import Onboarding from './Onboarding';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -13,7 +14,7 @@ const SPECIALTIES = [
   'dermatology', 'gynecology', 'pediatrics', 'weight_loss', 'medication_refill',
 ];
 
-type Panel = 'context' | 'transcript' | 'note' | 'history';
+type Panel = 'context' | 'transcript' | 'note' | 'history' | 'paste';
 type Phase = 'idle' | 'recording' | 'transcribing' | 'generating' | 'done';
 type Line = { t: string; text: string };
 type HistItem = { consult_id: string; title: string | null; specialty: string | null; status: string; audio_uri: string | null; created_at: string };
@@ -254,7 +255,7 @@ export default function Scribe() {
     const t = pasteText.trim(); if (!t) return;
     setHistoryView(false);
     setTx(t); setLines(t.split(/(?<=[.!?])\s+/).filter(Boolean).map((s, i) => ({ t: mmss(i * 5), text: s })));
-    setPhase('done'); setPasteText('');
+    setPhase('done'); setPasteText(''); setPanel('transcript');
     flash('Transcript loaded');
   }
 
@@ -382,10 +383,11 @@ export default function Scribe() {
           </div>
         </div>
         <div className="sidebar-section">
-          <button className="new-session-btn" onClick={newSession}>{I.plus}<span>New session</span></button>
+          <button className="new-session-btn" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
         </div>
         <nav className="sidebar-nav">
           <div className={`nav-item${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.micStroke}<span>Scribe</span></div>
+          <div className={`nav-item${panel === 'paste' ? ' active' : ''}`} data-tour="paste" onClick={() => setPanel('paste')}>{I.lines}<span>Paste transcript</span></div>
           <div className={`nav-item${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}<span>Context</span></div>
           <div className={`nav-item${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}<span>History</span></div>
         </nav>
@@ -428,14 +430,14 @@ export default function Scribe() {
           </div>
           <div className="top-bar-right">
             <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
-            <button className="top-create-btn" onClick={createSOAP}
+            <button className="top-create-btn" onClick={createSOAP} data-tour="create"
               disabled={phase === 'generating' || !transcript.trim() || !!note}
               title={note ? 'Note already generated — start a new session' : ''}
               style={note ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
             >
               {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
             </button>
-            <button className={`top-resume-btn${recording ? ' recording' : ''}`} onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
+            <button className={`top-resume-btn${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
               {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
             </button>
             <div className="timer-block">{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
@@ -496,15 +498,8 @@ export default function Scribe() {
                 <div className="t-empty">
                   <div className="t-empty-icon">{I.micStroke}</div>
                   <p className="t-empty-title">Transcript will appear here as you record</p>
-                  <p className="t-empty-sub">Or paste an existing transcript below to generate a note</p>
-                  <div className="transcript-input-card">
-                    <div className="transcript-input-header">{I.lines}<span>Paste Transcript</span></div>
-                    <textarea className="transcript-input-textarea" rows={6} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste consultation transcript here…" spellCheck={false} />
-                    <div className="transcript-input-footer">
-                      <span className="transcript-char-count">{pasteText.length} characters</span>
-                      <button className="transcript-proceed-btn" onClick={loadPastedTranscript}>{I.bolt}Load transcript</button>
-                    </div>
-                  </div>
+                  <p className="t-empty-sub">Press <strong>Start</strong> to record the visit — the transcript builds live as you talk.</p>
+                  <button className="paste-link-btn" onClick={() => setPanel('paste')}>{I.lines}Have a transcript already? Paste it</button>
                 </div>
               ) : (
                 <div id="transcriptLines">
@@ -515,6 +510,24 @@ export default function Scribe() {
                   {phase === 'transcribing' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Transcribing final segment…</span></div>}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Paste transcript (its own screen — not shown by default) */}
+          <div className={`main-panel${panel === 'paste' ? ' active' : ''}`}>
+            <div className="paste-screen">
+              <div className="paste-screen-head">
+                <h2 className="paste-screen-title">Paste a transcript</h2>
+                <p className="paste-screen-sub">Already have the consult text? Drop it in and Notera will turn it into a SOAP note — no recording needed.</p>
+              </div>
+              <div className="transcript-input-card paste-screen-card">
+                <div className="transcript-input-header">{I.lines}<span>Consultation transcript</span></div>
+                <textarea className="transcript-input-textarea" rows={12} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste the full consultation transcript here…" spellCheck={false} />
+                <div className="transcript-input-footer">
+                  <span className="transcript-char-count">{pasteText.length} characters</span>
+                  <button className="transcript-proceed-btn" onClick={loadPastedTranscript} disabled={!pasteText.trim()}>{I.bolt}Load transcript</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -589,6 +602,7 @@ export default function Scribe() {
       </main>
 
       {toast && <div className={`toast show ${toast.kind}`}>{toast.msg}</div>}
+      <Onboarding />
     </div>
   );
 }
