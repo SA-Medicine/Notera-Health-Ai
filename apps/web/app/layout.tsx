@@ -9,37 +9,42 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://aitoolsfordoctor.c
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'AI Tools for Doctors — clinical AI that saves you time',
-    template: '%s | AI Tools for Doctors',
+    default: 'Notera — AI Medical Scribe for Doctors',
+    template: '%s | Notera',
   },
   description:
-    'Purpose-built AI tools for physicians: turn consultations into signed, schema-structured SOAP notes in seconds. HIPAA-ready, human-in-the-loop, built by clinicians.',
+    'Notera is an AI medical scribe that turns consultations into grounded, structured SOAP notes in seconds. HIPAA-ready, never trained on your data, and in your voice. Free for your first 50 notes.',
   keywords: [
-    'AI tools for doctors', 'AI medical scribe', 'clinical documentation AI',
+    'Notera', 'AI medical scribe', 'AI tools for doctors', 'clinical documentation AI',
     'SOAP note generator', 'AI for physicians', 'HIPAA compliant AI scribe',
-    'medical documentation software', 'ambient clinical documentation',
+    'ambient clinical documentation', 'automated charting', 'medical dictation alternative',
   ],
-  applicationName: 'AI Tools for Doctors',
-  authors: [{ name: 'AI Tools for Doctors' }],
+  applicationName: 'Notera',
+  authors: [{ name: 'Notera' }],
   alternates: { canonical: '/' },
+  // Favicon / apple-icon come from the Next file convention: app/icon.png, app/apple-icon.png, app/favicon.ico
   openGraph: {
     type: 'website',
-    siteName: 'AI Tools for Doctors',
+    siteName: 'Notera',
     url: SITE_URL,
-    title: 'AI Tools for Doctors — clinical AI that saves you time',
-    description: 'Turn consultations into signed SOAP notes in seconds. HIPAA-ready, physician-built AI tools.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'AI Tools for Doctors' }],
+    title: 'Notera — AI Medical Scribe for Doctors',
+    description: 'Turn consultations into grounded, structured SOAP notes in seconds. HIPAA-ready, physician-built.',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Notera — AI medical scribe' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AI Tools for Doctors',
-    description: 'Clinical AI that saves physicians time — starting with automated SOAP notes.',
+    title: 'Notera — AI Medical Scribe',
+    description: 'The AI scribe that writes the note as you talk. Grounded, private, in your voice.',
     images: ['/og.png'],
   },
   robots: {
     index: true, follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
+}
+
+export const viewport = {
+  themeColor: '#6d5efc',
 }
 
 // Organization + WebSite structured data (helps Google understand the brand + enables sitelinks search).
@@ -49,15 +54,16 @@ const jsonLd = {
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/#org`,
-      name: 'AI Tools for Doctors',
+      name: 'Notera',
       url: SITE_URL,
-      description: 'AI tools that help physicians document faster and safer.',
+      logo: `${SITE_URL}/icon-512.png`,
+      description: 'Notera is an AI medical scribe that helps physicians document faster and safer.',
     },
     {
       '@type': 'WebSite',
       '@id': `${SITE_URL}/#website`,
       url: SITE_URL,
-      name: 'AI Tools for Doctors',
+      name: 'Notera',
       publisher: { '@id': `${SITE_URL}/#org` },
     },
   ],
