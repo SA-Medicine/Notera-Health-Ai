@@ -22,8 +22,9 @@ export default function TopBar() {
     <header className="topbar">
       <div className="topbar-inner">
         <Link href={user ? '/app' : '/'} className="brand">
-          <span className="brand-mark">N</span>
-          <span className="brand-name">Notera<span className="brand-dim">-Health-Ai</span></span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.png" alt="Notera" className="brand-logo" width={30} height={30} />
+          <span className="brand-name">Notera</span>
         </Link>
 
         {user ? (
