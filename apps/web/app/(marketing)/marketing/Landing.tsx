@@ -95,7 +95,8 @@ export default function Landing({ appUrl }: { appUrl: string }) {
         {/* NAV */}
         <nav>
           <div className="wrap">
-            <div className="brand"><span className="m"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M5 8l7-4 7 4M5 8v8l7 4 7-4V8" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" /></svg></span>Notera</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <div className="brand"><img className="m-img" src="/icon.png" alt="Notera" width={32} height={32} />Notera</div>
             <div className="nlinks"><a href="#how">How it works</a><a href="#features">Features</a><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></div>
             <div className="nauth"><a className="btn btn-ghost" href={loginUrl}>Sign in</a><a className="btn btn-primary" href={loginUrl}>Start free</a></div>
           </div>
