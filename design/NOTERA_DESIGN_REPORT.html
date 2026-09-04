@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notera — UI/UX Improvement Report</title>
+<style>
+  :root{
+    --brand:#6d5efc;--brand2:#3ba7ff;--accent:#12b981;--ink:#131629;--body:#3a3f5c;--muted:#6b7290;
+    --line:#e7e9f2;--bg:#f6f7fb;--card:#fff;--warn:#e8a33d;--bad:#e5484d;--good:#12b981;
+    --radius:14px;--mono:'SF Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--body);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  h1,h2,h3,h4{color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+  h2{font-size:30px;margin:0 0 6px} h3{font-size:20px;margin:34px 0 10px}
+  h4{font-size:15.5px;margin:22px 0 8px}
+  p{margin:0 0 12px} strong{color:var(--ink)}
+  code{font-family:var(--mono);font-size:.88em;background:#eef0f8;padding:2px 6px;border-radius:5px;color:#4b3fd4}
+
+  /* hero */
+  .cover{background:radial-gradient(1200px 500px at 70% -10%,rgba(109,94,252,.5),transparent),radial-gradient(900px 500px at 0% 10%,rgba(59,167,255,.4),transparent),#080a18;color:#fff;padding:70px 0 60px}
+  .cover .ey{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#9db6ff;font-weight:700}
+  .cover h1{font-size:clamp(34px,5vw,52px);color:#fff;margin:14px 0 14px;letter-spacing:-.03em}
+  .cover p{color:#c3c9e6;font-size:18px;max-width:640px}
+  .cover .meta{display:flex;gap:26px;flex-wrap:wrap;margin-top:28px;font-size:13px;color:#8b93ba}
+  .cover .meta b{color:#fff;display:block;font-size:15px}
+
+  section{padding:44px 0;border-bottom:1px solid var(--line)}
+  .tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 11px;border-radius:100px;margin-bottom:14px}
+  .t-sys{background:#efeaff;color:#5b45e0}.t-home{background:#e6f2ff;color:#1668c9}.t-app{background:#e4f7ef;color:#0f9d68}.t-auth{background:#fff2e0;color:#b9750f}.t-a11y{background:#fde8e9;color:#c62d32}.t-hand{background:#eceef5;color:#4a5170}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f0f2f9;color:var(--ink);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .callout{border-left:3px solid var(--brand);background:#f4f2ff;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14.5px}
+  .callout.warn{border-color:var(--warn);background:#fff7ec}
+
+  .dd{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  .dd .do,.dd .dont{border-radius:10px;padding:14px 16px;font-size:14px}
+  .dd .do{background:#eafaf2;border:1px solid #c4ecd8}.dd .dont{background:#fdeeee;border:1px solid #f4cfd0}
+  .dd h5{margin:0 0 6px;font-size:13px}.dd .do h5{color:#0f9d68}.dd .dont h5{color:#c62d32}
+
+  /* swatches */
+  .sw{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+  .chip{border-radius:10px;overflow:hidden;border:1px solid var(--line);width:120px;font-size:11px}
+  .chip .c{height:52px}.chip .m{padding:6px 8px}.chip .m b{display:block;color:var(--ink);font-size:12px}.chip .m span{font-family:var(--mono);color:var(--muted)}
+
+  /* buttons demo */
+  .btns{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}
+  .b{font:600 14px/1 'Inter',sans-serif;border:none;border-radius:10px;padding:11px 18px;cursor:default;display:inline-flex;gap:8px;align-items:center}
+  .b.pri{color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 6px 16px rgba(109,94,252,.35)}
+  .b.sec{color:var(--ink);background:#fff;border:1px solid var(--line)}
+  .b.gho{color:var(--brand);background:#f2f0ff}
+  .b.dan{color:#fff;background:var(--bad)}
+  .b.dis{color:#9aa1bd;background:#eef0f6}
+
+  .toc{position:sticky;top:0;background:rgba(246,247,251,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10;padding:11px 0}
+  .toc .wrap{display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;font-weight:600}
+  .toc a{color:var(--muted);text-decoration:none}.toc a:hover{color:var(--brand)}
+
+  ul{margin:6px 0 14px 20px}li{margin:4px 0}
+  .imgrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+  .imgrow img{width:100%;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+  .sm{font-size:13px;color:var(--muted)}
+  @media(max-width:720px){.grid2,.dd{grid-template-columns:1fr}.imgrow{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="cover"><div class="wrap">
+  <span class="ey">Notera Health · Product Design</span>
+  <h1>UI / UX Improvement Report</h1>
+  <p>A full-scale design uplift plan to take Notera from "functional" to best-in-segment — a bold, animated marketing site and a calm, clinical scribe, engineered for multi-user scale.</p>
+  <div class="meta">
+    <div><b>3 surfaces</b>Marketing · Scribe · Auth</div>
+    <div><b>2 themes</b>Bold dark · Clean clinical</div>
+    <div><b>Frameworks</b>Design System · UX Copy · A11y · Handoff</div>
+    <div><b>Deliverable</b>This report + live hero mockup</div>
+  </div>
+</div></div>
+
+<div class="toc"><div class="wrap">
+  <a href="#summary">Summary</a><a href="#system">Design System</a><a href="#home">Homepage</a>
+  <a href="#scribe">Scribe App</a><a href="#auth">Auth</a><a href="#a11y">Accessibility</a>
+  <a href="#handoff">Handoff</a><a href="#roadmap">Roadmap</a>
+</div></div>
+
+<!-- SUMMARY -->
+<section id="summary"><div class="wrap">
+  <h2>Where you are, and where this takes you</h2>
+  <p>The current UI works, but it reads as an internal tool: flat buttons, hard system fonts, abrupt state changes, no motion, and one visual language stretched across marketing, app and auth. For a multi-user SaaS competing in the ambient-scribe segment, first impression <em>is</em> the sales pitch — and trust is the whole game in healthcare.</p>
+  <p>The strategy is a deliberate <strong>split personality</strong>: the marketing site should be bold, animated and confident (it sells); the Scribe should be quiet, clean and clinical (it earns trust during real work). One shared token system keeps them siblings, not strangers.</p>
+
+  <h3>Current-state critique (the honest version)</h3>
+  <table>
+    <tr><th>Area</th><th>Issue today</th><th>Impact</th></tr>
+    <tr><td>Buttons</td><td>Single flat style, no hover/press feedback, unclear hierarchy (primary vs secondary look alike)</td><td>Users can't tell the main action; feels unpolished</td></tr>
+    <tr><td>Motion</td><td>None. States snap in (loading → note appears instantly)</td><td>App feels abrupt and "cheap"; no sense of progress</td></tr>
+    <tr><td>Typography</td><td>System font stack, few sizes, weak hierarchy</td><td>Everything reads at one level; no visual rhythm</td></tr>
+    <tr><td>Color</td><td>Mostly greys + one blue; no semantic system</td><td>No warmth, no brand memory, weak status signals</td></tr>
+    <tr><td>Marketing</td><td>No real landing page / hero / social proof / pricing narrative</td><td>Nothing converts a visiting clinician into a trial</td></tr>
+    <tr><td>Empty &amp; loading states</td><td>Generic spinner, plain "No note yet"</td><td>Missed moments to guide and reassure</td></tr>
+  </table>
+  <div class="callout">This report is organized so you can hand each section to a developer as a standalone spec. Every color, size, motion and copy string is concrete — no "make it pop."</div>
+</div></section>
+
+<!-- DESIGN SYSTEM -->
+<section id="system"><div class="wrap">
+  <span class="tag t-sys">Design System · foundation for everything</span>
+  <h2>One token system, two themes</h2>
+  <p>Define these once as CSS variables (or Tailwind theme tokens). The marketing site uses the <strong>Bold</strong> theme; the app and auth use the <strong>Clinical</strong> theme. Same hues, different brightness and energy.</p>
+
+  <h3>Brand &amp; semantic colors</h3>
+  <div class="sw">
+    <div class="chip"><div class="c" style="background:#6d5efc"></div><div class="m"><b>Brand</b><span>#6D5EFC</span></div></div>
+    <div class="chip"><div class="c" style="background:#3ba7ff"></div><div class="m"><b>Brand 2</b><span>#3BA7FF</span></div></div>
+    <div class="chip"><div class="c" style="background:#12b981"></div><div class="m"><b>Success</b><span>#12B981</span></div></div>
+    <div class="chip"><div class="c" style="background:#e8a33d"></div><div class="m"><b>Warning</b><span>#E8A33D</span></div></div>
+    <div class="chip"><div class="c" style="background:#e5484d"></div><div class="m"><b>Danger</b><span>#E5484D</span></div></div>
+    <div class="chip"><div class="c" style="background:#131629"></div><div class="m"><b>Ink</b><span>#131629</span></div></div>
+    <div class="chip"><div class="c" style="background:#6b7290"></div><div class="m"><b>Muted</b><span>#6B7290</span></div></div>
+    <div class="chip"><div class="c" style="background:#f6f7fb;border-right:1px solid #eee"></div><div class="m"><b>Surface</b><span>#F6F7FB</span></div></div>
+  </div>
+  <p class="sm">Brand gradient = <code>linear-gradient(135deg,#6D5EFC,#3BA7FF)</code>. Use it for the primary CTA and hero accents only — scarcity keeps it premium.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>Type scale (Inter)</h4>
+      <table style="margin:0">
+        <tr><th>Token</th><th>Size / weight</th></tr>
+        <tr><td><code>display</code></td><td>clamp 40–78px / 800</td></tr>
+        <tr><td><code>h1</code></td><td>34px / 800</td></tr>
+        <tr><td><code>h2</code></td><td>24px / 700</td></tr>
+        <tr><td><code>body</code></td><td>15–16px / 400</td></tr>
+        <tr><td><code>label</code></td><td>11px / 700 · +0.08em · UPPER</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h4>Spacing · radius · elevation · motion</h4>
+      <ul style="margin:0 0 0 18px">
+        <li><strong>Space</strong> 4·8·12·16·24·32·48·64 (8-pt)</li>
+        <li><strong>Radius</strong> sm 8 · md 12 · lg 16 · pill 100</li>
+        <li><strong>Shadow</strong> sm/md/lg + a colored brand glow for CTAs</li>
+        <li><strong>Motion</strong> fast 150ms · base 250ms · slow 400ms</li>
+        <li><strong>Easing</strong> <code>cubic-bezier(.22,1,.36,1)</code> (the "expo-out" you feel everywhere in the mockup)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Button component (the #1 fix)</h3>
+  <p>Replace the single flat button with one component, 4 variants × 3 sizes × 6 states. Clear hierarchy is the biggest instant upgrade.</p>
+  <div class="btns">
+    <button class="b pri">Primary ↗</button>
+    <button class="b sec">Secondary</button>
+    <button class="b gho">Ghost</button>
+    <button class="b dan">Delete</button>
+    <button class="b dis">Disabled</button>
+  </div>
+  <table>
+    <tr><th>Variant</th><th>Use for</th><th>Rest → Hover → Active</th></tr>
+    <tr><td>Primary</td><td>The one main action per view (Start free, Create SOAP)</td><td>Gradient + glow → lift 2px, glow grows → scale .98</td></tr>
+    <tr><td>Secondary</td><td>Supporting action (Watch demo, Copy)</td><td>White/1px border → bg tint, lift → scale .98</td></tr>
+    <tr><td>Ghost</td><td>Tertiary / in-toolbar</td><td>Tinted fill → deepen tint</td></tr>
+    <tr><td>Danger</td><td>Destructive (Delete consult)</td><td>Red → darken; always needs confirm dialog</td></tr>
+  </table>
+  <div class="dd">
+    <div class="do"><h5>✓ Do</h5>Exactly one Primary per screen. Give every button a 150ms hover + a pressed state. Keep labels verb-first.</div>
+    <div class="dont"><h5>✗ Don't</h5>Two identical-looking buttons side by side. "Submit"/"OK" labels. Instant, feedback-less clicks.</div>
+  </div>
+</div></section>
+
+<!-- HOMEPAGE -->
+<section id="home"><div class="wrap">
+  <span class="tag t-home">Marketing Homepage · Bold, animated SaaS</span>
+  <h2>Landing page — section by section</h2>
+  <p>Goal: a visiting clinician goes from "what is this" to "start free" in one scroll. Dark, confident, animated — the live mockup (<code>notera_hero_mockup.html</code>) shows the hero, trust bar and feature grid rendered.</p>
+
+  <h3>1 · Sticky glass nav</h3>
+  <p><strong>Layout:</strong> logo left · Product/Features/Security/Pricing center · <em>Sign in</em> (ghost) + <em>Start free</em> (primary) right. Transparent on load, gains a blur + hairline border after 20px scroll.</p>
+  <p><strong>Motion:</strong> backdrop-blur fade-in on scroll (250ms). <strong>Copy:</strong> keep nav to 4 items max.</p>
+
+  <h3>2 · Hero</h3>
+  <table>
+    <tr><th>Element</th><th>Recommended copy</th><th>Notes</th></tr>
+    <tr><td>Eyebrow pill</td><td>"HIPAA-ready · Built on clinical-grade AI"</td><td>Live green dot; establishes trust in the first 200ms</td></tr>
+    <tr><td>Headline</td><td>"The AI scribe that writes the note before you finish talking."</td><td>Gradient on the second line only</td></tr>
+    <tr><td>Sub</td><td>"Notera listens to the visit, structures a clean SOAP note in seconds, and hands your time back to the patient — not the keyboard."</td><td>≤ 2 lines, benefit not feature</td></tr>
+    <tr><td>Primary CTA</td><td>"Start free — no card ↗"</td><td>Gradient + glow, lifts on hover</td></tr>
+    <tr><td>Secondary CTA</td><td>"▶ Watch 90-sec demo"</td><td>Ghost; opens video modal</td></tr>
+  </table>
+  <p><strong>Motion:</strong> staggered rise-in (headline → sub → CTAs, 60ms apart). Animated gradient-orb mesh drifting behind. A "browser frame" product card decks in with a 3D tilt and the note types itself line-by-line.</p>
+  <div class="callout">Alternatives for the headline — A (bold): "Stop typing notes. Start seeing patients." · B (outcome): "Finish your notes before the patient leaves." · C (calm/clinical): "Accurate clinical notes, written as you talk." Pick by brand voice; A/B convert, C reassures.</div>
+
+  <h4>Recommended imagery (Unsplash — direct URLs)</h4>
+  <div class="imgrow">
+    <img alt="clinician with tablet" src="https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=600&q=70">
+    <img alt="doctor and patient" src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&q=70">
+    <img alt="medical team" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&q=70">
+  </div>
+  <p class="sm">Use warm, real-clinician photography (not stocky handshakes). Duotone them toward the brand for cohesion: <code>photo → 12% brand overlay, slight desaturate</code>. Source: unsplash.com (free, commercial-ok). Swap IDs freely — search "doctor tablet", "clinician patient", "medical team".</p>
+
+  <h3>3 · Trust bar (social proof)</h3>
+  <p>Immediately under the hero: 4 count-up stats — <strong>98% note accuracy · 12 min saved/visit · 7 sec to first draft · 40k+ notes generated</strong> — plus a row of specialty logos. Animate the numbers counting up on scroll-into-view.</p>
+
+  <h3>4 · How it works (3 steps)</h3>
+  <p>Record → Review → Sign. Three cards with an animated connector line that draws in on scroll. Copy: "Hit record and talk normally." / "Notera drafts a structured SOAP note in seconds." / "Skim, edit inline, copy to your EMR."</p>
+
+  <h3>5 · Feature grid</h3>
+  <p>3×2 cards with a cursor-following glow and lift-on-hover (in the mockup). Lead with outcomes: <strong>Notes in seconds · Grounded &amp; safe (no fabricated labs) · Specialty auto-tuned · Works with any accent · One-click EMR copy · Your data, encrypted</strong>.</p>
+
+  <h3>6 · Security / trust band</h3>
+  <p>Dark band with lock iconography: HIPAA-ready, encryption at rest &amp; in transit, no training on your data, audit trail. Healthcare buyers scan for this before anything else — give it real estate.</p>
+
+  <h3>7 · Testimonials</h3>
+  <div class="card" style="display:flex;gap:14px;align-items:center">
+    <img src="https://i.pravatar.cc/80?img=15" alt="" style="width:52px;height:52px;border-radius:50%">
+    <div><p style="margin:0">"I get 45 minutes of my evening back. The notes actually sound like me."</p><p class="sm" style="margin:4px 0 0">Dr. A. Rao · Family Medicine</p></div>
+  </div>
+  <p class="sm">Use real headshots (or pravatar/randomuser placeholders in staging). Auto-scrolling marquee of 6–8 quotes.</p>
+
+  <h3>8 · Pricing</h3>
+  <p>3 tiers (Solo · Practice · Enterprise), middle "Most popular" raised and glowing, monthly/annual toggle with a "save 20%" pill. CTA per card: <em>Start free</em> / <em>Start free</em> / <em>Talk to sales</em>.</p>
+
+  <h3>9 · Final CTA + footer</h3>
+  <p>Full-bleed gradient band: "Ready to finish your notes on time?" + big Primary. Footer: product, company, legal, security, socials.</p>
+</div></section>
+
+<!-- SCRIBE -->
+<section id="scribe"><div class="wrap">
+  <span class="tag t-app">Scribe App · Clean clinical trust</span>
+  <h2>The app should feel calm, fast, and trustworthy</h2>
+  <p>Opposite energy from marketing: light, airy, low-chroma, zero gimmicks. Doctors are mid-consult — the UI must recede. Keep the current layout; upgrade the surface, states and motion.</p>
+
+  <h3>Priority upgrades</h3>
+  <table>
+    <tr><th>#</th><th>Change</th><th>Why</th></tr>
+    <tr><td>1</td><td>Adopt the button component (Primary = Create SOAP, Ghost = toolbar). Add hover/press + focus rings.</td><td>Clear action hierarchy; feels responsive</td></tr>
+    <tr><td>2</td><td>Replace the plain spinner with a <strong>staged progress loader</strong>: "Transcribing → Extracting facts → Structuring note → Final checks", each ticking green.</td><td>2-min waits feel intentional, not broken</td></tr>
+    <tr><td>3</td><td>Note appears with a soft fade+rise, sections stagger in.</td><td>Signals completion; premium feel</td></tr>
+    <tr><td>4</td><td>Record button: pulsing ring while active + live waveform + timer.</td><td>Confidence that it's listening</td></tr>
+    <tr><td>5</td><td>Empty state: friendly illustration + one Primary ("Start recording") + secondary ("Paste transcript").</td><td>Guides the first action</td></tr>
+    <tr><td>6</td><td>Toasts for save/copy/errors (bottom-center, auto-dismiss) instead of silent changes.</td><td>Feedback for every action</td></tr>
+  </table>
+
+  <h4>Clinical theme tokens</h4>
+  <div class="sw">
+    <div class="chip"><div class="c" style="background:#ffffff;border-right:1px solid #eee"></div><div class="m"><b>Canvas</b><span>#FFFFFF</span></div></div>
+    <div class="chip"><div class="c" style="background:#f7f8fc;border-right:1px solid #eee"></div><div class="m"><b>Panel</b><span>#F7F8FC</span></div></div>
+    <div class="chip"><div class="c" style="background:#2563eb"></div><div class="m"><b>Action</b><span>#2563EB</span></div></div>
+    <div class="chip"><div class="c" style="background:#12b981"></div><div class="m"><b>Done</b><span>#12B981</span></div></div>
+    <div class="chip"><div class="c" style="background:#0f1836"></div><div class="m"><b>Text</b><span>#0F1836</span></div></div>
+  </div>
+
+  <h4>UX copy — states</h4>
+  <table>
+    <tr><th>State</th><th>Copy</th></tr>
+    <tr><td>Empty note</td><td>"No note yet — record the visit or paste a transcript, and Notera drafts your SOAP note."</td></tr>
+    <tr><td>Generating</td><td>"Writing your note… this usually takes under a minute."</td></tr>
+    <tr><td>Success toast</td><td>"Note ready · saved to History"</td></tr>
+    <tr><td>Error</td><td>"Couldn't finish the note. Your transcript is saved — try again, or check History in a moment."</td></tr>
+    <tr><td>Re-create blocked</td><td>Button → "Note created ✓" (disabled) with hint "Start a new session for another note."</td></tr>
+  </table>
+  <div class="dd">
+    <div class="do"><h5>✓ Do</h5>Keep it monochrome + one action blue. Big readable note type (15–16px, 1.6 line-height). Subtle 150–250ms transitions.</div>
+    <div class="dont"><h5>✗ Don't</h5>Gradients, orbs, or marketing flourish in the app. Bright colors competing with the clinical content.</div>
+  </div>
+</div></section>
+
+<!-- AUTH -->
+<section id="auth"><div class="wrap">
+  <span class="tag t-auth">Auth · Bridge between the two worlds</span>
+  <h2>Login, signup &amp; reset</h2>
+  <p><strong>Split-screen layout:</strong> left = the calm clinical form; right = a branded panel (soft gradient, one product screenshot or a rotating one-line testimonial). Professional, fast, reassuring.</p>
+  <table>
+    <tr><th>Screen</th><th>Fields / elements</th><th>Copy</th></tr>
+    <tr><td>Login</td><td>Email, password (show/hide), "Remember me", Primary "Sign in", link "Forgot password?"</td><td>Title: "Welcome back" · Sub: "Sign in to your Notera workspace"</td></tr>
+    <tr><td>Signup</td><td>Name, work email, password w/ live strength meter, role select, Primary "Create account"</td><td>"Start scribing in 2 minutes" · trust line: "HIPAA-ready · no card required"</td></tr>
+    <tr><td>Reset</td><td>Email → confirmation screen</td><td>"Enter your email and we'll send a reset link."</td></tr>
+  </table>
+  <div class="callout warn"><strong>Inline validation:</strong> validate on blur, not on every keystroke; show the fix, not just "invalid" — e.g. "Use your work email" / "Password needs 8+ characters". Never wipe the form on error.</div>
+</div></section>
+
+<!-- A11Y -->
+<section id="a11y"><div class="wrap">
+  <span class="tag t-a11y">Accessibility · WCAG 2.1 AA</span>
+  <h2>Accessibility audit &amp; targets</h2>
+  <p>Clinicians work long shifts on varied screens — accessibility is usability here, not a checkbox.</p>
+  <table>
+    <tr><th>#</th><th>Finding</th><th>Criterion</th><th>Severity</th><th>Fix</th></tr>
+    <tr><td>1</td><td>Dark-theme muted text on gradient may drop below 4.5:1</td><td>1.4.3 Contrast</td><td>🔴 Critical</td><td>Keep body text ≥ <code>#C3C9E6</code> on dark; never place body copy directly on the orb glow</td></tr>
+    <tr><td>2</td><td>Buttons/inputs lack a visible focus ring</td><td>2.4.7 Focus</td><td>🔴 Critical</td><td>2px brand outline + 2px offset on <code>:focus-visible</code></td></tr>
+    <tr><td>3</td><td>Icon-only controls (mic, copy) have no accessible name</td><td>4.1.2 Name/Role</td><td>🟡 Major</td><td>Add <code>aria-label</code> to every icon button</td></tr>
+    <tr><td>4</td><td>Marketing images need meaningful alt text</td><td>1.1.1 Alt text</td><td>🟡 Major</td><td>Describe content; decorative orbs get <code>alt=""</code></td></tr>
+    <tr><td>5</td><td>Animations ignore reduced-motion preference</td><td>2.3.3 Motion</td><td>🟡 Major</td><td>Wrap motion in <code>@media (prefers-reduced-motion: reduce)</code></td></tr>
+    <tr><td>6</td><td>Generating state not announced to screen readers</td><td>4.1.3 Status</td><td>🟢 Minor</td><td>Use <code>aria-live="polite"</code> on the loader/toasts</td></tr>
+    <tr><td>7</td><td>Touch targets in the toolbar may be &lt; 44px</td><td>2.5.5 Target</td><td>🟢 Minor</td><td>Min 44×44 hit area on all controls</td></tr>
+  </table>
+  <div class="callout">Quick contrast rule: body text ≥ 4.5:1, large text/UI borders ≥ 3:1. Verify the final palette with a contrast checker before ship.</div>
+</div></section>
+
+<!-- HANDOFF -->
+<section id="handoff"><div class="wrap">
+  <span class="tag t-hand">Developer Handoff · React + Tailwind</span>
+  <h2>Implementation spec</h2>
+  <h4>Tokens → Tailwind</h4>
+  <p>Add the palette, the Inter font, the <code>expo-out</code> easing, and the brand-glow shadow to <code>tailwind.config</code>. Everything else composes from utilities. Marketing pages import the Bold theme; app imports Clinical.</p>
+  <h4>Motion table</h4>
+  <table>
+    <tr><th>Element</th><th>Trigger</th><th>Animation</th><th>Duration / easing</th></tr>
+    <tr><td>Hero content</td><td>Load</td><td>Rise + fade, staggered 60ms</td><td>800–1000ms / expo-out</td></tr>
+    <tr><td>Product card</td><td>Load</td><td>3D deck-in (rotateX 24→8°)</td><td>1200ms / expo-out</td></tr>
+    <tr><td>Nav</td><td>Scroll &gt; 20px</td><td>Blur + border fade</td><td>250ms</td></tr>
+    <tr><td>Stat numbers</td><td>In-view</td><td>Count-up 0→value</td><td>~900ms</td></tr>
+    <tr><td>Feature card</td><td>Hover</td><td>Lift 6px + cursor glow</td><td>250ms</td></tr>
+    <tr><td>Note (app)</td><td>Generation done</td><td>Fade+rise, sections stagger</td><td>250ms</td></tr>
+    <tr><td>Buttons</td><td>Hover / press</td><td>Lift 2px / scale .98</td><td>150ms</td></tr>
+  </table>
+  <h4>Responsive</h4>
+  <table>
+    <tr><th>Breakpoint</th><th>Behavior</th></tr>
+    <tr><td>Desktop &gt;1024</td><td>Full layouts; 3-col grids; split-screen auth</td></tr>
+    <tr><td>Tablet 768–1024</td><td>2-col grids; product card scales; nav condenses</td></tr>
+    <tr><td>Mobile &lt;768</td><td>1-col; hamburger nav; app sidebar → bottom bar; auth stacks (form only)</td></tr>
+  </table>
+  <h4>Edge cases</h4>
+  <ul>
+    <li><strong>Long note</strong> → scrolls within the card; sticky toolbar stays.</li>
+    <li><strong>Slow generation</strong> → staged loader continues past last step with "still working…"; never a dead spinner.</li>
+    <li><strong>Image fails</strong> → gradient placeholder, never a broken-image icon.</li>
+    <li><strong>Reduced motion</strong> → all transforms become simple opacity fades.</li>
+  </ul>
+</div></section>
+
+<!-- ROADMAP -->
+<section id="roadmap" style="border-bottom:none"><div class="wrap">
+  <h2>Prioritized roadmap</h2>
+  <table>
+    <tr><th>Phase</th><th>Ship</th><th>Effort</th><th>Payoff</th></tr>
+    <tr><td>1 · This week</td><td>Button component + focus rings; staged loader; toasts; Inter font + token palette</td><td>S</td><td>App instantly feels 2× more polished</td></tr>
+    <tr><td>2 · Next</td><td>Marketing landing page (hero → CTA) from the mockup; auth split-screen</td><td>M</td><td>You finally have something that converts</td></tr>
+    <tr><td>3 · Then</td><td>Scribe motion polish, empty/record states, note reveal; a11y pass</td><td>M</td><td>Trust + retention with real users</td></tr>
+    <tr><td>4 · Ongoing</td><td>Pricing, testimonials engine, blog/SEO, dark-mode app</td><td>L</td><td>Scale &amp; growth</td></tr>
+  </table>
+  <div class="callout">Open the companion file <code>notera_hero_mockup.html</code> to see Phase 2's hero, trust bar and feature grid already rendered with animations — use it as the reference build.</div>
+  <p class="sm" style="margin-top:24px">Report generated with the Design System, UX Copy, Accessibility and Handoff frameworks. All copy, tokens and motion values are implementation-ready.</p>
+</div></section>
+
+</body>
+</html>

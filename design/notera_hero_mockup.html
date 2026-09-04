@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notera — Live Hero Mockup</title>
+<style>
+  :root{
+    --bg:#05060f; --bg2:#0a0d1f;
+    --ink:#e9ecff; --muted:#9aa3c7; --faint:#6b7398;
+    --brand:#6d5efc; --brand2:#3ba7ff; --accent:#28e0b8;
+    --card:rgba(255,255,255,.05); --border:rgba(255,255,255,.10);
+    --radius:18px; --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); overflow-x:hidden; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+
+  /* animated gradient mesh background */
+  .mesh{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;animation:float 18s var(--ease) infinite alternate}
+  .orb.a{width:520px;height:520px;background:radial-gradient(circle,#6d5efc,transparent 65%);top:-120px;left:-80px}
+  .orb.b{width:480px;height:480px;background:radial-gradient(circle,#3ba7ff,transparent 65%);top:120px;right:-120px;animation-delay:-6s}
+  .orb.c{width:420px;height:420px;background:radial-gradient(circle,#28e0b8,transparent 65%);bottom:-160px;left:35%;animation-delay:-12s}
+  @keyframes float{to{transform:translate3d(40px,60px,0) scale(1.12)}}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* nav */
+  nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+    padding:16px 40px;backdrop-filter:blur(14px);background:rgba(5,6,15,.55);border-bottom:1px solid transparent;transition:border-color .3s,background .3s}
+  nav.scrolled{border-color:var(--border);background:rgba(5,6,15,.8)}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.02em}
+  .logo .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;box-shadow:0 6px 18px rgba(109,94,252,.5)}
+  .logo .mark svg{width:17px;height:17px}
+  .navlinks{display:flex;gap:30px;font-size:14.5px;color:var(--muted);font-weight:500}
+  .navlinks a{transition:color .2s} .navlinks a:hover{color:var(--ink)}
+  .navcta{display:flex;gap:12px;align-items:center}
+
+  /* buttons */
+  .btn{font-family:inherit;font-size:14.5px;font-weight:600;border:none;cursor:pointer;border-radius:11px;padding:11px 20px;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .18s var(--ease),box-shadow .25s,background .25s;position:relative}
+  .btn-primary{color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 8px 24px rgba(109,94,252,.4)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(109,94,252,.55)}
+  .btn-primary::after{content:'';position:absolute;inset:0;border-radius:11px;background:linear-gradient(135deg,#fff3,transparent);opacity:0;transition:opacity .25s}
+  .btn-primary:hover::after{opacity:1}
+  .btn-ghost{color:var(--ink);background:var(--card);border:1px solid var(--border)}
+  .btn-ghost:hover{background:rgba(255,255,255,.1);transform:translateY(-2px)}
+  .btn-lg{padding:15px 28px;font-size:16px;border-radius:13px}
+
+  /* hero */
+  header{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:170px 40px 90px;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 15px;border-radius:100px;border:1px solid var(--border);
+    background:var(--card);font-size:13px;color:var(--muted);margin-bottom:30px;animation:rise .8s var(--ease) both}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(40,224,184,.2);animation:pulse 2s infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(40,224,184,0)}}
+  h1{font-size:clamp(40px,6.4vw,78px);line-height:1.02;letter-spacing:-.035em;font-weight:800;margin-bottom:24px;animation:rise .9s var(--ease) .05s both}
+  h1 .grad{background:linear-gradient(120deg,#fff 10%,var(--brand2) 45%,var(--accent) 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:clamp(17px,2vw,21px);color:var(--muted);max-width:640px;margin:0 auto 38px;animation:rise 1s var(--ease) .12s both}
+  .cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;animation:rise 1.05s var(--ease) .18s both}
+  .microtrust{margin-top:20px;font-size:13px;color:var(--faint);animation:rise 1.1s var(--ease) .24s both}
+  @keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+
+  /* product mockup card */
+  .showcase{position:relative;z-index:2;max-width:1000px;margin:20px auto 0;padding:0 40px;perspective:1600px}
+  .frame{border-radius:20px;border:1px solid var(--border);overflow:hidden;background:linear-gradient(180deg,#0e1330,#0a0d20);
+    box-shadow:0 40px 120px -30px rgba(109,94,252,.55),0 0 0 1px rgba(255,255,255,.04) inset;
+    transform:rotateX(12deg);transform-origin:top center;animation:deck 1.2s var(--ease) .3s both}
+  @keyframes deck{from{opacity:0;transform:rotateX(24deg) translateY(60px)}to{opacity:1;transform:rotateX(8deg) translateY(0)}}
+  .frame-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
+  .frame-bar i{width:11px;height:11px;border-radius:50%;display:block}
+  .frame-bar i:nth-child(1){background:#ff5f57}.frame-bar i:nth-child(2){background:#febc2e}.frame-bar i:nth-child(3){background:#28c840}
+  .frame-bar .url{margin-left:14px;font-size:12px;color:var(--faint);background:rgba(0,0,0,.3);padding:4px 12px;border-radius:7px}
+  .app{display:grid;grid-template-columns:200px 1fr;min-height:340px}
+  .app-side{border-right:1px solid var(--border);padding:16px 12px;background:rgba(0,0,0,.15)}
+  .app-side .s-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;font-size:13px;color:var(--muted);margin-bottom:3px}
+  .app-side .s-item.active{background:linear-gradient(135deg,rgba(109,94,252,.25),rgba(59,167,255,.15));color:#fff}
+  .app-side .s-item .ic{width:15px;height:15px;opacity:.8}
+  .app-main{padding:20px 22px;text-align:left}
+  .app-tabs{display:flex;gap:18px;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px;font-size:13px;color:var(--faint)}
+  .app-tabs .t.active{color:#fff;font-weight:600;position:relative}
+  .app-tabs .t.active::after{content:'';position:absolute;left:0;right:0;bottom:-13px;height:2px;background:var(--brand2);border-radius:2px}
+  .note-h{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand2);font-weight:700;margin:14px 0 7px}
+  .note-line{height:9px;border-radius:5px;background:linear-gradient(90deg,rgba(255,255,255,.14),rgba(255,255,255,.05));margin-bottom:8px;animation:type .5s var(--ease) both}
+  .note-line.w1{width:92%}.note-line.w2{width:78%}.note-line.w3{width:85%}.note-line.w4{width:64%}
+  .badge-live{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--accent);background:rgba(40,224,184,.12);padding:4px 10px;border-radius:100px;font-weight:600}
+  @keyframes type{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+
+  /* trust bar */
+  .trust{position:relative;z-index:2;max-width:960px;margin:70px auto 0;padding:0 40px;display:flex;justify-content:space-between;
+    flex-wrap:wrap;gap:26px;opacity:0;transform:translateY(30px);transition:.9s var(--ease)}
+  .trust.in{opacity:1;transform:none}
+  .stat{text-align:center;flex:1;min-width:130px}
+  .stat .n{font-size:34px;font-weight:800;letter-spacing:-.02em;background:linear-gradient(120deg,#fff,var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat .l{font-size:13px;color:var(--faint);margin-top:4px}
+
+  /* features */
+  section.features{position:relative;z-index:2;max-width:1120px;margin:110px auto;padding:0 40px}
+  .sec-head{text-align:center;margin-bottom:52px}
+  .sec-head .eyebrow{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--brand2)}
+  .sec-head h2{font-size:clamp(30px,4vw,46px);letter-spacing:-.03em;margin:12px 0 10px;font-weight:800}
+  .sec-head p{color:var(--muted);max-width:560px;margin:0 auto;font-size:16.5px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .fcard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:26px;
+    opacity:0;transform:translateY(28px);transition:.7s var(--ease);position:relative;overflow:hidden}
+  .fcard.in{opacity:1;transform:none}
+  .fcard::before{content:'';position:absolute;inset:0;background:radial-gradient(400px circle at var(--mx,50%) var(--my,0%),rgba(109,94,252,.14),transparent 45%);opacity:0;transition:opacity .3s}
+  .fcard:hover::before{opacity:1}
+  .fcard:hover{transform:translateY(-6px);border-color:rgba(109,94,252,.4)}
+  .fico{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(109,94,252,.25),rgba(59,167,255,.18));display:grid;place-items:center;margin-bottom:16px}
+  .fico svg{width:22px;height:22px;color:var(--brand2)}
+  .fcard h3{font-size:18px;margin-bottom:8px;letter-spacing:-.01em}
+  .fcard p{color:var(--muted);font-size:14.5px}
+
+  footer{position:relative;z-index:2;text-align:center;padding:50px 40px;color:var(--faint);font-size:13px;border-top:1px solid var(--border)}
+
+  @media(max-width:820px){
+    nav{padding:14px 20px}.navlinks{display:none}
+    header{padding:140px 22px 60px}.app{grid-template-columns:1fr}.app-side{display:none}
+    .grid{grid-template-columns:1fr}.trust{gap:18px}
+  }
+</style>
+</head>
+<body>
+  <div class="mesh"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
+  <div class="grain"></div>
+
+  <nav id="nav">
+    <div class="logo"><span class="mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M5 8l7-4 7 4M5 8v8l7 4 7-4V8" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span>Notera</div>
+    <div class="navlinks"><a href="#">Product</a><a href="#features">Features</a><a href="#">Security</a><a href="#">Pricing</a></div>
+    <div class="navcta"><a class="btn btn-ghost" href="#">Sign in</a><a class="btn btn-primary" href="#">Start free</a></div>
+  </nav>
+
+  <header>
+    <div class="pill"><span class="dot"></span> HIPAA-ready · Built on clinical-grade AI</div>
+    <h1>The AI scribe that writes<br><span class="grad">the note before you finish talking.</span></h1>
+    <p class="sub">Notera listens to the visit, structures a clean SOAP note in seconds, and hands your time back to the patient — not the keyboard.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary btn-lg" href="#">Start free — no card ↗</a>
+      <a class="btn btn-ghost btn-lg" href="#">▶ Watch 90-sec demo</a>
+    </div>
+    <div class="microtrust">Trusted by clinicians across primary care, cardiology & psychiatry</div>
+  </header>
+
+  <div class="showcase">
+    <div class="frame">
+      <div class="frame-bar"><i></i><i></i><i></i><span class="url">app.notera.health/scribe</span></div>
+      <div class="app">
+        <div class="app-side">
+          <div class="s-item active"><svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M12 14a3 3 0 003-3V6a3 3 0 00-6 0v5a3 3 0 003 3z" stroke="currentColor" stroke-width="1.6"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke="currentColor" stroke-width="1.6"/></svg>Scribe</div>
+          <div class="s-item"><svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.6"/></svg>Context</div>
+          <div class="s-item"><svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.6"/></svg>History</div>
+        </div>
+        <div class="app-main">
+          <div class="app-tabs"><span class="t">Transcript</span><span class="t active">Note</span><span class="t">History</span><span style="margin-left:auto" class="badge-live">● Generating</span></div>
+          <div class="note-h">Subjective</div>
+          <div class="note-line w1" style="animation-delay:.4s"></div>
+          <div class="note-line w2" style="animation-delay:.55s"></div>
+          <div class="note-h" style="animation-delay:.7s">Objective</div>
+          <div class="note-line w3" style="animation-delay:.8s"></div>
+          <div class="note-line w4" style="animation-delay:.95s"></div>
+          <div class="note-h" style="animation-delay:1.1s">Assessment &amp; Plan</div>
+          <div class="note-line w1" style="animation-delay:1.2s"></div>
+          <div class="note-line w3" style="animation-delay:1.35s"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="trust" id="trust">
+    <div class="stat"><div class="n" data-to="98">0</div><div class="l">% note accuracy</div></div>
+    <div class="stat"><div class="n" data-to="12">0</div><div class="l">min saved / visit</div></div>
+    <div class="stat"><div class="n" data-to="7">0</div><div class="l">sec to first draft</div></div>
+    <div class="stat"><div class="n" data-to="40">0</div><div class="l">k+ notes generated</div></div>
+  </div>
+
+  <section class="features" id="features">
+    <div class="sec-head">
+      <div class="eyebrow">Why clinicians switch</div>
+      <h2>Documentation that keeps up with the room</h2>
+      <p>Purpose-built for real consultations — accents, interruptions, drug names and all.</p>
+    </div>
+    <div class="grid">
+      <div class="fcard"><div class="fico"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div><h3>Notes in seconds</h3><p>A structured SOAP note drafts itself while you talk — no dictation, no templates to wrangle.</p></div>
+      <div class="fcard"><div class="fico"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div><h3>Grounded &amp; safe</h3><p>Every line is traced back to the transcript. No fabricated labs, no invented medications.</p></div>
+      <div class="fcard"><div class="fico"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6"/></svg></div><h3>Your specialty, auto-tuned</h3><p>Notera detects the encounter type and shapes the note to match how your field documents.</p></div>
+    </div>
+  </section>
+
+  <footer>© 2026 Notera Health · This is a design mockup for direction review.</footer>
+
+<script>
+  const nav=document.getElementById('nav');
+  addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>20));
+
+  // interactive glow on feature cards
+  document.querySelectorAll('.fcard').forEach(c=>{
+    c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();c.style.setProperty('--mx',(e.clientX-r.left)+'px');c.style.setProperty('--my',(e.clientY-r.top)+'px')});
+  });
+
+  // scroll reveal + count-up
+  const io=new IntersectionObserver((es)=>{es.forEach(en=>{
+    if(en.isIntersecting){en.target.classList.add('in');
+      if(en.target.id==='trust'){en.target.querySelectorAll('.n').forEach(n=>{
+        const to=+n.dataset.to;let v=0;const step=Math.max(1,to/40);
+        const t=setInterval(()=>{v+=step;if(v>=to){v=to;clearInterval(t)}n.textContent=Math.round(v)},22);
+      });}
+      io.unobserve(en.target);
+    }});},{threshold:.3});
+  io.observe(document.getElementById('trust'));
+  document.querySelectorAll('.fcard').forEach((c,i)=>{c.style.transitionDelay=(i*.09)+'s';io.observe(c)});
+</script>
+</body>
+</html>

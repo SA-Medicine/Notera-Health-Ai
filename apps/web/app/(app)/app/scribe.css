@@ -2443,3 +2443,63 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .notera-shell .note-body li { margin-bottom: 4px; line-height: 1.55; }
 /* kill the blank-line <br> gaps — spacing now comes from element margins, so no double gaps */
 .notera-shell .note-body br { display: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PHASE-1 POLISH — clean-clinical upgrade (CSS-only, no logic changes).
+   Focus rings (a11y), button micro-interactions, note reveal, smoother feel.
+   (Inter is loaded once at the top of (app)/globals.css.)
+   ══════════════════════════════════════════════════════════════════════════ */
+.notera-shell{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --focus:#2563eb;
+}
+
+/* Visible keyboard focus on every interactive control (WCAG 2.4.7) */
+.notera-shell button:focus-visible,
+.notera-shell a:focus-visible,
+.notera-shell input:focus-visible,
+.notera-shell textarea:focus-visible,
+.notera-shell [role="button"]:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+  border-radius:8px;
+}
+.notera-shell *:focus:not(:focus-visible){ outline:none; }
+
+/* Button micro-interactions — hover lift + pressed feedback + smooth transition */
+.notera-shell .top-create-btn,
+.notera-shell .format-btn,
+.notera-shell .copy-btn,
+.notera-shell .transcript-proceed-btn,
+.notera-shell .start-hint-btn,
+.notera-shell .transcript-action-btn{
+  transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, background .2s, opacity .2s;
+}
+.notera-shell .top-create-btn:not(:disabled):hover,
+.notera-shell .start-hint-btn:hover,
+.notera-shell .transcript-proceed-btn:hover{ transform:translateY(-1px); }
+.notera-shell .top-create-btn:not(:disabled):active,
+.notera-shell .format-btn:active,
+.notera-shell .copy-btn:active,
+.notera-shell .start-hint-btn:active,
+.notera-shell .transcript-proceed-btn:active{ transform:scale(.975); }
+
+/* Note appears with a soft fade + rise (feels finished, not abrupt) */
+@keyframes notera-note-in{ from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+.notera-shell .note-content{ animation:notera-note-in .35s cubic-bezier(.22,1,.36,1) both; }
+
+/* Staged loader steps ease in as they light up */
+.notera-shell .note-empty .spinner{ animation:spin .8s linear infinite; }
+
+/* Toast: gentle entrance already handled; ensure it reads clearly on light UI */
+.notera-shell .toast{ box-shadow:0 8px 26px rgba(15,24,54,.22); }
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce){
+  .notera-shell .note-content{ animation:none; }
+  .notera-shell .top-create-btn,
+  .notera-shell .format-btn,
+  .notera-shell .copy-btn,
+  .notera-shell .start-hint-btn,
+  .notera-shell .transcript-proceed-btn{ transition:none; }
+}

@@ -334,7 +334,7 @@ export default function Scribe() {
       const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
-      const savedTx = (c.transcript?.text) || '';
+      const savedTx: string = (c.transcript?.text) || '';
       setTx(savedTx);
       // Render the saved transcript as timestamped rows, exactly like the live transcript.
       const parts = savedTx.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);

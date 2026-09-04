@@ -12,6 +12,7 @@
   "dependencies": {
     "@notera/ui": "*",
     "cmdk": "^1.0.0",
+    "lenis": "^1.3.26",
     "lucide-react": "^0.408.0",
     "next": "^15.5.18",
     "react": "^19.0.0",
