@@ -2503,3 +2503,70 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
   .notera-shell .start-hint-btn,
   .notera-shell .transcript-proceed-btn{ transition:none; }
 }
+
+/* ── Paste transcript: link on the empty state + its own dedicated screen ──── */
+.notera-shell .paste-link-btn{
+  display:inline-flex; align-items:center; gap:8px; margin-top:18px;
+  background:#fff; color:var(--blue,#2563eb); border:1px solid var(--border-mid,#dbe2ef);
+  font:600 13.5px/1 'Inter',sans-serif; padding:10px 16px; border-radius:10px; cursor:pointer;
+  transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, background .2s;
+}
+.notera-shell .paste-link-btn svg{ width:15px; height:15px; }
+.notera-shell .paste-link-btn:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(37,99,235,.16); background:#f6f9ff; }
+.notera-shell .paste-link-btn:active{ transform:scale(.975); }
+
+.notera-shell .paste-screen{ max-width:720px; margin:0 auto; padding:34px 24px 48px; width:100%; animation:notera-note-in .3s cubic-bezier(.22,1,.36,1) both; }
+.notera-shell .paste-screen-head{ text-align:center; margin-bottom:22px; }
+.notera-shell .paste-screen-title{ font-size:22px; font-weight:800; letter-spacing:-.02em; color:var(--text-primary,#0f1836); margin:0 0 8px; }
+.notera-shell .paste-screen-sub{ font-size:14.5px; color:var(--text-secondary,#5a6a82); max-width:480px; margin:0 auto; line-height:1.55; }
+.notera-shell .paste-screen-card{ box-shadow:0 10px 34px -14px rgba(15,24,54,.22); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ONBOARDING — Terms modal + coach-marks (non-technical friendly)
+   ══════════════════════════════════════════════════════════════════════════ */
+.nto-overlay{ position:fixed; inset:0; z-index:9998; display:grid; place-items:center; padding:20px;
+  background:rgba(8,12,28,.6); backdrop-filter:blur(4px); animation:nto-fade .25s ease both; }
+@keyframes nto-fade{ from{opacity:0} to{opacity:1} }
+.nto-modal{ width:100%; max-width:470px; background:#fff; border-radius:18px; padding:30px 30px 26px;
+  box-shadow:0 30px 80px rgba(8,12,28,.5); animation:nto-pop .35s cubic-bezier(.22,1,.36,1) both; }
+@keyframes nto-pop{ from{opacity:0; transform:translateY(14px) scale(.98)} to{opacity:1; transform:none} }
+.nto-modal-mark{ width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#6d5efc,#3ba7ff);
+  color:#fff; font-weight:800; font-size:20px; display:grid; place-items:center; box-shadow:0 8px 22px rgba(109,94,252,.45); margin-bottom:16px; }
+.nto-modal-title{ font-size:23px; font-weight:800; letter-spacing:-.02em; color:#0f1836; margin:0 0 6px; }
+.nto-modal-sub{ font-size:14.5px; color:#5a6a82; margin:0 0 16px; }
+.nto-terms{ background:#f6f8fc; border:1px solid #e7ecf5; border-radius:12px; padding:14px 16px; max-height:220px; overflow:auto; margin-bottom:16px; }
+.nto-terms p{ font-size:13.5px; line-height:1.6; color:#3a3f5c; margin:0 0 10px; }
+.nto-terms p:last-child{ margin-bottom:0; }
+.nto-check{ display:flex; gap:10px; align-items:flex-start; font-size:13.5px; color:#3a3f5c; cursor:pointer; margin-bottom:20px; }
+.nto-check input{ width:18px; height:18px; margin-top:1px; accent-color:#6d5efc; flex:none; cursor:pointer; }
+.nto-modal-actions{ display:flex; justify-content:flex-end; }
+
+.nto-btn{ font:600 14px/1 'Inter',sans-serif; border:none; border-radius:10px; padding:11px 20px; cursor:pointer;
+  transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, opacity .2s; }
+.nto-btn:focus-visible{ outline:2px solid #3ba7ff; outline-offset:2px; }
+.nto-btn-primary{ color:#fff; background:linear-gradient(135deg,#6d5efc,#3ba7ff); box-shadow:0 8px 22px -6px rgba(109,94,252,.5); }
+.nto-btn-primary:not(:disabled):hover{ transform:translateY(-1px); box-shadow:0 14px 30px -8px rgba(109,94,252,.6); }
+.nto-btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
+.nto-btn-ghost{ color:#3a3f5c; background:#eef1f7; }
+.nto-btn-ghost:hover{ background:#e3e8f2; }
+
+/* coach-marks */
+.nto-tour{ position:fixed; inset:0; z-index:9998; pointer-events:none; }
+.nto-scrim{ position:fixed; inset:0; background:rgba(8,12,28,.55); }
+.nto-spot{ position:fixed; border-radius:12px; border:2px solid #6d5efc;
+  box-shadow:0 0 0 9999px rgba(8,12,28,.55), 0 0 0 4px rgba(109,94,252,.35);
+  transition:top .3s cubic-bezier(.22,1,.36,1), left .3s cubic-bezier(.22,1,.36,1), width .3s, height .3s; }
+.nto-tip{ position:fixed; width:320px; background:#fff; border-radius:14px; padding:18px 18px 14px;
+  box-shadow:0 22px 55px rgba(8,12,28,.45); pointer-events:auto; animation:nto-pop .3s cubic-bezier(.22,1,.36,1) both; }
+.nto-tip-step{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a97ab; margin-bottom:6px; }
+.nto-tip-title{ font-size:16.5px; font-weight:800; letter-spacing:-.01em; color:#0f1836; margin:0 0 6px; }
+.nto-tip-body{ font-size:14px; line-height:1.55; color:#5a6a82; margin:0 0 14px; }
+.nto-tip-actions{ display:flex; align-items:center; justify-content:space-between; }
+.nto-tip-nav{ display:flex; gap:8px; }
+.nto-skip{ background:none; border:none; color:#8a97ab; font:600 13px/1 'Inter',sans-serif; cursor:pointer; padding:8px 4px; }
+.nto-skip:hover{ color:#5a6a82; }
+
+@media (prefers-reduced-motion: reduce){
+  .nto-modal,.nto-tip,.nto-overlay{ animation:none; }
+  .nto-spot{ transition:none; }
+}

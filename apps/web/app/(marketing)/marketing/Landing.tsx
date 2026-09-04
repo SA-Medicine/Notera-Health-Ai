@@ -10,6 +10,7 @@ const Check = () => (
 
 export default function Landing({ appUrl }: { appUrl: string }) {
   const root = useRef<HTMLDivElement>(null)
+  const loginUrl = appUrl.replace(/\/+$/, '') + '/login'
 
   useEffect(() => {
     const el = root.current
@@ -96,18 +97,17 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           <div className="wrap">
             <div className="brand"><span className="m"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M5 8l7-4 7 4M5 8v8l7 4 7-4V8" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" /></svg></span>Notera</div>
             <div className="nlinks"><a href="#how">How it works</a><a href="#features">Features</a><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></div>
-            <div className="nauth"><a className="btn btn-ghost" href={appUrl}>Sign in</a><a className="btn btn-primary" href={appUrl}>Start free</a></div>
+            <div className="nauth"><a className="btn btn-ghost" href={loginUrl}>Sign in</a><a className="btn btn-primary" href={loginUrl}>Start free</a></div>
           </div>
         </nav>
 
         {/* HERO */}
         <header className="hero">
           <div className="wrap">
-            <div className="hpill" data-reveal><span className="d" /> Built for the exam room — not the demo stage</div>
-            <h1 className="d1" data-reveal>Your notes, done before<br /><span className="g">the patient&apos;s coat is back on.</span></h1>
+            <h1 data-reveal>Your notes, done before<br /><span className="g">the patient&apos;s coat is back on.</span></h1>
             <p className="lead d2" data-reveal>Notera listens to the visit and writes a clean, structured note you&apos;ll actually recognise as your own. No macros, no templates, no catching up at 9pm.</p>
             <div className="hcta d3" data-reveal>
-              <a className="btn btn-primary btn-lg" href={appUrl}>Start free — no card ↗</a>
+              <a className="btn btn-primary btn-lg" href={loginUrl}>Start free — no card ↗</a>
               <a className="btn btn-ghost btn-lg" href="#how">See how it works</a>
             </div>
             <p className="hnote d3" data-reveal>Free for your first 50 notes · Set up in about 3 minutes</p>
@@ -282,7 +282,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />SOAP notes + transcript</li>
                 <li><Check />Copy to any EMR</li>
               </ul>
-              <a className="btn btn-ghost" href={appUrl}>Start free</a>
+              <a className="btn btn-ghost" href={loginUrl}>Start free</a>
             </div>
             <div className="pcard pop d1" data-reveal>
               <span className="tagpop">Most popular</span>
@@ -295,7 +295,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />Full searchable history</li>
                 <li><Check />Priority support</li>
               </ul>
-              <a className="btn btn-primary" href={appUrl}>Start free trial</a>
+              <a className="btn btn-primary" href={loginUrl}>Start free trial</a>
             </div>
             <div className="pcard d2" data-reveal>
               <h3>Enterprise</h3>
@@ -330,7 +330,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
         <div className="final" data-reveal><div className="finalbox">
           <h2>Get your evenings back.</h2>
           <p>Try Notera free on your next 50 visits — no card, no commitment.</p>
-          <a className="btn btn-lg" href={appUrl}>Start free — no card ↗</a>
+          <a className="btn btn-lg" href={loginUrl}>Start free — no card ↗</a>
         </div></div>
 
         {/* FOOTER */}

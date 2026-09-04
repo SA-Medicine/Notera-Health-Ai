@@ -253,3 +253,24 @@ code { background: var(--line-soft); padding: 1px 6px; border-radius: 5px; font-
 .logs-tabs button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 .logs-pre { background: #0d1524; color: #cdd9ea; border-radius: 10px; padding: 16px 18px; font: 12.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
 .logs-timings { margin-top: 4px; }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/*  Auth polish — unified Notera brand, elevation, entrance                     */
+/* ══════════════════════════════════════════════════════════════════════════ */
+.auth-brand {
+  background:
+    radial-gradient(720px 420px at 18% 8%, rgba(109,94,252,.55), transparent 60%),
+    radial-gradient(520px 320px at 90% 100%, rgba(59,167,255,.4), transparent 60%),
+    linear-gradient(150deg, #2c2596, #6d5efc 55%, #3ba7ff) !important;
+}
+.auth-brand .bmark i { background: linear-gradient(135deg, #6d5efc, #3ba7ff) !important; }
+.auth-brand h2 { font-weight: 800; }
+.auth-pane { background:
+  radial-gradient(600px 300px at 100% 0%, rgba(109,94,252,.06), transparent 60%), var(--bg); }
+.auth-card { animation: notera-auth-in .55s cubic-bezier(.22,1,.36,1) both; }
+@keyframes notera-auth-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+/* Clear keyboard focus on auth controls */
+.auth button:focus-visible, .auth a:focus-visible, .auth input:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) { .auth-card { animation: none; } }

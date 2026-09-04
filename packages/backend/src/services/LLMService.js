@@ -186,6 +186,12 @@ export class LLMService {
           }
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
             lastErr = new Error(`Gemini API ${response.status} (retrying)`);
+            // Exponential backoff with jitter — a 429 (RESOURCE_EXHAUSTED) or 5xx means the
+            // endpoint is overloaded/throttled; retrying INSTANTLY just hammers it and makes
+            // the throttle worse. Wait 1s, 2s, 4s… (capped 10s) so quota has time to recover.
+            const wait = Math.min(10000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 400);
+            console.warn(`[LLMService] ${response.status} on ${this._agent || 'llm'} — backing off ${wait}ms before retry ${attempt + 1}/${retries}`);
+            await new Promise((r) => setTimeout(r, wait));
             continue;
           }
           throw new Error(`Gemini API Error ${response.status}: ${JSON.stringify(errorData)}`);
