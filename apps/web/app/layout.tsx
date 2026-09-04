@@ -22,7 +22,13 @@ export const metadata: Metadata = {
   applicationName: 'Notera',
   authors: [{ name: 'Notera' }],
   alternates: { canonical: '/' },
-  // Favicon / apple-icon come from the Next file convention: app/icon.png, app/apple-icon.png, app/favicon.ico
+  // Icons served as STATIC files from /public (NOT the app/icon.png convention, which
+  // generates image route handlers that @cloudflare/next-on-pages rejects for edge runtime).
+  icons: {
+    icon: [{ url: '/favicon.ico', sizes: 'any' }, { url: '/icon.png', type: 'image/png' }],
+    apple: [{ url: '/apple-icon.png' }],
+    shortcut: ['/favicon.ico'],
+  },
   openGraph: {
     type: 'website',
     siteName: 'Notera',
