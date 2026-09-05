@@ -103,7 +103,7 @@ export function mountOps(app, requireAuthMw) {
                 round(avg(r.duration_ms)) avg_ms,
                 max(r.created_at) last_active
          FROM ops.pipeline_runs r
-         LEFT JOIN auth.users u ON u.id = r.clinician_id
+         LEFT JOIN auth.users u ON u.id::text = r.clinician_id
          WHERE r.created_at > now() - interval '${i}'
          GROUP BY r.clinician_id, u.email
          ORDER BY total_tokens DESC LIMIT ${lim(req.query.limit)}`);

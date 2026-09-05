@@ -45,8 +45,14 @@ export async function costFor(model, promptTokens = 0, outputTokens = 0) {
 
 // ── schema bootstrap (idempotent; safe on a running DB) ──────────────────────
 let _schemaReady = false;
+let _schemaPromise = null;   // serialize concurrent callers (startup + route mount race)
 export async function ensureOpsSchema() {
   if (_schemaReady || !ENABLED()) return;
+  if (_schemaPromise) return _schemaPromise;   // in-flight → await the same one
+  _schemaPromise = _doEnsureOpsSchema().finally(() => { _schemaPromise = null; });
+  return _schemaPromise;
+}
+async function _doEnsureOpsSchema() {
   const ddl = `
     CREATE SCHEMA IF NOT EXISTS ops;
     CREATE TABLE IF NOT EXISTS ops.pipeline_runs (
