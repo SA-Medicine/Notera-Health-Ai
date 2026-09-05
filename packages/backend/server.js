@@ -18,6 +18,8 @@ import { store, audit } from './src/firestore/store.js';
 import { mountProxy } from './src/proxy.js';
 import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
 import { mountLibrary } from './src/library/libraryRoutes.js';
+import { mountOps } from './src/ops/opsRoutes.js';
+import { ensureOpsSchema, checkAlerts, recordAudioEvent } from './src/ops/opsLog.js';
 import path from 'node:path';
 
 const app = express();
@@ -53,6 +55,9 @@ mountAuth(app, DATA_DIR);
 // Per-user Library: durable history (consults + transcripts + notes) and audio
 // storage/download. Each route is gated by a valid session and scoped to the user.
 mountLibrary(app, requireAuth(DATA_DIR));
+
+// Monitoring API (/api/ops/*): admin-only reads + authenticated intake. Backs monitor.aitoolsfordoctor.com.
+mountOps(app, requireAuth(DATA_DIR));
 
 // ── Admin / Testing-Lab API ──────────────────────────────────────────────────
 // Dispatched BEFORE express.json so the handler owns the request stream (SSE,
@@ -92,10 +97,18 @@ app.use((req, res, next) => {
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'notera-backend', version: config.pipelineVersion }));
 
+// Audio safety: an empty/whitespace transcript means the mic caught no speech (left on by
+// mistake, etc.). NEVER run the LLM pipeline on it — that's the real cost saver. Log the event.
+const isBlankTranscript = (t) => typeof t === 'string' && t.trim().length < 2;
+
 app.post('/api/consults', async (req, res) => {
   try {
     const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
     if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
+    if (!audioUri && isBlankTranscript(transcript)) {
+      recordAudioEvent({ clinicianId, reason: 'empty_transcript', meta: { via: 'sync' } });
+      return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
+    }
     const result = await generateNote(
       { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt },
       { deidMode, includeLogs: !!req.body?.includeLogs }
@@ -118,6 +131,10 @@ setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now
 app.post('/api/consults/async', async (req, res) => {
   const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
   if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
+  if (!audioUri && isBlankTranscript(transcript)) {
+    recordAudioEvent({ clinicianId, reason: 'empty_transcript', meta: { via: 'async' } });
+    return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
+  }
   const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   _jobs.set(jobId, { status: 'pending', createdAt: Date.now() });
   res.status(202).json({ jobId });   // respond instantly
@@ -186,6 +203,13 @@ const server = app.listen(port, () => {
     import('./src/asr/localWhisper.js').then(({ preloadLocalWhisper }) => preloadLocalWhisper()
       .then((m) => console.log(`[asr:whisper] ready model=${m.model} device=${m.device}/${m.compute_type} load=${m.load_ms}ms`))
       .catch((e) => console.error(`[asr:whisper] startup failed: ${e.message}`))).catch(() => {});
+  }
+  // Monitoring: ensure the ops.* schema exists, then run the alert checker on an interval.
+  ensureOpsSchema().catch(() => {});
+  if (process.env.OPS_ALERTS === '1') {
+    const every = Number(process.env.OPS_ALERT_INTERVAL_MS) || 5 * 60_000;
+    setInterval(() => checkAlerts().catch(() => {}), every).unref?.();
+    console.log(`[ops] alerting ON — checking every ${Math.round(every / 1000)}s, email → ${process.env.OPS_ALERT_EMAIL || process.env.SUPPORT_EMAIL || process.env.SMTP_USER || '(unset)'}`);
   }
 });
 server.requestTimeout = 0;

@@ -311,6 +311,13 @@ export function mountProxy(app) {
     } catch (err) {
       const provider = localWhisperEnabled() ? 'whisper-local' : 'google-speech';
       console.error(`[proxy ${id}] asr(${provider}) error: ${err.message}`);
+      // Monitoring: log ASR failures to the ops error log (fire-and-forget).
+      try {
+        const code = /timed out|timeout/i.test(err.message) ? 'ASR_TIMEOUT' : 'ASR_ERROR';
+        import('./ops/opsLog.js').then(({ recordError }) => recordError({
+          source: 'asr', level: 'error', code, message: err.message, context: { provider, requestId: id },
+        })).catch(() => {});
+      } catch { /* never break */ }
       const hint = /too long|sync input|exceeds|duration/i.test(err.message)
         ? 'Recording too long for instant transcription (≈1 min max). Record in shorter segments, or ask to enable long-audio transcription.'
         : undefined;

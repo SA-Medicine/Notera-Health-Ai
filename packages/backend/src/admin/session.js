@@ -62,7 +62,9 @@ export function makeSession(dataDir) {
     },
     /** Should the cookie be refreshed (sliding expiry)? True once past the halfway mark. */
     needsRefresh(payload) { return !!payload && typeof payload.exp === 'number' && (payload.exp - Date.now()) < (TTL_DAYS * 86400000) / 2; },
-    cookie(tok, maxAgeSec = TTL_DAYS * 86400) { return `${COOKIE}=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`; },
-    clearCookie() { return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`; },
+    // COOKIE_DOMAIN (e.g. ".aitoolsfordoctor.com") shares the session across subdomains
+    // (app. + monitor.). Unset = host-only cookie (current behaviour).
+    cookie(tok, maxAgeSec = TTL_DAYS * 86400) { const d = process.env.COOKIE_DOMAIN ? `; Domain=${process.env.COOKIE_DOMAIN}` : ''; return `${COOKIE}=${tok}; Path=/; HttpOnly; SameSite=Lax${d}; Max-Age=${maxAgeSec}`; },
+    clearCookie() { const d = process.env.COOKIE_DOMAIN ? `; Domain=${process.env.COOKIE_DOMAIN}` : ''; return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax${d}; Max-Age=0`; },
   };
 }

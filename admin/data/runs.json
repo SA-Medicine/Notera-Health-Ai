@@ -1,5 +1,48 @@
 [
   {
+    "id": "2026-09-04T17-15-26-559Z-3eaa",
+    "command": "node eval/run_eval.mjs am",
+    "fixtures": [
+      "am"
+    ],
+    "status": "running",
+    "startedAt": "2026-09-04T17:15:26.559Z",
+    "finishedAt": null,
+    "exitCode": null,
+    "resultDir": null,
+    "pid": 29564
+  },
+  {
+    "id": "2026-09-04T14-38-06-563Z-b5ef",
+    "command": "node eval/run_eval.mjs am",
+    "fixtures": [
+      "am"
+    ],
+    "status": "passed",
+    "startedAt": "2026-09-04T14:38:06.563Z",
+    "finishedAt": "2026-09-04T14:43:06.914Z",
+    "exitCode": 0,
+    "resultDir": "run_2026-09-04_14-38-06",
+    "pid": 26544
+  },
+  {
+    "id": "2026-09-04T14-19-45-472Z-f78d",
+    "command": "node eval/run_eval.mjs l-ankle-r-tibia-fx jk gp-2 ae-2 kh",
+    "fixtures": [
+      "l-ankle-r-tibia-fx",
+      "jk",
+      "gp-2",
+      "ae-2",
+      "kh"
+    ],
+    "status": "passed",
+    "startedAt": "2026-09-04T14:19:45.472Z",
+    "finishedAt": "2026-09-04T14:20:55.375Z",
+    "exitCode": null,
+    "resultDir": "run_2026-09-04_14-19-45",
+    "pid": 26780
+  },
+  {
     "id": "2026-09-01T08-33-56-189Z-91a1",
     "command": "node eval/run_eval.mjs fatigue-thyroid",
     "fixtures": [

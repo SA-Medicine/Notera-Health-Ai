@@ -7,6 +7,7 @@ import Onboarding from './Onboarding';
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
 const SEGMENT_MS = 20_000;   // 20s chunks: well under Google's 60s sync cap even with WebM/Opus
+const EMPTY_SEG_LIMIT = 6;   // audio safety: 6 consecutive empty 20s chunks (~2 min) → auto-stop
                              // duration over-measurement, so fast sync recognize always works.
 
 const SPECIALTIES = [
@@ -94,6 +95,8 @@ export default function Scribe() {
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
+  const emptySegs = useRef(0);          // consecutive segments with no transcript
+  const silenceAbort = useRef(false);   // true once the silence watchdog has fired this session
   const fullRecRef = useRef<MediaRecorder | null>(null);
   const segChunks = useRef<Blob[]>([]);
   const fullChunks = useRef<Blob[]>([]);
@@ -134,6 +137,21 @@ export default function Scribe() {
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
+  // Report uncaught frontend errors to the ops log (no PHI — message/stack/route only).
+  useEffect(() => {
+    const post = (code: string, message: string, stack?: string) => {
+      fetch(`${API}/api/ops/client-error`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, message: String(message).slice(0, 500), stack: stack?.slice(0, 4000), route: location.pathname }),
+      }).catch(() => {});
+    };
+    const onErr = (e: ErrorEvent) => post('CLIENT_JS', e.message, e.error?.stack);
+    const onRej = (e: PromiseRejectionEvent) => post('CLIENT_UNHANDLED', String(e.reason?.message || e.reason), e.reason?.stack);
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onRej);
+    return () => { window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onRej); };
+  }, []);
+
   useEffect(() => {
     fetch(`${API}/api/auth/me`, { credentials: 'include' })
       .then((r) => r.ok ? readJson(r) : null)
@@ -171,6 +189,25 @@ export default function Scribe() {
     setTx((prev) => (prev ? prev.trim() + ' ' : '') + text);
   }
 
+  function abortForSilence() {
+    if (silenceAbort.current) return;                 // fire once
+    silenceAbort.current = true;
+    stopping.current = true;
+    emptySegs.current = 0;
+    if (segTimer.current) clearTimeout(segTimer.current);
+    try { segRecRef.current?.stop(); } catch { /* */ }
+    try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+    streamRef.current = null;
+    fullChunks.current = []; fullBlob.current = null;  // discard the silent audio — nothing saved
+    setLines([]); setTx(''); setElapsed(0); setPhase('idle');
+    flash('Recording stopped — no speech detected for about 2 minutes. Nothing was saved.', 'error');
+    fetch(`${API}/api/ops/audio-event`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consultId, reason: 'silence_timeout', meta: { emptySegments: EMPTY_SEG_LIMIT } }),
+    }).catch(() => {});
+  }
+
   function startNextSegment() {
     const stream = streamRef.current;
     if (!stream || stopping.current) return;
@@ -191,18 +228,26 @@ export default function Scribe() {
     };
 
     rec.onstop = async () => {
+      let gotText = false;
       if (chunks.length > 0) {
         const blob = new Blob(chunks, { type: mime });
         if (blob.size >= 1000) {
           try {
             const text = await transcribeBlob(blob);
-            if (text) pushLine(text);
+            if (text) { gotText = true; pushLine(text); }
           } catch (e) {
             console.warn('ASR chunk error:', (e as Error).message);
           }
         }
       }
-      if (stopping.current) {
+      // Audio safety: no max length, but if the mic catches no speech for ~2 min (6 empty
+      // 20s chunks) — started by mistake / left on — auto-stop, discard, and don't waste ASR/LLM.
+      if (gotText) emptySegs.current = 0;
+      else if (!stopping.current) {
+        emptySegs.current += 1;
+        if (emptySegs.current >= EMPTY_SEG_LIMIT) { abortForSilence(); return; }
+      }
+      if (stopping.current && !silenceAbort.current) {
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
@@ -237,6 +282,7 @@ export default function Scribe() {
       return;
     }
     setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
+    emptySegs.current = 0; silenceAbort.current = false;   // reset audio watchdog
     setPanel('transcript');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

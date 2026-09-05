@@ -41,6 +41,7 @@ export async function generateNote(input, opts = {}) {
   const skipDeid = opts.skipDeid ?? (process.env.LLM_BACKEND === 'vertex');
 
   const consultId = input.consultId || `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const _runStart = Date.now();
   const llm = await createGeminiService();
 
   // 1. INGEST ------------------------------------------------------------------
@@ -330,6 +331,18 @@ export async function generateNote(input, opts = {}) {
       .map(([a, r]) => `${a}=${r.total}`).join(' ');
     console.log(`[tokens] === run total: ${tokenUsage.totals.total} tokens (prompt=${tokenUsage.totals.prompt} output=${tokenUsage.totals.output}, ${tokenUsage.totals.calls} calls) — per agent: ${rows}`);
   }
+
+  // Monitoring: one pipeline-run row (tokens, cost, timings) — fire-and-forget, never blocks.
+  try {
+    const { recordRun } = await import('../ops/opsLog.js');
+    recordRun({
+      consultId, clinicianId, model: llm?.model || engine.llmService?.model,
+      status: gr.status === 'INVALID' ? 'partial' : 'ok',
+      durationMs: Date.now() - _runStart,
+      transcriptChars: transcript.length, noteChars: (renderedNote || '').length,
+      tokenUsage, timings: pipeline.logs?.timings || null,
+    });
+  } catch { /* monitoring must never break note generation */ }
 
   onProgress({ status: 'ready', consultId, draftId });
   return {

@@ -155,6 +155,7 @@ export class LLMService {
 
     let headers = usingProxy ? { 'Content-Type': 'application/json' } : await this._authHeaders();
     let lastErr;
+    try {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -237,6 +238,19 @@ export class LLMService {
       } finally { clearTimeout(timer); }
     }
     throw lastErr || new Error('Gemini request failed');
+    } catch (err) {
+      // Monitoring: log the terminal API error to the ops error log (fire-and-forget), then rethrow.
+      try {
+        const m = String(err?.message || err);
+        const code = /\b(\d{3})\b/.test(m) ? `GEMINI_${m.match(/\b(\d{3})\b/)[1]}`
+          : (/timed out/i.test(m) ? 'GEMINI_TIMEOUT' : 'GEMINI_ERROR');
+        import('../ops/opsLog.js').then(({ recordError }) => recordError({
+          source: 'pipeline', agent: this._agent, level: 'error', code, message: m,
+          context: { model: this.model, backend: this.backend },
+        })).catch(() => {});
+      } catch { /* never break generation */ }
+      throw err;
+    }
   }
 
   async* generateContentStream(systemInstruction, userPromptOrMessages) {
