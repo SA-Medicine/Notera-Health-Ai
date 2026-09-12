@@ -24,6 +24,8 @@ import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter } from '../validation/upgrades.js';
 import { noteToMarkdown } from './renderMarkdown.js';
 import { condenseNote } from './condenseNote.js';
+import { dedupeNote } from './dedupeNote.js';
+import { semanticDedupeNote } from './semanticDedupe.js';
 import { tightenNote } from './tightenNote.js';
 import { store, audit } from '../firestore/store.js';
 
@@ -305,6 +307,35 @@ export async function generateNote(input, opts = {}) {
       } finally { if (timer) clearTimeout(timer); }
     } catch (e) { console.warn('[hallucination-remover] skipped:', e.message); }
   }
+
+  // Re-run the placement reconciler. The first pass (5c) ran before the tightener and
+  // hallucination remover, both of which rewrite whole sections — so a lab value can land
+  // back in Subjective while Objective still carries it, which reads as a duplicate (and
+  // sometimes a contradiction). Moving/removing only, so re-running is safe.
+  try { note = reconcileNote(note); } catch (e) { console.warn('[generateNote] reconcile (final) skipped:', e.message); }
+
+  // FINAL NO-DUPLICATES PASS. Every agent above can reintroduce a repeat — the story
+  // engine emits two A&P problems for one condition, the tightener restates an
+  // interpretation under a second problem, the hallucination remover deletes one copy
+  // of a pair but not the other. So de-duplication runs LAST, right before the render.
+  //
+  // Two stages, semantic first: the LLM proposes groups of lines that mean the same
+  // thing (catching paraphrases no word-overlap metric can see) and the deterministic
+  // pass then merges duplicate problems and removes the rest. Every proposed merge is
+  // vetted against conflicting numbers / drugs / meaning markers, so neither stage can
+  // merge two clinically different statements. Both fail open.
+  if (process.env.SEMANTIC_DEDUPE !== '0' && llm) {
+    try {
+      const _st = Date.now();
+      const budget = Number(process.env.SEMANTIC_DEDUPE_TIMEOUT_MS) || 25000;
+      await Promise.race([
+        semanticDedupeNote(note, { llm, log: (l) => console.log(l), timeoutMs: budget }),
+        new Promise((resolve) => setTimeout(() => { console.warn(`[dedupe:semantic] skipped — exceeded ${budget}ms`); resolve(null); }, budget + 2000)),
+      ]);
+      console.log(`⏱️ [Timing] dedupe:semantic: ${Date.now() - _st}ms`);
+    } catch (e) { console.warn('[dedupe:semantic] skipped:', e.message); }
+  }
+  try { dedupeNote(note, { log: (l) => console.log(l) }); } catch (e) { console.warn('[dedupe] skipped:', e.message); }
 
   // Deterministic Markdown render of the FINAL structured note in the fixed Heidi/gold
   // schema (section headings + one bullet per sentence + numbered A&P). This is what the UI
