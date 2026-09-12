@@ -27,3 +27,17 @@ for (const file of candidates) {
     }
   } catch { /* file absent — fine */ }
 }
+
+// Google's auth library resolves GOOGLE_APPLICATION_CREDENTIALS against the PROCESS CWD,
+// but the backend is started from packages/backend (npm workspace script) while the .env
+// that defines it sits at the repo root. A relative path would therefore silently fail to
+// resolve and every Speech-to-Text call would die on credentials. Anchor it to the repo
+// root instead, so "./secrets/sa-key.json" means the same thing wherever node was started.
+{
+  const cred = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (cred && !path.isAbsolute(cred)) {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const resolved = path.resolve(repoRoot, cred);
+    if (fs.existsSync(resolved)) process.env.GOOGLE_APPLICATION_CREDENTIALS = resolved;
+  }
+}

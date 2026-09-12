@@ -199,11 +199,31 @@ const server = app.listen(port, () => {
     if (rxnormEnabled()) initRxNorm();
     else console.log('[rxnorm] medication verification is OFF (set RXNORM_VERIFY=1 to enable).');
   }).catch(() => {});
-  if ((process.env.ASR_PROVIDER || 'google').toLowerCase() === 'whisper_local') {
-    import('./src/asr/localWhisper.js').then(({ preloadLocalWhisper }) => preloadLocalWhisper()
-      .then((m) => console.log(`[asr:whisper] ready model=${m.model} device=${m.device}/${m.compute_type} load=${m.load_ms}ms`))
-      .catch((e) => console.error(`[asr:whisper] startup failed: ${e.message}`))).catch(() => {});
-  }
+  // ASR: Google Speech-to-Text. Audio longer than the API's ~60s synchronous limit is
+  // decoded to PCM and split into windows server-side, so recordings of any length work.
+  Promise.all([
+    import('./src/asr/googleSpeech.js'),
+    import('./src/asr/audio.js'),
+  ]).then(async ([{ billableModel }, { ffmpegAvailable }]) => {
+    const raw = process.env.ASR_MODEL || 'latest_long';
+    const billed = billableModel(raw);
+    console.log(`[asr] Google Speech-to-Text — model=${raw}${billed !== raw ? ` → billed as ${billed} (cost guard)` : ''} `
+      + `lang=${process.env.ASR_LANGUAGE || 'en-US'} window=${process.env.ASR_WINDOW_SECONDS || 50}s`);
+    // ffmpeg is REQUIRED for long recordings: without it the audio can't be decoded to
+    // PCM, so it can't be split into windows and anything over ~60s fails again.
+    const ff = await ffmpegAvailable();
+    if (ff) console.log(`[asr] ✓ ${ff} — long recordings will be windowed`);
+    else console.error('[asr] ✗ ffmpeg NOT FOUND on PATH — recordings longer than ~60s WILL FAIL. Install ffmpeg.');
+    // Credentials for Speech-to-Text. Without them every ASR request fails at the call.
+    const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (credPath) {
+      const { existsSync } = await import('node:fs');
+      if (existsSync(credPath)) console.log(`[asr] ✓ GCP credentials: ${credPath}`);
+      else console.error(`[asr] ✗ GOOGLE_APPLICATION_CREDENTIALS points at a missing file: ${credPath}`);
+    } else {
+      console.warn('[asr] GOOGLE_APPLICATION_CREDENTIALS is unset — relying on ambient GCP credentials (metadata server / gcloud login).');
+    }
+  }).catch((e) => console.warn(`[asr] startup check skipped: ${e.message}`));
   // Monitoring: ensure the ops.* schema exists, then run the alert checker on an interval.
   ensureOpsSchema().catch(() => {});
   if (process.env.OPS_ALERTS === '1') {

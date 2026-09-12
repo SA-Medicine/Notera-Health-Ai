@@ -7,8 +7,22 @@ import Onboarding from './Onboarding';
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
 const SEGMENT_MS = 20_000;   // 20s chunks: well under Google's 60s sync cap even with WebM/Opus
-const EMPTY_SEG_LIMIT = 6;   // audio safety: 6 consecutive empty 20s chunks (~2 min) → auto-stop
-                             // duration over-measurement, so fast sync recognize always works.
+const EMPTY_SEG_LIMIT = 9;   // audio safety: 9 consecutive SILENT 20s chunks (~3 min). Only counts
+                             // chunks that transcribed successfully with no speech — a failed
+                             // request is a failure, not silence — and only discards the session
+                             // when no speech was ever captured (mic left on by mistake).
+const CHUNK_RETRIES = 3;                       // per-segment ASR retries before giving up on it
+const CHUNK_RETRY_MS = [1_000, 4_000, 10_000]; // backoff between those retries
+const MAX_INFLIGHT = 2;                        // concurrent ASR requests (the backend queues too)
+
+// One recorded 20s window and what came back for it.
+type Segment = {
+  status: 'pending' | 'done' | 'failed';
+  text: string;
+  offsetMs: number;     // start offset within the session, for the transcript timestamp
+  attempts: number;
+  blob: Blob | null;    // retained only while the segment still needs transcribing
+};
 
 const SPECIALTIES = [
   'general_primary_care', 'musculoskeletal', 'diabetes', 'hypertension', 'mental_health',
@@ -92,18 +106,28 @@ export default function Scribe() {
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
   const [me, setMe] = useState<{ fullName: string; email: string; initials: string } | null>(null);
   const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
+  const [pendingSegs, setPendingSegs] = useState(0);       // segments still being transcribed
+  const [failedSegs, setFailedSegs] = useState(0);         // segments that never transcribed
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
-  const emptySegs = useRef(0);          // consecutive segments with no transcript
+  const emptySegs = useRef(0);          // consecutive SILENT segments (failures don't count)
   const silenceAbort = useRef(false);   // true once the silence watchdog has fired this session
   const fullRecRef = useRef<MediaRecorder | null>(null);
-  const segChunks = useRef<Blob[]>([]);
   const fullChunks = useRef<Blob[]>([]);
   const fullBlob = useRef<Blob | null>(null);
+  const fullMime = useRef('audio/webm');
+  const segMime = useRef('audio/webm');
+  const segments = useRef<Map<number, Segment>>(new Map());   // index → segment (ordered transcript)
+  const segSeq = useRef(0);             // next segment index
+  const segQueue = useRef<number[]>([]);// indices waiting for an ASR slot
+  const inFlight = useRef(0);           // ASR requests currently open
+  const captureLive = useRef(false);    // a segment recorder is still open
+  const finishing = useRef(false);      // maybeFinish() already ran for this session
   const stopping = useRef(false);
   const startTs = useRef(0);
   const segTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stallTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transcriptRef = useRef('');
   const noteBodyRef = useRef<HTMLDivElement | null>(null);
@@ -175,6 +199,12 @@ export default function Scribe() {
     window.location.href = '/login';
   }
 
+  // ── Segment transcription ──────────────────────────────────────────────────
+  // Each 20s segment is transcribed on its own, but results arrive out of order:
+  // under load one chunk can take far longer than the next, and the old code simply
+  // appended whatever finished first, scrambling the transcript the note is written
+  // from. Segments are therefore keyed by their INDEX and the transcript is always
+  // rendered in index order.
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
     const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob });
@@ -183,10 +213,84 @@ export default function Scribe() {
     return (d.text || d.transcript || '').trim();
   }
 
-  function pushLine(text: string) {
-    const secs = (Date.now() - startTs.current) / 1000;
-    setLines((prev) => [...prev, { t: mmss(secs), text }]);
-    setTx((prev) => (prev ? prev.trim() + ' ' : '') + text);
+  // Re-render the transcript from the segment map, ordered by segment index.
+  function renderSegments() {
+    const ordered = [...segments.current.entries()].sort((a, b) => a[0] - b[0]);
+    const rows: Line[] = [];
+    for (const [, seg] of ordered) {
+      if (seg.status !== 'done' || !seg.text) continue;
+      rows.push({ t: mmss(seg.offsetMs / 1000), text: seg.text });
+    }
+    setLines(rows);
+    setTx(rows.map((r) => r.text).join(' ').replace(/\s+/g, ' ').trim());
+    setPendingSegs([...segments.current.values()].filter((s) => s.status === 'pending').length);
+    setFailedSegs([...segments.current.values()].filter((s) => s.status === 'failed').length);
+  }
+
+  // Transcribe one segment, retrying transient failures. A failure is NOT silence:
+  // the old code counted every error toward the silence watchdog, so a run of server
+  // timeouts on a long consult looked like an empty room and wiped the whole session.
+  async function transcribeSegment(index: number) {
+    const seg = segments.current.get(index);
+    if (!seg || !seg.blob) return;
+    const blob = seg.blob;
+    for (let attempt = 0; attempt <= CHUNK_RETRIES; attempt++) {
+      try {
+        const text = await transcribeBlob(blob);
+        seg.status = 'done';
+        seg.text = text;
+        seg.blob = null;                      // free the audio once it is transcribed
+        if (text) emptySegs.current = 0;
+        else countEmptySegment();
+        renderSegments();
+        return;
+      } catch (e) {
+        seg.attempts = attempt + 1;
+        if (attempt === CHUNK_RETRIES) {
+          // Keep the segment marked failed (and its audio) so the post-recording
+          // full-audio pass can recover what it said. Never surface this as a hard
+          // error and never discard the session over it.
+          seg.status = 'failed';
+          renderSegments();
+          console.warn(`ASR segment ${index} failed after ${attempt + 1} attempts:`, (e as Error).message);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, CHUNK_RETRY_MS[attempt] ?? 5000));
+      }
+    }
+  }
+
+  // Client-side concurrency limit. The backend queues ASR work, so firing every
+  // segment at once only deepens that queue and pushes requests past their deadline.
+  function enqueueSegment(index: number) {
+    segQueue.current.push(index);
+    drainSegQueue();
+  }
+  function drainSegQueue() {
+    while (inFlight.current < MAX_INFLIGHT && segQueue.current.length) {
+      const index = segQueue.current.shift()!;
+      inFlight.current += 1;
+      transcribeSegment(index).finally(() => {
+        inFlight.current -= 1;
+        drainSegQueue();
+        maybeFinish();
+      });
+    }
+  }
+
+  // A segment that transcribed successfully but contained no speech. Only these count
+  // toward the silence watchdog.
+  function countEmptySegment() {
+    if (stopping.current) return;
+    emptySegs.current += 1;
+    if (emptySegs.current < EMPTY_SEG_LIMIT) return;
+    // Mic left on by mistake (nothing captured at all) → stop and discard, which is
+    // the whole point of the watchdog. If real speech WAS captured, the quiet stretch
+    // is part of the consult (a long examination, a phone call) — keep recording.
+    const hasSpeech = [...segments.current.values()].some((s) => s.status === 'done' && s.text);
+    if (!hasSpeech) { abortForSilence(); return; }
+    emptySegs.current = 0;
+    flash('No speech detected for a few minutes — still recording.', 'error');
   }
 
   function abortForSilence() {
@@ -194,95 +298,174 @@ export default function Scribe() {
     silenceAbort.current = true;
     stopping.current = true;
     emptySegs.current = 0;
-    if (segTimer.current) clearTimeout(segTimer.current);
-    try { segRecRef.current?.stop(); } catch { /* */ }
-    try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
-    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
-    streamRef.current = null;
+    teardownCapture();
+    segments.current.clear();
+    segQueue.current = [];
     fullChunks.current = []; fullBlob.current = null;  // discard the silent audio — nothing saved
-    setLines([]); setTx(''); setElapsed(0); setPhase('idle');
-    flash('Recording stopped — no speech detected for about 2 minutes. Nothing was saved.', 'error');
+    setLines([]); setTx(''); setElapsed(0); setPendingSegs(0); setFailedSegs(0); setPhase('idle');
+    flash('Recording stopped — no speech detected for about 3 minutes. Nothing was saved.', 'error');
     fetch(`${API}/api/ops/audio-event`, {
       method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ consultId, reason: 'silence_timeout', meta: { emptySegments: EMPTY_SEG_LIMIT } }),
     }).catch(() => {});
   }
 
+  function teardownCapture() {
+    if (segTimer.current) clearTimeout(segTimer.current);
+    segTimer.current = null;
+    if (stallTimer.current) clearInterval(stallTimer.current);
+    stallTimer.current = null;
+    try { segRecRef.current?.stop(); } catch { /* */ }
+    segRecRef.current = null;
+    try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+    streamRef.current = null;
+  }
+
+  // Called whenever a segment settles. Once the user has stopped AND every segment has
+  // settled, recover any failed segments from the full recording and finish.
+  async function maybeFinish() {
+    if (!stopping.current || silenceAbort.current || finishing.current) return;
+    if (segQueue.current.length || inFlight.current > 0) return;
+    if (captureLive.current) return;                  // the final segment is still closing
+    finishing.current = true;
+    if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: fullMime.current });
+    await recoverFailedSegments();
+    setPhase('done');
+  }
+
+  // SAFETY NET for long consults: if any segment never transcribed, send the WHOLE
+  // recording once and use it when it recovers more than the per-segment transcript did.
+  // This is what guarantees a 5-minute visit still produces a complete transcript even
+  // when the ASR backend was briefly saturated.
+  async function recoverFailedSegments() {
+    const failed = [...segments.current.values()].filter((s) => s.status === 'failed');
+    if (!failed.length || !fullBlob.current?.size) return;
+    setPhase('transcribing');
+    flash(`Recovering ${failed.length} segment${failed.length > 1 ? 's' : ''} from the full recording…`);
+    try {
+      const whole = await transcribeBlob(fullBlob.current);
+      const partial = transcriptRef.current.trim();
+      if (whole && whole.length > partial.length) {
+        // Spread the recovered text back over sentences so the transcript keeps its
+        // readable, roughly-timestamped shape instead of collapsing to one block. The
+        // offsets are evenly spaced across the known recording length — approximate, and
+        // labelled as such, but far more usable than a single 00:00 wall of text.
+        const sentences = whole.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+        const totalMs = Math.max(1, Date.now() - startTs.current);
+        segments.current.clear();
+        sentences.forEach((text, i) => {
+          segments.current.set(i, {
+            status: 'done', text, attempts: 1, blob: null,
+            offsetMs: Math.round((i / Math.max(1, sentences.length)) * totalMs),
+          });
+        });
+        renderSegments();
+        flash('Transcript recovered from the full recording (timings approximate)');
+        return;
+      }
+      flash(`${failed.length} segment${failed.length > 1 ? 's' : ''} could not be transcribed — review the transcript before creating the note.`, 'error');
+    } catch (e) {
+      console.warn('full-audio recovery failed:', (e as Error).message);
+      flash(`${failed.length} segment${failed.length > 1 ? 's' : ''} could not be transcribed — review the transcript before creating the note.`, 'error');
+    }
+  }
+
+  // Start a MediaRecorder for the next segment. Rotation used to fail silently: if
+  // constructing the recorder threw, the function simply returned, so capture ended
+  // while the UI kept showing "Recording…" and counting up.
   function startNextSegment() {
     const stream = streamRef.current;
     if (!stream || stopping.current) return;
 
+    const index = segSeq.current++;
+    const offsetMs = Date.now() - startTs.current;
     const chunks: BlobPart[] = [];
-    const mime = segRecRef.current?.mimeType || 'audio/webm';
-    let rec: MediaRecorder;
-    try {
-      rec = new MediaRecorder(stream, { mimeType: mime });
-    } catch {
+    const preferred = segRecRef.current?.mimeType || segMime.current;
+    let rec: MediaRecorder | null = null;
+    for (const mime of [preferred, 'audio/webm', '']) {
+      try { rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); break; }
+      catch { /* try the next option */ }
+    }
+    if (!rec) {
+      segSeq.current -= 1;
+      setError('Recording stopped unexpectedly — the audio device rejected a new segment. Your transcript so far is kept.');
+      stopRecording();
+      return;
+    }
+    segRecRef.current = rec;
+    segMime.current = rec.mimeType || 'audio/webm';
+    captureLive.current = true;
+    segments.current.set(index, { status: 'pending', text: '', offsetMs, attempts: 0, blob: null });
+
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+
+    rec.onstop = () => {
+      const seg = segments.current.get(index);
+      const blob = chunks.length ? new Blob(chunks, { type: segMime.current }) : null;
+      if (!seg) return;
+      if (!blob || blob.size < 1000) {
+        // Nothing usable in this window — treat it as genuine silence, not a failure.
+        seg.status = 'done';
+        seg.text = '';
+        countEmptySegment();
+        renderSegments();
+      } else {
+        seg.blob = blob;
+        enqueueSegment(index);
+      }
+      if (stopping.current && segRecRef.current === rec) {
+        captureLive.current = false;
+        maybeFinish();
+      }
+    };
+
+    try { rec.start(); } catch {
+      segments.current.delete(index);
+      captureLive.current = false;
+      setError('Recording stopped unexpectedly — the microphone became unavailable. Your transcript so far is kept.');
+      stopRecording();
       return;
     }
 
-    segRecRef.current = rec;
-
-    rec.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunks.push(e.data);
-    };
-
-    rec.onstop = async () => {
-      let gotText = false;
-      if (chunks.length > 0) {
-        const blob = new Blob(chunks, { type: mime });
-        if (blob.size >= 1000) {
-          try {
-            const text = await transcribeBlob(blob);
-            if (text) { gotText = true; pushLine(text); }
-          } catch (e) {
-            console.warn('ASR chunk error:', (e as Error).message);
-          }
-        }
-      }
-      // Audio safety: no max length, but if the mic catches no speech for ~2 min (6 empty
-      // 20s chunks) — started by mistake / left on — auto-stop, discard, and don't waste ASR/LLM.
-      if (gotText) emptySegs.current = 0;
-      else if (!stopping.current) {
-        emptySegs.current += 1;
-        if (emptySegs.current >= EMPTY_SEG_LIMIT) { abortForSilence(); return; }
-      }
-      if (stopping.current && !silenceAbort.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-        if (fullRecRef.current && fullRecRef.current.state !== 'inactive') {
-          await new Promise<void>((res) => {
-            fullRecRef.current!.onstop = () => res();
-            try { fullRecRef.current!.stop(); } catch { res(); }
-          });
-        }
-        if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: 'audio/webm' });
-        setPhase('done');
-      }
-    };
-
-    rec.start();
-
-    // Rotate after SEGMENT_MS (20s):
+    // Rotate after SEGMENT_MS: start the next recorder FIRST so there is no audio gap,
+    // then close this one so its window is transcribed exactly once.
     segTimer.current = setTimeout(() => {
-      if (!stopping.current) {
-        // Start next segment FIRST for 0ms recording gap
-        startNextSegment();
-        // Stop current recorder to finalize and transcribe this chunk once
-        try { rec.stop(); } catch { /* */ }
-      }
+      if (stopping.current) return;
+      startNextSegment();
+      try { rec!.stop(); } catch { /* */ }
     }, SEGMENT_MS);
   }
 
-  async function toggleRecord() {
-    if (phase === 'recording') {
-      stopping.current = true; setPhase('transcribing');
-      if (segTimer.current) clearTimeout(segTimer.current);
-      try { segRecRef.current?.stop(); } catch { /* */ }
-      return;
+  // Stop capture, keeping everything recorded so far. Pending segments keep
+  // transcribing; maybeFinish() moves to 'done' once they all settle.
+  function stopRecording() {
+    if (stopping.current) return;
+    stopping.current = true;
+    setPhase('transcribing');
+    if (segTimer.current) clearTimeout(segTimer.current);
+    segTimer.current = null;
+    if (stallTimer.current) clearInterval(stallTimer.current);
+    stallTimer.current = null;
+    const rec = segRecRef.current;
+    if (rec && rec.state !== 'inactive') {
+      try { rec.stop(); } catch { captureLive.current = false; }
+    } else {
+      captureLive.current = false;
     }
+    try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+    streamRef.current = null;
+    maybeFinish();
+  }
+
+  async function toggleRecord() {
+    if (phase === 'recording') { stopRecording(); return; }
     setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
-    emptySegs.current = 0; silenceAbort.current = false;   // reset audio watchdog
+    setPendingSegs(0); setFailedSegs(0);
+    emptySegs.current = 0; silenceAbort.current = false; finishing.current = false;
+    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
+    segMime.current = 'audio/webm';
     setPanel('transcript');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -290,10 +473,23 @@ export default function Scribe() {
       fullChunks.current = []; fullBlob.current = null;
       try {
         const fr = new MediaRecorder(stream); fullRecRef.current = fr;
+        fullMime.current = fr.mimeType || 'audio/webm';
         fr.ondataavailable = (e) => { if (e.data.size) fullChunks.current.push(e.data); };
         fr.start(1000);
       } catch { fullRecRef.current = null; }
-      setPhase('recording'); startNextSegment();
+      setPhase('recording');
+      startNextSegment();
+      // Capture-stall watchdog: if the segment recorder dies without firing onstop
+      // (device change, tab throttling, a driver hiccup), restart it instead of
+      // leaving the UI "recording" with nothing being captured.
+      stallTimer.current = setInterval(() => {
+        if (stopping.current) return;
+        const rec = segRecRef.current;
+        if (!rec || rec.state === 'inactive') {
+          console.warn('segment recorder stalled — restarting capture');
+          startNextSegment();
+        }
+      }, SEGMENT_MS);
     } catch { setError('Microphone unavailable — paste a transcript below instead.'); }
   }
 
@@ -318,13 +514,24 @@ export default function Scribe() {
   }
 
   async function createSOAP() {
-    if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
     // Guard: once a note is generated, the user must start a new session
     if (note) {
       setError('A note has already been created for this session. Start a new session to generate another.');
       setPanel('note');
       return;
     }
+    // On a long consult the last segments can still be transcribing when the clinician
+    // hits Create. Generating now would write the note from a truncated transcript, so
+    // wait for them (up to 4 minutes) rather than silently losing the tail.
+    if (segQueue.current.length || inFlight.current > 0 || captureLive.current) {
+      setPanel('transcript');
+      flash('Finishing transcription before writing the note…');
+      const deadline = Date.now() + 4 * 60_000;
+      while ((segQueue.current.length || inFlight.current > 0 || captureLive.current) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+    if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
     setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
     const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
     // Async job + polling: the pipeline can run >100s on long transcripts, which would die at
@@ -402,6 +609,12 @@ export default function Scribe() {
     loadHistory();
   }
   function newSession() {
+    teardownCapture();
+    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
+    stopping.current = false; captureLive.current = false; finishing.current = false;
+    emptySegs.current = 0; silenceAbort.current = false;
+    fullChunks.current = []; fullBlob.current = null;
+    setPendingSegs(0); setFailedSegs(0);
     setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
 
@@ -462,7 +675,12 @@ export default function Scribe() {
                 <input className="session-title-input" value={patient} onChange={(e) => setPatient(e.target.value)} placeholder="Add patient name / ID" />
                 <div className={`rec-dot${recording ? ' recording' : phase === 'done' ? ' done' : ''}`} role="status" />
               </div>
-              <div className="session-subtitle">{recording ? 'Recording…' : phase === 'done' ? 'Ready' : 'New consultation'}</div>
+              <div className="session-subtitle">{
+                recording ? (pendingSegs ? `Recording… (${pendingSegs} segment${pendingSegs > 1 ? 's' : ''} transcribing)` : 'Recording…')
+                  : phase === 'transcribing' ? (pendingSegs ? `Transcribing ${pendingSegs} segment${pendingSegs > 1 ? 's' : ''}…` : 'Finishing transcription…')
+                  : phase === 'done' ? (failedSegs ? `Ready — ${failedSegs} segment${failedSegs > 1 ? 's' : ''} missing` : 'Ready')
+                  : 'New consultation'
+              }</div>
             </div>
             <div className="meta-pills">
               <div className="meta-pill">{I.cal}<span>{dateStr}</span></div>
@@ -524,7 +742,11 @@ export default function Scribe() {
           <div className={`main-panel${panel === 'transcript' ? ' active' : ''}`}>
             <div className="transcript-header">
               <span className="transcript-label">{historyView ? 'Saved Transcript' : 'Live Transcript'}</span>
-              <span className="seg-count">{lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : ''}</span>
+              <span className="seg-count">{[
+                lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : '',
+                pendingSegs ? `${pendingSegs} transcribing` : '',
+                failedSegs ? `${failedSegs} failed` : '',
+              ].filter(Boolean).join(' · ')}</span>
             </div>
             <div className="transcript-box">
               {historyView ? (
@@ -553,7 +775,7 @@ export default function Scribe() {
                     <div key={i} className="t-line"><span className="t-time">{l.t}</span><span className="t-text">{l.text}</span></div>
                   ))}
                   {phase === 'recording' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Listening… speak now.</span></div>}
-                  {phase === 'transcribing' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Transcribing final segment…</span></div>}
+                  {phase === 'transcribing' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>{pendingSegs ? `Transcribing ${pendingSegs} remaining segment${pendingSegs > 1 ? 's' : ''}…` : 'Finishing transcription…'}</span></div>}
                 </div>
               )}
             </div>

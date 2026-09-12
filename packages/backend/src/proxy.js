@@ -4,14 +4,15 @@
 // Verbose error handling + centralized model config. Endpoints:
 //   POST /api/llm/generate?model=…   → Gemini generateContent (retry 5xx + schema/token fallbacks)
 //   POST /api/llm/stream?model=…      → Gemini streamGenerateContent (SSE)
-//   POST /api/asr                     → ASR transcription (local Whisper or Google rollback)
+//   POST /api/asr                     → ASR transcription (Google Speech-to-Text, any length)
 //   GET  /api/llm/diag                → one-shot health probe (safe to call from the browser)
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
 import express from 'express';
-import { cleanupTempDir, extractMultipartFile, normalizeBufferToWav16k, transcodePcm16k } from './asr/audio.js';
-import { localWhisperEnabled, transcribeLocalAudioFile } from './asr/localWhisper.js';
+import { extractMultipartFile, transcodePcm16k } from './asr/audio.js';
+import { billableModel, transcribeChirpPcm, transcribePcm } from './asr/googleSpeech.js';
+import { collapseRepetitions } from './validation/textSimilarity.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = () => process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.7-flash';
@@ -166,11 +167,16 @@ export function mountProxy(app) {
     }
   });
 
-  // Medical ASR. Default is the existing Google Speech path for rollback compatibility.
-  // Set ASR_PROVIDER=whisper_local to use local faster-whisper.
-  // Accepts raw recorded audio bytes (MediaRecorder → WEBM/OPUS) or multipart field "file".
-  // Returns { text, transcript, requestId, latencyMs } for frontend compatibility.
-  app.post('/api/asr', express.raw({ type: () => true, limit: '30mb' }), async (req, res) => {
+  // ── Medical ASR (Google Speech-to-Text) ────────────────────────────────────
+  // Accepts raw recorded audio bytes (MediaRecorder → WEBM/OPUS) or multipart field
+  // "file", of ANY length: the audio is decoded to 16 kHz mono PCM and, when it is
+  // longer than the API's ~60s synchronous limit, split into windows and stitched back
+  // together. Returns { text, transcript, requestId, latencyMs } for frontend compatibility.
+  //
+  // The upload limit has to cover a WHOLE consult, not just a 20s chunk: after a long
+  // session the client may re-send the full recording to recover segments that failed.
+  // WebM/Opus is ~0.5 MB/minute, so 120 MB is roughly four hours.
+  app.post('/api/asr', express.raw({ type: () => true, limit: process.env.ASR_MAX_UPLOAD || '120mb' }), async (req, res) => {
     const id = rid();
     const t0 = Date.now();
     const startTimeStr = new Date(t0).toISOString().slice(11, 23);
@@ -184,148 +190,116 @@ export function mountProxy(app) {
         if (extracted) audio = extracted;
       }
       console.log(`[proxy ${id}] 🎙️ ASR received at ${startTimeStr} | bytes=${audio.length}B`);
-      if (localWhisperEnabled()) {
-        let normalized = null;
-        try {
-          const tNormStart = Date.now();
-          normalized = await normalizeBufferToWav16k(audio);
-          const tNormMs = Date.now() - tNormStart;
 
-          const tInferStart = Date.now();
-          const r = await transcribeLocalAudioFile(normalized.wavPath, { requestId: id });
-          const tInferMs = r.latency_ms ?? (Date.now() - tInferStart);
-
-          const tTotalMs = Date.now() - t0;
-          const audioSec = normalized.durationSeconds || r.duration || 0;
-          const rtf = audioSec > 0 ? tInferMs / 1000 / audioSec : null;
-          const endTimeStr = new Date().toISOString().slice(11, 23);
-
-          console.log(`[proxy ${id}] ✅ ASR finished at ${endTimeStr} | audio=${audioSec.toFixed(2)}s | total=${tTotalMs}ms (norm=${tNormMs}ms infer=${tInferMs}ms) | RTF=${rtf == null ? 'n/a' : rtf.toFixed(3)} | model=${r.model} (${r.device}/${r.compute_type})`);
-          const transcript = String(r.text || '').replace(/\s+/g, ' ').trim();
-          return res.json({ text: transcript, transcript, requestId: id, latencyMs: tTotalMs });
-        } finally {
-          await cleanupTempDir(normalized?.tmpDir);
-        }
-      }
-      // PRIMARY PATH: transcode to headerless 16 kHz mono PCM so Google reads an exact duration.
-      // This is what makes short WebM/Opus clips work reliably (the container has no duration).
-      let encoding, content;
+      // Decode to headerless 16 kHz mono PCM. This is what makes the duration EXACT
+      // (WebM/Opus carries no duration, which is why short clips used to be rejected as
+      // "sync input too long") and it is the only form we can window reliably.
+      const tDecode = Date.now();
       const pcm = await transcodePcm16k(audio);
-      if (pcm && pcm.length) {
-        encoding = 'LINEAR16';
-        content = pcm.toString('base64');
-      } else {
-        // Fallback (ffmpeg unavailable): sniff the container from magic bytes and send as-is.
-        //   WEBM/Matroska → 1A 45 DF A3;  OGG → "OggS";  WAV → "RIFF".
-        encoding = 'WEBM_OPUS';
-        if (audio[0] === 0x1a && audio[1] === 0x45 && audio[2] === 0xdf && audio[3] === 0xa3) encoding = 'WEBM_OPUS';
-        else if (audio.slice(0, 4).toString() === 'OggS') encoding = 'OGG_OPUS';
-        else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
-        content = audio.toString('base64');
-      }
-      // ── Chirp 2 (Speech-to-Text V2) ─────────────────────────────────────────
-      // Billed at the STANDARD $0.016/min (same as latest_long) but much more accurate
-      // on conversational/accented medical speech — the single best value for a scribe.
-      // Regional endpoint only (default us-central1). Falls back to the proven V1 path
-      // below on ANY error, so transcription never breaks even if Chirp is unavailable.
+      const decodeMs = Date.now() - tDecode;
+
+      // Cost guard: billableModel() forces any premium model down to the cheapest
+      // standard one ($0.016/min), which is what production bills. It is enforced again
+      // inside googleSpeech.js at the point the request is issued, so the premium
+      // 'medical_conversation' (~5×) can never be billed by any path.
       const asrModel = process.env.ASR_MODEL || 'latest_long';
-      if (/^chirp/i.test(asrModel) && encoding === 'LINEAR16' && pcm && pcm.length) {
-        try {
-          const loc = process.env.ASR_V2_LOCATION || 'us-central1';
-          const { SpeechClient: SpeechClientV2 } = (await import('@google-cloud/speech')).v2;
-          const v2 = new SpeechClientV2({ apiEndpoint: `${loc}-speech.googleapis.com` });
-          const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || await v2.getProjectId();
-          const recognizer = `projects/${projectId}/locations/${loc}/recognizers/_`;
-          const [r] = await v2.recognize({
-            recognizer,
-            config: {
-              model: asrModel,   // 'chirp_2' (recommended) or 'chirp'
-              languageCodes: [process.env.ASR_LANGUAGE || 'en-US'],
-              features: { enableAutomaticPunctuation: true },
-              explicitDecodingConfig: { encoding: 'LINEAR16', sampleRateHertz: 16000, audioChannelCount: 1 },
-            },
-            content: pcm,
-          });
-          const text = (r.results || []).map((x) => x.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
-          console.log(`[proxy ${id}] asr(chirp v2) model=${asrModel} loc=${loc} → ${text.length} chars`);
-          return res.json({ text, transcript: text, requestId: id });
-        } catch (e) {
-          console.warn(`[proxy ${id}] Chirp v2 failed (${e.message}); falling back to V1 latest_long`);
-        }
-      }
-      const speech = (await import('@google-cloud/speech')).default;
-      const client = new speech.SpeechClient();
-      const baseConfig = {
-        languageCode: process.env.ASR_LANGUAGE || 'en-US',
-        encoding,
-        useEnhanced: true,
-        enableAutomaticPunctuation: true,
-      };
-      // PCM path is fixed at 16 kHz; the raw-fallback Opus path is 48 kHz.
-      baseConfig.sampleRateHertz = encoding === 'LINEAR16'
-        ? Number(process.env.ASR_SAMPLE_RATE || 16000)
-        : Number(process.env.ASR_SAMPLE_RATE || 48000);
-      // V1 path (fallback for Chirp, or when ASR_MODEL is a V1 model). ALWAYS standard-priced:
-      // both 'chirp*' and any 'medical*' value are forced to 'latest_long' ($0.016/min) so the
-      // premium 'medical_conversation' (~$0.078/min, 5×) can NEVER be billed, even by mistake.
-      const primaryModel = /^chirp|medical/i.test(asrModel) ? 'latest_long' : asrModel;
-      const runRecognize = async (model) => client.recognize({ audio: { content }, config: { ...baseConfig, model } });
-      // LongRunningRecognize has NO 60s sync cap and accepts the same inline content (<10MB),
-      // so it transcribes any segment length; we await its operation (a few seconds for a clip).
-      const runLong = async (model) => {
-        // Retry once on transient "14 UNAVAILABLE / Policy checks are unavailable".
-        for (let attempt = 0; ; attempt++) {
+      const model = billableModel(asrModel, (l) => console.log(`[proxy ${id}] ${l}`));
+
+      if (pcm && pcm.length) {
+        // Chirp 2 (Speech-to-Text V2): standard-priced and much more accurate on
+        // conversational/accented medical speech. It shares V1's ~60s synchronous limit,
+        // so it is windowed exactly the same way — a long recording keeps the model it was
+        // configured with instead of silently dropping to latest_long. Any failure falls
+        // back to the V1 path below.
+        if (/^chirp/i.test(asrModel)) {
           try {
-            const [op] = await client.longRunningRecognize({ audio: { content }, config: { ...baseConfig, model } });
-            const [r] = await op.promise();
-            return r;
+            const r = await transcribeChirpPcm(pcm, {
+              model: asrModel,
+              languageCode: process.env.ASR_LANGUAGE || 'en-US',
+              log: (l) => console.log(`[proxy ${id}] ${l}`),
+            });
+            const text = collapseRepetitions(r.text);
+            const totalMs = Date.now() - t0;
+            console.log(`[proxy ${id}] ✅ ASR finished | chirp v2 ${asrModel} | audio=${r.durationSeconds.toFixed(1)}s `
+              + `| total=${totalMs}ms (decode=${decodeMs}ms) | windows=${r.windows}${r.failedWindows ? ` (${r.failedWindows} failed)` : ''} | ${text.length} chars`);
+            return res.json({
+              text, transcript: text, requestId: id, latencyMs: totalMs,
+              durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows,
+            });
           } catch (e) {
-            if (attempt < 1 && /UNAVAILABLE|Policy checks|deadline|internal/i.test(e.message)) {
-              console.warn(`[proxy ${id}] longRunningRecognize transient (${e.message}); retrying once`);
-              await new Promise((r) => setTimeout(r, 800)); continue;
-            }
-            throw e;
+            console.warn(`[proxy ${id}] Chirp v2 failed (${e.message}); falling back to V1 ${model}`);
           }
         }
-      };
-      const approxSec = encoding === 'LINEAR16' && content ? Math.round(Buffer.byteLength(content, 'base64') / 2 / 16000) : null;
-      console.log(`[proxy ${id}] asr(google-speech) in=${audio.length}B enc=${encoding}${approxSec != null ? ` ~${approxSec}s` : ''} model=${primaryModel}`);
-      let response;
-      try { [response] = await runRecognize(primaryModel); }
-      catch (e) {
-        const tooLong = /too long|sync input|exceeds|1 min|duration/i.test(e.message);
-        if (tooLong) {
-          // Audio > 60s → sync can't handle it; use LongRunningRecognize (latest_long).
-          console.warn(`[proxy ${id}] asr sync too long — using longRunningRecognize`);
-          response = await runLong('latest_long');
-        } else {
-          // medical_conversation may not be enabled/available in every project → fall back.
-          console.warn(`[proxy ${id}] asr model '${primaryModel}' failed (${e.message}); retrying with latest_long`);
-          try { [response] = await runRecognize('latest_long'); }
-          catch (e2) { console.warn(`[proxy ${id}] latest_long sync failed (${e2.message}); using longRunningRecognize`); response = await runLong('latest_long'); }
-        }
+
+        const r = await transcribePcm(pcm, {
+          model,
+          languageCode: process.env.ASR_LANGUAGE || 'en-US',
+          log: (l) => console.log(`[proxy ${id}] ${l}`),
+        });
+        // A decoder can repeat a phrase over and over; collapse those runs so the
+        // artefact never reaches the note as duplicated content.
+        const text = collapseRepetitions(r.text);
+        const totalMs = Date.now() - t0;
+        const rtf = r.durationSeconds > 0 ? totalMs / 1000 / r.durationSeconds : null;
+        console.log(`[proxy ${id}] ✅ ASR finished at ${new Date().toISOString().slice(11, 23)} `
+          + `| audio=${r.durationSeconds.toFixed(1)}s | total=${totalMs}ms (decode=${decodeMs}ms) `
+          + `| windows=${r.windows}${r.failedWindows ? ` (${r.failedWindows} failed)` : ''} `
+          + `| RTF=${rtf == null ? 'n/a' : rtf.toFixed(3)} | model=${model}`);
+        return res.json({
+          text, transcript: text, requestId: id, latencyMs: totalMs,
+          durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows,
+        });
       }
-      const transcript = (response.results || []).map((r) => r.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
+
+      // FALLBACK: ffmpeg unavailable. Send the container as-is and let Google decode it.
+      // Duration is unknown here, so this path is limited to what sync recognize accepts.
+      let encoding = 'WEBM_OPUS';
+      if (audio[0] === 0x1a && audio[1] === 0x45 && audio[2] === 0xdf && audio[3] === 0xa3) encoding = 'WEBM_OPUS';
+      else if (audio.slice(0, 4).toString() === 'OggS') encoding = 'OGG_OPUS';
+      else if (audio.slice(0, 4).toString() === 'RIFF') encoding = 'LINEAR16';
+      console.warn(`[proxy ${id}] ffmpeg unavailable — sending ${encoding} container as-is (long audio cannot be windowed on this path)`);
+      const speech = (await import('@google-cloud/speech')).default;
+      const client = new speech.SpeechClient();
+      const [response] = await client.recognize({
+        audio: { content: audio.toString('base64') },
+        config: {
+          languageCode: process.env.ASR_LANGUAGE || 'en-US',
+          encoding,
+          useEnhanced: true,
+          enableAutomaticPunctuation: true,
+          sampleRateHertz: encoding === 'LINEAR16'
+            ? Number(process.env.ASR_SAMPLE_RATE || 16000)
+            : Number(process.env.ASR_SAMPLE_RATE || 48000),
+          model,
+        },
+      });
+      const raw = (response.results || []).map((r) => r.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
+      const text = collapseRepetitions(raw);
       // Return BOTH keys so every client works: the DAS webapp reads `text`, others read `transcript`.
-      res.json({ text: transcript, transcript, requestId: id });
+      res.json({ text, transcript: text, requestId: id, latencyMs: Date.now() - t0 });
     } catch (err) {
-      const provider = localWhisperEnabled() ? 'whisper-local' : 'google-speech';
-      console.error(`[proxy ${id}] asr(${provider}) error: ${err.message}`);
+      console.error(`[proxy ${id}] asr(google-speech) error: ${err.message}`);
       // Monitoring: log ASR failures to the ops error log (fire-and-forget).
       try {
-        const code = /timed out|timeout/i.test(err.message) ? 'ASR_TIMEOUT' : 'ASR_ERROR';
+        const code = /timed out|timeout|deadline/i.test(err.message) ? 'ASR_TIMEOUT' : 'ASR_ERROR';
         import('./ops/opsLog.js').then(({ recordError }) => recordError({
-          source: 'asr', level: 'error', code, message: err.message, context: { provider, requestId: id },
+          source: 'asr', level: 'error', code, message: err.message, context: { provider: 'google-speech', requestId: id },
         })).catch(() => {});
       } catch { /* never break */ }
-      const hint = /too long|sync input|exceeds|duration/i.test(err.message)
-        ? 'Recording too long for instant transcription (≈1 min max). Record in shorter segments, or ask to enable long-audio transcription.'
+      // Transient upstream trouble (quota, UNAVAILABLE, a deadline) is RETRIABLE: answer
+      // 503 with Retry-After so the client re-sends that segment instead of writing the
+      // audio off as lost. The old handler returned 502 for everything, and the recorder
+      // counted each one as silence — which is how a long consult ended up with no
+      // transcript at all.
+      const transient = /UNAVAILABLE|RESOURCE_EXHAUSTED|DEADLINE|deadline|internal|Policy checks|429|503|504|ECONNRESET|ETIMEDOUT|socket hang up|timed out|timeout/i.test(err.message);
+      const hint = /ffmpeg/i.test(err.message)
+        ? 'Audio conversion failed on the server (is ffmpeg installed?).'
+        : transient ? 'Speech service was briefly unavailable — retrying usually succeeds.'
         : undefined;
-      const localReason = /ffmpeg|codec|invalid data|conversion/i.test(err.message) ? 'audio conversion failed'
-        : /timed out|timeout/i.test(err.message) ? 'transcription timed out'
-        : /worker|model|faster|whisper|python/i.test(err.message) ? 'local ASR unavailable'
-        : 'transcription failed';
-      res.status(502).json({ error: provider === 'whisper-local' ? `ASR failed: ${localReason}` : 'ASR failed: ' + err.message, requestId: id, hint });
+      if (transient) res.setHeader('Retry-After', '5');
+      res.status(transient ? 503 : 502).json({
+        error: 'ASR failed: ' + err.message, requestId: id, hint, retriable: transient,
+      });
     }
   });
 }

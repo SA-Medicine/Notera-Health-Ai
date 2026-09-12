@@ -13,6 +13,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
+import { isBledHistory, isPlanAction } from '../validation/clinicalPhrasing.js';
+
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 const splitLines = (v) => String(v || '').split('\n').map((x) => x.trim()).filter(Boolean);
 // sentence split that never breaks on abbreviations ("Dr.", "e.g.", "St.")
@@ -82,6 +84,11 @@ export function condenseNote(note, opts = {}, log = () => {}) {
     }
   }
 
+  // Is the history actually documented in the Subjective? If not, narrative sitting in a
+  // plan field is the ONLY record of it and must not be removed.
+  const subjectiveHasContent = Object.values(note.subjective || {})
+    .some((v) => typeof v === 'string' && v.trim().length > 0);
+
   // 1) Collect the "above" (detailed) content as one word-set per sentence.
   const above = [];
   const collect = (obj) => {
@@ -101,9 +108,9 @@ export function condenseNote(note, opts = {}, log = () => {}) {
   // 2) Condense each A&P assessment: drop sentences that repeat above detail.
   // A plan-ACTION verb marks a legitimate plan step (continue X, refer, order, RTC…) that must
   // NEVER be pruned even if it echoes a fact above — only pure narrative echoes are bleed.
-  const ACTION_RX = /\b(continu|start|start(?:ed|ing)?|initiat|increas|decreas|titrat|refer|referral|order|arrang|schedul|rtc|return|follow.?up|monitor|repeat|x-?ray|ultrasound|mri|\bct\b|prescrib|renew|refill|advis|counsel|educat|await|review|discontinu|\bstop\b|\bhold\b|switch|trial|sampl|inject|vaccinat|consider|recommend|plan|await)\b/i;
-  // A plan line that OPENS with a subjective-report marker is bled HPI narrative, not a plan step.
-  const NARRATIVE_RX = /^\s*(the\s+)?(patient|pt|mother|father|caregiver|he|she|they)\b.*\b(report|reports|reported|note|notes|noted|state|states|stated|describe|describes|described|complain|complains|complained|feel|feels|felt|denies|experienc|present)/i;
+  // isPlanAction / isBledHistory live in clinicalPhrasing.js — see the note there about
+  // the trailing-\b bug that made every stem ("continu", "prescrib", "refer") unmatchable,
+  // which silently disabled this guard.
   let removed = 0;
   for (const p of (note.assessment_and_plan || [])) {
     if (typeof p.assessment === 'string') {
@@ -119,21 +126,37 @@ export function condenseNote(note, opts = {}, log = () => {}) {
       }
       p.assessment = kept.join('\n');
     }
-    // Subjective-narrative BLEED into the Plan: drop a treatment/referral line ONLY when it echoes
-    // history already stated above AND carries no plan-action verb (so "Continue Amlodipine 5mg",
-    // "Refer to ENT", "RTC 2 weeks" are always preserved — only duplicated HPI narrative is removed).
-    // The composer frequently dumps HPI into BOTH treatment_planned AND referrals, so clean both.
-    for (const fld of ['treatment_planned', 'referrals']) {
+    // Subjective-narrative BLEED into the Plan. The composer regularly dumps history into
+    // treatment_planned / investigations_planned / referrals, where it reads as the note
+    // restating the same thing in different words ("Takes amlodipine 5 mg daily with good
+    // adherence", "Headaches have returned over the last 3 weeks") next to the real orders.
+    //
+    // A line goes ONLY when it either duplicates history stated above, or positively reads
+    // as patient history — and in both cases carries no plan-action verb. isBledHistory()
+    // is two-sided for that reason, so a valid plan entry with no verb at all ("Paracetamol
+    // 1 g PRN", "Kidney function and electrolytes") is never removed.
+    //
+    // Guarded by subjectiveHasContent: if the Subjective is empty, this text is the only
+    // record of the history and removing it would lose clinical information outright.
+    //
+    // Sentence-split, not just newline-split: the tightener routinely returns a plan field
+    // as ONE line holding several sentences, and the renderer sentence-splits it into
+    // separate bullets afterwards. Checking whole lines meant a single action verb anywhere
+    // in that blob ("Increase amlodipine…") protected every bled history sentence sitting
+    // beside it, so the bleed survived into the rendered Plan.
+    for (const fld of ['treatment_planned', 'investigations_planned', 'referrals']) {
       if (typeof p[fld] !== 'string') continue;
       const kept = [];
-      for (const line of splitLines(p[fld])) {
+      for (const line of splitLines(p[fld]).flatMap(splitSentences)) {
         const w = wordsOf(line);
-        if (w.length < 4 || ACTION_RX.test(line)) { kept.push(line); continue; }   // keep short/plan-action lines
-        // Bleed if it duplicates history stated above, OR reads as raw HPI narrative — a line
-        // that opens with a subjective-report marker ("Patient reports…", "Describes…",
-        // "History of…") is describing symptoms/history, not prescribing a plan step.
-        const isDupe = above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
-        const isNarrative = NARRATIVE_RX.test(line);
+        if (isPlanAction(line)) { kept.push(line); continue; }          // a real order always stays
+        // The short-line exemption applies only to the FUZZY duplicate test, where a tiny
+        // word set makes Jaccard unreliable. It must not gate the narrative test, which is
+        // already two-sided — that is how "Adherent to amlodipine 5 mg daily." (3 content
+        // words) stayed in the Plan.
+        const isDupe = w.length >= 4
+          && above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
+        const isNarrative = subjectiveHasContent && isBledHistory(line);
         if (isDupe || isNarrative) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
         kept.push(line);
       }

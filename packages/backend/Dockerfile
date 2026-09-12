@@ -13,17 +13,14 @@ RUN npm ci --omit=dev --workspace @notera/backend || npm install --omit=dev --wo
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
-# ffmpeg: standardize browser WebM/Opus/Ogg/MP4/WAV to 16 kHz mono PCM WAV for local ASR.
-# Python venv: isolates faster-whisper from the Node app dependency tree.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*
-RUN python3 -m venv /opt/notera-asr-venv \
-  && /opt/notera-asr-venv/bin/pip install --no-cache-dir --upgrade pip \
-  && /opt/notera-asr-venv/bin/pip install --no-cache-dir "faster-whisper>=1.2.0,<2"
-ENV ASR_PYTHON=/opt/notera-asr-venv/bin/python
+# ffmpeg: decode browser WebM/Opus/Ogg/MP4/WAV to 16 kHz mono PCM before handing the audio
+# to Google Speech-to-Text. This is what gives a recording an EXACT duration (MediaRecorder
+# containers carry none) and what lets long audio be split into windows that fit the API's
+# synchronous limit.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 # non-root runtime user
 RUN useradd -m -u 10001 notera
 COPY --from=build --chown=notera:notera /app /app
-RUN mkdir -p /app/.cache/huggingface && chown -R notera:notera /app/.cache
 USER notera
 WORKDIR /app/packages/backend
 EXPOSE 8080
