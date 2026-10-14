@@ -5,7 +5,7 @@ Do‑this‑in‑order runbook for **your** setup, with your real values filled 
 - **Frontend** → Cloudflare Pages · `aitoolsfordoctor.com` (marketing) + `app.aitoolsfordoctor.com` (app)
 - **Backend + PostgreSQL** → one `e2-small` GCP VM (~$13/mo), DB co‑located, behind Cloudflare
 - **API host** → `api.aitoolsfordoctor.com` (orange‑cloud proxied, WAF‑protected)
-- **LLM** → Vertex AI, `global` endpoint, `gemini-3.7-flash`, project `medproject-506019` (BAA signed ✅)
+- **LLM** → Vertex AI, `global` endpoint, `gemini-3.5-flash`, project `medproject-506019` (BAA signed ✅)
 - **Auth** → self‑hosted email/password (already built in the repo)
 - **No Cloud Run / Cloud SQL / NER.**
 
