@@ -111,7 +111,7 @@ async function startRun(cfg) {
   })().catch((e) => { run.status = 'error'; run.error = String(e.message || e); persist(run); });
   return run.id;
 }
-const runView = (r, full = false) => ({ id: r.id, label: r.label, status: r.status, createdAt: r.createdAt, finishedAt: r.finishedAt, config: r.config, progress: r.progress, summary: r.summary, error: r.error, ...(full ? { rows: r.rows } : {}) });
+const runView = (r, full = false) => ({ id: r.id, label: r.label, status: r.status, createdAt: r.createdAt, finishedAt: r.finishedAt, config: r.config, progress: r.progress, summary: r.summary, error: r.error, ...(full ? { rows: r.rows, ids: r.ids } : {}) });
 const loadRun = (id) => runs.get(id) || readJson(runFile(id));
 // a run that was "running" when the process died is interrupted, not eternally spinning
 for (const f of fs.readdirSync(path.join(DATA, 'runs')).filter((x) => /^run_.*\d\.json$|^run_[a-z0-9]+\.json$/.test(x) && !x.endsWith('.notes.json'))) {
@@ -189,9 +189,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 const wrap = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { console.error('[lab]', e.message); res.status(500).json({ error: e.message }); } };
 
-app.get('/info', wrap(async (_req, res) => { const idx = goldIndex(); res.json({ fixtures: idx.length, usable: idx.filter((x) => x.ok).length, models: { judge: JUDGE_MODEL, improve: IMPROVE_MODEL }, writerModel: process.env.V2_WRITER_MODEL || 'gemini-2.5-flash', concurrency: Number(process.env.LAB_CONCURRENCY) || 3 }); }));
+app.get('/info', wrap(async (_req, res) => { const idx = goldIndex(); res.json({ fixtures: idx.length, usable: idx.filter((x) => x.ok).length, models: { judge: JUDGE_MODEL, improve: IMPROVE_MODEL }, writerModel: process.env.V2_WRITER_MODEL || 'gemini-2.5-flash', writerFallback: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite', concurrency: Number(process.env.LAB_CONCURRENCY) || 3 }); }));
 app.get('/baseline', wrap(async (_req, res) => { const a = await getActivePrompt('v2-writer'); res.json({ source: a ? 'production-active' : 'default', chars: (a || defaultWriterPrompt()).length, text: a || defaultWriterPrompt() }); }));
-app.get('/fixtures', wrap(async (req, res) => { const q = String(req.query.q || '').toLowerCase(); res.json({ fixtures: goldIndex().filter((x) => x.ok && (!q || x.id.toLowerCase().includes(q))).slice(0, 200) }); }));
+app.get('/fixtures', wrap(async (_req, res) => { const f = goldIndex().filter((x) => x.ok).map((x) => [x.id, x.tChars, x.gChars]); res.json({ fixtures: f }); }));   // compact tuples: [id, transcriptChars, goldChars]
 app.get('/fixtures/:id', wrap(async (req, res) => res.json(loadFixture(req.params.id))));
 app.post('/runs', wrap(async (req, res) => res.json({ id: await startRun(req.body || {}) })));
 app.get('/runs', wrap(async (_req, res) => {
