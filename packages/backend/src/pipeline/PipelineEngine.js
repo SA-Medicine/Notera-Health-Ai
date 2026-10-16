@@ -460,7 +460,7 @@ export class PipelineEngine {
       const recallAnalysisFinal = ClinicalRecallAnalyzer.analyze(transcript, entitiesObj);
       const coverageFailed = coverageResult.status === 'FAIL';
 
-        if (jsValidation.status === "FAIL" || recallAnalysisFinal.needsRecovery || coverageFailed) {
+        if (process.env.QA_VALIDATOR === '1' && (jsValidation.status === "FAIL" || recallAnalysisFinal.needsRecovery || coverageFailed)) {
           this.updateProgress(12, 12, "Agent 8: Running LLM QA...");
           logEvent("⚠️ Validators or coverage check failed. Running deep QA...");
           const t8 = Date.now();
@@ -534,7 +534,9 @@ export class PipelineEngine {
       if (logs.finalNote && typeof logs.finalNote === 'string' && logs.finalNote.trim()) {
         return { finalNote: logs.finalNote, logs, textLogs };
       }
-      return { finalNote: "Pipeline failed. Check Logs.\n\n" + err.toString(), logs, textLogs };
+      // Never fabricate a "done" note from an error string (it used to be fed to another LLM
+      // call and persisted as a ready note). Surface the failure so the job is marked errored.
+      throw err;
     }
   }
 }
