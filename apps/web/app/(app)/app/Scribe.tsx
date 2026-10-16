@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './scribe.css';
 import Onboarding from './Onboarding';
+import './polish.css';
+import { BorderBeam } from 'border-beam';
+import { ThinkingOrb } from 'thinking-orbs';
+import { VoiceBeam } from 'voice-glow';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -106,6 +110,7 @@ export default function Scribe() {
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
   const [me, setMe] = useState<{ fullName: string; email: string; initials: string; plan?: string; used?: number; limit?: number | null; remaining?: number | null } | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);   // drives the audio-reactive glow
   const [paywall, setPaywall] = useState(false);   // free quota used up → show pricing
   const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
   const [pendingSegs, setPendingSegs] = useState(0);       // segments still being transcribed
@@ -346,7 +351,7 @@ export default function Scribe() {
     segRecRef.current = null;
     try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
     try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
-    streamRef.current = null;
+    streamRef.current = null; setMicStream(null);
   }
 
   // Called whenever a segment settles. Once the user has stopped AND every segment has
@@ -482,7 +487,7 @@ export default function Scribe() {
     }
     try { if (fullRecRef.current && fullRecRef.current.state !== 'inactive') fullRecRef.current.stop(); } catch { /* */ }
     try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
-    streamRef.current = null;
+    streamRef.current = null; setMicStream(null);
     maybeFinish();
   }
 
@@ -496,7 +501,7 @@ export default function Scribe() {
     setPanel('transcript');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream; stopping.current = false; startTs.current = Date.now();
+      streamRef.current = stream; setMicStream(stream); stopping.current = false; startTs.current = Date.now();
       fullChunks.current = []; fullBlob.current = null;
       try {
         const fr = new MediaRecorder(stream); fullRecRef.current = fr;
@@ -671,7 +676,7 @@ export default function Scribe() {
           </div>
         </div>
         <div className="sidebar-section">
-          <button className="new-session-btn" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
+          <button className="new-session-btn glass" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
         </div>
         <nav className="sidebar-nav">
           <div className={`nav-item${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.micStroke}<span>Scribe</span></div>
@@ -728,24 +733,19 @@ export default function Scribe() {
               </button>
             )}
             <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
-            <button className="top-create-btn" onClick={createSOAP} data-tour="create"
+            <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 12 }}>
+            <button className="top-create-btn glass" onClick={createSOAP} data-tour="create"
               disabled={phase === 'generating' || !transcript.trim() || !!note}
               title={note ? 'Note already generated — start a new session' : ''}
               style={note ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
             >
               {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
             </button>
-            <button className={`top-resume-btn${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
+            </BorderBeam>
+            <button className={`top-resume-btn glass${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
               {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
             </button>
-            <div className="timer-block">{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
-            <div className="mic-block">
-              {I.mic}
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Default mic</span>
-              <div className={`audio-bars${recording ? ' active' : ''}`}>
-                <div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" />
-              </div>
-            </div>
+            <div className={`timer-block${recording ? ' live' : ''}`}>{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
           </div>
         </header>
 
@@ -782,6 +782,7 @@ export default function Scribe() {
                 failedSegs ? `${failedSegs} failed` : '',
               ].filter(Boolean).join(' · ')}</span>
             </div>
+            <VoiceBeam style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }} stream={micStream} {...(phase === 'transcribing' ? { processing: true } : {})} {...(!recording && phase !== 'transcribing' ? { paused: true } : {})} theme={dark ? 'dark' : 'light'}>
             <div className="transcript-box">
               {historyView ? (
                 lines.length ? (
@@ -813,6 +814,7 @@ export default function Scribe() {
                 </div>
               )}
             </div>
+            </VoiceBeam>
           </div>
 
           {/* Paste transcript (its own screen — not shown by default) */}
@@ -849,13 +851,11 @@ export default function Scribe() {
             </div>
             <div className="note-scroll-area">
               {phase === 'generating' ? (
-                <div className="note-empty">
-                  <div className="spinner" style={{ borderTopColor: 'var(--blue)' }} />
-                  <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-                    {genSteps.map((s, i) => (
-                      <div key={i} style={{ fontSize: 13, color: i < genStep ? 'var(--green)' : i === genStep ? 'var(--text-primary)' : 'var(--text-faint)', fontWeight: i === genStep ? 700 : 500 }}>
-                        {i < genStep ? '✓ ' : i === genStep ? '• ' : '   '}{s}
-                      </div>
+                <div className="note-empty gen-wait" role="status" aria-live="polite">
+                  <ThinkingOrb state={(['searching', 'composing', 'weaving', 'solving'] as const)[Math.min(genStep, 3)]} size={64} theme={dark ? 'dark' : 'light'} aria-label="Writing your note" />
+                  <div className="gen-steps">
+                    {genSteps.map((st, i) => (
+                      <div key={i} className={`gen-step${i < genStep ? ' done' : i === genStep ? ' now' : ''}`}><span className="gd">{i < genStep ? '✓' : ''}</span>{st}</div>
                     ))}
                   </div>
                 </div>

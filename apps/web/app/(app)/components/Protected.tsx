@@ -15,7 +15,14 @@ export default function Protected({ children }: { children: React.ReactNode }) {
   }, [ready, user, router]);
 
   if (!ready) {
-    return <div className="card" style={{ maxWidth: 360, margin: '60px auto', textAlign: 'center' }}><span className="spinner" style={{ borderColor: 'rgba(31,111,235,.3)', borderTopColor: 'var(--brand)' }} /> <span className="muted">Loading…</span></div>;
+    // Same dark-sidebar silhouette as the app, so a reload never flashes the site chrome or a half-screen card.
+    return (
+      <div className="app-splash" role="status" aria-label="Loading Notera">
+        <aside><div className="sp-brand"><i /><b /></div><span className="sp-bar w1" /><span className="sp-bar w2" /><span className="sp-bar w3" /></aside>
+        <main><div className="sp-top"><span className="sp-bar w4" /><span className="sp-pill" /></div><div className="sp-card"><span className="sp-bar w5" /><span className="sp-bar w6" /><span className="sp-bar w7" /></div></main>
+        <div className="sp-center"><span className="sp-ring" /></div>
+      </div>
+    );
   }
   if (!user) return null;
   return <>{children}</>;

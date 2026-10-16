@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@notera/ui": "*",
+    "border-beam": "^1.4.1",
     "cmdk": "^1.0.0",
     "lenis": "^1.3.26",
     "lucide-react": "^0.408.0",
@@ -19,7 +20,9 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.12.7",
     "server-only": "^0.0.1",
-    "sonner": "^1.5.0"
+    "sonner": "^1.5.0",
+    "thinking-orbs": "^0.3.2",
+    "voice-glow": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
