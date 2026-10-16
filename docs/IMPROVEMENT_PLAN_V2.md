@@ -59,3 +59,17 @@ multi-step agentic features (chart-aware assistant, tool use, patient chat).
 
 p50 / p95 note time (target ≤40 s / ≤90 s) · `GEMINI_TIMEOUT` count/day (target ≈0) · ASR chunk failures (0) ·
 LLM calls per note (target 3) · note length (concise) and gold-set fact recall (no regression).
+
+## Phase 1 results (production container, 2026-10-16, 3 consults of 9–13 min, ASR + note)
+
+| Run | Model / region | Notes OK | Note time (after transcript) | Errors |
+| --- | --- | --- | --- | --- |
+| Before | gemini-3.7-flash, global | — | 143–649 s (monitor) | frequent `GEMINI_TIMEOUT` / 429 |
+| Baseline test | gemini-3.5-flash, global | 1 of 1 | 170 s (LLM classifier call alone: 58 s) | hallucination-remover timed out |
+| After code fixes | gemini-3.5-flash, global | 2 of 3 | 90–135 s; one extractor timeout at 75 s | stalls on tiny calls (13 s / 7 s spikes in 12 trivial calls) |
+| **After + model switch** | **gemini-2.5-flash, us-central1** | **3 of 3** | **55–72 s** | **none** |
+
+ASR: 101/101 twenty-second chunks transcribed first try across all runs (p50 ~1.4 s).
+
+Known remaining waste (Phase 2): the story-composer call returns ~8k tokens (hits its 8000 cap) for a ~400-word
+note, and extractor + clinical-story + composer are still three serial full-note generations.
