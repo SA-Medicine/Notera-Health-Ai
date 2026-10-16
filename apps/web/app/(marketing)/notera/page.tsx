@@ -6,7 +6,7 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://aitoolsfordoctor.com'
 export const metadata: Metadata = {
   title: 'Notera — AI Medical Scribe & SOAP Note Generator',
   description:
-    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in seconds. Ambient AI documentation for physicians — HIPAA-ready, never trained on your data. Free for your first 50 notes.',
+    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in seconds. Ambient AI documentation for physicians — HIPAA-ready, never trained on your data. Free for your first 5 notes.',
   keywords: ['AI medical scribe', 'SOAP note generator', 'AI clinical documentation', 'ambient scribe', 'automated charting', 'medical dictation alternative'],
   alternates: { canonical: '/notera' },
   openGraph: { title: 'Notera — AI Medical Scribe & SOAP Note Generator', description: 'Turn consultations into grounded SOAP notes in seconds. HIPAA-ready, physician-built.', url: `${SITE}/notera`, images: ['/og.png'] },
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Notera — AI Medical Scribe',
   applicationCategory: 'HealthApplication', operatingSystem: 'Web',
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free for the first 50 notes' },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free for the first 5 notes' },
   description: 'AI medical scribe that turns consultations into grounded, structured SOAP notes in seconds.',
   url: `${SITE}/notera`,
 }
@@ -64,12 +64,12 @@ export default function NoteraPage() {
         <div className="mkt-faq">
           <div className="mkt-qa"><h3>Is Notera HIPAA compliant?</h3><p>Notera is built to meet HIPAA requirements — encrypted in transit and at rest, per-user access, and audit logging. Your data is never used to train models.</p></div>
           <div className="mkt-qa"><h3>Does it work with my EMR?</h3><p>The finished note copies cleanly into any EMR today. Deeper write-back integrations are available on Enterprise.</p></div>
-          <div className="mkt-qa"><h3>What does it cost?</h3><p>Free for your first 50 notes, then a simple per-clinician plan. See <a href="/pricing" style={{ color: 'var(--brand2)' }}>pricing</a>.</p></div>
+          <div className="mkt-qa"><h3>What does it cost?</h3><p>Free for your first 5 notes, then a simple per-clinician plan. See <a href="/pricing" style={{ color: 'var(--brand2)' }}>pricing</a>.</p></div>
         </div>
 
         <div className="mkt-band">
           <h2>Try Notera on your next visit</h2>
-          <p>Free for your first 50 notes — no card, no commitment.</p>
+          <p>Free for your first 5 notes — no card, no commitment.</p>
           <a className="mkt-btn mkt-btn-lg" href={LOGIN}>Start free ↗</a>
         </div>
       </Shell>

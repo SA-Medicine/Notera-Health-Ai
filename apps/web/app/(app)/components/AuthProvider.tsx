@@ -6,20 +6,21 @@
 //        via the /backend/* proxy) and returns the user.
 //   GET  /backend/api/auth/me     → restores the session on page load.
 //   POST /backend/api/auth/logout → clears the cookie.
-// There is NO public sign-up for a clinical system — accounts are created by an
-// admin (POST /api/auth/users). signUp / Google are intentionally disabled.
+// Self-service sign-up (POST /api/auth/signup) creates a FREE account with a small
+// note quota; accounts provisioned by an admin keep full access. Google is not enabled.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type User = { uid: string; email: string; name: string; role?: string } | null;
+export type User = { uid: string; email: string; name: string; role?: string; plan?: 'free' | 'full'; used?: number; limit?: number | null; remaining?: number | null } | null;
 
 type AuthCtx = {
   user: User;
   ready: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string) => Promise<void>;
+  signUp: (name: string, email: string, password: string, website?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => void;
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -29,7 +30,7 @@ const AUTH = '/backend/api/auth';
 const nameFromEmail = (email: string) =>
   (email.split('@')[0] || 'Clinician').replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const toUser = (u: any): User =>
-  u ? { uid: u.id || u.uid || u.email, email: u.email, name: u.fullName || u.name || nameFromEmail(u.email), role: u.role } : null;
+  u ? { uid: u.id || u.uid || u.email, email: u.email, name: u.fullName || u.name || nameFromEmail(u.email), role: u.role, plan: u.plan, used: u.used, limit: u.limit, remaining: u.remaining } : null;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null);
@@ -59,8 +60,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(toUser(d.user));
   }, []);
 
-  const signUp = useCallback(async () => {
-    throw new Error('Accounts are created by your administrator. Please contact them for access.');
+  const signUp = useCallback(async (name: string, email: string, password: string, website = '') => {
+    const r = await fetch(`${AUTH}/signup`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName: name, email, password, website }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not create the account. Please try again.');
+    setUser(toUser(d.user));
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch(`${AUTH}/me`, { credentials: 'include', cache: 'no-store' });
+      if (r.ok) setUser(toUser((await r.json()).user));
+    } catch { /* offline — keep the current user */ }
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
@@ -73,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, ready, signIn, signUp, signInWithGoogle, signOut }}>
+    <Ctx.Provider value={{ user, ready, signIn, signUp, signInWithGoogle, signOut, refresh }}>
       {children}
     </Ctx.Provider>
   );

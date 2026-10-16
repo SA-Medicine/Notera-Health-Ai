@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 /* Notera marketing landing — fully scoped under .notera-landing so it cannot leak
    into the rest of the site (which is light-themed). Dark, bold, animated. */
@@ -11,7 +10,7 @@
   --r:16px; --ease:cubic-bezier(.22,1,.36,1); --maxw:1160px;
   position:relative; z-index:0; min-height:100vh; overflow-x:hidden;
   background:var(--bg); color:var(--nk);
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-family:var(--font-inter),'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   line-height:1.6; -webkit-font-smoothing:antialiased;
 }
 .notera-landing *{box-sizing:border-box}
@@ -40,7 +39,7 @@
 .notera-landing [data-reveal].d3{transition-delay:.24s}
 
 /* buttons */
-.notera-landing .btn{font:600 15px/1 'Inter',sans-serif;border:none;cursor:pointer;border-radius:12px;padding:13px 22px;display:inline-flex;align-items:center;gap:9px;transition:transform .2s var(--ease),box-shadow .3s,background .3s;position:relative;white-space:nowrap}
+.notera-landing .btn{font:600 15px/1 var(--font-inter),'Inter',sans-serif;border:none;cursor:pointer;border-radius:12px;padding:13px 22px;display:inline-flex;align-items:center;gap:9px;transition:transform .2s var(--ease),box-shadow .3s,background .3s;position:relative;white-space:nowrap}
 .notera-landing .btn-primary{color:#fff;background:linear-gradient(135deg,var(--lp-brand),var(--lp-brand2));box-shadow:0 10px 30px -6px rgba(109,94,252,.55)}
 .notera-landing .btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 42px -6px rgba(109,94,252,.7)}
 .notera-landing .btn-ghost{color:#fff;background:var(--panel);border:1px solid var(--line2)}
@@ -187,7 +186,7 @@
 /* faq */
 .notera-landing .faq{max-width:760px;margin:0 auto}
 .notera-landing .qa{border-bottom:1px solid var(--line)}
-.notera-landing .q{width:100%;background:none;border:none;color:#fff;font:600 17px/1.4 'Inter',sans-serif;text-align:left;padding:22px 0;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center}
+.notera-landing .q{width:100%;background:none;border:none;color:#fff;font:600 17px/1.4 var(--font-inter),'Inter',sans-serif;text-align:left;padding:22px 0;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center}
 .notera-landing .q .pm{color:var(--lp-brand2);font-size:22px;transition:transform .3s var(--ease);flex-shrink:0}
 .notera-landing .qa.open .q .pm{transform:rotate(45deg)}
 .notera-landing .a{max-height:0;overflow:hidden;transition:max-height .4s var(--ease);color:var(--muted);font-size:15.5px}
@@ -216,3 +215,43 @@
   .notera-landing [data-reveal]{opacity:1!important;transform:none!important;transition:none!important}
   .notera-landing .orb{animation:none!important}
 }
+
+/* ── product-accurate feature visuals (replace stock photos: zero external images) ── */
+.notera-landing .fvis{background:linear-gradient(160deg,#10142e,#0a0d1f)}
+.notera-landing .vis{padding:26px;min-height:300px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.notera-landing .vq{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:15px;color:#fff;font-style:italic}
+.notera-landing .vq small{display:block;font-style:normal;font-size:11.5px;color:var(--faint);margin-top:4px;letter-spacing:.02em}
+.notera-landing .vq.muted{color:var(--muted)}
+.notera-landing .vn{display:flex;align-items:center;gap:10px;background:#fff;color:#1d1d1f;border-radius:14px;padding:12px 14px;font-size:14px;font-weight:560;margin:0 0 4px 22px;box-shadow:0 10px 30px -12px rgba(0,0,0,.5)}
+.notera-landing .vn svg{width:18px;height:18px;color:#1f9d55;flex-shrink:0}
+.notera-landing .vn em{margin-left:auto;font-style:normal;font-size:11.5px;font-weight:700;color:#1f9d55;background:#e8f7ee;padding:3px 9px;border-radius:999px}
+.notera-landing .vn.bad{background:rgba(255,59,48,.1);color:#ff8a82;box-shadow:none;border:1px dashed rgba(255,59,48,.45)}
+.notera-landing .vn.bad span{text-decoration:line-through;text-decoration-color:rgba(255,138,130,.7)}
+.notera-landing .vn.bad em{background:rgba(255,59,48,.16);color:#ff8a82}
+.notera-landing .chips{display:flex;flex-wrap:wrap;gap:8px}
+.notera-landing .chips span{padding:7px 14px;border-radius:999px;border:1px solid var(--line2);background:var(--panel);font-size:13.5px;color:var(--muted);font-weight:560}
+.notera-landing .chips span.on{background:linear-gradient(135deg,var(--lp-brand),var(--lp-brand2));color:#fff;border-color:transparent;box-shadow:0 8px 22px -8px rgba(109,94,252,.7)}
+.notera-landing .vsub{font-size:12px;color:var(--faint);letter-spacing:.04em;margin:2px 2px 6px}
+.notera-landing .vplan{background:#fff;color:#1d1d1f;border-radius:16px;padding:16px 18px;display:grid;gap:5px;font-size:14px;box-shadow:0 14px 36px -14px rgba(0,0,0,.55)}
+.notera-landing .vplan b{font-size:15px;letter-spacing:-.01em}
+.notera-landing .vplan span{color:#515154}
+.notera-landing .vis-emr{align-items:center;position:relative}
+.notera-landing .vemr{width:100%;background:#fff;border-radius:16px;padding:20px;display:grid;gap:10px;box-shadow:0 14px 36px -14px rgba(0,0,0,.55)}
+.notera-landing .vemr i{display:block;height:9px;border-radius:5px;background:#e7e7ea}
+.notera-landing .vemr i:nth-child(1){width:92%}.notera-landing .vemr i:nth-child(2){width:78%}.notera-landing .vemr i:nth-child(3){width:60%}
+.notera-landing .vbtns{display:flex;gap:10px}
+.notera-landing .vb{padding:10px 18px;border-radius:999px;background:rgba(255,255,255,.1);font-weight:620;font-size:13.5px}
+.notera-landing .vb.pri{background:#0071e3;box-shadow:0 8px 22px -6px rgba(0,113,227,.7)}
+.notera-landing .vtoast{display:inline-flex;align-items:center;gap:8px;background:#1c1c1e;border:1px solid var(--line2);padding:9px 16px;border-radius:999px;font-size:13px;font-weight:600}
+.notera-landing .vtoast svg{width:16px;height:16px;color:var(--mint)}
+.notera-landing .tcard h3{font-size:19px;margin-bottom:2px}
+.notera-landing .tcard p{color:var(--muted)}
+@media(max-width:820px){.notera-landing .hero{padding-top:120px}}
+
+/* hero: keep the live demo in the first viewport */
+.notera-landing .hero{padding:112px 0 40px}
+.notera-landing .hero h1{font-size:clamp(38px,5.4vw,68px);margin-bottom:16px}
+.notera-landing .hero .lead{margin-bottom:26px}
+.notera-landing .hnote{margin-top:14px}
+.notera-landing .dm-wrap{margin-top:34px}
+@media(max-width:820px){.notera-landing .hero{padding-top:104px}}

@@ -38,7 +38,7 @@ export default function AboutPage() {
 
       <div className="mkt-band">
         <h2>See it on your next visit</h2>
-        <p>Free for your first 50 notes — no card, no commitment.</p>
+        <p>Free for your first 5 notes — no card, no commitment.</p>
         <a className="mkt-btn mkt-btn-lg" href={LOGIN}>Start free ↗</a>
       </div>
     </Shell>

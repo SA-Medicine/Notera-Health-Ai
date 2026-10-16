@@ -7,7 +7,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.aitoolsfordoctor
 export const metadata: Metadata = {
   title: 'Notera — the AI medical scribe that writes the note as you talk',
   description:
-    'Notera listens to the visit and writes a clean, grounded SOAP note in seconds — HIPAA-ready, never trained on your data, and in your voice. Free for your first 50 notes.',
+    'Notera listens to the visit and writes a clean, grounded SOAP note in seconds — HIPAA-ready, never trained on your data, and in your voice. Free for your first 5 notes.',
   alternates: { canonical: '/' },
 }
 
@@ -20,7 +20,7 @@ const jsonLd = {
       name: 'Notera — AI Medical Scribe',
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free for the first 50 notes' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free for the first 5 notes' },
       description: 'Turn consultations into grounded, structured SOAP notes in seconds.',
       url: SITE_URL,
     },

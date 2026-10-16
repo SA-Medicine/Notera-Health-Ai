@@ -17,6 +17,7 @@ import { generateNote, approveNote } from './src/orchestrator/generateNote.js';
 import { store, audit } from './src/firestore/store.js';
 import { mountProxy } from './src/proxy.js';
 import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
+import { noteQuotaGate, asrQuotaGate, refundIfReserved } from './src/auth/quota.js';
 import { mountLibrary } from './src/library/libraryRoutes.js';
 import { mountOps } from './src/ops/opsRoutes.js';
 import { ensureOpsSchema, checkAlerts, recordAudioEvent } from './src/ops/opsLog.js';
@@ -77,9 +78,6 @@ app.use((req, res, next) => {
 // ── Product API (clinician) ──────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 
-// Key-safe passthrough proxy for the embedded client app (keys stay in .env).
-mountProxy(app);
-
 // Product (clinician) auth gate. Every PHI route requires a valid SESSION cookie
 // (from /api/auth/login). Service-token bearer auth is still accepted for trusted
 // server-to-server callers. The old "production → allow all" bypass is REMOVED.
@@ -87,7 +85,6 @@ const _requireAuth = requireAuth(DATA_DIR);
 app.use((req, res, next) => {
   if (req.path === '/healthz') return next();
   if (req.path.startsWith('/api/auth')) return next();            // login/reset are public
-  if (req.path.startsWith('/api/llm') || req.path.startsWith('/api/asr')) return next(); // key-safe proxy
   if (!config.requireAuth) return next();                          // dev convenience (REQUIRE_AUTH=false)
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -95,17 +92,23 @@ app.use((req, res, next) => {
   return _requireAuth(req, res, next);                             // else require a real session
 });
 
+// Key-safe passthrough proxy (/api/asr, /api/llm/*). Mounted AFTER the auth gate: it spends Google
+// credits, so it needs a signed-in user (or service token). Out-of-quota free users are stopped at ASR too.
+app.use('/api/asr', asrQuotaGate);
+mountProxy(app);
+
 app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'notera-backend', version: config.pipelineVersion }));
 
 // Audio safety: an empty/whitespace transcript means the mic caught no speech (left on by
 // mistake, etc.). NEVER run the LLM pipeline on it — that's the real cost saver. Log the event.
 const isBlankTranscript = (t) => typeof t === 'string' && t.trim().length < 2;
 
-app.post('/api/consults', async (req, res) => {
+app.post('/api/consults', noteQuotaGate, async (req, res) => {
   try {
     const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
     if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
     if (!audioUri && isBlankTranscript(transcript)) {
+      refundIfReserved(req);
       recordAudioEvent({ clinicianId, reason: 'empty_transcript', meta: { via: 'sync' } });
       return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
     }
@@ -114,7 +117,7 @@ app.post('/api/consults', async (req, res) => {
       { deidMode, includeLogs: !!req.body?.includeLogs }
     );
     res.json(result);
-  } catch (err) { console.error('[/api/consults] error', err); res.status(500).json({ error: err.message }); }
+  } catch (err) { refundIfReserved(req); console.error('[/api/consults] error', err); res.status(500).json({ error: err.message }); }
 });
 
 // ── Async note generation (avoids the Cloudflare ~100s edge timeout) ─────────
@@ -128,10 +131,11 @@ const _jobs = new Map();   // jobId -> { status, result, error, createdAt }
 const JOB_TTL_MS = 15 * 60 * 1000;
 setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now - j.createdAt > JOB_TTL_MS) _jobs.delete(id); }, 60_000).unref?.();
 
-app.post('/api/consults/async', async (req, res) => {
+app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
   const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
-  if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
+  if (!transcript && !audioUri) { refundIfReserved(req); return res.status(400).json({ error: 'transcript or audioUri required' }); }
   if (!audioUri && isBlankTranscript(transcript)) {
+    refundIfReserved(req);
     recordAudioEvent({ clinicianId, reason: 'empty_transcript', meta: { via: 'async' } });
     return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
   }
@@ -148,6 +152,7 @@ app.post('/api/consults/async', async (req, res) => {
       _jobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
     } catch (err) {
       console.error('[/api/consults/async] error', err);
+      refundIfReserved(req);   // a failed note doesn't count against the free quota
       _jobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() });
     }
   })();

@@ -18,11 +18,22 @@ const MIN_PASSWORD = 12;
 const emailOk = (e) => /^\S+@\S+\.\S+$/.test(String(e || ''));
 
 /** Create a user. Admin-only in the API. Returns { id, email, role }. */
-export async function createUser({ email, password, fullName, role = 'clinician' }) {
+export async function createUser({ email, password, fullName, role = 'clinician', plan = null }) {
   if (!emailOk(email)) throw new Error('invalid email');
   if (String(password || '').length < MIN_PASSWORD) throw new Error(`password must be ≥ ${MIN_PASSWORD} characters`);
   if (!['clinician', 'admin'].includes(role)) throw new Error('invalid role');
   const hash = await bcrypt.hash(password, ROUNDS);
+  // plan=null → column default ('full': admin-provisioned accounts keep full access).
+  // plan='free' → self-service sign-up with the free-note quota (see quota.js).
+  if (plan) {
+    const { ensureAccountSchema } = await import('./quota.js');
+    await ensureAccountSchema();
+    const rows = await query(
+      `INSERT INTO auth.users (email, password_hash, full_name, role, plan)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id, email, role, plan`,
+      [String(email).toLowerCase(), hash, fullName || null, role, plan]);
+    return rows[0];
+  }
   const rows = await query(
     `INSERT INTO auth.users (email, password_hash, full_name, role)
      VALUES ($1,$2,$3,$4) RETURNING id, email, role`,

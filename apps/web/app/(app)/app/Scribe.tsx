@@ -124,7 +124,8 @@ export default function Scribe() {
   const [dark, setDark] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
-  const [me, setMe] = useState<{ fullName: string; email: string; initials: string } | null>(null);
+  const [me, setMe] = useState<{ fullName: string; email: string; initials: string; plan?: string; used?: number; limit?: number | null; remaining?: number | null } | null>(null);
+  const [paywall, setPaywall] = useState(false);   // free quota used up → show pricing
   const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
   const [pendingSegs, setPendingSegs] = useState(0);       // segments still being transcribed
   const [failedSegs, setFailedSegs] = useState(0);         // segments that never transcribed
@@ -247,10 +248,19 @@ export default function Scribe() {
         const initials = parts.length >= 2
           ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
           : name.slice(0, 2).toUpperCase();
-        setMe({ fullName: name, email: u.email || '', initials });
+        setMe({ fullName: name, email: u.email || '', initials, plan: u.plan, used: u.used, limit: u.limit, remaining: u.remaining });
       })
       .catch(() => {});
   }, []);
+
+  // Re-read the free-note counter (after a note is written or refused).
+  async function refreshQuota() {
+    try {
+      const r = await fetch(`${API}/api/auth/me`, { credentials: 'include', cache: 'no-store' });
+      const u = r.ok ? (await readJson(r)).user : null;
+      if (u) setMe((m) => (m ? { ...m, plan: u.plan, used: u.used, limit: u.limit, remaining: u.remaining } : m));
+    } catch { /* */ }
+  }
 
   async function logout() {
     try {
@@ -268,6 +278,7 @@ export default function Scribe() {
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
     const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(ASR_REQUEST_TIMEOUT_MS) });
+    if (r.status === 402) { setPaywall(true); throw new Error('free_limit_reached'); }
     if (!r.ok) { const d = await readJson(r).catch(() => ({} as any)); throw new Error(d?.hint || d?.error || 'Transcription failed'); }
     const d = await readJson(r);
     return (d.text || d.transcript || '').trim();
@@ -305,7 +316,7 @@ export default function Scribe() {
     } catch (e) {
       const attempt = seg.attempts || 0;
       seg.attempts = attempt + 1;
-      if (attempt >= CHUNK_RETRIES) {
+      if ((e as Error).message === 'free_limit_reached' || attempt >= CHUNK_RETRIES) {
         // Keep the segment marked failed (and its audio) so the post-recording
         // full-audio pass can recover what it said. Never surface this as a hard
         // error and never discard the session over it.
@@ -612,6 +623,7 @@ export default function Scribe() {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician' }),
       });
+      if (start.status === 402) { setPaywall(true); setPhase(transcriptRef.current ? 'done' : 'idle'); refreshQuota(); return; }
       const startBody = await readJson(start);
       if (!start.ok || !startBody?.jobId) throw new Error(startBody?.error || 'Could not start note generation');
       const jobId = startBody.jobId as string;
@@ -629,6 +641,7 @@ export default function Scribe() {
       const md = d.renderedNote || d.rawRenderedNote || '';
       setNote(md); setConsultId(d.consultId || null); setPhase('done');
       flash('Note generated');
+      refreshQuota();
       const cid = d.consultId;
       const resolvedSpec = (specialty === 'auto' ? (d.detectedSpecialty || 'consult') : specialty) as string;
       if (cid) {
@@ -721,6 +734,11 @@ export default function Scribe() {
             <option value="auto">Auto-detect</option>
             {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
           </select>
+          {me?.plan === 'free' && (
+            <button className={`ws-chip${(me.remaining ?? 1) <= 1 ? ' low' : ''}`} onClick={() => setPaywall(true)} title="Free plan">
+              {me.remaining ?? 0} free note{me.remaining === 1 ? '' : 's'} left
+            </button>
+          )}
           <button className="ws-icon" title="Patient context" aria-label="Patient context" aria-pressed={panel === 'context'} onClick={() => setPanel(panel === 'context' ? 'transcript' : 'context')}>{J.user}</button>
           <button className="ws-icon" title="History" aria-label="History" aria-pressed={drawer} onClick={() => { setPanel(drawer ? 'transcript' : 'history'); loadHistory(); }}>{J.history}</button>
           <button className="ws-icon" title="New session" aria-label="New session" data-tour="new" onClick={newSession}>{J.plus}</button>
@@ -898,6 +916,31 @@ export default function Scribe() {
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') loadPastedTranscript(); }} />
             </div>
             <div className="ws-sheet-foot"><span className="ws-count">{pasteText.length.toLocaleString()} characters</span><button className="ws-btn primary" onClick={loadPastedTranscript} disabled={!pasteText.trim()}>Load transcript</button></div>
+          </div>
+        </>
+      )}
+
+      {/* ── Free plan used up / info ── */}
+      {paywall && (
+        <>
+          <div className="ws-scrim" onClick={() => setPaywall(false)} />
+          <div className="ws-sheet ws-paywall" role="dialog" aria-label="Free plan">
+            <div className="ws-sheet-head"><h2>{(me?.remaining ?? 0) > 0 ? 'Your free plan' : 'You\'ve used your free notes'}</h2><button className="ws-icon" onClick={() => setPaywall(false)} aria-label="Close">{J.close}</button></div>
+            <p className="ws-sheet-sub">
+              {(me?.remaining ?? 0) > 0
+                ? `${me?.remaining} of ${me?.limit} free notes left. Upgrade any time for unlimited notes.`
+                : `All ${me?.limit ?? 5} free notes are used. Pick a plan to keep writing notes. Your history stays safe and readable.`}
+            </p>
+            <div className="ws-sheet-body">
+              <div className="ws-plan">
+                <div><b>Practice</b><span>Unlimited notes, specialty tuning, full history, priority support</span></div>
+                <div className="ws-plan-price">$49<small>/mo</small></div>
+              </div>
+            </div>
+            <div className="ws-sheet-foot">
+              <button className="ws-btn ghost" onClick={() => setPaywall(false)}>{(me?.remaining ?? 0) > 0 ? 'Keep going' : 'Not now'}</button>
+              <a className="ws-btn primary lg" href="/pricing" style={{ textDecoration: 'none' }}>See plans &amp; pricing</a>
+            </div>
           </div>
         </>
       )}
