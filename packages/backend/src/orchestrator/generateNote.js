@@ -32,6 +32,11 @@ import { store, audit } from '../firestore/store.js';
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION || 'notera-pipeline-v31';
 
 export async function generateNote(input, opts = {}) {
+  // PIPELINE_MODE=v2 → fast path (1 writer ∥ 1 checklist → 1 verifier). opts.mode overrides (A/B tests).
+  if ((opts.mode || process.env.PIPELINE_MODE) === 'v2') {
+    const { generateNoteV2 } = await import('./generateNoteV2.js');
+    return generateNoteV2(input, opts);
+  }
   const {
     specialty = 'general_primary_care',
     noteType = 'consultation',

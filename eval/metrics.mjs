@@ -135,7 +135,11 @@ export function aggregate(rows) {
     avg_omission_rate: avg('omission_rate'),
     avg_story_flow: avg('story_flow'),
     total_unsupported_meds: rows.reduce((s, r) => s + (r.meds_unsupported?.length || 0), 0),
+    failed: rows.filter((r) => r.error).length,
+    avg_note_words: avg('note_words'),
   };
+  const ms = rows.map((r) => r.ms).filter((x) => typeof x === 'number').sort((a, b) => a - b);
+  if (ms.length) { out.p50_s = +(ms[Math.floor(ms.length * 0.5)] / 1000).toFixed(1); out.p95_s = +(ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.95))] / 1000).toFixed(1); }
   // Dynamic QA-agent metrics: average every qa_<name> numeric field found on the rows,
   // counting only rows that reported it → surfaced as avg_qa_<name> for the trend chart.
   const qaKeys = new Set();

@@ -20,12 +20,13 @@ let _googleAuth = null;
 // 30-60s while an identical retry returns in ~2s — hedging beats waiting out a timeout.
 // A 429/5xx counts as "not usable" while another attempt is still pending. Returns
 // { status, text } (the body is read here so aborting the loser can't truncate the winner).
-export async function hedgedPost(url, headers, body, timeoutMs, hedgeMs) {
+export async function hedgedPost(url, headers, body, timeoutMs, hedgeMs, altUrl = null) {
   const ctrls = [];
   const bad = (s) => s === 429 || s >= 500;
+  // The 2nd attempt goes to `altUrl` (the FALLBACK model) when given, else repeats `url`.
   const launch = () => {
     const c = new AbortController(); ctrls.push(c);
-    return fetch(url, { method: 'POST', headers, body, signal: c.signal })
+    return fetch(ctrls.length > 1 && altUrl ? altUrl : url, { method: 'POST', headers, body, signal: c.signal })
       .then(async (r) => ({ status: r.status, text: await r.text() }));
   };
   const overall = setTimeout(() => ctrls.forEach((c) => c.abort()), timeoutMs);
@@ -43,8 +44,12 @@ export async function hedgedPost(url, headers, body, timeoutMs, hedgeMs) {
       if (evt === 'hedge') { attempts.push(launch()); continue; }
       settled.push(evt.i);
       if (evt.v && !bad(evt.v.status)) return evt.v;                  // usable answer wins
-      if (evt.e) firstErr ||= evt.e;
+      if (evt.e && evt.e.name !== 'AbortError') firstErr ||= evt.e;
+      else if (evt.e) firstErr ||= evt.e;
       if (evt.v && !firstErr) firstErr = evt.v;                        // remember a 429/5xx body
+      // The primary model failed fast (429/5xx/connection) — go straight to the fallback model
+      // instead of waiting for the hedge timer. One hop only; never a chain.
+      if (altUrl && attempts.length === 1 && evt.i === 0 && !(evt.e && evt.e.name === 'AbortError')) { attempts.push(launch()); continue; }
       if (settled.length >= attempts.length) {
         if (firstErr && firstErr.status) return firstErr;
         throw firstErr || new Error('request failed');
@@ -95,7 +100,7 @@ export class LLMService {
     console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t}${th ? ` thoughts=${th}` : ''} (model=${this.model})`);
   }
 
-  _endpoint(stream = false) {
+  _endpoint(stream = false, model = this.model) {
     const verb = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
     if (this.backend === 'vertex') {
       // `global` = Vertex's dynamic worldwide fleet → cheapest (no regional localization premium).
@@ -105,11 +110,11 @@ export class LLMService {
         ? 'https://aiplatform.googleapis.com'
         : `https://${loc}-aiplatform.googleapis.com`;
       const base = `${host}/v1/projects/${this.project}/locations/${loc}/publishers/google/models`;
-      return `${base}/${this.model}:${verb}`;
+      return `${base}/${model}:${verb}`;
     }
     const key = `key=${this.apiKey}`;
     const sep = verb.includes('?') ? '&' : '?';
-    return `${AI_STUDIO_BASE}/${this.model}:${verb}${sep}${key}`;
+    return `${AI_STUDIO_BASE}/${model}:${verb}${sep}${key}`;
   }
 
   async _authHeaders() {
@@ -161,6 +166,10 @@ export class LLMService {
     // so every call made >=4 attempts). Default 1 retry; only 429/5xx/connection errors retry.
     const retries = (options.retries !== undefined ? options.retries : Number(process.env.LLM_RETRIES ?? 1)) + (targets.length - 1);
     // Hedge: duplicate a SLOW small call instead of waiting out a timeout (see hedgedPost).
+    // Fallback model (GEMINI_FALLBACK_MODEL, e.g. gemini-2.5-flash): used as the hedge target and
+    // when the primary fails fast. Same region; skipped on the proxy path.
+    const fbModel = options.fallbackModel !== undefined ? options.fallbackModel : (process.env.GEMINI_FALLBACK_MODEL || '');
+    const altUrl = (fbModel && fbModel !== this.model && this.backend !== 'proxy') ? this._endpoint(false, fbModel) : null;
     const hedgeMs = options.hedgeMs !== undefined ? options.hedgeMs
       : (process.env.LLM_HEDGE_MS !== undefined ? Number(process.env.LLM_HEDGE_MS) : ((options.maxOutputTokens || 65536) <= 4000 ? 8000 : 0));
     // Output ceiling precedence: an explicit caller cap (prose generators) wins; then an
@@ -212,7 +221,7 @@ export class LLMService {
     try {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await hedgedPost(url, headers, JSON.stringify(body), timeoutMs, hedgeMs);
+        const response = await hedgedPost(url, headers, JSON.stringify(body), timeoutMs, hedgeMs, usingProxy ? null : altUrl);
         response.ok = response.status >= 200 && response.status < 300;
         if (!response.ok) {
           let errorData = {}; try { errorData = JSON.parse(response.text); } catch { /* */ }

@@ -92,6 +92,11 @@ async function main() {
   let limit = Infinity;
   const li = args.indexOf('--limit');
   if (li !== -1) { limit = Number(args[li + 1]); args.splice(li, 2); }
+  // --sample N: N evenly-spaced fixtures from the sorted gold set (same N → same fixtures, so two
+  // pipeline modes can be A/B-compared on identical inputs).
+  let sample = 0;
+  const si = args.indexOf('--sample');
+  if (si !== -1) { sample = Number(args[si + 1]); args.splice(si, 2); }
 
   // --resume <run_dir>: continue an interrupted scan IN PLACE — reuse its output dir,
   // seed the already-completed rows, and skip the fixtures it already finished.
@@ -120,6 +125,7 @@ async function main() {
   // Exact (case-insensitive) basename match — NOT startsWith, else "patient1" also
   // matches "patient10". Args are gold basenames like "Patient2", "done_Patient3".
   if (args.length) files = files.filter((f) => args.some((a) => path.basename(f, '.txt').toLowerCase() === a.toLowerCase()));
+  if (sample > 0 && sample < files.length) { const step = files.length / sample; files = Array.from({ length: sample }, (_, k) => files[Math.floor(k * step)]); }
   files = files.slice(0, limit);
   const doneCount = resumeRows.length;
   if (doneCount) { const done = new Set(resumeRows.map((r) => String(r.id))); files = files.filter((f) => !done.has(path.basename(f, '.txt'))); console.log(`[resume] ${doneCount} already done, ${files.length} remaining in ${path.basename(OUT_DIR)}`); }
@@ -159,6 +165,7 @@ async function main() {
     const raw = fs.readFileSync(path.join(GOLD_DIR, f), 'utf8');
     const { transcript, gold } = splitTranscriptAndGold(raw);
     process.stdout.write(`▶ ${id} … `);
+    const _t0 = Date.now();
     try {
       // Hard per-patient timeout so one stuck record can never freeze the whole scan.
       const result = await Promise.race([
@@ -170,7 +177,7 @@ async function main() {
       ]);
       const noteText = noteToText(result.note);
       const score = scoreNote({ note: result.note, noteText, goldText: gold, entities: result.entities });
-      score.id = id; score.status = result.status;
+      score.id = id; score.status = result.status; score.ms = Date.now() - _t0; score.note_words = noteText.split(/\s+/).filter(Boolean).length;
       // merge QA-agent numeric metrics (qa_<name>) so aggregate() can trend them
       if (result.qa && result.qa._metrics) { for (const [k, v] of Object.entries(result.qa._metrics)) { if (typeof v === 'number' && isFinite(v)) score['qa_' + k] = v; } }
       // token usage: per-fixture totals (for run-metrics averages) + accumulate per-agent for the chart
@@ -199,7 +206,7 @@ async function main() {
         gold,
       ].join("\n");
       fs.writeFileSync(path.join(OUT_DIR, `${id}.md`), md);
-      console.log(`schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} flow=${score.story_flow} unsupported_meds=${score.meds_unsupported.length}`);
+      console.log(`${(score.ms / 1000).toFixed(1)}s words=${score.note_words} schema=${score.schema_valid} cov=${score.section_coverage} sim=${score.similarity_to_gold} flow=${score.story_flow} unsupported_meds=${score.meds_unsupported.length}`);
 
       // ── mirror into Testing Lab DB (patient + record + agent I/O + metrics) ──
       if (lab && labRun) {
@@ -229,7 +236,7 @@ async function main() {
       }
     } catch (e) {
       console.log('FAILED —', e.message);
-      rows.push({ id, error: e.message, schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] });
+      rows.push({ id, error: e.message, ms: Date.now() - _t0, schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] });
     }
     flush(id);                            // checkpoint after every patient (success or fail)
     console.log(`[progress] ${rows.length}/${total} done`);

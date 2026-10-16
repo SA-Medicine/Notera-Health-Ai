@@ -35,3 +35,20 @@ test('overall timeout aborts', async () => {
   await assert.rejects(hedgedPost(url(s), {}, '{}', 400, 100), (e) => e.name === 'AbortError');
   s.closeAllConnections?.(); s.close();
 });
+
+test('fallback model: primary 503 → alt URL answers immediately', async () => {
+  const hits = [];
+  const s = await server((req, res) => { hits.push(req.url); if (req.url === '/primary') { res.statusCode = 503; res.end('{}'); } else { res.end('{"from":"fallback"}'); } });
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const t0 = Date.now();
+  const r = await hedgedPost(`${base}/primary`, {}, '{}', 5000, 3000, `${base}/fallback`);
+  assert.equal(r.status, 200); assert.match(r.text, /fallback/); assert.ok(Date.now() - t0 < 1000);
+  assert.deepEqual(hits, ['/primary', '/fallback']); s.close();
+});
+
+test('fallback model: primary slow → hedge goes to the alt URL and wins', async () => {
+  const s = await server((req, res) => { setTimeout(() => res.end(req.url === '/primary' ? '{"from":"primary"}' : '{"from":"fallback"}'), req.url === '/primary' ? 3000 : 10); });
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const r = await hedgedPost(`${base}/primary`, {}, '{}', 8000, 300, `${base}/fallback`);
+  assert.match(r.text, /fallback/); s.closeAllConnections?.(); s.close();
+});

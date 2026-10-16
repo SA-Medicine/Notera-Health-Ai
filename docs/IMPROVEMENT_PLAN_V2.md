@@ -73,3 +73,20 @@ ASR: 101/101 twenty-second chunks transcribed first try across all runs (p50 ~1.
 
 Known remaining waste (Phase 2): the story-composer call returns ~8k tokens (hits its 8000 cap) for a ~400-word
 note, and extractor + clinical-story + composer are still three serial full-note generations.
+
+## Phase 2 results (v2 pipeline, 20 evenly-sampled gold fixtures, same inputs for every run)
+
+| Pipeline / model | p50 | p95 | failed | similarity↑ | omission↓ | judge (completeness / accuracy / concision) |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1 (current), gemini-2.5-flash | 68 s | 127 s | 0 | 0.257 | 0.664 | 5.0 / 7.1 / 4.7 |
+| v2, gemini-2.5-flash | 7.3 s | 33 s | 0 | 0.339 | 0.591 | 7.9 / 8.4 / 8.3 (v2 won 17 of 19 vs v1) |
+| v2, gemini-3.1-flash-lite | 4.1 s | 17 s | 0 | 0.274 | 0.668 | thinner notes (119 words) — rejected |
+| v2, gemini-2.5-flash-lite | 14 s | 17 s | 2 | 0.213 | 0.702 | unparseable JSON ×2 — rejected |
+| **v2, gemini-3.5-flash-lite (+ completeness prompt)** | **3.7 s** | **7.6 s** | **0** | **0.322** | **0.583** | **7.6 / 8.4 / 7.6 (10–9 vs v2/2.5-flash)** |
+
+Chosen: `PIPELINE_MODE=v2`, primary `gemini-3.5-flash-lite` on `global`, fallback `gemini-2.5-flash` (used as the hedge
+target after a slow call, and immediately on a 429/5xx — one hop, never a chain). Thinking is off everywhere.
+Canada: `northamerica-northeast1` serves gemini-2.5-flash/flash-lite only (no 3.x lite); `northamerica-northeast2`
+serves none of them. If Canadian data residency becomes mandatory use `GEMINI_MODEL=gemini-2.5-flash`,
+`VERTEX_LOCATION=northamerica-northeast1`.
+Roll back instantly with `PIPELINE_MODE=v1` + backend restart.
