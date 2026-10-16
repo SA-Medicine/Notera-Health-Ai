@@ -6,6 +6,6 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": false,
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
-  "vars": { "API_ORIGIN": "https://api.aitoolsfordoctor.com" },
+  "vars": { "API_ORIGIN": "https://api.aitoolsfordoctor.com", "LAB_ORIGIN": "https://api.aitoolsfordoctor.com" },
   "routes": [{ "pattern": "admin.aitoolsfordoctor.com", "custom_domain": true }]
 }

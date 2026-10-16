@@ -9,10 +9,11 @@ const ico = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICONS = {
   overview: ico('<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>'), users: ico('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6 6 0 013.5 5.5"/>'),
   consults: ico('<path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9zM14 3v6h6M8 13h8M8 17h5"/>'), audio: ico('<path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/>'),
-  activity: ico('<path d="M3 12h4l3-8 4 16 3-8h4"/>'), pipeline: ico('<path d="M4 6h6v4H4zM14 14h6v4h-6zM10 8h4a2 2 0 012 2v4"/>'), bench: ico('<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'),
+  activity: ico('<path d="M3 12h4l3-8 4 16 3-8h4"/>'), pipeline: ico('<path d="M4 6h6v4H4zM14 14h6v4h-6zM10 8h4a2 2 0 012 2v4"/>'), lab: ico('<path d="M12 3v4M12 17v4M4.2 7.5l3.5 2M16.3 14.5l3.5 2M4.2 16.5l3.5-2M16.3 9.5l3.5-2"/><circle cx="12" cy="12" r="3"/>'), bench: ico('<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'),
 };
-const NAV = [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['activity', 'Activity'], ['pipeline', 'Pipeline'], ['bench', 'Test bench']];
+const NAV = [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['activity', 'Activity'], ['pipeline', 'Pipeline'], ['bench', 'Test bench'], ['lab', 'Lab']];
 
+import { labView, labStop } from './lab.js';
 const S = { user: null, view: 'overview', toastT: 0 };
 
 function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.className = ''; }, 2800); }
@@ -69,9 +70,9 @@ function shell() {
   go(S.view);
 }
 function go(v) {
-  S.view = v; history.replaceState(null, '', '#' + v);
+  labStop(); S.view = v; history.replaceState(null, '', '#' + v);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench }[v] || overview;
+  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX) }[v] || overview;
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
@@ -304,6 +305,8 @@ async function bench() {
     const pass = rows.filter((r) => r.state === 'ok').length; toast(`${pass}/${rows.length} checks passed`, pass !== rows.length); b.disabled = false; histDraw();
   };
 }
+
+const CTX = { $, esc, ago, fmtDate, table, head, toast, openDrawer, closeDrawer, api, mdToHtml };
 
 /* ───────────── boot ───────────── */
 (async () => {

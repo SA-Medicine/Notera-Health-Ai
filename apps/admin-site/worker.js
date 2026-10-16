@@ -1,7 +1,7 @@
 // Notera admin site — Cloudflare Worker (static assets + a thin same-origin proxy to the Google-VM backend).
 //
 //   /backend/*  → https://api.aitoolsfordoctor.com/*   (product API: auth, console, ops, ASR, note jobs)
-//   /lab/*      → env.LAB_ORIGIN/*                     (testing lab on the VM; optional, adds X-Lab-Key)
+//   /lab/*      → env.LAB_ORIGIN/lab/*                 (testing lab on the VM; admin session verified first, then X-Lab-Key added)
 //   everything else → static files in ./public
 //
 // Why a proxy: the browser only ever talks to this origin, so the session cookie stays first-party (no CORS),
@@ -51,8 +51,11 @@ export default {
     const url = new URL(req.url);
     if (url.pathname.startsWith('/backend/')) return proxy(req, env.API_ORIGIN || API_ORIGIN, url.pathname.slice('/backend'.length));
     if (url.pathname.startsWith('/lab/')) {
-      if (!env.LAB_ORIGIN) return withHeaders(new Response(JSON.stringify({ error: 'lab not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
-      return proxy(req, env.LAB_ORIGIN, url.pathname.slice('/lab'.length), env.LAB_KEY ? { 'X-Lab-Key': env.LAB_KEY } : {});
+      if (!env.LAB_ORIGIN || !env.LAB_KEY) return withHeaders(new Response(JSON.stringify({ error: 'lab not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
+      // The lab key is only ever attached after the caller proves, to the API itself, that they hold an ADMIN session.
+      const me = await fetch((env.API_ORIGIN || API_ORIGIN) + '/api/auth/me', { headers: { Cookie: req.headers.get('Cookie') || '' } }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (me?.user?.role !== 'admin') return withHeaders(new Response(JSON.stringify({ error: 'admin session required' }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
+      return proxy(req, env.LAB_ORIGIN, url.pathname, { 'X-Lab-Key': env.LAB_KEY });   // Caddy strips the /lab prefix
     }
     const res = await env.ASSETS.fetch(req);
     return withHeaders(res, { 'Cache-Control': url.pathname.match(/\.(js|css)$/) ? 'public, max-age=300' : 'no-cache' });
