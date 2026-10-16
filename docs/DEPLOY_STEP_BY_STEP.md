@@ -167,8 +167,8 @@ DATABASE_URL=postgres://notera_admin:PASTE_PG_PASSWORD_HERE@postgres:5432/notera
 
 LLM_BACKEND=vertex
 GCP_PROJECT=medproject-506019
-VERTEX_LOCATION=global
-GEMINI_MODEL=gemini-3.5-flash
+VERTEX_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.5-flash
 GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/sa-key.json
 GEMINI_MAX_OUTPUT_TOKENS=65536
 

@@ -22,6 +22,7 @@ const ENABLED = () => process.env.OPS_LOGGING !== '0';
 const DEFAULT_PRICES = {
   'gemini-3.7-flash':      { input: 0.75, output: 3.75 },
   'gemini-3.8-flash':      { input: 0.75, output: 3.75 },
+  'gemini-2.5-flash':      { input: 0.30, output: 2.50 },
   'gemini-3.5-flash':      { input: 0.30, output: 2.50 },
   'gemini-3.5-flash-lite': { input: 0.30, output: 2.50 },
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
