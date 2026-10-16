@@ -114,7 +114,13 @@ export async function generateNote(input, opts = {}) {
     }
   }
 
-  const pipeline = await engine.runPipeline(safeTranscript, templateSystemPrompt, input.referenceNote || '');
+  let pipeline;
+  try { pipeline = await engine.runPipeline(safeTranscript, templateSystemPrompt, input.referenceNote || ''); }
+  catch (e) {
+    // Mark the consult errored (never leave it 'processing') and let the job surface the failure.
+    if (persist) { try { await store.updateConsult(consultId, { status: 'error' }); } catch { /* */ } }
+    throw e;
+  }
   const finalNote = pipeline.finalNote;
 
   // COMPLETENESS RECOVERY (Fix): the QA validator identifies extracted facts the V31 slot-filler

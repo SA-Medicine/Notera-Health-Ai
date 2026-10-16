@@ -328,7 +328,7 @@ Rendering & Priority:
       // degenerate repetition loops; the schema's maxLength caps any that still start.
       // No hardcoded maxOutputTokens: LLMService applies the per-agent env cap
       // (EXTRACTOR_MAX_OUTPUT_TOKENS) or the default. A prompt-config value still overrides.
-      const _opts = { timeoutMs: 180000, retries: 1, temperature: 0, candidateCount: 1 };
+      const _opts = { timeoutMs: Number(process.env.EXTRACTOR_TIMEOUT_MS) || 75000, retries: 1, temperature: 0, candidateCount: 1 };
       if (_cfg.maxOutputTokens) _opts.maxOutputTokens = _cfg.maxOutputTokens;
       return this.llm.generateContent(systemInstruction, prompt, _cfg.freeform ? null : responseSchema, _opts);
     })();

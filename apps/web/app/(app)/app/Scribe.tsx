@@ -13,7 +13,8 @@ const EMPTY_SEG_LIMIT = 9;   // audio safety: 9 consecutive SILENT 20s chunks (~
                              // when no speech was ever captured (mic left on by mistake).
 const CHUNK_RETRIES = 3;                       // per-segment ASR retries before giving up on it
 const CHUNK_RETRY_MS = [1_000, 4_000, 10_000]; // backoff between those retries
-const MAX_INFLIGHT = 2;                        // concurrent ASR requests (the backend queues too)
+const ASR_REQUEST_TIMEOUT_MS = 30_000;          // a 20s chunk answers in ~1-3s; a hung request must not hold a slot
+const MAX_INFLIGHT = 3;                        // concurrent ASR requests (the backend queues too)
 
 // One recorded 20s window and what came back for it.
 type Segment = {
@@ -122,6 +123,7 @@ export default function Scribe() {
   const segSeq = useRef(0);             // next segment index
   const segQueue = useRef<number[]>([]);// indices waiting for an ASR slot
   const inFlight = useRef(0);           // ASR requests currently open
+  const retryWaiting = useRef(0);        // segments sleeping before a retry (not in a slot)
   const captureLive = useRef(false);    // a segment recorder is still open
   const finishing = useRef(false);      // maybeFinish() already ran for this session
   const stopping = useRef(false);
@@ -207,7 +209,7 @@ export default function Scribe() {
   // rendered in index order.
   async function transcribeBlob(blob: Blob): Promise<string> {
     if (!blob.size) return '';
-    const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob });
+    const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(ASR_REQUEST_TIMEOUT_MS) });
     if (!r.ok) { const d = await readJson(r).catch(() => ({} as any)); throw new Error(d?.hint || d?.error || 'Transcription failed'); }
     const d = await readJson(r);
     return (d.text || d.transcript || '').trim();
@@ -234,34 +236,40 @@ export default function Scribe() {
     const seg = segments.current.get(index);
     if (!seg || !seg.blob) return;
     const blob = seg.blob;
-    for (let attempt = 0; attempt <= CHUNK_RETRIES; attempt++) {
-      try {
-        const text = await transcribeBlob(blob);
-        seg.status = 'done';
-        seg.text = text;
-        seg.blob = null;                      // free the audio once it is transcribed
-        if (text) emptySegs.current = 0;
-        else countEmptySegment();
+    try {
+      const text = await transcribeBlob(blob);
+      seg.status = 'done';
+      seg.text = text;
+      seg.blob = null;                      // free the audio once it is transcribed
+      if (text) emptySegs.current = 0;
+      else countEmptySegment();
+      renderSegments();
+    } catch (e) {
+      const attempt = seg.attempts || 0;
+      seg.attempts = attempt + 1;
+      if (attempt >= CHUNK_RETRIES) {
+        // Keep the segment marked failed (and its audio) so the post-recording
+        // full-audio pass can recover what it said. Never surface this as a hard
+        // error and never discard the session over it.
+        seg.status = 'failed';
         renderSegments();
+        console.warn(`ASR segment ${index} failed after ${attempt + 1} attempts:`, (e as Error).message);
         return;
-      } catch (e) {
-        seg.attempts = attempt + 1;
-        if (attempt === CHUNK_RETRIES) {
-          // Keep the segment marked failed (and its audio) so the post-recording
-          // full-audio pass can recover what it said. Never surface this as a hard
-          // error and never discard the session over it.
-          seg.status = 'failed';
-          renderSegments();
-          console.warn(`ASR segment ${index} failed after ${attempt + 1} attempts:`, (e as Error).message);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, CHUNK_RETRY_MS[attempt] ?? 5000));
       }
+      // Back off OUTSIDE the concurrency slot: sleeping in here used to hold one of the
+      // in-flight slots, so two failing chunks stalled every later chunk.
+      retryWaiting.current += 1;
+      setTimeout(() => {
+        retryWaiting.current -= 1;
+        segQueue.current.push(index);
+        drainSegQueue();
+        maybeFinish();
+      }, CHUNK_RETRY_MS[attempt] ?? 5000);
     }
   }
 
-  // Client-side concurrency limit. The backend queues ASR work, so firing every
-  // segment at once only deepens that queue and pushes requests past their deadline.
+  // Client-side concurrency limit. The backend has no ASR queue (each request decodes and
+  // recognises on its own), so firing every segment at once only deepens contention.
   function enqueueSegment(index: number) {
     segQueue.current.push(index);
     drainSegQueue();
@@ -326,7 +334,7 @@ export default function Scribe() {
   // settled, recover any failed segments from the full recording and finish.
   async function maybeFinish() {
     if (!stopping.current || silenceAbort.current || finishing.current) return;
-    if (segQueue.current.length || inFlight.current > 0) return;
+    if (segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0) return;
     if (captureLive.current) return;                  // the final segment is still closing
     finishing.current = true;
     if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: fullMime.current });
@@ -523,11 +531,11 @@ export default function Scribe() {
     // On a long consult the last segments can still be transcribing when the clinician
     // hits Create. Generating now would write the note from a truncated transcript, so
     // wait for them (up to 4 minutes) rather than silently losing the tail.
-    if (segQueue.current.length || inFlight.current > 0 || captureLive.current) {
+    if (segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) {
       setPanel('transcript');
       flash('Finishing transcription before writing the note…');
       const deadline = Date.now() + 4 * 60_000;
-      while ((segQueue.current.length || inFlight.current > 0 || captureLive.current) && Date.now() < deadline) {
+      while ((segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 500));
       }
     }
@@ -538,7 +546,7 @@ export default function Scribe() {
     // Cloudflare's edge timeout if we held one long request. Instead we kick off a background
     // job and poll a tiny status endpoint every 3s for up to 5 minutes — no request ever
     // approaches the edge timeout, so there is effectively no client-side timeout.
-    const POLL_MS = 3_000, MAX_WAIT_MS = 5 * 60_000;
+    const POLL_MS = 3_000, MAX_WAIT_MS = 8 * 60_000;
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     try {
       const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
@@ -557,7 +565,7 @@ export default function Scribe() {
         const pj = pr ? await readJson(pr).catch(() => null) : null;
         if (pj?.status === 'done') { d = pj.result; break; }
         if (pj?.status === 'error') throw new Error(pj.error || 'Note generation failed');
-        if (Date.now() - t0 > MAX_WAIT_MS) throw new Error('Note generation is taking longer than 5 minutes — it may still finish; check History shortly.');
+        if (Date.now() - t0 > MAX_WAIT_MS) throw new Error('Note generation is taking longer than 8 minutes — it may still finish; check History shortly.');
         // status 'pending' (or a transient network blip) → keep polling
       }
       const md = d.renderedNote || d.rawRenderedNote || '';

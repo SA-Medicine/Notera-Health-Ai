@@ -203,7 +203,8 @@ export function mountProxy(app) {
       // inside googleSpeech.js at the point the request is issued, so the premium
       // 'medical_conversation' (~5×) can never be billed by any path.
       const asrModel = process.env.ASR_MODEL || 'latest_long';
-      const model = billableModel(asrModel, (l) => console.log(`[proxy ${id}] ${l}`));
+      // A chirp* name is a V2-only model: V1 rejects it, so the V1 fallback must use latest_long.
+      const model = billableModel(/^chirp/i.test(asrModel) ? 'latest_long' : asrModel, (l) => console.log(`[proxy ${id}] ${l}`));
 
       if (pcm && pcm.length) {
         // Chirp 2 (Speech-to-Text V2): standard-priced and much more accurate on

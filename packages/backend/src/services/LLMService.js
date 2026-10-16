@@ -12,6 +12,50 @@ export const MODEL_TIERS = {
   flash: process.env.GEMINI_MODEL || process.env.GEMINI_MODEL_FLASH || 'gemini-3.5-flash',
 };
 
+let _googleAuth = null;
+
+// POST with an overall deadline and an optional HEDGE: if no usable answer arrives within
+// `hedgeMs`, fire ONE identical request in parallel and take whichever answers first (the
+// loser is aborted). Vertex `global` is shared capacity and an occasional call stalls for
+// 30-60s while an identical retry returns in ~2s — hedging beats waiting out a timeout.
+// A 429/5xx counts as "not usable" while another attempt is still pending. Returns
+// { status, text } (the body is read here so aborting the loser can't truncate the winner).
+export async function hedgedPost(url, headers, body, timeoutMs, hedgeMs) {
+  const ctrls = [];
+  const bad = (s) => s === 429 || s >= 500;
+  const launch = () => {
+    const c = new AbortController(); ctrls.push(c);
+    return fetch(url, { method: 'POST', headers, body, signal: c.signal })
+      .then(async (r) => ({ status: r.status, text: await r.text() }));
+  };
+  const overall = setTimeout(() => ctrls.forEach((c) => c.abort()), timeoutMs);
+  let hedgeTimer;
+  try {
+    const attempts = [launch()];
+    const useHedge = hedgeMs > 0 && hedgeMs < timeoutMs;
+    const hedgeFired = useHedge ? new Promise((res) => { hedgeTimer = setTimeout(() => res('hedge'), hedgeMs); }) : null;
+    let firstErr;
+    const settled = [];
+    for (;;) {
+      const racers = attempts.map((p, i) => p.then((v) => ({ i, v }), (e) => ({ i, e })));
+      const pending = racers.filter((_, i) => !settled.includes(i));
+      const evt = await Promise.race([...pending, ...(hedgeFired && attempts.length === 1 ? [hedgeFired] : [])]);
+      if (evt === 'hedge') { attempts.push(launch()); continue; }
+      settled.push(evt.i);
+      if (evt.v && !bad(evt.v.status)) return evt.v;                  // usable answer wins
+      if (evt.e) firstErr ||= evt.e;
+      if (evt.v && !firstErr) firstErr = evt.v;                        // remember a 429/5xx body
+      if (settled.length >= attempts.length) {
+        if (firstErr && firstErr.status) return firstErr;
+        throw firstErr || new Error('request failed');
+      }
+    }
+  } finally {
+    clearTimeout(overall); clearTimeout(hedgeTimer);
+    ctrls.forEach((c) => { try { c.abort(); } catch { /* */ } });
+  }
+}
+
 export class LLMService {
   constructor(opts = {}) {
     const {
@@ -47,7 +91,8 @@ export class LLMService {
     const o = Number(usage?.candidatesTokenCount || 0);
     const t = Number(usage?.totalTokenCount || (p + o));
     rec.prompt += p; rec.output += o; rec.total += t; rec.calls += 1;
-    console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t} (model=${this.model})`);
+    const th = Number(usage?.thoughtsTokenCount || 0);
+    console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t}${th ? ` thoughts=${th}` : ''} (model=${this.model})`);
   }
 
   _endpoint(stream = false) {
@@ -70,9 +115,13 @@ export class LLMService {
   async _authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     if (this.backend === 'vertex') {
-      const { GoogleAuth } = await import('google-auth-library');
-      const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
-      const token = await auth.getAccessToken();
+      // One shared GoogleAuth per process: it caches/refreshes the token, so we don't pay a
+      // token round-trip (~100-400ms) on every LLM call.
+      if (!_googleAuth) {
+        const { GoogleAuth } = await import('google-auth-library');
+        _googleAuth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+      }
+      const token = await _googleAuth.getAccessToken();
       headers.Authorization = `Bearer ${token}`;
     }
     return headers;
@@ -108,7 +157,12 @@ export class LLMService {
     // qa-validator that once sat for 181s) aborts far sooner. Tunable via LLM_TIMEOUT_MS.
     const timeoutMs = options.timeoutMs || Number(process.env.LLM_TIMEOUT_MS) || 60000;
     let timedOutOnce = false;   // a timeout may retry at MOST once (never multiply wall-clock)
-    const retries = (options.retries !== undefined ? Math.max(options.retries, 2) : 2) + targets.length;
+    // Honour the caller's `retries` (previously floored to 2 and padded by the endpoint count,
+    // so every call made >=4 attempts). Default 1 retry; only 429/5xx/connection errors retry.
+    const retries = (options.retries !== undefined ? options.retries : Number(process.env.LLM_RETRIES ?? 1)) + (targets.length - 1);
+    // Hedge: duplicate a SLOW small call instead of waiting out a timeout (see hedgedPost).
+    const hedgeMs = options.hedgeMs !== undefined ? options.hedgeMs
+      : (process.env.LLM_HEDGE_MS !== undefined ? Number(process.env.LLM_HEDGE_MS) : ((options.maxOutputTokens || 65536) <= 4000 ? 8000 : 0));
     // Output ceiling precedence: an explicit caller cap (prose generators) wins; then an
     // OPTIONAL per-agent cap from the environment (keyed by this._agent); then the full default.
     // Per-agent caps let you bound each stage independently, e.g.:
@@ -157,12 +211,11 @@ export class LLMService {
     let lastErr;
     try {
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
+        const response = await hedgedPost(url, headers, JSON.stringify(body), timeoutMs, hedgeMs);
+        response.ok = response.status >= 200 && response.status < 300;
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          let errorData = {}; try { errorData = JSON.parse(response.text); } catch { /* */ }
           // A 500 while constraining to a large responseSchema → drop the schema and retry.
           if (response.status === 500 && body.generationConfig.responseSchema) {
             delete body.generationConfig.responseSchema;
@@ -201,7 +254,7 @@ export class LLMService {
         // like "Internal Server Error" even on a 2xx, which would make response.json()
         // throw a cryptic "Unexpected token 'I'". Parse defensively and, if it's not
         // JSON, retry (transient) or surface the real body.
-        const raw = await response.text();
+        const raw = response.text;
         let data;
         try { data = JSON.parse(raw); }
         catch {
@@ -230,12 +283,13 @@ export class LLMService {
         if (attempt < retries) {
           // A TIMEOUT retries at most ONCE — a slow endpoint rarely recovers on an immediate
           // retry, and retrying every time is what turned a 60s hang into 181s of wall-clock.
-          if (isTimeout && !timedOutOnce) { timedOutOnce = true; continue; }
+          if (isTimeout && options.retryOnTimeout && !timedOutOnce) { timedOutOnce = true; continue; }
+          if (isTimeout) throw lastErr;   // never retry a timeout: hedging covers slow calls
           // Network/transient errors still retry freely.
           if (!isTimeout && (err?.name === 'TypeError' || /fetch failed|network/i.test(err?.message || ''))) continue;
         }
         throw lastErr;
-      } finally { clearTimeout(timer); }
+      }
     }
     throw lastErr || new Error('Gemini request failed');
     } catch (err) {
