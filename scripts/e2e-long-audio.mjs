@@ -13,7 +13,8 @@ import { join, basename } from 'node:path';
 const BASE = (process.env.BASE || 'http://localhost:8080').replace(/\/+$/, '');
 const SEG = Number(process.env.SEG || 20);
 const INFLIGHT = Number(process.env.INFLIGHT || 2);
-const headers = process.env.COOKIE ? { Cookie: process.env.COOKIE } : {};
+// /api/asr and the note routes now require a session cookie (COOKIE=...) or a service token (AUTH_BEARER=...).
+const headers = { ...(process.env.COOKIE ? { Cookie: process.env.COOKIE } : {}), ...(process.env.AUTH_BEARER ? { Authorization: `Bearer ${process.env.AUTH_BEARER}` } : {}) };
 const files = process.argv.slice(2);
 if (!files.length) { console.error('usage: e2e-long-audio.mjs <audio files>'); process.exit(2); }
 

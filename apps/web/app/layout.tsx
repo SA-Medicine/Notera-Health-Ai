@@ -1,4 +1,7 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://aitoolsfordoctor.com'
 
@@ -13,7 +16,7 @@ export const metadata: Metadata = {
     template: '%s | Notera',
   },
   description:
-    'Notera is an AI medical scribe that turns consultations into grounded, structured SOAP notes in seconds. HIPAA-ready, never trained on your data, and in your voice. Free for your first 50 notes.',
+    'Notera is an AI medical scribe that turns consultations into grounded, structured SOAP notes in seconds. HIPAA-ready, never trained on your data, and in your voice. Free for your first 5 notes.',
   keywords: [
     'Notera', 'AI medical scribe', 'AI tools for doctors', 'clinical documentation AI',
     'SOAP note generator', 'AI for physicians', 'HIPAA compliant AI scribe',
@@ -77,7 +80,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       {/* suppressHydrationWarning: browser extensions (Grammarly, etc.) inject
           data-gr-* attributes onto <body> before React hydrates. */}
       <body suppressHydrationWarning>

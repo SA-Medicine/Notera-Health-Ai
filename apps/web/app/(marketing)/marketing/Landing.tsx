@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import './landing.css'
+import Demo from './Demo'
 
 /* Icons kept inline so the component is dependency-free and matches the mockup exactly. */
 const Check = () => (
@@ -11,6 +12,7 @@ const Check = () => (
 export default function Landing({ appUrl }: { appUrl: string }) {
   const root = useRef<HTMLDivElement>(null)
   const loginUrl = appUrl.replace(/\/+$/, '') + '/login'
+  const signupUrl = loginUrl + '?mode=signup'
 
   useEffect(() => {
     const el = root.current
@@ -98,46 +100,29 @@ export default function Landing({ appUrl }: { appUrl: string }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <div className="brand"><img className="m-img" src="/icon.png" alt="Notera" width={32} height={32} />Notera</div>
             <div className="nlinks"><a href="#how">How it works</a><a href="#features">Features</a><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></div>
-            <div className="nauth"><a className="btn btn-ghost" href={loginUrl}>Sign in</a><a className="btn btn-primary" href={loginUrl}>Start free</a></div>
+            <div className="nauth"><a className="btn btn-ghost" href={loginUrl}>Sign in</a><a className="btn btn-primary" href={signupUrl}>Start free</a></div>
           </div>
         </nav>
 
         {/* HERO */}
         <header className="hero">
           <div className="wrap">
-            <h1 data-reveal>Your notes, done before<br /><span className="g">the patient&apos;s coat is back on.</span></h1>
-            <p className="lead d2" data-reveal>Notera listens to the visit and writes a clean, structured note you&apos;ll actually recognise as your own. No macros, no templates, no catching up at 9pm.</p>
+            <h1 data-reveal>Your notes, done before<br /><span className="g">the coat is back on.</span></h1>
+            <p className="lead d2" data-reveal>Notera listens to the visit and writes a clean, structured SOAP note in about four seconds. No templates, no macros, no catching up at 9&nbsp;pm.</p>
             <div className="hcta d3" data-reveal>
-              <a className="btn btn-primary btn-lg" href={loginUrl}>Start free — no card ↗</a>
+              <a className="btn btn-primary btn-lg" href={signupUrl}>Start free: 5 notes on us</a>
               <a className="btn btn-ghost btn-lg" href="#how">See how it works</a>
             </div>
-            <p className="hnote d3" data-reveal>Free for your first 50 notes · Set up in about 3 minutes</p>
+            <p className="hnote d3" data-reveal>No card needed · Works in your browser · Set up in two minutes</p>
           </div>
 
-          <div className="frame-wrap" data-reveal>
-            <div className="frame" id="heroFrame">
-              <div className="fbar"><i /><i /><i /><span className="u">app.notera.health/scribe</span></div>
-              <div className="app">
-                <div className="aside">
-                  <div className="it on"><svg viewBox="0 0 24 24" fill="none"><path d="M12 14a3 3 0 003-3V6a3 3 0 00-6 0v5a3 3 0 003 3z" stroke="currentColor" strokeWidth="1.6" /><path d="M5 11a7 7 0 0014 0M12 18v3" stroke="currentColor" strokeWidth="1.6" /></svg>Scribe</div>
-                  <div className="it"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" strokeWidth="1.6" /></svg>Context</div>
-                  <div className="it"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" /><path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.6" /></svg>History</div>
-                </div>
-                <div className="amain">
-                  <div className="atabs"><span>Transcript</span><span className="on">Note</span><span>History</span><span className="live">● Writing…</span></div>
-                  <div className="nh">Subjective</div><div className="nl w92" /><div className="nl w80" />
-                  <div className="nh">Objective</div><div className="nl w86" /><div className="nl w66" />
-                  <div className="nh">Assessment &amp; Plan</div><div className="nl w92" /><div className="nl w74" />
-                </div>
-              </div>
-            </div>
-          </div>
+          <div data-reveal><Demo /></div>
         </header>
 
-        {/* LOGOS */}
+        {/* CAPABILITIES */}
         <div className="logos"><div className="wrap" data-reveal>
-          <p>Used by clinicians across</p>
-          <div className="logorow"><span>Family Medicine</span><span>Cardiology</span><span>Psychiatry</span><span>Paediatrics</span><span>Urgent Care</span></div>
+          <p>What you get</p>
+          <div className="logorow"><span>SOAP notes</span><span>Live transcript</span><span>Any EMR</span><span>Dark &amp; light mode</span><span>Laptop &amp; phone</span></div>
         </div></div>
 
         {/* PROBLEM */}
@@ -149,12 +134,12 @@ export default function Landing({ appUrl }: { appUrl: string }) {
             <p>Notera takes the note off your plate. You talk to your patient like a person; it does the writing.</p>
           </div>
           <div className="statcard d1" data-reveal>
-            <div className="s"><div className="n" data-count="2">0</div><div className="l">hrs/day on notes, industry avg</div></div>
-            <div className="s"><div className="n" data-count="12">0</div><div className="l">minutes saved per visit</div></div>
-            <div className="s"><div className="n" data-count="7">0</div><div className="l">seconds to a first draft</div></div>
-            <div className="s"><div className="n" data-count="0" data-suffix="k+" data-final="40">0</div><div className="l">notes written so far</div></div>
+            <div className="s"><div className="n">~4s</div><div className="l">from stop to a finished note</div></div>
+            <div className="s"><div className="n" data-count="5">0</div><div className="l">free notes, no card</div></div>
+            <div className="s"><div className="n">1 tap</div><div className="l">to copy into your EMR</div></div>
+            <div className="s"><div className="n">0</div><div className="l">visits used to train models</div></div>
           </div>
-        </div></section>
+        </div>        </section>
 
         {/* HOW */}
         <section className="blk" id="how"><div className="wrap">
@@ -189,7 +174,12 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />Flags anything it isn&apos;t sure it heard right</li>
               </ul>
             </div>
-            <div className="fvis d1" data-reveal><img alt="Clinician reviewing notes on a tablet" src="https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=900&q=75" /><div className="tint" /></div>
+            <div className="fvis d1" data-reveal><div className="vis vis-ground">
+                <div className="vq">&ldquo;…my dad had a heart attack at 45…&rdquo;<small>heard in the visit</small></div>
+                <div className="vn ok"><Check /><span>Father had a heart attack at 45.</span><em>grounded</em></div>
+                <div className="vq muted">No potassium result was mentioned<small>not in the transcript</small></div>
+                <div className="vn bad"><span>Potassium 4.1 mmol/L</span><em>never written</em></div>
+              </div></div>
           </div>
 
           <div className="frow">
@@ -203,7 +193,11 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />Edit once — it remembers your style</li>
               </ul>
             </div>
-            <div className="fvis d1" data-reveal><img alt="Doctor and patient in conversation" src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=900&q=75" /><div className="tint" /></div>
+            <div className="fvis d1" data-reveal><div className="vis vis-spec">
+                <div className="chips"><span>Family medicine</span><span className="on">Cardiology</span><span>Psychiatry</span><span>Paediatrics</span><span>Urgent care</span></div>
+                <div className="vsub">Auto-detected from the conversation</div>
+                <div className="vplan"><b>1. Acute chest pain</b><span>Investigations: ECG, troponin</span><span>Referral: Emergency Department</span></div>
+              </div></div>
           </div>
 
           <div className="frow">
@@ -217,7 +211,11 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />Works on the laptop you already have</li>
               </ul>
             </div>
-            <div className="fvis d1" data-reveal><img alt="Healthcare team at work" src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=900&q=75" /><div className="tint" /></div>
+            <div className="fvis d1" data-reveal><div className="vis vis-emr">
+                <div className="vemr"><i /><i /><i /></div>
+                <div className="vbtns"><span className="vb">Copy</span><span className="vb pri">Copy to EMR</span></div>
+                <div className="vtoast"><Check />Copied for EMR</div>
+              </div></div>
           </div>
         </div></section>
 
@@ -236,28 +234,16 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           </div>
         </div></section>
 
-        {/* TESTIMONIALS */}
+        {/* WHO */}
         <section className="blk"><div className="wrap">
           <div className="shead" data-reveal>
-            <span className="eyebrow">From the people using it</span>
-            <h2>Evenings back. Notes that sound right.</h2>
+            <span className="eyebrow">Made for how you practise</span>
+            <h2>One tool, whatever your day looks like</h2>
           </div>
           <div className="tgrid">
-            <div className="tcard" data-reveal>
-              <div className="stars">★★★★★</div>
-              <p>&quot;I used to finish charting at home after dinner. Now it&apos;s done before my next patient&apos;s even sat down. The notes actually sound like me — that&apos;s the part I didn&apos;t expect.&quot;</p>
-              <div className="who"><img src="https://i.pravatar.cc/88?img=15" alt="" /><div><b>Dr. Anita Rao</b><span>Family Medicine</span></div></div>
-            </div>
-            <div className="tcard d1" data-reveal>
-              <div className="stars">★★★★★</div>
-              <p>&quot;I was sceptical about the &lsquo;AI won&apos;t make things up&rsquo; claim. Three months in, it hasn&apos;t invented a single value. That trust is everything in a chart.&quot;</p>
-              <div className="who"><img src="https://i.pravatar.cc/88?img=33" alt="" /><div><b>Dr. Marcus Bell</b><span>Cardiology</span></div></div>
-            </div>
-            <div className="tcard d2" data-reveal>
-              <div className="stars">★★★★★</div>
-              <p>&quot;My patients notice I&apos;m looking at them again instead of the keyboard. That alone made me a believer. Setup took me one coffee.&quot;</p>
-              <div className="who"><img src="https://i.pravatar.cc/88?img=45" alt="" /><div><b>Dr. Priya Nair</b><span>Psychiatry</span></div></div>
-            </div>
+            <div className="tcard" data-reveal><h3>Family &amp; urgent care</h3><p>Back-to-back visits, mixed problems. Notera ranks the problems, keeps the numbers exact and has the note waiting before the next room.</p></div>
+            <div className="tcard d1" data-reveal><h3>Specialists</h3><p>Plans that read like your field. Notera detects the type of encounter and keeps your investigations, referrals and follow-up in the right place.</p></div>
+            <div className="tcard d2" data-reveal><h3>Solo &amp; small clinics</h3><p>No install, no IT project. Open it in the browser you already use, sign up in two minutes, and keep your evenings.</p></div>
           </div>
         </div></section>
 
@@ -276,14 +262,14 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           <div className="pgrid">
             <div className="pcard" data-reveal>
               <h3>Solo</h3>
-              <div className="price">$0<small>/first 50 notes</small></div>
+              <div className="price">$0<small>/first 5 notes</small></div>
               <p className="desc">Everything you need to try it on real visits.</p>
               <ul>
-                <li><Check />Up to 50 notes free</li>
+                <li><Check />5 free notes, no card</li>
                 <li><Check />SOAP notes + transcript</li>
                 <li><Check />Copy to any EMR</li>
               </ul>
-              <a className="btn btn-ghost" href={loginUrl}>Start free</a>
+              <a className="btn btn-ghost" href={signupUrl}>Start free</a>
             </div>
             <div className="pcard pop d1" data-reveal>
               <span className="tagpop">Most popular</span>
@@ -296,7 +282,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />Full searchable history</li>
                 <li><Check />Priority support</li>
               </ul>
-              <a className="btn btn-primary" href={loginUrl}>Start free trial</a>
+              <a className="btn btn-primary" href={signupUrl}>Get started</a>
             </div>
             <div className="pcard d2" data-reveal>
               <h3>Enterprise</h3>
@@ -307,7 +293,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
                 <li><Check />EMR integrations</li>
                 <li><Check />BAA &amp; custom security review</li>
               </ul>
-              <a className="btn btn-ghost" href="#">Talk to us</a>
+              <a className="btn btn-ghost" href="/contact">Talk to us</a>
             </div>
           </div>
         </div></section>
@@ -330,20 +316,20 @@ export default function Landing({ appUrl }: { appUrl: string }) {
         {/* FINAL CTA */}
         <div className="final" data-reveal><div className="finalbox">
           <h2>Get your evenings back.</h2>
-          <p>Try Notera free on your next 50 visits — no card, no commitment.</p>
-          <a className="btn btn-lg" href={loginUrl}>Start free — no card ↗</a>
+          <p>Write your first 5 notes free. No card, no commitment.</p>
+          <a className="btn btn-lg" href={signupUrl}>Start free: 5 notes on us</a>
         </div></div>
 
         {/* FOOTER */}
         <footer><div className="wrap">
           <div className="fgrid">
             <div className="col about">
-              <div className="brand"><span className="m"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M5 8l7-4 7 4M5 8v8l7 4 7-4V8" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" /></svg></span>Notera</div>
+              <div className="brand">{/* eslint-disable-next-line @next/next/no-img-element */}<img className="m-img" src="/icon.png" alt="" width={32} height={32} style={{ borderRadius: 9 }} />Notera</div>
               <p>The AI scribe that writes the note before you finish talking — grounded, private, and in your voice.</p>
             </div>
             <div className="col"><h5>Product</h5><a href="#how">How it works</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#security">Security</a></div>
-            <div className="col"><h5>Company</h5><a href="#">About</a><a href="#">Careers</a><a href="#">Blog</a><a href="#">Contact</a></div>
-            <div className="col"><h5>Legal</h5><a href="#">Privacy</a><a href="#">Terms</a><a href="#">HIPAA</a><a href="#">Security</a></div>
+            <div className="col"><h5>Company</h5><a href="/about">About</a><a href="/contact">Contact</a></div>
+            <div className="col"><h5>Get started</h5><a href={signupUrl}>Create account</a><a href={loginUrl}>Sign in</a><a href="/pricing">Pricing</a></div>
           </div>
           <div className="fbot"><span>© 2026 Notera Health. All rights reserved.</span><span>Grounded, private, physician-built.</span></div>
         </div></footer>

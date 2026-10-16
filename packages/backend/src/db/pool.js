@@ -12,6 +12,9 @@ const { Pool } = pg;
 
 let _pool = null;
 
+/** Test hook: inject a pool (e.g. pg-mem). */
+export function _setPool(p) { _pool = p; }
+
 export function getPool() {
   if (_pool) return _pool;
   const connectionString = process.env.DATABASE_URL;

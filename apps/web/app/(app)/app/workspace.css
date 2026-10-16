@@ -28,7 +28,7 @@
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   background: var(--ws-bg); color: var(--ws-ink);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-inter), 'Inter', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   color-scheme: light; accent-color: var(--ws-accent); caret-color: var(--ws-accent);
 }
@@ -301,3 +301,16 @@
 @media (prefers-reduced-motion: reduce) {
   .ws *, .ws *::before, .ws *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ── Free-plan chip + upgrade sheet ── */
+.ws-chip { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 620; color: var(--ws-accent); background: var(--ws-accent-soft); white-space: nowrap; transition: transform .12s var(--ws-ease), background .18s var(--ws-ease); }
+.ws-chip:hover { background: color-mix(in srgb, var(--ws-accent) 20%, transparent); }
+.ws-chip:active { transform: scale(0.96); }
+.ws-chip.low { color: #b25e00; background: rgba(255, 159, 10, 0.16); }
+.ws-dark .ws-chip.low { color: #ffb340; }
+.ws-plan { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-plan b { display: block; font-size: 15px; letter-spacing: -0.01em; }
+.ws-plan span { color: var(--ws-ink-2); font-size: 13px; }
+.ws-plan-price { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; }
+.ws-plan-price small { font-size: 13px; font-weight: 500; color: var(--ws-ink-3); margin-left: 2px; }
+@media (max-width: 640px) { .ws-chip { display: none; } }

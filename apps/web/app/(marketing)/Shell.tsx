@@ -2,6 +2,7 @@ import './pages.css'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.aitoolsfordoctor.com'
 const LOGIN = `${APP_URL}/login`
+const SIGNUP = `${APP_URL}/login?mode=signup`
 
 // Shared chrome for the static marketing content pages. Server-rendered (no JS) for SEO + speed.
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="mkt-nauth">
             <a className="mkt-btn mkt-btn-ghost" href={LOGIN}>Sign in</a>
-            <a className="mkt-btn mkt-btn-primary" href={LOGIN}>Start free</a>
+            <a className="mkt-btn mkt-btn-primary" href={SIGNUP}>Start free</a>
           </div>
         </div>
       </nav>
@@ -44,4 +45,4 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 export const Check = () => (
   <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.2" /></svg>
 )
-export { APP_URL, LOGIN }
+export { APP_URL, LOGIN, SIGNUP }

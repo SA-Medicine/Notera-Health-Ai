@@ -21,6 +21,7 @@ import { makeSession } from '../admin/session.js';
 import { createUser, verifyLogin, setPassword, findByEmail, audit } from './users.js';
 import { query, one } from '../db/pool.js';
 import { sendMail } from './mailer.js';
+import { ensureAccountSchema, getAccount, FREE_NOTE_LIMIT } from './quota.js';
 
 const PROD = process.env.NODE_ENV === 'production';
 const APP_URL = process.env.APP_URL || 'https://app.notera.health';
@@ -49,9 +50,23 @@ export function requireRole(role) {
       ? next() : res.status(403).json({ error: 'forbidden' });
 }
 
+// Sign-up abuse guard: a small in-memory sliding window per client IP (Cloudflare → Caddy → app).
+const SIGNUP_PER_HOUR = Number(process.env.SIGNUP_PER_HOUR || 5);
+const _signups = new Map();
+const clientIp = (req) => String(req.headers['cf-connecting-ip'] || req.ip || '');
+function signupAllowed(ip) {
+  const now = Date.now(); const cut = now - 3600_000;
+  const hits = (_signups.get(ip) || []).filter((t) => t > cut);
+  if (hits.length >= SIGNUP_PER_HOUR) { _signups.set(ip, hits); return false; }
+  hits.push(now); _signups.set(ip, hits);
+  if (_signups.size > 5000) for (const [k, v] of _signups) if (!v.some((t) => t > cut)) _signups.delete(k);
+  return true;
+}
+
 export function mountAuth(app, dataDir) {
   const S = makeSession(dataDir);
   const json = express.json({ limit: '256kb' });
+  ensureAccountSchema().catch(() => {});   // adds plan/free_notes_used (existing users default to 'full')
 
   app.post('/api/auth/login', json, async (req, res) => {
     try {
@@ -62,8 +77,30 @@ export function mountAuth(app, dataDir) {
       if (!user) { await audit(null, 'login_failed', { email }, req.ip); return res.status(401).json({ error: 'invalid credentials' }); }
       await audit(user.id, 'login', null, req.ip);
       res.setHeader('Set-Cookie', withSecure(S.cookie(S.issue(user))));
-      res.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName } });
+      const acct = await getAccount(user.id).catch(() => ({ plan: 'full' }));
+      res.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, ...acct } });
     } catch (e) { res.status(500).json({ error: 'login failed' }); }
+  });
+
+  // Self-service sign-up → a FREE account (FREE_NOTE_LIMIT notes). Existing accounts are untouched.
+  app.post('/api/auth/signup', json, async (req, res) => {
+    try {
+      if (process.env.SIGNUP_ENABLED === '0') return res.status(403).json({ error: 'Sign-up is currently closed.' });
+      const { email, password, fullName, website } = req.body || {};
+      if (website) return res.json({ ok: true });                        // honeypot field: bots fill it, people can't see it
+      if (!signupAllowed(clientIp(req))) return res.status(429).json({ error: 'Too many sign-ups from this network. Please try again later.' });
+      if (!/^\S+@\S+\.\S+$/.test(String(email || ''))) return res.status(400).json({ error: 'Enter a valid email address.' });
+      if (String(password || '').length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters.' });
+      if (await findByEmail(email)) return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.' });
+      const u = await createUser({ email, password, fullName: String(fullName || '').trim().slice(0, 120), plan: 'free' });
+      await audit(u.id, 'signup', { email: u.email }, clientIp(req));
+      const user = { id: u.id, email: u.email, role: u.role, fullName: fullName || null };
+      res.setHeader('Set-Cookie', withSecure(S.cookie(S.issue(user))));
+      res.status(201).json({ ok: true, user: { ...user, ...(await getAccount(u.id)) } });
+    } catch (e) {
+      if (/duplicate key|unique/i.test(e.message)) return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.' });
+      console.error('[signup]', e.message); res.status(500).json({ error: 'Could not create the account. Please try again.' });
+    }
   });
 
   app.post('/api/auth/logout', (req, res) => {
@@ -76,7 +113,23 @@ export function mountAuth(app, dataDir) {
     if (!p || !p.uid) return res.status(401).json({ error: 'unauthenticated' });
     // slide the cookie if it's past halfway
     if (S.needsRefresh(p)) res.setHeader('Set-Cookie', withSecure(S.cookie(S.issue({ id: p.uid, email: p.email, role: p.role }))));
-    res.json({ user: { id: p.uid, email: p.email, role: p.role || 'clinician' } });
+    (async () => {
+      const acct = await getAccount(p.uid).catch(() => ({ plan: 'full', used: 0, limit: null, remaining: null }));
+      res.json({ user: { id: p.uid, email: p.email, role: p.role || 'clinician', ...acct } });
+    })();
+  });
+
+  // Admin: move an account between plans, e.g. { email, plan: 'full' } after a customer subscribes.
+  app.post('/api/auth/users/plan', requireAuth(dataDir), requireRole('admin'), json, async (req, res) => {
+    try {
+      const { email, plan, reset } = req.body || {};
+      if (!['free', 'full'].includes(plan)) return res.status(400).json({ error: "plan must be 'free' or 'full'" });
+      await ensureAccountSchema();
+      const rows = await query(`UPDATE auth.users SET plan=$2, free_notes_used = CASE WHEN $3 THEN 0 ELSE free_notes_used END WHERE email=$1 RETURNING id, email, plan, free_notes_used`, [String(email || '').toLowerCase(), plan, !!reset]);
+      if (!rows[0]) return res.status(404).json({ error: 'no such user' });
+      await audit(req.user.id, 'plan_change', { email, plan, reset: !!reset }, req.ip);
+      res.json(rows[0]);
+    } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
   // Admin-only account creation (there is no public sign-up for a clinical system).
