@@ -4,6 +4,7 @@
 //   --at   : seconds after load at which to capture a PNG  → <outPrefix>_<sec>.png
 //   --frames/--fps : capture N frames at fps (for video) → <outPrefix>_f0001.png …  (optionally clipped to --selector)
 //   --css '<rules>' : inject CSS before capturing (e.g. hide a fixed nav)
+//   --eval '<js>' [--evalwait ms] : print the value of a JS expression after load
 //   --clock <global> : with --frames, drive window[<global>] = frame time in ms (deterministic frames, any speed)
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdtempSync } from 'node:fs';
@@ -19,7 +20,7 @@ const frames = +opt('frames', 0), fps = +opt('fps', 12), selector = opt('selecto
 const chrome = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const port = 9300 + Math.floor(Math.random() * 400);
 const dir = mkdtempSync(join(tmpdir(), 'cdp-'));
-const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, `--window-size=${W},${H}`, 'about:blank'], { stdio: 'ignore' });
+const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', ...(process.env.CHROME_ARGS ? process.env.CHROME_ARGS.split(' ') : []), `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, `--window-size=${W},${H}`, 'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let ws, id = 0; const pending = new Map();
@@ -38,11 +39,13 @@ try {
   await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: +opt('dpr', 1), mobile: W < 600 });
   if (opt('dark', '')) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__errs=[];const ce=console.error;console.error=(...a)=>{try{window.__errs.push(a.map(String).join(' ').slice(0,400))}catch(e){};ce(...a)};addEventListener('error',e=>window.__errs.push('ERR '+e.message))" });
   const t0 = Date.now();
   await send('Page.navigate', { url });
   await sleep(1500);
   if (opt('scroll', '')) await send('Runtime.evaluate', { expression: `window.scrollTo(0, ${+opt('scroll', 0)})` });
   if (opt('css', '')) await send('Runtime.evaluate', { expression: `(()=>{const s=document.createElement('style');s.textContent=${JSON.stringify(opt('css', ''))};document.head.appendChild(s)})()` });
+  if (opt('eval', '')) { await sleep(+opt('evalwait', 4000)); const r = await send('Runtime.evaluate', { expression: opt('eval', ''), returnByValue: true }); console.log(JSON.stringify(r.result?.result?.value ?? r.result)); }
   let clip;
   if (selector) {
     const r = await send('Runtime.evaluate', { expression: `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;const b=e.getBoundingClientRect();return {x:b.x+scrollX,y:b.y+scrollY,width:b.width,height:b.height,scale:1}})()`, returnByValue: true });
