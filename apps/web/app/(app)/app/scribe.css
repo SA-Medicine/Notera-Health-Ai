@@ -101,7 +101,7 @@ html { height: 100%; font-size: 13px; }
 body {
   height: 100%;
   display: flex;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 13px;
   background: var(--sidebar-bg);
   overflow: hidden;
@@ -876,7 +876,7 @@ input  { font-family: inherit; }
   background: transparent;
   border: none;
   outline: none;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.7;
   color: var(--text-primary);
@@ -1160,7 +1160,7 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
   cursor: default;
   min-height: 120px;
   flex: 1;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
 }
 .note-body[contenteditable="true"] { cursor: text; }
 
@@ -2365,7 +2365,7 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
   display: flex;
   height: 100%;
   overflow: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 13px;
   background: var(--sidebar-bg);
   color: var(--text-primary);
@@ -2449,7 +2449,7 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
    (Inter is loaded once at the top of (app)/globals.css.)
    ══════════════════════════════════════════════════════════════════════════ */
 .notera-shell{
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-family:var(--font-inter), 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --focus:#2563eb;
 }
 
@@ -2507,7 +2507,7 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .notera-shell .paste-link-btn{
   display:inline-flex; align-items:center; gap:8px; margin-top:18px;
   background:#fff; color:var(--blue,#2563eb); border:1px solid var(--border-mid,#dbe2ef);
-  font:600 13.5px/1 'Inter',sans-serif; padding:10px 16px; border-radius:10px; cursor:pointer;
+  font:600 13.5px/1 var(--font-inter), 'Inter',sans-serif; padding:10px 16px; border-radius:10px; cursor:pointer;
   transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, background .2s;
 }
 .notera-shell .paste-link-btn svg{ width:15px; height:15px; }
@@ -2540,7 +2540,7 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .nto-check input{ width:18px; height:18px; margin-top:1px; accent-color:#6d5efc; flex:none; cursor:pointer; }
 .nto-modal-actions{ display:flex; justify-content:flex-end; }
 
-.nto-btn{ font:600 14px/1 'Inter',sans-serif; border:none; border-radius:10px; padding:11px 20px; cursor:pointer;
+.nto-btn{ font:600 14px/1 var(--font-inter), 'Inter',sans-serif; border:none; border-radius:10px; padding:11px 20px; cursor:pointer;
   transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, opacity .2s; }
 .nto-btn:focus-visible{ outline:2px solid #3ba7ff; outline-offset:2px; }
 .nto-btn-primary{ color:#fff; background:linear-gradient(135deg,#6d5efc,#3ba7ff); box-shadow:0 8px 22px -6px rgba(109,94,252,.5); }
@@ -2562,10 +2562,36 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .nto-tip-body{ font-size:14px; line-height:1.55; color:#5a6a82; margin:0 0 14px; }
 .nto-tip-actions{ display:flex; align-items:center; justify-content:space-between; }
 .nto-tip-nav{ display:flex; gap:8px; }
-.nto-skip{ background:none; border:none; color:#8a97ab; font:600 13px/1 'Inter',sans-serif; cursor:pointer; padding:8px 4px; }
+.nto-skip{ background:none; border:none; color:#8a97ab; font:600 13px/1 var(--font-inter), 'Inter',sans-serif; cursor:pointer; padding:8px 4px; }
 .nto-skip:hover{ color:#5a6a82; }
 
 @media (prefers-reduced-motion: reduce){
   .nto-modal,.nto-tip,.nto-overlay{ animation:none; }
   .nto-spot{ transition:none; }
 }
+
+
+/* ── Free-plan chip + upgrade dialog (original theme) ── */
+.pw-chip { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--blue-md); background: var(--blue-pale); color: var(--blue); font: 600 12px/1 inherit; cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
+.pw-chip:hover { background: var(--blue-md); }
+.pw-chip:active { transform: scale(0.97); }
+.pw-chip.low { color: #b25e00; background: rgba(245, 158, 11, .14); border-color: rgba(245, 158, 11, .35); }
+.pw-scrim { position: fixed; inset: 0; z-index: 200; background: rgba(0, 0, 0, .4); display: grid; place-items: center; padding: 16px; animation: pw-fade .2s ease both; }
+.pw-card { width: min(460px, 100%); background: var(--main-bg, #fff); color: var(--text-primary); border-radius: 16px; padding: 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, .35); animation: pw-pop .25s cubic-bezier(.23, 1, .32, 1) both; }
+.pw-card h2 { font-size: 18px; font-weight: 700; margin: 0 0 6px; letter-spacing: -.01em; }
+.pw-card p { color: var(--text-muted); font-size: 13.5px; margin: 0 0 14px; }
+.pw-plan { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--blue); background: var(--blue-pale); }
+.pw-plan b { display: block; font-size: 14.5px; }
+.pw-plan span { color: var(--text-secondary); font-size: 12.5px; }
+.pw-price { font-size: 26px; font-weight: 700; white-space: nowrap; }
+.pw-price small { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+.pw-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.pw-ghost, .pw-primary { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; border: 0; }
+.pw-ghost { background: transparent; color: var(--text-secondary); }
+.pw-ghost:hover { background: var(--border-light); }
+.pw-primary { background: var(--blue); color: #fff; }
+.pw-primary:hover { background: var(--blue-lt); }
+@keyframes pw-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pw-pop { from { opacity: 0; transform: scale(.96) translateY(6px) } to { opacity: 1; transform: none } }
+body.dark-mode .pw-card { background: #1f1f22; }
+@media (max-width: 640px) { .pw-chip { display: none; } }
