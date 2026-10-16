@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './scribe.css';
+import './workspace.css';
 import Onboarding from './Onboarding';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
@@ -87,6 +88,24 @@ const I = {
   logout: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>,
 };
 
+// workspace icons (one stroke weight)
+const sv = (d: React.ReactNode) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>;
+const J = {
+  mic: sv(<><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 11a7 7 0 01-14 0M12 18v4" /></>),
+  plus: sv(<path d="M12 5v14M5 12h14" />),
+  bolt: sv(<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />),
+  user: sv(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></>),
+  history: sv(<><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>),
+  moon: sv(<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />),
+  logout: sv(<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />),
+  doc: sv(<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>),
+  paste: sv(<><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2M9 12h6M9 16h4" /></>),
+  close: sv(<path d="M18 6L6 18M6 6l12 12" />),
+  check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7" /></svg>,
+  download: sv(<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />),
+  trash: sv(<path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6" />),
+};
+
 export default function Scribe() {
   const [panel, setPanel] = useState<Panel>('transcript');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -109,6 +128,10 @@ export default function Scribe() {
   const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
   const [pendingSegs, setPendingSegs] = useState(0);       // segments still being transcribed
   const [failedSegs, setFailedSegs] = useState(0);         // segments that never transcribed
+  const [mview, setMview] = useState<'transcript' | 'note'>('transcript');   // narrow screens: which pane is shown
+  const [menuOpen, setMenuOpen] = useState(false);
+  const levelRef = useRef<HTMLSpanElement | null>(null);
+  const txBodyRef = useRef<HTMLDivElement | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const segRecRef = useRef<MediaRecorder | null>(null);
@@ -156,6 +179,41 @@ export default function Scribe() {
       timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startTs.current) / 1000)), 1000);
     } else if (timerRef.current) { clearInterval(timerRef.current); }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [phase]);
+
+  // keep the newest transcript line in view while recording
+  useEffect(() => {
+    const el = txBodyRef.current;
+    if (el && (phase === 'recording' || phase === 'transcribing')) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [lines.length, phase]);
+
+  // follow the workflow on narrow screens
+  useEffect(() => {
+    if (phase === 'generating' || (phase === 'done' && note)) setMview('note');
+    else if (phase === 'recording' || phase === 'idle') setMview('transcript');
+  }, [phase, note]);
+
+  // live mic level -> CSS variable (no re-renders) + keep the screen awake while recording
+  useEffect(() => {
+    if (phase !== 'recording' || !streamRef.current) return;
+    let raf = 0; let ac: AudioContext | null = null; let wake: any = null;
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      ac = new AC();
+      const src = ac!.createMediaStreamSource(streamRef.current);
+      const an = ac!.createAnalyser(); an.fftSize = 256; src.connect(an);
+      const buf = new Uint8Array(an.frequencyBinCount); let lvl = 0;
+      const tick = () => {
+        an.getByteTimeDomainData(buf); let sum = 0;
+        for (let k = 0; k < buf.length; k++) { const d = (buf[k] - 128) / 128; sum += d * d; }
+        lvl = Math.max(Math.sqrt(sum / buf.length) * 5, lvl * 0.86);
+        levelRef.current?.style.setProperty('--lvl', String(Math.min(1, lvl)));
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch { /* decorative only */ }
+    try { (navigator as any).wakeLock?.request('screen').then((w: any) => { wake = w; }).catch(() => {}); } catch { /* */ }
+    return () => { cancelAnimationFrame(raf); try { ac?.close(); } catch { /* */ } try { wake?.release(); } catch { /* */ } };
   }, [phase]);
 
   const loadHistory = useCallback(async () => {
@@ -635,249 +693,216 @@ export default function Scribe() {
     navigator.clipboard.writeText(text); flash(plain ? 'Copied for EMR' : 'Copied');
   };
 
-  const genSteps = ['Extracting clinical facts', 'De-identifying & drafting', 'Structuring the SOAP note', 'Grounding & final check'];
+  const genSteps = ['Reading the conversation', 'Writing the SOAP note', 'Checking against the transcript'];
   const recording = phase === 'recording';
-  const dateStr = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const hasTx = !!transcript.trim();
+  const busy = phase === 'transcribing' || phase === 'generating';
+  const drawer = panel === 'history';
+  const closeOverlay = () => setPanel('transcript');
+  const statusText = recording ? (pendingSegs ? `Recording · ${pendingSegs} transcribing` : 'Recording')
+    : phase === 'transcribing' ? (pendingSegs ? `Transcribing ${pendingSegs} segment${pendingSegs > 1 ? 's' : ''}` : 'Finishing transcript')
+    : phase === 'generating' ? 'Writing note'
+    : phase === 'done' ? (failedSegs ? `Ready · ${failedSegs} segment${failedSegs > 1 ? 's' : ''} missing` : 'Ready')
+    : 'New consultation';
 
   return (
-    <div className={`notera-shell${dark ? ' dark-mode' : ''}`}>
-      {/* ── Sidebar ── */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="brand">
-            <div className="brand-icon">{I.micStroke}</div>
-            <span className="brand-name">Notera</span>
-          </div>
+    <div className={`ws${dark ? ' ws-dark' : ''}`} data-phase={phase}>
+      {/* ── Top bar ── */}
+      <header className="ws-top">
+        <div className="ws-brand">
+          <div className="ws-brand-mark">{J.mic}</div>
+          <span className="ws-brand-name">Notera</span>
         </div>
-        <div className="sidebar-section">
-          <button className="new-session-btn" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
+        <div className="ws-patient">
+          <input value={patient} onChange={(e) => setPatient(e.target.value)} placeholder="Patient name or ID" aria-label="Patient name or ID" />
         </div>
-        <nav className="sidebar-nav">
-          <div className={`nav-item${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.micStroke}<span>Scribe</span></div>
-          <div className={`nav-item${panel === 'paste' ? ' active' : ''}`} data-tour="paste" onClick={() => setPanel('paste')}>{I.lines}<span>Paste transcript</span></div>
-          <div className={`nav-item${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}<span>Context</span></div>
-          <div className={`nav-item${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}<span>History</span></div>
-        </nav>
-        <div className="sidebar-spacer" />
-        <nav className="sidebar-nav sidebar-nav-lower">
-          <div className="nav-item" onClick={() => setDark((v) => !v)}>{I.settings}<span>{dark ? 'Light mode' : 'Dark mode'}</span></div>
-          <div className="nav-item nav-item-logout" onClick={logout} title="Sign out">{I.logout}<span>Log out</span></div>
-        </nav>
-        <div className="user-profile">
-          <div className="user-avatar">{me?.initials || 'DR'}</div>
-          <div className="user-info">
-            <div className="user-name">{me?.fullName || 'Clinician'}</div>
-            <div className="user-email">{me?.email || 'Notera scribe'}</div>
-          </div>
+        <div className="ws-top-actions">
+          <select className="ws-pill-select" value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
+            <option value="auto">Auto-detect</option>
+            {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          </select>
+          <button className="ws-icon" title="Patient context" aria-label="Patient context" aria-pressed={panel === 'context'} onClick={() => setPanel(panel === 'context' ? 'transcript' : 'context')}>{J.user}</button>
+          <button className="ws-icon" title="History" aria-label="History" aria-pressed={drawer} onClick={() => { setPanel(drawer ? 'transcript' : 'history'); loadHistory(); }}>{J.history}</button>
+          <button className="ws-icon" title="New session" aria-label="New session" data-tour="new" onClick={newSession}>{J.plus}</button>
+          <button className="ws-avatar" aria-label="Account" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>{me?.initials || 'DR'}</button>
         </div>
-      </aside>
-
-      {/* ── Main ── */}
-      <main className="main-content">
-        {/* Top bar */}
-        <header className="top-bar">
-          <div className="top-bar-left">
-            <button className="trash-btn" title="New session" onClick={newSession}>{I.trash}</button>
-            <div className="session-info">
-              <div className="session-title-row">
-                <input className="session-title-input" value={patient} onChange={(e) => setPatient(e.target.value)} placeholder="Add patient name / ID" />
-                <div className={`rec-dot${recording ? ' recording' : phase === 'done' ? ' done' : ''}`} role="status" />
-              </div>
-              <div className="session-subtitle">{
-                recording ? (pendingSegs ? `Recording… (${pendingSegs} segment${pendingSegs > 1 ? 's' : ''} transcribing)` : 'Recording…')
-                  : phase === 'transcribing' ? (pendingSegs ? `Transcribing ${pendingSegs} segment${pendingSegs > 1 ? 's' : ''}…` : 'Finishing transcription…')
-                  : phase === 'done' ? (failedSegs ? `Ready — ${failedSegs} segment${failedSegs > 1 ? 's' : ''} missing` : 'Ready')
-                  : 'New consultation'
-              }</div>
+        {menuOpen && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4 }} onClick={() => setMenuOpen(false)} />
+            <div className="ws-menu" role="menu">
+              <div className="ws-menu-who"><b>{me?.fullName || 'Clinician'}</b><span>{me?.email || 'Notera scribe'}</span></div>
+              <hr />
+              <button role="menuitem" onClick={() => { setDark((v) => !v); setMenuOpen(false); }}>{J.moon}{dark ? 'Light mode' : 'Dark mode'}</button>
+              <button role="menuitem" onClick={logout}>{J.logout}Sign out</button>
             </div>
-            <div className="meta-pills">
-              <div className="meta-pill">{I.cal}<span>{dateStr}</span></div>
-              <div className="meta-pill">{I.globe}
-                <select className="pill-select" value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
-                  <option value="auto">Auto-detect</option>
-                  {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-                </select>
+          </>
+        )}
+      </header>
+
+      {error && <div className="ws-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss">Dismiss</button></div>}
+
+      {/* narrow screens: switch panes, still one screen */}
+      <div className="ws-seg" data-v={mview} role="tablist">
+        <div className="ws-seg-pill" />
+        <button role="tab" aria-selected={mview === 'transcript'} onClick={() => setMview('transcript')}>Transcript</button>
+        <button role="tab" aria-selected={mview === 'note'} onClick={() => setMview('note')}>Note</button>
+      </div>
+
+      {/* ── Canvas: transcript | note ── */}
+      <main className="ws-main">
+        <section className={`ws-card${mview === 'note' ? ' ws-pane-hidden' : ''}`} data-busy={phase === 'transcribing'}>
+          <div className="ws-card-head">
+            <div className="ws-card-title">{historyView ? 'Saved transcript' : 'Transcript'}{recording && <span className="ws-live"><i />Live</span>}</div>
+            <span className="ws-count">{[
+              lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : '',
+              pendingSegs ? `${pendingSegs} transcribing` : '',
+              failedSegs ? `${failedSegs} failed` : '',
+            ].filter(Boolean).join(' · ') || statusText}</span>
+          </div>
+          <div className="ws-card-body" ref={txBodyRef}>
+            {lines.length === 0 && !recording && phase !== 'transcribing' ? (
+              <div className="ws-empty">
+                <div className="ws-empty-ic">{J.mic}</div>
+                <h3>{historyView ? 'No transcript saved' : 'Ready when you are'}</h3>
+                <p>{historyView ? 'This consult was saved without a transcript.' : 'Press Start recording and talk as normal. The transcript builds live, then one tap writes the note.'}</p>
+                {!historyView && <button className="ws-link" onClick={() => setPanel('paste')}>Have the text already? Paste it</button>}
               </div>
+            ) : (
+              <>
+                {lines.map((l, i) => (
+                  <div key={i} className="ws-line"><span className="ws-time">{l.t}</span><span className="ws-text">{l.text}</span></div>
+                ))}
+                {recording && <div className="ws-line"><span className="ws-time">now</span><span className="ws-text dim">Listening <span className="ws-dots"><i /><i /><i /></span></span></div>}
+                {phase === 'transcribing' && <div className="ws-line"><span className="ws-time">…</span><span className="ws-text dim">{pendingSegs ? `Transcribing ${pendingSegs} remaining segment${pendingSegs > 1 ? 's' : ''}` : 'Finishing transcript'} <span className="ws-dots"><i /><i /><i /></span></span></div>}
+              </>
+            )}
+          </div>
+          <div className="ws-beam" />
+        </section>
+
+        <section className={`ws-card${mview === 'transcript' ? ' ws-pane-hidden' : ''}`} data-busy={phase === 'generating'}>
+          <div className="ws-card-head">
+            <div className="ws-card-title">SOAP note{note && <span className="ws-count">· saved to history</span>}</div>
+            <div className="ws-card-tools">
+              {note && <button className="ws-btn sm ghost" onClick={toggleEdit}>{editing ? 'Done' : 'Edit'}</button>}
+              <button className="ws-btn sm" onClick={() => copy(false)} disabled={!note}>Copy</button>
             </div>
           </div>
-          <div className="top-bar-right">
-            <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
-            <button className="top-create-btn" onClick={createSOAP} data-tour="create"
-              disabled={phase === 'generating' || !transcript.trim() || !!note}
-              title={note ? 'Note already generated — start a new session' : ''}
-              style={note ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
-            >
-              {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
-            </button>
-            <button className={`top-resume-btn${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
-              {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
-            </button>
-            <div className="timer-block">{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
-            <div className="mic-block">
-              {I.mic}
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Default mic</span>
-              <div className={`audio-bars${recording ? ' active' : ''}`}>
-                <div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" /><div className="bar" />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Tab bar */}
-        <nav className="tab-bar">
-          <button className={`main-tab${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}Context</button>
-          <button className={`main-tab${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.lines}Transcript</button>
-          <button className={`main-tab${panel === 'note' ? ' active' : ''}`} onClick={() => setPanel('note')}>{I.doc}Note</button>
-          <button className={`main-tab${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}History</button>
-        </nav>
-
-        {error && <div style={{ padding: '8px 20px', background: 'var(--red-pale)', color: 'var(--red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
-
-        <div className="panels-container">
-          {/* Context */}
-          <div className={`main-panel${panel === 'context' ? ' active' : ''}`}>
-            <div className="context-form">
-              <h2 className="context-form-title">Patient Context</h2>
-              <p className="context-form-sub">Details here are injected into the AI to improve note accuracy.</p>
-              <div className="context-form-group"><label>Age</label><input value={ctx.age} onChange={(e) => setCtx({ ...ctx, age: e.target.value })} placeholder="e.g. 45" /></div>
-              <div className="context-form-group"><label>Sex</label><input value={ctx.sex} onChange={(e) => setCtx({ ...ctx, sex: e.target.value })} placeholder="e.g. Male" /></div>
-              <div className="context-form-group"><label>Past Medical History (PMHx)</label><textarea rows={3} value={ctx.pmhx} onChange={(e) => setCtx({ ...ctx, pmhx: e.target.value })} placeholder="e.g. Hypertension, Type 2 diabetes…" /></div>
-              <div className="context-form-group"><label>Current Medications</label><textarea rows={3} value={ctx.meds} onChange={(e) => setCtx({ ...ctx, meds: e.target.value })} placeholder="e.g. Lisinopril 10mg daily…" /></div>
-            </div>
-          </div>
-
-          {/* Transcript */}
-          <div className={`main-panel${panel === 'transcript' ? ' active' : ''}`}>
-            <div className="transcript-header">
-              <span className="transcript-label">{historyView ? 'Saved Transcript' : 'Live Transcript'}</span>
-              <span className="seg-count">{[
-                lines.length ? `${lines.length} segment${lines.length > 1 ? 's' : ''}` : '',
-                pendingSegs ? `${pendingSegs} transcribing` : '',
-                failedSegs ? `${failedSegs} failed` : '',
-              ].filter(Boolean).join(' · ')}</span>
-            </div>
-            <div className="transcript-box">
-              {historyView ? (
-                lines.length ? (
-                  <div id="transcriptLines">
-                    {lines.map((l, i) => (
-                      <div key={i} className="t-line"><span className="t-time">{l.t}</span><span className="t-text">{l.text}</span></div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="t-empty">
-                    <div className="t-empty-icon">{I.lines}</div>
-                    <p className="t-empty-title">No transcript was saved for this consult</p>
-                  </div>
-                )
-              ) : lines.length === 0 && phase !== 'recording' ? (
-                <div className="t-empty">
-                  <div className="t-empty-icon">{I.micStroke}</div>
-                  <p className="t-empty-title">Transcript will appear here as you record</p>
-                  <p className="t-empty-sub">Press <strong>Start</strong> to record the visit — the transcript builds live as you talk.</p>
-                  <button className="paste-link-btn" onClick={() => setPanel('paste')}>{I.lines}Have a transcript already? Paste it</button>
-                </div>
-              ) : (
-                <div id="transcriptLines">
-                  {lines.map((l, i) => (
-                    <div key={i} className="t-line"><span className="t-time">{l.t}</span><span className="t-text">{l.text}</span></div>
+          <div className="ws-card-body">
+            {phase === 'generating' ? (
+              <div className="ws-gen" role="status" aria-live="polite">
+                <div className="ws-orb" />
+                <ol>
+                  {genSteps.map((s, i) => (
+                    <li key={s} className={i < genStep ? 'done' : i === genStep ? 'now' : ''}>
+                      <span className="d">{i < genStep && J.check}</span>{s}
+                    </li>
                   ))}
-                  {phase === 'recording' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>Listening… speak now.</span></div>}
-                  {phase === 'transcribing' && <div className="t-line"><span className="t-time">•••</span><span className="t-text" style={{ color: 'var(--text-faint)' }}>{pendingSegs ? `Transcribing ${pendingSegs} remaining segment${pendingSegs > 1 ? 's' : ''}…` : 'Finishing transcription…'}</span></div>}
-                </div>
-              )}
-            </div>
+                </ol>
+              </div>
+            ) : note ? (
+              <div className="ws-note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} />
+            ) : (
+              <div className="ws-empty">
+                <div className="ws-empty-ic">{J.doc}</div>
+                <h3>Your note appears here</h3>
+                <p>Record or paste a consultation, then tap Create SOAP.</p>
+              </div>
+            )}
           </div>
+          <div className="ws-beam" />
+        </section>
+      </main>
 
-          {/* Paste transcript (its own screen — not shown by default) */}
-          <div className={`main-panel${panel === 'paste' ? ' active' : ''}`}>
-            <div className="paste-screen">
-              <div className="paste-screen-head">
-                <h2 className="paste-screen-title">Paste a transcript</h2>
-                <p className="paste-screen-sub">Already have the consult text? Drop it in and Notera will turn it into a SOAP note — no recording needed.</p>
-              </div>
-              <div className="transcript-input-card paste-screen-card">
-                <div className="transcript-input-header">{I.lines}<span>Consultation transcript</span></div>
-                <textarea className="transcript-input-textarea" rows={12} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste the full consultation transcript here…" spellCheck={false} />
-                <div className="transcript-input-footer">
-                  <span className="transcript-char-count">{pasteText.length} characters</span>
-                  <button className="transcript-proceed-btn" onClick={loadPastedTranscript} disabled={!pasteText.trim()}>{I.bolt}Load transcript</button>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* ── Floating action dock ── */}
+      <footer className="ws-dock" role="toolbar" aria-label="Session actions">
+        {recording ? (
+          <button className="ws-rec-btn live" data-tour="start" onClick={toggleRecord} aria-label="Stop recording">
+            <span className="dot" />
+            <span>Stop</span>
+            <span className="timer">{mmss(elapsed)}</span>
+            <span className="ws-meter" ref={levelRef}><i /><i /><i /><i /><i /></span>
+          </button>
+        ) : note ? (
+          <>
+            <button className="ws-btn lg primary" onClick={newSession}>{J.plus}New session</button>
+            <button className="ws-btn lg" onClick={() => copy(true)}>Copy to EMR</button>
+          </>
+        ) : (
+          <>
+            <button className="ws-rec-btn" data-tour="start" onClick={toggleRecord} disabled={busy}>
+              {phase === 'transcribing' ? <><span className="ws-spin" />Finishing…</> : <><span className="dot" />{hasTx ? 'Record again' : 'Start recording'}</>}
+            </button>
+            <button className="ws-btn lg primary" data-tour="create" onClick={createSOAP} disabled={!hasTx || busy}>
+              {phase === 'generating' ? <><span className="ws-spin" />Writing note…</> : <>{J.bolt}Create SOAP</>}
+            </button>
+            <span className="ws-dock-sep" />
+            <button className="ws-icon" data-tour="paste" title="Paste a transcript" aria-label="Paste a transcript" onClick={() => setPanel('paste')}>{J.paste}</button>
+          </>
+        )}
+      </footer>
 
-          {/* Note */}
-          <div className={`main-panel${panel === 'note' ? ' active' : ''}`}>
-            <div className="editor-toolbar">
-              <div className="editor-toolbar-left">
-                <button className="format-btn active">{I.bolt}SOAP</button>
-              </div>
-              <div className="editor-toolbar-right">
-                {note && <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>}
-                <div className="copy-group">
-                  <button className="copy-btn" onClick={() => copy(true)} disabled={!note}>Copy to EMR</button>
-                  <button className="copy-btn" onClick={() => copy(false)} disabled={!note} style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>Copy</button>
-                </div>
-              </div>
-            </div>
-            <div className="note-scroll-area">
-              {phase === 'generating' ? (
-                <div className="note-empty">
-                  <div className="spinner" style={{ borderTopColor: 'var(--blue)' }} />
-                  <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-                    {genSteps.map((s, i) => (
-                      <div key={i} style={{ fontSize: 13, color: i < genStep ? 'var(--green)' : i === genStep ? 'var(--text-primary)' : 'var(--text-faint)', fontWeight: i === genStep ? 700 : 500 }}>
-                        {i < genStep ? '✓ ' : i === genStep ? '• ' : '   '}{s}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : note ? (
-                <div className="note-content">
-                  <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
-                  <div className="note-done-banner">
-                    ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult
-                  </div>
-                </div>
-              ) : (
-                <div className="note-empty">
-                  {I.doc}
-                  <p className="empty-note-title">No note generated yet</p>
-                  <p className="empty-note-sub">Record or paste a transcript, then press <strong>Create SOAP</strong></p>
-                  <button className="start-hint-btn" onClick={toggleRecord}>{I.mic}Start recording</button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* History */}
-          <div className={`main-panel${panel === 'history' ? ' active' : ''}`}>
-            <div className="hist-header">
-              <span className="hist-title">Session History</span>
-              <button className="link-btn" onClick={loadHistory}>Refresh</button>
-            </div>
-            <div id="historyList" style={{ overflow: 'auto', padding: '4px 0' }}>
+      {/* ── History drawer ── */}
+      {drawer && (
+        <>
+          <div className="ws-scrim" onClick={closeOverlay} />
+          <aside className="ws-drawer" aria-label="History">
+            <div className="ws-sheet-head"><h2>History</h2><div style={{ display: 'flex', gap: 4 }}><button className="ws-btn sm ghost" onClick={loadHistory}>Refresh</button><button className="ws-icon" onClick={closeOverlay} aria-label="Close">{J.close}</button></div></div>
+            <div className="ws-hist">
               {history.length === 0 ? (
-                <div className="h-empty">{I.clock}<p>No sessions saved yet</p></div>
+                <div className="ws-empty" style={{ padding: 40 }}><div className="ws-empty-ic">{J.history}</div><h3>No sessions yet</h3><p>Finished notes are saved here automatically.</p></div>
               ) : history.map((h) => (
-                <div key={h.consult_id} className="h-item">
-                  <div className="h-item-main" onClick={() => openConsult(h.consult_id)} style={{ cursor: 'pointer', flex: 1 }}>
-                    <div className="h-item-title">{h.title || 'Consult'}</div>
-                    <div className="h-item-meta">{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</div>
-                  </div>
-                  <div className="h-item-actions">
-                    {h.audio_uri && <button className="h-icon" title="Download audio" onClick={() => downloadAudio(h.consult_id)}>{I.download}</button>}
-                    <button className="h-icon" title="Delete" onClick={() => deleteConsult(h.consult_id)}>{I.trash}</button>
-                  </div>
+                <div key={h.consult_id} className="ws-hist-item">
+                  <button className="ws-hist-main" onClick={() => openConsult(h.consult_id)}>
+                    <b>{h.title || 'Consult'}</b>
+                    <span>{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</span>
+                  </button>
+                  {h.audio_uri && <button className="ws-icon" title="Download audio" aria-label="Download audio" onClick={() => downloadAudio(h.consult_id)}>{J.download}</button>}
+                  <button className="ws-icon" title="Delete" aria-label="Delete consult" onClick={() => deleteConsult(h.consult_id)}>{J.trash}</button>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </main>
+          </aside>
+        </>
+      )}
 
-      {toast && <div className={`toast show ${toast.kind}`}>{toast.msg}</div>}
+      {/* ── Patient context sheet ── */}
+      {panel === 'context' && (
+        <>
+          <div className="ws-scrim" onClick={closeOverlay} />
+          <div className="ws-sheet" role="dialog" aria-label="Patient context">
+            <div className="ws-sheet-head"><h2>Patient context</h2><button className="ws-icon" onClick={closeOverlay} aria-label="Close">{J.close}</button></div>
+            <p className="ws-sheet-sub">Optional. Added to the note request so the AI has the background.</p>
+            <div className="ws-sheet-body">
+              <div className="ws-grid2">
+                <div className="ws-field"><label htmlFor="c-age">Age</label><input id="c-age" inputMode="numeric" value={ctx.age} onChange={(e) => setCtx({ ...ctx, age: e.target.value })} placeholder="45" /></div>
+                <div className="ws-field"><label htmlFor="c-sex">Sex</label><input id="c-sex" value={ctx.sex} onChange={(e) => setCtx({ ...ctx, sex: e.target.value })} placeholder="Male" /></div>
+              </div>
+              <div className="ws-field"><label htmlFor="c-pmh">Past medical history</label><textarea id="c-pmh" rows={3} value={ctx.pmhx} onChange={(e) => setCtx({ ...ctx, pmhx: e.target.value })} placeholder="Hypertension, type 2 diabetes…" /></div>
+              <div className="ws-field"><label htmlFor="c-med">Current medications</label><textarea id="c-med" rows={3} value={ctx.meds} onChange={(e) => setCtx({ ...ctx, meds: e.target.value })} placeholder="Lisinopril 10 mg daily…" /></div>
+            </div>
+            <div className="ws-sheet-foot"><span className="ws-count">Used for this session</span><button className="ws-btn primary" onClick={closeOverlay}>Done</button></div>
+          </div>
+        </>
+      )}
+
+      {/* ── Paste transcript sheet ── */}
+      {panel === 'paste' && (
+        <>
+          <div className="ws-scrim" onClick={closeOverlay} />
+          <div className="ws-sheet" role="dialog" aria-label="Paste a transcript">
+            <div className="ws-sheet-head"><h2>Paste a transcript</h2><button className="ws-icon" onClick={closeOverlay} aria-label="Close">{J.close}</button></div>
+            <p className="ws-sheet-sub">Drop in the consult text and Notera writes the note. No recording needed.</p>
+            <div className="ws-sheet-body">
+              <textarea className="ws-paste" autoFocus value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste the full consultation transcript…" spellCheck={false}
+                onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') loadPastedTranscript(); }} />
+            </div>
+            <div className="ws-sheet-foot"><span className="ws-count">{pasteText.length.toLocaleString()} characters</span><button className="ws-btn primary" onClick={loadPastedTranscript} disabled={!pasteText.trim()}>Load transcript</button></div>
+          </div>
+        </>
+      )}
+
+      {toast && <div className={`ws-toast ${toast.kind}`} role="status">{toast.msg}</div>}
       <Onboarding />
     </div>
   );
