@@ -143,6 +143,8 @@ const META_RX = [
   /\b(?:leave|list) (?:exact )?(?:other )?(?:vitals?|this|these)\b.*\b(?:unstated|as stated)\b/i,
   /\bin passing conversation context\b/i,
   /\bgeneral location mentioned\b/i,
+  /\btranscript\b/i,            // a clinical note never refers to "the transcript": that is the model talking about its input
+  /\bnone specifically\b/i,
 ];
 const isMeta = (ln) => META_RX.some((rx) => rx.test(ln));
 function splitSentences(ln) {
