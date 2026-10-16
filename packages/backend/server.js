@@ -20,6 +20,8 @@ import { mountAuth, requireAuth } from './src/auth/authRoutes.js';
 import { noteQuotaGate, asrQuotaGate, refundIfReserved } from './src/auth/quota.js';
 import { mountLibrary } from './src/library/libraryRoutes.js';
 import { mountOps } from './src/ops/opsRoutes.js';
+import { mountPanel } from './src/admin/panelRoutes.js';
+import { mountConsole } from './src/admin/consoleRoutes.js';
 import { ensureOpsSchema, checkAlerts, recordAudioEvent } from './src/ops/opsLog.js';
 import path from 'node:path';
 
@@ -59,6 +61,12 @@ mountLibrary(app, requireAuth(DATA_DIR));
 
 // Monitoring API (/api/ops/*): admin-only reads + authenticated intake. Backs monitor.aitoolsfordoctor.com.
 mountOps(app, requireAuth(DATA_DIR));
+
+// Admin console API (/api/console/*): admin-only, read-only, PHI views audited. Backs the standalone admin site.
+mountPanel(app, requireAuth(DATA_DIR));
+
+// Production admin console (/api/console/*): admin role only — users, plans, every consult's transcript, SOAP note and audio.
+mountConsole(app, requireAuth(DATA_DIR));
 
 // ── Admin / Testing-Lab API ──────────────────────────────────────────────────
 // Dispatched BEFORE express.json so the handler owns the request stream (SSE,
