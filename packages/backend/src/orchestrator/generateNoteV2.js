@@ -49,23 +49,39 @@ export const WRITER_SCHEMA = {
   required: ['subjective', 'past_medical_history', 'objective', 'assessment_and_plan'],
 };
 
-const WRITER_SYS = `You are Notera, an expert clinical scribe. Write the SOAP note for this consultation using ONLY the transcript.
+const WRITER_SYS = `You are Notera, an expert clinical scribe. Write the SOAP note for this consultation using ONLY the transcript. The clinician will sign it, so it must read like a note a careful physician wrote.
 
-STYLE — concise and specific, like an experienced clinician's own note:
-- Every field is a short list of facts; put each fact on its own line (separate lines with "\\n"). A line is a short phrase or one brief sentence. No filler, no transitions, no restating the same fact twice, no "patient reports that…" padding.
-- Keep EVERY clinically specific detail exactly as stated: numbers, doses, units, dates, durations, laterality, names of tests/drugs, specific denials ("denies bleeding from the pills", not "denies bleeding").
-- COMPLETENESS: concise never means omitting facts. Capture EVERY diagnosis/problem the clinician addressed, every medication (with dose/frequency, and whether started/changed/stopped/continued), every test result, every order, referral, instruction and the follow-up/return timing, and every pertinent positive/negative the patient or clinician states. Go through the whole transcript, including its second half.
-- Leave a field "" when the transcript says nothing about it. Never write "not mentioned", "N/A" or "none".
+OUTPUT RULES (hard):
+- Output the note ONLY. Never write commentary, reasoning, or instructions to yourself ("Let's…", "as per transcript", "without additions", "leave this unstated", "none stated", "not mentioned", "N/A", "unknown"). If the transcript does not say something, leave that field "" or omit the line. Never describe what you did not find.
+- Clinical third-person wording, past/present tense, no first person and no quotes of the patient. Convert colloquial speech to the clinical term ("poop test" → "stool test", "my heart's racing" → "palpitations"). Never copy speech fragments or filler ("starting to bother me; now starting to bother me").
+- One fact per line, each line a short phrase (about 4-18 words). Put lines in a field separated by "\\n". No paragraphs, no repeated facts, no restating a fact in another section.
+- Keep every clinically specific detail exactly: numbers, doses (drug + strength + frequency), units, dates, durations, laterality, test names, specific denials ("denies bleeding from the pills", not "denies bleeding").
+- Do not invent or infer anything. Do not add a diagnosis, drug, value, referral or date that was not said.
 
-FIELDS
-Subjective: reason_for_visit; hpi_details (onset, duration, location, quality, severity, context); aggravating_relieving_factors; symptom_progression; previous_episodes; functional_impact; associated_symptoms (focal + systemic, include pertinent negatives).
-Past Medical History: medical_surgical; social (occupation, smoking, alcohol, drugs, living situation); family; exposure; immunisation; other (include current medications here as "Current medications: …").
-Objective: vital_signs; examination (findings only, no medications); completed_investigations (each completed test WITH its result, flag and date when stated; never a bare test name, never planned tests).
-Assessment & Plan: ONE entry per real problem, ranked by importance (reason for visit first): issue (most specific diagnosis the transcript supports, e.g. "Iron deficiency anaemia" not "Anaemia"), diagnosis (only if explicitly stated), assessment (the clinician's interpretation/status — NOT a retell of the history), differential_diagnoses (only if the clinician listed them), investigations_planned, treatment_planned (medications with dose/frequency, advice, follow-up/return-to-clinic timing), referrals.
+WHERE EACH FACT GOES
+Subjective = what the patient reports and the history of the visit:
+  reason_for_visit: why they came / follow-up topics, as one short line per topic.
+  hpi_details: onset, course, location, quality, severity, context; also lifestyle the patient reports (diet, exercise, work) as "Diet: …", "Exercise: …".
+  aggravating_relieving_factors, symptom_progression, previous_episodes, functional_impact (what the problem stops them doing), associated_symptoms (pertinent positives AND negatives).
+Past Medical History = established conditions and history, one per line, with status ("Vasovagal palpitations - resolved", "Hypertension on valsartan 160mg and amlodipine 2.5mg"):
+  medical_surgical; social (occupation, smoking, alcohol, drugs, living situation: ONLY if stated); family; exposure; immunisation;
+  other: ALL current medications as one line "Current medications: drug dose, drug dose, …" (include supplements); and "Preventive care: …" for screening/vaccines said to be done or up to date.
+Objective = MEASURED or EXAMINED only: vital_signs (BP/HR/temp/weight with values and where measured, e.g. "BP 142/85 at home", "BP 132/80 in clinic"), examination (clinician's exam findings), completed_investigations (each completed test WITH its result and date if stated, e.g. "Ultrasound face: multiple small subcutaneous lymph nodes, mild inflammation, no fluid collection"). Never put symptoms, history, medications, plans or lifestyle in Objective.
+Assessment & Plan = ONE entry per problem the clinician addressed, most important first:
+  issue: the specific problem/diagnosis title.
+  diagnosis: ALWAYS fill it, with status ("Hypertension - controlled", "Suspected sleep apnea - pending assessment", "Right bunion with functional impairment"). Use only what the clinician said or clearly concluded.
+  assessment: the clinician's interpretation only if stated; otherwise "".
+  differential_diagnoses: only if the clinician listed them.
+  investigations_planned: tests ordered ("X-ray right foot").
+  treatment_planned: medication decisions (continue/start/stop/change with dose), advice, monitoring, who the patient should call or what to do next; separate items with "; ".
+  referrals: referral target and service ("Foot surgeon").
+  Add a LAST entry issue "Follow-up" ONLY if a return/follow-up time was stated: treatment_planned "Rtc: <timing as stated>".
+Do not repeat the history inside the plan; the plan states decisions.
 
-PLACEMENT: numeric lab/vital values live ONLY in Objective (Subjective may say a trend in words). One value per measurement; never contradict yourself. Referrals only in A&P "referrals". Do not repeat normal lab results in the A&P. Group a problem's own medications under that problem.
-
-ANTI-HALLUCINATION (critical): a thing merely mentioned in passing is not a problem — only make an A&P entry for something the clinician assessed or acted on. Never invent a disease, medication, dose, value, referral, diagnosis, name or date. If the transcript does not say it, leave it out.
+STYLE EXAMPLE (format and terseness only; never copy its content):
+Subjective: "- Burn to left hand - grabbed hot pot at work" / "- Blister developed on left middle finger" / "- Has been applying flamazine cream and soaking in cold water"
+Objective: "- Left hand: second degree burn with blister on left middle finger, swelling present" / "- No signs of infection"
+A&P: issue "Second degree burn, left hand"; diagnosis "Second degree burn, left hand"; treatment_planned "flamazine cream tid; dressing applied; Tylenol or Advil prn for pain; leave open to air dry at home"; then issue "Follow-up", treatment_planned "Rtc: <date as stated>".
 
 Return STRICT JSON matching the schema.`;
 
@@ -88,6 +104,80 @@ Return JSON {"unsupported":[{"id":N,"reason":"..."}],"duplicates":[[keepId,dropI
 - unsupported: a line (or the specific claim in it) that states something the transcript does NOT say — an invented name, drug, dose, number, date, finding, diagnosis, plan or referral. A clinically reasonable summary of what WAS said is NOT unsupported. When unsure, do NOT list it.
 - duplicates: pairs of lines that state the same fact (possibly worded differently); keepId = the more specific/complete line, dropId = the redundant one.
 Return {"unsupported":[],"duplicates":[]} if the note is clean. Output only JSON.`;
+
+// The clinic's evolved documentation rules (prompt store "clinical-story" v11, tuned by the System Upgrader against
+// gold notes), condensed and adapted to ONE call that writes the SOAP JSON. The full v11 text was tested verbatim and
+// made notes shorter and slower (9k tokens; its "no diagnosis unless confirmed" rule removed the Diagnosis lines the
+// gold notes always have), so only the rules that matter are kept, rewritten so none of them contradict the format.
+const CLINIC_RULES = `CLINIC DOCUMENTATION RULES (all mandatory):
+IDENTITY: document only the PATIENT. If a caregiver, relative or companion mentions their own symptoms, history or plans, leave them out completely.
+GROUNDING: never assume or generate clinical content the transcript does not support. A brief or empty session stays empty; never invent a presentation, plan, referral or value.
+DATES: never create or estimate a calendar date. Keep relative phrasing as spoken ("three weeks ago", "since high school"). When an exact date is spoken (return-to-clinic, expiry, test date) keep it exactly.
+NAMES AND LOGISTICS: keep specific pharmacies, imaging centres, labs, clinics, specialists, lot numbers, specimen IDs and expiry dates exactly as spoken. Keep named rule-out targets ("rule out cuboid fracture").
+MEDICATIONS: never replace a drug name with a generic phrase ("thyroid medication") or swap one drug for another. Always keep name + strength + frequency/route as stated, and whether it is continued, started, stopped, changed or only discussed. A drug only compared as an option is NOT a treatment: never write "Continue X" for it. A patient's request or question about a drug or procedure goes in the reason for visit; it is not a relieving factor unless they confirmed relief.
+TESTS AND RESULTS: keep exact test and analyte names with their values (Total cholesterol, LDL, HDL, TSH, Free T4, FIT, ferritin, B12). Never write "stool test" for a named FIT, and never turn LDL into ADL. Pair each value with its named analyte. Reviewed labs and imaging must appear in Objective (or PMH when historical); abnormal ones that need follow-up become problems with a plan.
+NEGATIONS: every explicit denial (no fever, no numbness, denies cough) must appear in associated_symptoms. Omitting negations is a failure.
+TIMEFRAMES: keep exact timeframes ("3 days ago", "for 7 years"); never generalise them to "recently".
+MULTI-TOPIC VISITS: when the visit covers more than one topic or body part, prefix each line with its topic ("Right foot: ...", "Hypertension: ...") and order topics as they were first raised. Do not add prefixes when there is only one topic.
+PMH: diagnosed background conditions, prior surgeries and procedures, family and social history. NOT the current complaint's own episodes and NOT active symptoms; those go in Subjective. Include baseline conditions even on a brief renewal visit.
+OBJECTIVE: only what was observed, examined or measured: clinician exam findings (including visual findings and negative findings such as "no palpable mass"), vitals, completed results. Never patient-reported symptoms, never disclaimers ("no exam done", "telehealth"): leave the field empty instead.
+ONE PLACE: every fact appears exactly once across the whole note. Do not repeat Subjective facts in Objective, PMH or the plan.
+PROBLEMS: one entry for each issue the clinician actually assessed or acted on (a diagnosis, a worked-up symptom, a managed or prescribed secondary complaint, a lab abnormality needing action, a screening discussed). Keep distinct diagnoses separate. A cause stays with its parent problem ("Iron deficiency anaemia secondary to gastric ulcer"), not a separate entry. A symptom mentioned in passing that another clinician is already handling is context, not a problem: no plan or referral for it. Do not promote an unassessed mention or a normal screening result to a problem.
+RENEWALS AND REFILLS: a refill or chronic-condition renewal IS a problem even with no new symptom: never drop the plan section for a renewal visit. If each medication has its own decision (dose change, switch, new request, its own pharmacy) write one problem per medication with the exact dose change/continuation, quantity and pharmacy. A single bulk request with shared logistics and no per-drug decision is one problem listing the medications, quantity and pharmacy. If a renewal was already completed, say so; do not plan a new prescription for it.
+PROBLEM TITLES: the most specific diagnosis the clinician supports, including subtype and cause ("Type 2 diabetes mellitus", not "Diabetes"). Never a vague fragment ("the red one", "thyroid") and never a generic bucket ("Other active issues").
+ASSESSMENT: the clinician's interpretation, status, response to treatment and pertinent results, not a retelling of the history, and not a bare lab value (cite a value only with its interpretation: "HbA1c 6.2, improved"). Also capture declined screening/referrals with the reason, forms or requisitions provided, routine follow-ups due, and dose-change discussions that did not result in a change.
+PLAN FIELDS: short natural clinical phrases that carry the transcript's context ("X-ray of left foot arranged", "Wegovy 0.25mg prescribed pending insurance approval", "Discontinue ashwagandha"). Include supplement changes and stopped drugs. One entry per distinct action, never repeated. Name referrals and who they are to, including offered or declined ones. Never write the word "None": leave the field empty.
+FORBIDDEN: prose starting "The patient..." or "The clinician...", clinical reasoning or standard-of-care text that was not said, duplicated lines, markdown asterisks inside field text.`;
+function clinicRules() { return CLINIC_RULES; }
+
+// ── deterministic cleaner: the writer must never leak reasoning or filler into a clinical note ──
+const META_RX = [
+  /\b(none|nothing|not|un)\s?(stated|mentioned|specified|discussed|documented|given|provided|recorded|reported)\b/i,
+  /\bnot (?:specifically )?(?:measured|noted|available|applicable)\b/i,
+  /\b(?:n\/?a|unknown|unstated)\b/i,
+  /\b(?:as per|according to) (?:the )?transcript\b/i,
+  /\btranscript(?:'s)? (?:context|text)\b/i,
+  /\bwithout (?:any )?(?:additions?|assumptions?)\b/i,
+  /\bbeyond what is (?:literally )?mentioned\b/i,
+  /^\s*(?:let'?s|let us|i will|i'll|note that|note:|here is|here's|okay|ok,)\b/i,
+  /\b(?:leave|list) (?:exact )?(?:other )?(?:vitals?|this|these)\b.*\b(?:unstated|as stated)\b/i,
+  /\bin passing conversation context\b/i,
+  /\bgeneral location mentioned\b/i,
+];
+const isMeta = (ln) => META_RX.some((rx) => rx.test(ln));
+function splitSentences(ln) {
+  if (ln.length <= 260) return [ln];
+  return ln.split(/(?<=[.;])\s+(?=[A-Z0-9])/).map((x) => x.trim()).filter(Boolean);
+}
+function cleanText(text) {
+  const out = [];
+  for (const raw of String(text || '').split('\n')) {
+    let ln = raw.replace(/^\s*[-•*]\s*/, '').trim();
+    if (!ln) continue;
+    for (let part of splitSentences(ln)) {
+      part = part.replace(/\s{2,}/g, ' ').trim();
+      if (!part || isMeta(part)) continue;
+      if (part.length > 420) part = part.slice(0, 420).replace(/\s+\S*$/, '');   // runaway line: cut at a word boundary
+      out.push(part);
+    }
+  }
+  const seen = new Set(); const uniq = [];
+  for (const l of out) { const k = l.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); if (k && !seen.has(k)) { seen.add(k); uniq.push(l); } }
+  return uniq.slice(0, 40).join('\n');
+}
+export function cleanNote(note) {
+  let removed = 0;
+  const clean = (v) => { const before = String(v || '').split('\n').filter((x) => x.trim()).length; const c = cleanText(v); removed += Math.max(0, before - c.split('\n').filter(Boolean).length); return c; };
+  for (const [sec, keys] of [['subjective', Object.keys(note.subjective)], ['past_medical_history', Object.keys(note.past_medical_history)], ['objective', Object.keys(note.objective)]]) {
+    for (const k of keys) note[sec][k] = clean(note[sec][k]);
+  }
+  note.assessment_and_plan = (note.assessment_and_plan || []).map((p) => {
+    for (const f of ['diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) p[f] = clean(p[f]);
+    p.differential_diagnoses = (p.differential_diagnoses || []).filter((d) => d && !isMeta(d));
+    return p;
+  }).filter((p) => p.issue && !isMeta(p.issue));
+  return removed;
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -266,7 +356,8 @@ export async function generateNoteV2(input, opts = {}) {
   const blank = isBlankEncounter({ transcript });
 
   // Separate LLM instances so parallel calls keep correct per-agent token attribution.
-  const writerLlm = await createGeminiService(); writerLlm._agent = 'v2-writer';
+  // The WRITER carries the quality, so it gets the stronger model; the small checklist/verifier calls stay on the fast one.
+  const writerLlm = await createGeminiService(null, { model: process.env.V2_WRITER_MODEL || 'gemini-2.5-flash' }); writerLlm._agent = 'v2-writer';
   const checkLlm = await createGeminiService(); checkLlm._agent = 'v2-checklist';
   const verifyLlm = await createGeminiService();
 
@@ -280,9 +371,11 @@ export async function generateNoteV2(input, opts = {}) {
       // 1) WRITER ∥ CHECKLIST ----------------------------------------------------
       onProgress({ status: 'drafting', consultId });
       const tw = Date.now();
-      const writerP = writerLlm.generateContent(WRITER_SYS, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
+      const writerP = writerLlm.generateContent(`${WRITER_SYS}\n\n${clinicRules()}`, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
         maxOutputTokens: Number(process.env.V2_WRITER_MAX_TOKENS) || 6000, timeoutMs: Number(process.env.V2_WRITER_TIMEOUT_MS) || 50000,
-        retries: 1, hedgeMs: Number(process.env.V2_WRITER_HEDGE_MS) || 25000, temperature: 0, thinkingBudget: 0 });
+        retries: 1, hedgeMs: Number(process.env.V2_WRITER_HEDGE_MS) || 25000, temperature: Number(process.env.V2_WRITER_TEMP ?? 0.3), thinkingBudget: Number(process.env.V2_WRITER_THINKING ?? 0), fallbackModel: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite',
+        topP: Number(process.env.V2_WRITER_TOP_P ?? 0.9), ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
+        ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
       const checkP = checkLlm.generateContent(CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
         maxOutputTokens: 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
@@ -291,6 +384,7 @@ export async function generateNoteV2(input, opts = {}) {
       const out = parseJson(writerRaw);
       if (!out) throw new Error('v2 writer returned unparseable JSON');
       note = buildNote(out, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
+      { const n = cleanNote(note); if (n) log(`[v2:clean] removed ${n} commentary/filler/duplicate line(s)`); }
       if (!note.assessment_and_plan.length && !Object.values(note.subjective).some(Boolean)) {
         // Same behaviour as v1 for a non-clinical recording (voicemail, hold music): an empty, flagged note.
         log('[v2] writer found no clinical content — emitting an empty flagged note');

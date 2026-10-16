@@ -205,6 +205,11 @@ export class LLMService {
     else body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     if (options.temperature !== undefined) body.generationConfig.temperature = options.temperature;
     else if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
+    // Sampling controls (hyper-parameters). Per-call options win over GEMINI_* env defaults; unset = model default.
+    for (const [key, env] of [['topP', 'GEMINI_TOP_P'], ['topK', 'GEMINI_TOP_K'], ['seed', 'GEMINI_SEED'], ['frequencyPenalty', 'GEMINI_FREQ_PENALTY'], ['presencePenalty', 'GEMINI_PRES_PENALTY']]) {
+      const v = options[key] !== undefined ? options[key] : (process.env[env] !== undefined && process.env[env] !== '' ? Number(process.env[env]) : undefined);
+      if (v !== undefined && Number.isFinite(v)) body.generationConfig[key] = v;
+    }
     if (Array.isArray(options.stopSequences) && options.stopSequences.length) body.generationConfig.stopSequences = options.stopSequences;
     if (options.candidateCount) body.generationConfig.candidateCount = options.candidateCount;
     if (responseSchema) {
@@ -237,6 +242,13 @@ export class LLMService {
               /thinking|thinkingLevel|unknown name|invalid/i.test(JSON.stringify(errorData))) {
             body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
             lastErr = new Error('Gemini 400 with thinkingLevel — retrying without it');
+            continue;
+          }
+          // A model that doesn't accept a sampling parameter (penalties/topK/seed) → drop them and retry.
+          if (response.status === 400 && /penalt|topK|top_k|seed|topP/i.test(JSON.stringify(errorData)) &&
+              ['frequencyPenalty', 'presencePenalty', 'topK', 'seed'].some((k) => k in body.generationConfig)) {
+            for (const k of ['frequencyPenalty', 'presencePenalty', 'topK', 'seed']) delete body.generationConfig[k];
+            lastErr = new Error('Gemini 400 with a sampling parameter — retrying without it');
             continue;
           }
           // If a model rejects bare JSON mode (responseMimeType without schema), drop it
