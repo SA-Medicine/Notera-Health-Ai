@@ -37,8 +37,18 @@ api.aitoolsfordoctor.com {
 		# }
 	}
 
-	reverse_proxy backend:8080 {
-		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+	# Notera Lab (testing + prompt improvement, separate container). Only the admin site's Worker can use it:
+	# the lab itself rejects any request without the secret X-Lab-Key header.
+	handle_path /lab/* {
+		reverse_proxy notera-lab:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy backend:8080 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+		}
 	}
 
 	header {
