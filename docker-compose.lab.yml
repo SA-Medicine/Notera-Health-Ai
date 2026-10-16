@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Notera Lab — a SEPARATE container on the Google VM for testing and prompt improvement.
+# It never serves clinicians; only the admin site (via its Worker + X-Lab-Key) can reach it, through Caddy at /lab/*.
+# Run:   docker compose -f docker-compose.lab.yml up -d --build
+# Needs: ./.env.production (shared Vertex/DB settings) and ./.env.lab containing  LAB_KEY=<random hex>  (never committed)
+# ─────────────────────────────────────────────────────────────────────────────
+name: notera-lab
+
+services:
+  lab:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile.lab
+    container_name: notera-lab
+    restart: unless-stopped
+    env_file: [./.env.production, ./.env.lab]
+    environment:
+      PORT: "8080"
+      LAB_DATA_DIR: /lab-data
+      NORMALIZE_DEID_DATES: "1"        # the gold corpus carries synthetic ISO date placeholders
+      PIPELINE_MODE: v2
+      LAB_CONCURRENCY: "3"
+      NODE_OPTIONS: "--max-old-space-size=384"
+    mem_limit: 640m                    # the VM has 2 GB; keep the lab from ever starving the production backend
+    cpus: 0.8
+    volumes:
+      - lab_data:/lab-data
+      - ./secrets/sa-key.json:/app/secrets/sa-key.json:ro
+    networks: [notera_net]
+
+networks:
+  notera_net:
+    external: true
+    name: notera_notera_net
+
+volumes:
+  lab_data: {}

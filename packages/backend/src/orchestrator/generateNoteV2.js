@@ -27,6 +27,7 @@ import { condenseNote } from './condenseNote.js';
 import { dedupeNote } from './dedupeNote.js';
 import { noteToMarkdown } from './renderMarkdown.js';
 import { collectMeds } from './structureNote.js';
+import { getActivePrompt } from './promptStore.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -129,6 +130,10 @@ ASSESSMENT: the clinician's interpretation, status, response to treatment and pe
 PLAN FIELDS: short natural clinical phrases that carry the transcript's context ("X-ray of left foot arranged", "Wegovy 0.25mg prescribed pending insurance approval", "Discontinue ashwagandha"). Include supplement changes and stopped drugs. One entry per distinct action, never repeated. Name referrals and who they are to, including offered or declined ones. Never write the word "None": leave the field empty.
 FORBIDDEN: prose starting "The patient..." or "The clinician...", clinical reasoning or standard-of-care text that was not said, duplicated lines, markdown asterisks inside field text.`;
 function clinicRules() { return CLINIC_RULES; }
+
+/** The built-in writer system prompt (instructions + clinic rules). The lab reads this as the baseline to improve. */
+export const WRITER_PROMPT_NAME = 'v2-writer';
+export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}`; }
 
 // ── deterministic cleaner: the writer must never leak reasoning or filler into a clinical note ──
 const META_RX = [
@@ -361,7 +366,7 @@ export async function generateNoteV2(input, opts = {}) {
 
   // Separate LLM instances so parallel calls keep correct per-agent token attribution.
   // The WRITER carries the quality, so it gets the stronger model; the small checklist/verifier calls stay on the fast one.
-  const writerLlm = await createGeminiService(null, { model: process.env.V2_WRITER_MODEL || 'gemini-2.5-flash' }); writerLlm._agent = 'v2-writer';
+  const writerLlm = await createGeminiService(null, { model: opts.writerModel || process.env.V2_WRITER_MODEL || 'gemini-2.5-flash' }); writerLlm._agent = 'v2-writer';
   const checkLlm = await createGeminiService(); checkLlm._agent = 'v2-checklist';
   const verifyLlm = await createGeminiService();
 
@@ -375,10 +380,12 @@ export async function generateNoteV2(input, opts = {}) {
       // 1) WRITER ∥ CHECKLIST ----------------------------------------------------
       onProgress({ status: 'drafting', consultId });
       const tw = Date.now();
-      const writerP = writerLlm.generateContent(`${WRITER_SYS}\n\n${clinicRules()}`, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
+      // Prompt precedence: per-call override (lab experiments) > active promoted version (admin console) > code default.
+      const writerPrompt = opts.writerPrompt || (await getActivePrompt(WRITER_PROMPT_NAME)) || defaultWriterPrompt();
+      const writerP = writerLlm.generateContent(writerPrompt, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
         maxOutputTokens: Number(process.env.V2_WRITER_MAX_TOKENS) || 6000, timeoutMs: Number(process.env.V2_WRITER_TIMEOUT_MS) || 50000,
-        retries: 1, hedgeMs: Number(process.env.V2_WRITER_HEDGE_MS) || 25000, temperature: Number(process.env.V2_WRITER_TEMP ?? 0.3), thinkingBudget: Number(process.env.V2_WRITER_THINKING ?? 0), fallbackModel: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite',
-        topP: Number(process.env.V2_WRITER_TOP_P ?? 0.9), ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
+        retries: 1, hedgeMs: Number(process.env.V2_WRITER_HEDGE_MS) || 25000, temperature: opts.writerTemp ?? Number(process.env.V2_WRITER_TEMP ?? 0.3), thinkingBudget: Number(process.env.V2_WRITER_THINKING ?? 0), fallbackModel: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite',
+        topP: opts.writerTopP ?? Number(process.env.V2_WRITER_TOP_P ?? 0.9), ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
       const checkP = checkLlm.generateContent(CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
         maxOutputTokens: 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })

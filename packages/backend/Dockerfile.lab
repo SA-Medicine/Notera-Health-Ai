@@ -1,0 +1,24 @@
+# Notera Lab — testing + self-improvement service (NOT the production backend). Build from the REPO ROOT:
+#   docker build -f packages/backend/Dockerfile.lab -t notera-lab .
+FROM node:20-slim AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
+COPY package*.json turbo.json ./
+COPY packages ./packages
+COPY schema ./schema
+COPY db ./db
+RUN npm ci --omit=dev --workspace @notera/backend || npm install --omit=dev --workspace @notera/backend
+
+FROM node:20-slim
+WORKDIR /app
+ENV NODE_ENV=production
+RUN useradd -m -u 10001 notera
+COPY --from=build --chown=notera:notera /app /app
+# scoring metrics + the gold (transcript -> expert note) corpus the lab evaluates against
+COPY --chown=notera:notera eval/metrics.mjs ./eval/metrics.mjs
+COPY --chown=notera:notera data/gold ./data/gold
+RUN mkdir -p /lab-data && chown notera:notera /lab-data
+USER notera
+WORKDIR /app/packages/backend
+EXPOSE 8080
+CMD ["node", "lab/labServer.js"]

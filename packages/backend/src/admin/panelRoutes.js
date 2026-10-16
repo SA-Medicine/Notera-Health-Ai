@@ -14,6 +14,8 @@ import express from 'express';
 import { query, one } from '../db/pool.js';
 import { audit } from '../auth/users.js';
 import { ensureAccountSchema, FREE_NOTE_LIMIT } from '../auth/quota.js';
+import { listVersions, getVersion, promote, activate, resetToDefault, getActivePrompt } from '../orchestrator/promptStore.js';
+import { defaultWriterPrompt, WRITER_PROMPT_NAME } from '../orchestrator/generateNoteV2.js';
 
 const lim = (n, d = 100, max = 500) => Math.min(Math.max(1, Number(n) || d), max);
 const BUCKET = () => process.env.GCS_AUDIO_BUCKET || '';
@@ -125,6 +127,30 @@ export function mountPanel(app, requireAuthMw) {
   R.get('/audit', r(async (req, res) => {
     res.json({ events: await query(SQL.audit, [String(req.query.action || '').slice(0, 40), lim(req.query.limit, 200)]) });
   }));
+
+  // ── prompt versions for the v2 writer: list / read / promote / activate (rollback) / reset ──
+  const jsonBody = express.json({ limit: '300kb' });
+  R.get('/prompts', r(async (req, res) => {
+    const active = await getActivePrompt(WRITER_PROMPT_NAME);
+    res.json({ name: WRITER_PROMPT_NAME, versions: await listVersions(WRITER_PROMPT_NAME), using_default: !active, default_chars: defaultWriterPrompt().length });
+  }));
+  R.get('/prompts/default', r(async (req, res) => res.json({ name: WRITER_PROMPT_NAME, text: defaultWriterPrompt() })));
+  R.get('/prompts/active', r(async (req, res) => { const t = await getActivePrompt(WRITER_PROMPT_NAME); res.json({ name: WRITER_PROMPT_NAME, text: t || defaultWriterPrompt(), using_default: !t }); }));
+  R.get('/prompts/:id', r(async (req, res) => { const v = await getVersion(Number(req.params.id)); v ? res.json({ version: v }) : res.status(404).json({ error: 'not found' }); }));
+  R.post('/prompts/promote', jsonBody, r(async (req, res) => {
+    const { text, note, evalSummary } = req.body || {};
+    const t = String(text || '');
+    if (t.length < 800 || t.length > 60000) return res.status(400).json({ error: 'prompt must be 800–60,000 characters' });
+    if (!/STRICT JSON|schema/i.test(t)) return res.status(400).json({ error: 'prompt must keep the strict-JSON/schema instruction' });
+    const row = await promote(WRITER_PROMPT_NAME, t, { note: String(note || '').slice(0, 300), by: req.user.email, evalSummary });
+    await audit(req.user.id, 'prompt_promote', { name: WRITER_PROMPT_NAME, version: row.version, chars: t.length }, ipOf(req));
+    res.json({ ok: true, ...row });
+  }));
+  R.post('/prompts/:id/activate', r(async (req, res) => {
+    const row = await activate(Number(req.params.id)); if (!row) return res.status(404).json({ error: 'not found' });
+    await audit(req.user.id, 'prompt_activate', { id: row.id }, ipOf(req)); res.json({ ok: true });
+  }));
+  R.post('/prompts/reset-default', r(async (req, res) => { await resetToDefault(WRITER_PROMPT_NAME); await audit(req.user.id, 'prompt_reset_default', {}, ipOf(req)); res.json({ ok: true }); }));
 
   app.use('/api/console', R);
 }
