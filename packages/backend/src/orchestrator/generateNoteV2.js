@@ -149,13 +149,15 @@ function splitSentences(ln) {
   if (ln.length <= 260) return [ln];
   return ln.split(/(?<=[.;])\s+(?=[A-Z0-9])/).map((x) => x.trim()).filter(Boolean);
 }
-function cleanText(text) {
+function cleanText(text, { splitSemi = false } = {}) {
   const out = [];
   for (const raw of String(text || '').split('\n')) {
     let ln = raw.replace(/^\s*[-•*]\s*/, '').trim();
     if (!ln) continue;
-    for (let part of splitSentences(ln)) {
-      part = part.replace(/\s{2,}/g, ' ').trim();
+    // History/exam fields are one fact per line: "a; b; c" becomes three lines. Plan fields keep their "; " lists.
+    const pieces = splitSemi ? ln.split(/\s*;\s+/).filter(Boolean) : [ln];
+    for (let part of pieces.flatMap((x) => splitSentences(x))) {
+      part = part.replace(/\s{2,}/g, ' ').replace(/[;,]+$/, '').trim();
       if (!part || isMeta(part)) continue;
       if (part.length > 420) part = part.slice(0, 420).replace(/\s+\S*$/, '');   // runaway line: cut at a word boundary
       out.push(part);
@@ -167,9 +169,9 @@ function cleanText(text) {
 }
 export function cleanNote(note) {
   let removed = 0;
-  const clean = (v) => { const before = String(v || '').split('\n').filter((x) => x.trim()).length; const c = cleanText(v); removed += Math.max(0, before - c.split('\n').filter(Boolean).length); return c; };
+  const clean = (v, opts) => { const before = String(v || '').split('\n').filter((x) => x.trim()).length; const c = cleanText(v, opts); removed += Math.max(0, before - c.split('\n').filter(Boolean).length); return c; };
   for (const [sec, keys] of [['subjective', Object.keys(note.subjective)], ['past_medical_history', Object.keys(note.past_medical_history)], ['objective', Object.keys(note.objective)]]) {
-    for (const k of keys) note[sec][k] = clean(note[sec][k]);
+    for (const k of keys) note[sec][k] = clean(note[sec][k], { splitSemi: true });
   }
   note.assessment_and_plan = (note.assessment_and_plan || []).map((p) => {
     for (const f of ['diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) p[f] = clean(p[f]);

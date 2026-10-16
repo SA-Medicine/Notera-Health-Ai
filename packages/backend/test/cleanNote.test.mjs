@@ -30,3 +30,12 @@ test('removes leaked reasoning, "none stated" filler and run-ons; keeps real fac
   assert.ok(!/Let's|transcript|unstated|none stated/i.test(vit));
   assert.equal(n.assessment_and_plan[0].treatment_planned, 'Continue valsartan 160 mg; Continue amlodipine 2.5 mg', 'real plan untouched');
 });
+
+test('splits "a; b" history lines, strips trailing ; and keeps plan lists intact', () => {
+  const n = emptyNote({});
+  n.subjective.hpi_details = 'Chest pain started 8 days ago;\nPain worse with deep breath; Shortness of breath worse with exertion;';
+  const i = emptyIssue(); i.issue = 'X'; i.treatment_planned = 'Continue valsartan 160mg; Continue amlodipine 2.5mg'; n.assessment_and_plan = [i];
+  cleanNote(n);
+  assert.deepEqual(n.subjective.hpi_details.split('\n'), ['Chest pain started 8 days ago', 'Pain worse with deep breath', 'Shortness of breath worse with exertion']);
+  assert.equal(n.assessment_and_plan[0].treatment_planned, 'Continue valsartan 160mg; Continue amlodipine 2.5mg');
+});
