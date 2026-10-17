@@ -30,6 +30,7 @@ import { collectMeds } from './structureNote.js';
 import { getActivePrompt, getActivePromptMeta } from './promptStore.js';
 import { effectiveConfig } from './runtimeConfig.js';
 import { pickExemplars, exemplarBlock } from './exemplars.js';
+import { guardDrugNames } from './drugGuard.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -72,7 +73,7 @@ Past Medical History = established conditions and history, one per line, with st
 Objective = MEASURED or EXAMINED only: vital_signs (BP/HR/temp/weight with values and where measured, e.g. "BP 142/85 at home", "BP 132/80 in clinic"), examination (clinician's exam findings), completed_investigations (each completed test WITH its result and date if stated, e.g. "Ultrasound face: multiple small subcutaneous lymph nodes, mild inflammation, no fluid collection"). Never put symptoms, history, medications, plans or lifestyle in Objective.
 Assessment & Plan = ONE entry per problem the clinician addressed, most important first:
   issue: the specific problem/diagnosis title.
-  diagnosis: ALWAYS fill it, with status ("Hypertension - controlled", "Suspected sleep apnea - pending assessment", "Right bunion with functional impairment"). Use only what the clinician said or clearly concluded.
+  diagnosis: ONLY a diagnosis the clinician named or clearly concluded, with status ("Hypertension - controlled", "Suspected sleep apnea - pending assessment" only when the clinician said suspected). If the clinician named no diagnosis for this problem, leave diagnosis EMPTY (""). Never infer a diagnosis from symptoms or from a drug, never restate the symptom as the diagnosis, and never turn a test or a rule-out into a diagnosis.
   assessment: the clinician's interpretation only if stated; otherwise "".
   differential_diagnoses: only if the clinician listed them.
   investigations_planned: tests ordered ("X-ray right foot").
@@ -487,6 +488,7 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 2) deterministic merge of anything the writer dropped ----------------------
       mergeChecklist(note, check, transcript, log);
+      if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
       note.metadata.medications_mentioned = [...new Set([...(collectMeds(note)), ...((check?.medications || []).map((m) => m?.name).filter(Boolean))])];
 
       // 3) deterministic placement fixes, then ONE verifier call ---------------------
