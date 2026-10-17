@@ -2,7 +2,7 @@
 import { lab } from './kit.js';
 
 export async function guideView(ctx) {
-  const { $, esc, head, api, go } = ctx;
+  const { $, head, api, go } = ctx;
   $('#view').innerHTML = head('Start here', 'Two jobs, in order. Each step says what to do and shows whether you have done it.', '') + '<div id="gd" class="card empty">Loading…</div>';
   const safe = async (f, d) => { try { return await f(); } catch { return d; } };
   const [runs, cands, reps, reg, cfg] = await Promise.all([
@@ -38,5 +38,4 @@ export async function guideView(ctx) {
     <h3 class="sect">What the parts are for</h3>
     ${[['Gold note', 'A note a clinician wrote for a real consultation. The answer key every score is measured against.'], ['Run', 'One test: N notes through the pipeline with a chosen model and prompt. Stored forever so runs can be compared.'], ['Audit', 'A stronger model reads one note, the transcript and the gold note, and lists what the note lacks, got wrong, or padded.'], ['Blind judge', 'Compares two notes without knowing which version wrote which, in both orders; counts hallucinations and misses.'], ['Diagnosis', 'The overall view: patterns across many audits plus pipeline-log statistics, with prioritised changes.'], ['Gate', 'The server-side checklist a prompt must pass on unseen notes before it can be promoted.'], ['Prompt version', 'An immutable saved copy of a prompt. One is live; older ones are your rollback.'], ['Setting', 'A validated runtime parameter (model, temperature, timeout…). Overrides sit on top of defaults and can be reset.']].map(([t, d]) => `<div class="card" style="margin-bottom:8px"><b>${t}</b> <span class="hint">${d}</span></div>`).join('')}`;
   document.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => go(b.dataset.go); });
-  void esc;
 }

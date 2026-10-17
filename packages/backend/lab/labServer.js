@@ -329,6 +329,14 @@ async function auditNote(runId, fid, { force = false } = {}) {
   const fresh = readJson(analysisFile(runId), {}); fresh[fid] = a; writeJson(analysisFile(runId), fresh);
   return a;
 }
+// audit a note that is not part of a stored run (e.g. produced from audio): transcript is the truth, gold is optional
+async function auditAdhoc({ transcript, note, gold = '' }) {
+  const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
+  const goldBlock = String(gold).trim() ? String(gold).slice(0, 8000) : '(none provided — judge only against the transcript)';
+  const raw = await llm.generateContent(AUDIT_SYS, `=== TRANSCRIPT ===\n${String(transcript).slice(0, 60000)}\n\n=== GOLD NOTE ===\n${goldBlock}\n\n=== AI NOTE ===\n${String(note)}\n\nReturn ONLY the JSON.`, null,
+    { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
+  return parseJ(raw);
+}
 // run an audit over many notes with limited concurrency (worst first)
 async function auditMany(runId, ids, onProgress) {
   let next = 0, done = 0;
@@ -429,6 +437,7 @@ app.post('/runs/:id/report', wrap(async (req, res) => res.json({ id: await start
 app.get('/reports', wrap(async (_req, res) => res.json({ reports: fs.readdirSync(path.join(DATA, 'reports')).map((f) => readJson(path.join(DATA, 'reports', f))).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30).map(({ patterns, recommendations, what_works, ...r }) => ({ ...r, recs: recommendations?.length || 0, open: recommendations?.filter((x) => x.status === 'open').length || 0 })) })));
 app.get('/reports/:id', wrap(async (req, res) => { const r = reports.get(req.params.id) || readJson(path.join(DATA, 'reports', req.params.id + '.json')); r ? res.json(r) : res.status(404).json({ error: 'not found' }); }));
 app.patch('/reports/:id/recs/:rid', wrap(async (req, res) => { const f = path.join(DATA, 'reports', req.params.id + '.json'); const r = readJson(f); if (!r) return res.status(404).json({ error: 'not found' }); const rec = r.recommendations.find((x) => x.id === req.params.rid); if (!rec) return res.status(404).json({ error: 'not found' }); if (!['open', 'accepted', 'dismissed', 'done'].includes(req.body?.status)) return res.status(400).json({ error: 'bad status' }); rec.status = req.body.status; writeJson(f, r); reports.delete(r.id); res.json({ ok: true }); }));
+app.post('/audit-adhoc', wrap(async (req, res) => { if (!req.body?.transcript || !req.body?.note) return res.status(400).json({ error: 'transcript and note are required' }); res.json(await auditAdhoc(req.body)); }));
 app.post('/try', wrap(async (req, res) => res.json(await tryTranscript(req.body || {}))));
 app.get('/compare', wrap(async (req, res) => res.json(compareRuns(String(req.query.a), String(req.query.b)))));
 app.get('/trend', wrap(async (_req, res) => res.json({ runs: trend() })));

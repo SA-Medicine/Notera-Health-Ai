@@ -435,7 +435,10 @@ console.log('D8 · flagGenericMedDowngrade');
 {
   const note = { assessment_and_plan: [{ issue: 'Anxiety', treatment_planned: 'Continue the oral medication as before.' }], metadata: {} };
   const r = flagGenericMedDowngrade(note, 'she is on cipralex for anxiety', ['Cipralex'], () => {});
-  ok('flags a generic placeholder when the transcript names a specific drug', r.flags.some((f) => f.type === 'medication_generalized' && /Cipralex/.test(f.message)));
+  ok('substitutes the grounded drug when exactly one is missing (no flag needed)', r.swapped === 1 && /Cipralex/.test(note.assessment_and_plan[0].treatment_planned) && r.flags.length === 0);
+  const amb = { assessment_and_plan: [{ issue: 'Anxiety', treatment_planned: 'Continue the oral medication as before.' }], metadata: {} };
+  const r2 = flagGenericMedDowngrade(amb, 'she is on cipralex and also seroquel', ['Cipralex', 'Seroquel'], () => {});
+  ok('flags (never guesses) when more than one grounded drug is missing', r2.swapped === 0 && r2.flags.some((f) => f.type === 'medication_generalized'));
 }
 {
   const note = { assessment_and_plan: [{ issue: 'x', treatment_planned: 'Continue Cipralex 10 mg daily.' }], metadata: {} };

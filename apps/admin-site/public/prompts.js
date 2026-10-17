@@ -1,7 +1,7 @@
 // Prompts: every LLM prompt in the pipeline (writer, checklist, verifier). Edit → compare with live → save as a new
 // version → it becomes the active prompt in the production database and is used by the next note (≤60 s cache).
 // Roll back by activating any older version. The server validates that required parser markers survive an edit.
-import { lab, diffHtml, MODELS, opts } from './kit.js';
+import { lab, diffHtml } from './kit.js';
 
 const SEL = { name: localStorage.getItem('nadm_prompt') || 'v2-writer' };
 export async function promptsView(ctx) {
@@ -71,6 +71,5 @@ export async function promptsView(ctx) {
       const rst = $('#rst'); if (rst) rst.onclick = async () => { if (!confirm('Switch this prompt back to the built-in default?')) return; try { await api('/api/console/prompts/reset-default', { method: 'POST', json: { name: SEL.name } }); toast('Using built-in default'); draft = ''; draw(); } catch (er) { toast(er.message, true); } };
     }
   }
-  void MODELS; void opts;
   await draw();
 }
