@@ -159,7 +159,7 @@ async function startJudge(aId, bId, limit = 30) {
   (async () => {
     const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-judge'; let next = 0;
     const once = async (transcript, gold, x, y) => {
-      const raw = await llm.generateContent(JUDGE_SYS, `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== NOTE A ===\n${x}\n\n=== NOTE B ===\n${y}\n\nReturn ONLY the JSON.`, null, { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 90000 });
+      const raw = await llm.generateContent(JUDGE_SYS, `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== NOTE A ===\n${x}\n\n=== NOTE B ===\n${y}\n\nReturn ONLY the JSON.`, null, { maxOutputTokens: 3000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
       return JSON.parse(raw.replace(/^```json|```$/g, ''));
     };
     const worker = async () => { while (next < common.length) {
