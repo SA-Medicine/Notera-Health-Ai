@@ -3,7 +3,7 @@
 //   same note set → generate with the DEPLOYED pipeline → audit every note against the transcript ONLY (no gold reference,
 //   so it is directly comparable to the clinicians' own gold notes audited the same way) → mean score, verdicts, deltas.
 //   node scripts/harness-iterate.mjs --name iter1 [--from run_xxx] [--n 50] [--model gemini-2.5-flash] [--gold]
-//   --from  reuse the note IDS of an earlier run (default: the baseline 50-note run)    --gold  also audit the gold notes (ceiling)   --editor  turn the editor pass on for this run
+//   --from  reuse the note IDS of an earlier run (default: the baseline 50-note run)    --gold  also audit the gold notes (ceiling)   --editor  editor pass on   --temp 0.1  --topp 0.9  --think 1024  --prompt cand_xxx
 // Results: docs/reports/iterations/<name>.json (+ prints the comparison with the previous iteration file, if any).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,7 +25,7 @@ const pool = async (items, n, fn) => { let i = 0; await Promise.all(Array.from({
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
 
 const src = await lab('/runs/' + FROM); const ids = (src.ids || src.rows.map((r) => r.id)).slice(0, Number(arg('n', 50)));
-const { id: runId } = await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}) });
+const { id: runId } = await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}), ...(arg('temp', '') !== '' ? { writerTemp: Number(arg('temp')) } : {}), ...(arg('think', '') !== '' ? { writerThinking: Number(arg('think')) } : {}), ...(arg('topp', '') !== '' ? { writerTopP: Number(arg('topp')) } : {}), ...(arg('prompt', '') ? { candidateId: arg('prompt') } : {}) });
 console.log(`${NAME}: run ${runId} (${ids.length} notes, ${MODEL})`);
 let run; for (;;) { run = await lab('/runs/' + runId); process.stdout.write(`\r  generating ${run.progress.done}/${run.progress.total}  `); if (run.status !== 'running') break; await sleep(6000); }
 console.log(`\n  similarity ${run.summary.avg_similarity_to_gold} omission ${run.summary.avg_omission_rate} flow ${run.summary.avg_story_flow} p50 ${run.summary.p50_s}s p95 ${run.summary.p95_s}s failed ${run.summary.failed}`);
