@@ -159,7 +159,15 @@ export const PROMPT_REGISTRY = {
   [EDITOR_PROMPT_NAME]:    { stage: 'Editor', label: 'Reviewer (editor pass)', help: 'Optional second pass that fixes section placement, plan attribution, contradictions with the transcript and padding in the writer\'s draft. Off unless Settings → Editor pass is on.', default: () => EDITOR_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
   [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
 };
-export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}`; }
+// Added after the 100-note A/B on gemini-3.7-flash (docs/reports/HISTORY_90_FINDINGS + FINAL_37_ROLLOUT): +1.7 parity, completeness 3.89 → 4.06.
+const COMPLETENESS_RULES = `COMPLETENESS (this clinic's clinicians record the following; leaving them out is the most common error):
+- Every lab or imaging result named in the visit WITH its value and, when stated, its date; every vital sign with its value.
+- Every medication mentioned: name, strength, frequency, what it is for, and whether it is continued, started, stopped or changed; include supplements and over-the-counter products.
+- Every past medical, surgical and family history item mentioned, including explicit negatives ("no family history of colon cancer").
+- Exact timelines (how long, since when, previous episodes) and each concrete detail the patient gives (amounts, counts, triggers, what has been tried).
+- Each plan item with its specifics: what, who, where and when (pharmacy, referral target, test, follow-up timing), and what the patient agreed to or declined.
+Completeness means no clinical fact is left out; it does not mean longer sentences. Keep one short fact per line.`;
+export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}\n\n${COMPLETENESS_RULES}`; }
 
 // ── deterministic cleaner: the writer must never leak reasoning or filler into a clinical note ──
 const META_RX = [

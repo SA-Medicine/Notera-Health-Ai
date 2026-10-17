@@ -38,21 +38,21 @@ for (const [name, reg] of Object.entries(PROMPT_REGISTRY)) {
 
 // ── runtime config ──
 const base = await rc.effectiveConfig();
-assert.equal(base['writer.model'], 'gemini-2.5-flash'); assert.equal(base['writer.temperature'], 0.3); assert.equal(base['verifier.enabled'], true);
+assert.equal(base['writer.model'], 'gemini-3.7-flash'); assert.equal(base['writer.temperature'], 0.3); assert.equal(base['verifier.enabled'], true);
 await rc.setConfig('writer.model', 'gemini-3.5-flash-lite', { by: 'admin@x', reason: 'speed test' });
 await rc.setConfig('writer.temperature', 0.15, { by: 'admin@x' });
 await rc.setConfig('verifier.enabled', false, { by: 'admin@x' });
 const eff = await rc.effectiveConfig();
 assert.equal(eff['writer.model'], 'gemini-3.5-flash-lite'); assert.equal(eff['writer.temperature'], 0.15); assert.equal(eff['verifier.enabled'], false);
 const desc = (await rc.describeConfig()).find((s) => s.key === 'writer.model');
-assert.equal(desc.source, 'override'); assert.equal(desc.default, 'gemini-2.5-flash'); assert.equal(desc.updated_by, 'admin@x');
+assert.equal(desc.source, 'override'); assert.equal(desc.default, 'gemini-3.7-flash'); assert.equal(desc.updated_by, 'admin@x');
 await assert.rejects(() => rc.setConfig('writer.temperature', 5), /between/);
 await assert.rejects(() => rc.setConfig('writer.temperature', 'hot'), /number/);
 await assert.rejects(() => rc.setConfig('verifier.enabled', 'yes'), /true or false/);
 await assert.rejects(() => rc.setConfig('writer.model', 'bad model; drop table'), /model id/);
 await assert.rejects(() => rc.setConfig('db.password', 'x'), /unknown setting/);
 assert.equal(await rc.resetConfig('writer.model', { by: 'admin@x' }), true);
-assert.equal((await rc.effectiveConfig())['writer.model'], 'gemini-2.5-flash', 'reset → default');
+assert.equal((await rc.effectiveConfig())['writer.model'], 'gemini-3.7-flash', 'reset → default');
 assert.equal(await rc.resetConfig('writer.model'), false, 'resetting an unchanged setting is a no-op');
 const hist = await rc.configHistory(20);
 assert.ok(hist.length >= 4 && hist.some((h) => h.key === 'writer.model' && h.new_value === null), 'every change, including resets, is in the history');

@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateNote } from '../src/orchestrator/generateNote.js';
 import { defaultWriterPrompt } from '../src/orchestrator/generateNoteV2.js';
 import { getActivePrompt } from '../src/orchestrator/promptStore.js';
+import { effectiveConfig } from '../src/orchestrator/runtimeConfig.js';
 import { createGeminiService, runWithModel } from '../src/services/LLMService.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -439,7 +440,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 const wrap = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { console.error('[lab]', e.message); res.status(500).json({ error: e.message }); } };
 
-app.get('/info', wrap(async (_req, res) => { const idx = goldIndex(); res.json({ fixtures: idx.length, usable: idx.filter((x) => x.ok).length, models: { judge: JUDGE_MODEL, improve: IMPROVE_MODEL }, writerModel: process.env.V2_WRITER_MODEL || 'gemini-2.5-flash', writerFallback: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite', concurrency: Number(process.env.LAB_CONCURRENCY) || 3 }); }));
+app.get('/info', wrap(async (_req, res) => { const idx = goldIndex(); res.json({ fixtures: idx.length, usable: idx.filter((x) => x.ok).length, models: { judge: JUDGE_MODEL, improve: IMPROVE_MODEL }, writerModel: (await effectiveConfig())['writer.model'], writerFallback: (await effectiveConfig())['writer.fallbackModel'], concurrency: Number(process.env.LAB_CONCURRENCY) || 3 }); }));
 app.get('/baseline', wrap(async (_req, res) => { const a = await getActivePrompt('v2-writer'); res.json({ source: a ? 'production-active' : 'default', chars: (a || defaultWriterPrompt()).length, text: a || defaultWriterPrompt() }); }));
 app.get('/fixtures', wrap(async (_req, res) => { const f = goldIndex().filter((x) => x.ok).map((x) => [x.id, x.tChars, x.gChars]); res.json({ fixtures: f }); }));   // compact tuples: [id, transcriptChars, goldChars]
 app.get('/fixtures/:id', wrap(async (req, res) => res.json(loadFixture(req.params.id))));
