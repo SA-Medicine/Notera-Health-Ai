@@ -5,6 +5,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+// Per-call default-model override (lab experiments: run the multi-agent pipeline on another model without touching env).
+const _modelStore = new AsyncLocalStorage();
+export const runWithModel = (model, fn) => (model ? _modelStore.run({ model }, fn) : fn());
 const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export const MODEL_TIERS = {
@@ -65,7 +69,7 @@ export class LLMService {
   constructor(opts = {}) {
     const {
       apiKey = process.env.GEMINI_API_KEY,
-      model = MODEL_TIERS.pro,
+      model = _modelStore.getStore()?.model || MODEL_TIERS.pro,
       backend = process.env.LLM_BACKEND || 'ai_studio',
     } = opts;
     this.backend = backend;

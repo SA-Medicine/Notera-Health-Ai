@@ -3,7 +3,7 @@
 //   same note set → generate with the DEPLOYED pipeline → audit every note against the transcript ONLY (no gold reference,
 //   so it is directly comparable to the clinicians' own gold notes audited the same way) → mean score, verdicts, deltas.
 //   node scripts/harness-iterate.mjs --name iter1 [--from run_xxx] [--n 50] [--model gemini-2.5-flash] [--gold]
-//   --from  reuse the note IDS of an earlier run (default: the baseline 50-note run)    --gold  also audit the gold notes (ceiling)   --recall  extended recall on   --mode v1  run the OLD multi-agent pipeline   --ids-from <iteration name>  reuse that iteration's notes   --editor  editor pass on   --temp 0.1  --topp 0.9  --think 1024  --prompt cand_xxx
+//   --from  reuse the note IDS of an earlier run (default: the baseline 50-note run)    --gold  also audit the gold notes (ceiling)   --old-run run_2026-09-01_07-16-58  use that old run's fixtures   --recall  extended recall on   --default-model gemini-3.7-flash  model for every agent that has no explicit one (the v1 agents)   --mode v1  run the OLD multi-agent pipeline   --ids-from <iteration name>  reuse that iteration's notes   --editor  editor pass on   --temp 0.1  --topp 0.9  --think 1024  --prompt cand_xxx
 // Results: docs/reports/iterations/<name>.json (+ prints the comparison with the previous iteration file, if any).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,10 +28,12 @@ const used = new Set(); for (const f of fs.readdirSync(DIR).filter((x) => x.ends
 try { JSON.parse(fs.readFileSync(path.resolve('packages/backend/exemplars/bank.json'), 'utf8')).forEach((b) => used.add(b.id)); } catch { /* no bank */ }
 let ids; const AUDIT_RUN = arg('audit-run', '');
 if (AUDIT_RUN) { const r0 = await lab('/runs/' + AUDIT_RUN); ids = r0.ids || r0.rows.map((r) => r.id); }
+else if (arg('ids', '')) { ids = arg('ids').split(','); }
+else if (arg('old-run', '')) { ids = fs.readdirSync(path.resolve('eval/results', arg('old-run'))).filter((f) => f.endsWith('.md') && !f.startsWith('_')).map((f) => f.replace(/.md$/, '')); }
 else if (arg('ids-from', '')) { ids = Object.keys(JSON.parse(fs.readFileSync(path.join(DIR, arg('ids-from') + '.json'), 'utf8')).scores); }
 else if (arg('fresh', '')) { const all = (await lab('/fixtures')).fixtures.map((f) => f[0]).filter((i) => !used.has(i)); for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; } ids = all.slice(0, Number(arg('fresh'))); }
 else { const src = await lab('/runs/' + FROM); ids = (src.ids || src.rows.map((r) => r.id)).slice(0, Number(arg('n', 50))); }
-const runId = AUDIT_RUN || (await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}), ...(has('recall') ? { recall: true } : {}), ...(arg('mode', '') ? { mode: arg('mode') } : {}), ...(arg('temp', '') !== '' ? { writerTemp: Number(arg('temp')) } : {}), ...(arg('think', '') !== '' ? { writerThinking: Number(arg('think')) } : {}), ...(arg('topp', '') !== '' ? { writerTopP: Number(arg('topp')) } : {}), ...(arg('prompt', '') ? { candidateId: arg('prompt') } : {}), ...(arg('fewshot', '') !== '' ? { fewShot: Number(arg('fewshot')) } : {}) })).id;
+const runId = AUDIT_RUN || (await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}), ...(has('recall') ? { recall: true } : {}), ...(arg('mode', '') ? { mode: arg('mode') } : {}), ...(arg('default-model', '') ? { defaultModel: arg('default-model') } : {}), ...(arg('temp', '') !== '' ? { writerTemp: Number(arg('temp')) } : {}), ...(arg('think', '') !== '' ? { writerThinking: Number(arg('think')) } : {}), ...(arg('topp', '') !== '' ? { writerTopP: Number(arg('topp')) } : {}), ...(arg('prompt', '') ? { candidateId: arg('prompt') } : {}), ...(arg('fewshot', '') !== '' ? { fewShot: Number(arg('fewshot')) } : {}) })).id;
 console.log(`${NAME}: run ${runId} (${ids.length} notes, ${MODEL})`);
 let run; for (;;) { run = await lab('/runs/' + runId); process.stdout.write(`\r  generating ${run.progress.done}/${run.progress.total}  `); if (run.status !== 'running') break; await sleep(6000); }
 console.log(`\n  similarity ${run.summary.avg_similarity_to_gold} omission ${run.summary.avg_omission_rate} flow ${run.summary.avg_story_flow} p50 ${run.summary.p50_s}s p95 ${run.summary.p95_s}s failed ${run.summary.failed}`);
