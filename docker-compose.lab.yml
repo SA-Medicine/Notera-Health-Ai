@@ -20,6 +20,12 @@ services:
       NORMALIZE_DEID_DATES: "1"        # the gold corpus carries synthetic ISO date placeholders
       PIPELINE_MODE: v2
       LAB_CONCURRENCY: "3"
+      # the multi-agent (v1) pipeline needs long calls; the production backend keeps its own shorter caps
+      LLM_TIMEOUT_MS: "170000"
+      EXTRACTOR_TIMEOUT_MS: "170000"
+      TIGHTENER_TIMEOUT_MS: "170000"
+      STORY_TIMEOUT_MS: "170000"
+      NARRATIVE_TIMEOUT_MS: "170000"
       NODE_OPTIONS: "--max-old-space-size=384"
     mem_limit: 640m                    # the VM has 2 GB; keep the lab from ever starving the production backend
     cpus: 0.8
