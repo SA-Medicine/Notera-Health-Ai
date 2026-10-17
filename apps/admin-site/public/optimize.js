@@ -3,7 +3,7 @@
 //   2 Validate  — one click runs baseline vs candidate on 40 notes the candidate never saw, then judges them blind.
 //   3 Gate      — server-computed checklist (similarity, omission, failures, latency, judge, hallucination). All must pass.
 //   4 Promote   — saves a new production version WITH the evidence attached; roll back any time from Prompts.
-import { lab, diffHtml, pretty, kpi } from './kit.js';
+import { lab, diffHtml } from './kit.js';
 
 export async function optimizeView(ctx) {
   const { $, esc, ago, table, head, toast, openDrawer, closeDrawer, api, go } = ctx;
@@ -59,4 +59,3 @@ export async function optimizeView(ctx) {
   }
   await draw();
 }
-void pretty; void kpi;

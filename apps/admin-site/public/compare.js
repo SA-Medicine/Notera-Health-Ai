@@ -76,7 +76,7 @@ export async function compareView(ctx, mode = 'stats') {
     if (jl[0]) showJudge(await lab('/judge/' + jl[0].id));
   }
   function showJudge(d) {
-    const s = d.summary; if (!s || !$('#jres')) return; const nA = ST.a, rA = runs.find((r) => r.id === nA);
+    const s = d.summary; if (!s || !$('#jres')) return;
     const better = s.wins.B > s.wins.A && s.B.accuracy >= s.A.accuracy - 0.25 && s.B.completeness >= s.A.completeness - 0.1 && s.B.unsupported <= s.A.unsupported + 0.05;
     const dl = (x, y, inv) => { const v = y - x; return `<span class="pill ${v === 0 ? '' : (inv ? v < 0 : v > 0) ? 'ok' : 'bad'}">${sgn(v, 2)}</span>`; };
     $('#jres').innerHTML = `
@@ -95,7 +95,6 @@ export async function compareView(ctx, mode = 'stats') {
           { h: 'Your verdict', f: (i) => (i.error ? '' : `<div class="segs sm" data-item="${esc(i.id)}">${['A', 'B', 'tie'].map((v) => `<button class="seg${i.human === v ? ' on' : ''}" data-h="${v}">${v}</button>`).join('')}</div>`) }, { h: '', f: (i) => `<button class="btn sm" data-note="${esc(i.id)}">Read</button>` }], d.items)}</div>`;
     document.querySelectorAll('[data-item] [data-h]').forEach((b) => { b.onclick = async () => { const id = b.closest('[data-item]').dataset.item; const cur = d.items.find((i) => i.id === id); const human = cur.human === b.dataset.h ? null : b.dataset.h; try { await lab(`/judge/${d.id}/label`, { method: 'POST', json: { item: id, human } }); showJudge(await lab('/judge/' + d.id)); } catch (e) { toast(e.message, true); } }; });
     document.querySelectorAll('#jres [data-note]').forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); openNote(b.dataset.note); }; });
-    void rA;
   }
   await draw();
 }
