@@ -209,6 +209,7 @@ export function mountPanel(app, requireAuthMw) {
       { id: 'asr', label: 'Speech to text', kind: 'model', detail: 'Chunked transcription.', model: process.env.ASR_MODEL || null },
       { id: 'classify', label: 'Encounter classifier', kind: 'code', detail: 'Deterministic specialty and blank-encounter detection.' },
       { id: 'writer', label: 'Note writer', kind: 'llm', prompt: 'v2-writer', prompt_live: pm['v2-writer'], model: cfg['writer.model'], fallback: cfg['writer.fallbackModel'], params: { temperature: cfg['writer.temperature'], topP: cfg['writer.topP'], thinking: cfg['writer.thinkingBudget'], maxTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'], hedgeMs: cfg['writer.hedgeMs'] } },
+      { id: 'editor', label: 'Editor pass (optional reviewer)', kind: 'llm', prompt: 'v2-editor', prompt_live: pm['v2-editor'], model: cfg['editor.model'], enabled: cfg['editor.enabled'], params: { timeoutMs: cfg['editor.timeoutMs'] }, detail: 'Fixes section placement, plan attribution, contradictions and padding in the draft. Code rejects any edit that loses or invents facts.' },
       { id: 'checklist', label: 'Fact checklist (parallel)', kind: 'llm', prompt: 'v2-checklist', prompt_live: pm['v2-checklist'], model: cfg['aux.model'] },
       { id: 'merge', label: 'Checklist merge', kind: 'code', detail: 'Adds any medication, result, order or referral the writer dropped.' },
       { id: 'reconcile', label: 'Placement fixes', kind: 'code', detail: 'Moves facts to the right section; removes commentary and duplicates.' },

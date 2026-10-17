@@ -136,11 +136,13 @@ function clinicRules() { return CLINIC_RULES; }
 export const WRITER_PROMPT_NAME = 'v2-writer';
 export const CHECKLIST_PROMPT_NAME = 'v2-checklist';
 export const VERIFIER_PROMPT_NAME = 'v2-verifier';
+export const EDITOR_PROMPT_NAME = 'v2-editor';
 /** Every LLM prompt in the pipeline, editable from the admin console. `must` = substrings a replacement has to keep
  *  (the code that parses the model's answer depends on them), so a bad edit is rejected instead of breaking notes. */
 export const PROMPT_REGISTRY = {
   [WRITER_PROMPT_NAME]:    { stage: 'Writer', label: 'Note writer', help: 'Drafts the whole SOAP note from the transcript. The main quality lever.', default: () => defaultWriterPrompt(), must: ['JSON'], min: 800 },
   [CHECKLIST_PROMPT_NAME]: { stage: 'Checklist', label: 'Fact checklist', help: 'Extracts medications, results, orders, referrals and follow-up so nothing the writer drops is lost.', default: () => CHECK_SYS, must: ['medications', 'results', 'orders', 'referrals', 'follow_up', 'JSON'], min: 200 },
+  [EDITOR_PROMPT_NAME]:    { stage: 'Editor', label: 'Reviewer (editor pass)', help: 'Optional second pass that fixes section placement, plan attribution, contradictions with the transcript and padding in the writer\'s draft. Off unless Settings → Editor pass is on.', default: () => EDITOR_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
   [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
 };
 export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}`; }
@@ -357,6 +359,47 @@ async function verifyNote(llm, note, transcript, log, cfg = {}) {
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
+// ── editor pass: a reviewer that fixes what the audits keep finding (placement, plan attribution, contradictions, padding) ──
+const EDITOR_SYS = `You are the senior reviewer of an AI-drafted SOAP note (JSON). You get the TRANSCRIPT (the only truth) and the DRAFT. Return the corrected note as JSON in exactly the same structure. Change ONLY what is wrong; copy everything that is correct unchanged. Fix, in this priority:
+1 CONTRADICTIONS WITH THE TRANSCRIPT: negations flipped ("denies X" when the patient has X, or the reverse), wrong drug / strength / frequency / value / side / date, a diagnosis, treatment or referral that was not said. Correct it using the transcript's own words or delete it. Never add anything that is not in the transcript.
+2 PLAN ATTRIBUTION: every investigation, treatment, referral and instruction sits under the problem it is for. Move misplaced items. Merge entries that are the same condition. A test, procedure, refill or visit task is not a problem: fold it under the problem it serves. One entry per genuinely distinct problem; keep distinct diagnoses separate.
+3 SECTION PLACEMENT: Subjective = what the patient says (symptoms, history, requests, reported readings, lifestyle). Objective = only what was measured, examined or reviewed (exam findings, vitals with where measured such as "BP 142/85 at home", completed results with values). Move symptoms and history out of Objective, exam findings out of Subjective, and planned or pending tests into investigations_planned. Past medical history = diagnosed conditions, surgeries, family / social / immunisation history and one "Current medications" line: move current-illness details to Subjective, keep family history only in family, and remove drugs that are only being newly prescribed from "Current medications".
+4 PADDING: delete visit-agenda lines ("Discussion of ...", "Evaluation of ..."), filler, commentary, duplicates, and anything stated twice.
+5 COMPLETENESS: if the transcript clearly states an important fact the draft lacks (diagnosis, medication change with dose, abnormal result with value, referral, follow-up timing), add it to the right field in the same terse style.
+Style: one fact per line, short clinical phrases, exact numbers, doses and specific denials. Return ONLY the JSON.`;
+
+/** Accept the editor's output only if it did not lose or invent clinical content (deterministic check). */
+export function editorAccepts(draft, edited, transcript) {
+  const flat = (o) => (o && typeof o === 'object' ? Object.values(o).map(flat).join(' ') : String(o ?? ''));   // string values only (no keys, no JSON escapes)
+  const T = new Set(words(transcript)); const D = new Set(words(flat(draft))); const E = new Set(words(flat(edited)));
+  const tNums = new Set(numsOf(transcript)); const dNums = new Set(numsOf(flat(draft))); const eNums = new Set(numsOf(flat(edited)));
+  if (!Array.isArray(edited?.assessment_and_plan)) return { ok: false, why: 'no assessment_and_plan' };
+  if ((draft.assessment_and_plan || []).length && !edited.assessment_and_plan.length) return { ok: false, why: 'dropped every problem' };
+  const kept = [...D].filter((w) => E.has(w)).length / Math.max(1, D.size);
+  if (kept < 0.78) return { ok: false, why: `kept only ${(kept * 100).toFixed(0)}% of the draft's content words` };
+  const keptNums = [...dNums].filter((n) => tNums.has(n)); const numKeep = keptNums.length ? keptNums.filter((n) => eNums.has(n)).length / keptNums.length : 1;
+  if (numKeep < 0.85) return { ok: false, why: `lost ${((1 - numKeep) * 100).toFixed(0)}% of the grounded numbers` };
+  const inventedNums = [...eNums].filter((n) => !tNums.has(n) && !dNums.has(n));
+  if (inventedNums.length) return { ok: false, why: `introduced numbers not in transcript (${inventedNums.slice(0, 3).join(', ')})` };
+  const fresh = [...E].filter((w) => !T.has(w) && !D.has(w)); const freshRate = fresh.length / Math.max(1, E.size);
+  if (freshRate > 0.06) return { ok: false, why: `${(freshRate * 100).toFixed(0)}% brand-new words (${fresh.slice(0, 4).join(', ')})` };
+  return { ok: true, kept, numKeep, fresh: fresh.length };
+}
+async function editWriterJson(llm, draft, transcript, log, { prompt, model, timeoutMs }) {
+  const t0 = Date.now();
+  try {
+    llm._agent = 'v2-editor';
+    const raw = await llm.generateContent(prompt || EDITOR_SYS, `TRANSCRIPT (sole truth):\n"""\n${transcript}\n"""\n\nDRAFT NOTE JSON:\n${JSON.stringify(draft)}\n\nReturn the corrected JSON.`, WRITER_SCHEMA,
+      { maxOutputTokens: 6000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 18000, temperature: 0, thinkingBudget: 0 });
+    const edited = parseJson(raw);
+    if (!edited) { log('[v2:editor] rejected — unparseable JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
+    const chk = editorAccepts(draft, edited, transcript);
+    if (!chk.ok) { log(`[v2:editor] rejected — ${chk.why}`); return { out: null, why: chk.why, ms: Date.now() - t0 }; }
+    log(`[v2:editor] applied (kept ${(chk.kept * 100).toFixed(0)}% of draft words, ${chk.fresh} new words)`);
+    return { out: edited, why: 'applied', ms: Date.now() - t0 };
+  } catch (e) { log(`[v2:editor] skipped — ${e.message}`); return { out: null, why: 'error: ' + e.message, ms: Date.now() - t0 }; }
+}
+
 export async function generateNoteV2(input, opts = {}) {
   const t0 = Date.now();
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
@@ -421,7 +464,15 @@ export async function generateNoteV2(input, opts = {}) {
       const out = parseJson(writerRaw);
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
-      note = buildNote(out, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
+      let finalOut = out;
+      const useEditor = opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled'];
+      if (useEditor) {
+        const te = Date.now(); const eMeta = await getActivePromptMeta(EDITOR_PROMPT_NAME); used.prompts.editor = eMeta ? `v${eMeta.version}` : 'default';
+        const editorLlm = await createGeminiService(null, { model: cfg['editor.model'] });
+        const er = await editWriterJson(editorLlm, out, transcript, log, { prompt: eMeta?.text, model: cfg['editor.model'], timeoutMs: cfg['editor.timeoutMs'] });
+        lap('editor', te); if (er.out) finalOut = er.out; if (opts.trace) opts.trace.editor = { applied: !!er.out, why: er.why, ms: er.ms, edited_json: er.out || null };
+      }
+      note = buildNote(finalOut, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
       { const n = cleanNote(note); if (n) log(`[v2:clean] removed ${n} commentary/filler/duplicate line(s)`); }
       if (!note.assessment_and_plan.length && !Object.values(note.subjective).some(Boolean)) {
         // Same behaviour as v1 for a non-clinical recording (voicemail, hold music): an empty, flagged note.
