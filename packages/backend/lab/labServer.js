@@ -83,7 +83,7 @@ async function startRun(cfg) {
   const prompt = await resolvePrompt(cfg);
   const ids = pickIds(cfg);
   const run = { id: uid('run'), label: String(cfg.label || '').slice(0, 80), status: 'running', createdAt: new Date().toISOString(), finishedAt: null,
-    config: { n: ids.length, seed: cfg.seed || 1, exclude: cfg.exclude?.length || 0, promptSource: prompt.source, promptChars: prompt.text.length, editor: cfg.editor ?? null, writerThinking: cfg.writerThinking ?? null, fewShot: cfg.fewShot ?? null, writerModel: cfg.writerModel || null, writerTemp: cfg.writerTemp ?? null, writerTopP: cfg.writerTopP ?? null },
+    config: { n: ids.length, seed: cfg.seed || 1, exclude: cfg.exclude?.length || 0, promptSource: prompt.source, promptChars: prompt.text.length, mode: cfg.mode || 'v2', editor: cfg.editor ?? null, writerThinking: cfg.writerThinking ?? null, fewShot: cfg.fewShot ?? null, recall: cfg.recall ?? null, writerModel: cfg.writerModel || null, writerTemp: cfg.writerTemp ?? null, writerTopP: cfg.writerTopP ?? null },
     ids, prompt: prompt.text, progress: { done: 0, total: ids.length }, rows: [], summary: null };
   runs.set(run.id, run); persist(run);
   const notes = {}; const traces = {};
@@ -96,7 +96,7 @@ async function startRun(cfg) {
           const { transcript, gold } = loadFixture(id);
           const lg = []; const trace = {};
           const r = await generateNote({ transcript, specialty: 'auto', noteType: 'consultation', clinicianId: 'lab' },
-            { persist: false, mode: 'v2', writerPrompt: prompt.text, writerModel: cfg.writerModel || undefined, writerTemp: cfg.writerTemp, writerTopP: cfg.writerTopP, writerThinking: cfg.writerThinking, fewShot: cfg.fewShot, editor: cfg.editor, onLog: (l) => { if (lg.length < 300) lg.push(l); }, trace });
+            { persist: false, mode: cfg.mode === 'v1' ? 'v1' : 'v2', writerPrompt: prompt.text, writerModel: cfg.writerModel || undefined, writerTemp: cfg.writerTemp, writerTopP: cfg.writerTopP, writerThinking: cfg.writerThinking, fewShot: cfg.fewShot, recall: cfg.recall, editor: cfg.editor, onLog: (l) => { if (lg.length < 300) lg.push(l); }, trace });
           traces[id] = { log: lg, trace };
           const noteText = noteToText(r.note);
           const sc = M.scoreNote({ note: r.note, noteText, goldText: gold, entities: [] });
