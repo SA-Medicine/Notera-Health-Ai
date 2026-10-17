@@ -97,6 +97,18 @@ const CHECK_SCHEMA = {
     orders: A(), referrals: A(), follow_up: S(),
   },
 };
+// Extended recall (the "fact recovery" role of the old multi-agent pipeline): the same helper call also lists the history,
+// findings, symptoms and specific details the writer tends to drop. Everything is merged by code only if the transcript says it.
+const CHECK_SCHEMA_X = { type: 'OBJECT', properties: { ...CHECK_SCHEMA.properties,
+  history: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kind: S(), text: S() } } },
+  findings: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kind: S(), text: S() } } },
+  symptoms: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: S(), present: { type: 'BOOLEAN' } } } },
+  specifics: A() } };
+const CHECK_EXTRA = `
+- history: past medical/surgical history, family history, social history (occupation, smoking, alcohol, living situation) and immunisations the PATIENT's record includes. kind = "medical","surgical","family","social" or "immunisation"; text = short phrase.
+- findings: examination findings and vitals the clinician states they observed or measured in this visit. kind = "exam" or "vital"; text = short phrase with the value.
+- symptoms: every symptom the patient reports and every explicit denial. text = the symptom ("fever", "pain with walking"); present = true if reported, false if denied.
+- specifics: concrete details a good note keeps: exact quantities (weights, steps, amounts), durations ("on Zepbound 7.5 mg for two months"), named people/places/pharmacies, test dates and what a medication is for. One short phrase each.`;
 const CHECK_SYS = `You extract a fact checklist from a clinical consultation transcript. Return ONLY items explicitly stated in the transcript; never infer.
 - medications: every drug the patient takes, is started, changed, stopped or prescribed. name = drug as spoken; detail = dose/frequency/route if stated; status = one of "current","new","changed","stopped","declined".
 - results: every COMPLETED test/exam measurement WITH its stated value (labs, vitals, imaging results). test, value (with units/flag), date if stated.
@@ -315,8 +327,25 @@ function mergeChecklist(note, check, transcript, log) {
     const fu = String(check.follow_up || '').trim();
     if (fu && inTranscript(fu) && !/follow|return|rtc|recheck|review|come back|see you/i.test(first.treatment_planned || '') ) { append(first, 'treatment_planned', `Follow-up: ${fu}`); added++; }
   }
+  added += mergeRecall(note, check, tNorm, noteNorm, log);
   if (added) log(`[v2:merge] checklist added ${added} grounded item(s) the writer omitted`);
   return added;
+}
+
+/** Extended-recall merge: add a history / finding / symptom / specific item only if the transcript says it AND the note lacks it. */
+function mergeRecall(note, check, tNorm, noteNorm, log) {
+  const tWords = new Set(tNorm.split(' ').filter((w) => w.length > 3)); const tNums = new Set(numsOf(tNorm));
+  const grounded = (t) => { const w = norm(t).split(' ').filter((x) => x.length > 3); if (!w.length) return numsOf(t).length > 0 && numsOf(t).every((n) => tNums.has(n)); return w.filter((x) => tWords.has(x)).length / w.length >= 0.8 && numsOf(t).every((n) => tNums.has(n)); };
+  const covered = (t) => { const nn = noteNorm(); const w = norm(t).split(' ').filter((x) => x.length > 3); const nums = numsOf(t); if (!w.length && !nums.length) return true; return (!w.length || w.filter((x) => nn.includes(x)).length / w.length >= 0.7) && nums.every((n) => nn.includes(n)); };
+  const append = (obj, key, line) => { obj[key] = (obj[key] ? obj[key] + '\n' : '') + line; };
+  let n = 0; const CAP = 12; const ok = (t) => typeof t === 'string' && t.trim().length >= 4 && t.length <= 160 && n < CAP && grounded(t) && !covered(t);
+  const keys = { surgical: ['past_medical_history', 'medical_surgical'], medical: ['past_medical_history', 'medical_surgical'], family: ['past_medical_history', 'family'], social: ['past_medical_history', 'social'], immunisation: ['past_medical_history', 'immunisation'] };
+  for (const h of (check.history || [])) { const t = String(h?.text || '').trim(); const k = keys[String(h?.kind || '').toLowerCase()]; if (k && ok(t)) { append(note[k[0]], k[1], t); n++; } }
+  for (const f of (check.findings || [])) { const t = String(f?.text || '').trim(); const kind = String(f?.kind || '').toLowerCase(); if ((kind === 'exam' || kind === 'vital') && ok(t)) { append(note.objective, kind === 'vital' ? 'vital_signs' : 'examination', t); n++; } }
+  for (const sy of (check.symptoms || [])) { const t = String(sy?.text || '').trim(); const line = sy?.present === false ? `Denies ${t}` : t; if (t && ok(t) && !covered(line)) { append(note.subjective, 'associated_symptoms', line); n++; } }
+  for (const sp of (check.specifics || [])) { const t = String(sp || '').trim(); if (ok(t)) { append(note.subjective, 'hpi_details', t); n++; } }
+  if (n) log(`[v2:recall] added ${n} history/finding/symptom/specific item(s) the writer omitted`);
+  return n;
 }
 
 // ── verifier (model proposes, code confirms) ─────────────────────────────────
@@ -462,8 +491,9 @@ export async function generateNoteV2(input, opts = {}) {
         retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
-      const checkP = checkLlm.generateContent(cMeta?.text || CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
-        maxOutputTokens: 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
+      const recallOn = opts.recall !== undefined ? !!opts.recall : cfg['recall.extended']; used.config.recall = recallOn;
+      const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
+        maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
       const [writerRaw, check] = await Promise.all([writerP, checkP]);
       lap('writer+checklist', tw);
