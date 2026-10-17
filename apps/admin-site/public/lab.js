@@ -4,7 +4,7 @@
 import { lab, pretty, f3, MODELS, opts, cur } from './kit.js';
 
 let T = null;                       // auto-refresh timer
-const P = { input: 'gold', own: '', ownGold: '', mode: 'random', n: 20, from: 1, to: 20, last: 20, picked: new Set(), q: '', model: 'gemini-3.5-flash-lite', prompt: 'active', temp: '', topP: '', label: '' };
+const P = { input: 'gold', own: '', ownGold: '', mode: 'random', n: 20, from: 1, to: 20, last: 20, picked: new Set(), q: '', model: '', prompt: 'active', temp: '', topP: '', label: '' };
 let FX = null;                      // [[id, transcriptChars, goldChars], …] loaded once
 
 export async function labView(ctx) {
@@ -71,6 +71,7 @@ export async function labView(ctx) {
     clearTimeout(T);
     try { [info, cands] = await Promise.all([lab('/info'), lab('/candidates')]); if (!FX) FX = (await lab('/fixtures')).fixtures; }
     catch (e) { $('#lab-root').className = 'card'; $('#lab-root').innerHTML = `<div class="err">The lab is not reachable: ${esc(e.message)}</div>`; return; }
+    if (!P.model) P.model = info.writerModel;   // default to what production uses, so a test is a test of production
     $('#lab-root').className = '';
     $('#lab-root').innerHTML = `
     <section class="card" style="margin-bottom:18px"><h3 style="margin:0 0 10px">What do you want to test? <span class="hint">${info.usable.toLocaleString()} gold notes available · production writer is ${esc(info.writerModel)}</span></h3>
