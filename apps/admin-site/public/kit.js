@@ -63,3 +63,15 @@ export function spark(vals, { w = 90, h = 26 } = {}) {
   return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="spark"><path d="${v.map((y, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(y).toFixed(1)}`).join('')}" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
 }
 export const kpi = (label, value, sub = '', tone = '') => `<div class="card stat"><div class="l">${esc(label)}</div><div class="n ${tone}">${value}</div><div class="s">${sub}</div></div>`;
+
+// shared "currently selected run / note" so every Harness screen opens on what you were just looking at
+export const cur = {
+  get run() { try { return localStorage.getItem('nadm_run') || ''; } catch { return ''; } },
+  set run(v) { try { localStorage.setItem('nadm_run', v || ''); } catch { /* storage may be blocked */ } },
+  get note() { try { return localStorage.getItem('nadm_note') || ''; } catch { return ''; } },
+  set note(v) { try { localStorage.setItem('nadm_note', v || ''); } catch { /* */ } },
+};
+export const runLabel = (r) => `${r.label || r.id.slice(-8)} · ${r.config.writerModel || 'default'} · ${String(r.config.promptSource).replace('candidate:', 'cand ')} · ${r.config.n} notes`;
+/** traffic-light for one note from its metrics (simple, explainable thresholds) */
+export const grade = (x) => (x.error ? 'bad' : (x.similarity_to_gold ?? 0) >= 0.45 && (x.omission_rate ?? 1) <= 0.45 ? 'ok' : (x.similarity_to_gold ?? 0) >= 0.3 && (x.omission_rate ?? 1) <= 0.65 ? 'mid' : 'bad');
+export const VERDICT = { excellent: ['Excellent', 'ok'], good: ['Good', 'ok'], needs_work: ['Needs work', 'warn'], unsafe: ['Unsafe', 'bad'] };
