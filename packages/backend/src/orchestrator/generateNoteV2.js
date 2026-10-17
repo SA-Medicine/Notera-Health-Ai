@@ -29,6 +29,7 @@ import { noteToMarkdown } from './renderMarkdown.js';
 import { collectMeds } from './structureNote.js';
 import { getActivePrompt, getActivePromptMeta } from './promptStore.js';
 import { effectiveConfig } from './runtimeConfig.js';
+import { pickExemplars, exemplarBlock } from './exemplars.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -451,7 +452,11 @@ export async function generateNoteV2(input, opts = {}) {
       used.prompts.writer = opts.writerPrompt ? 'experiment' : wMeta ? `v${wMeta.version}` : 'default';
       const cMeta = await getActivePromptMeta(CHECKLIST_PROMPT_NAME); used.prompts.checklist = cMeta ? `v${cMeta.version}` : 'default';
       const vMeta = await getActivePromptMeta(VERIFIER_PROMPT_NAME); used.prompts.verifier = vMeta ? `v${vMeta.version}` : 'default';
-      const writerP = writerLlm.generateContent(writerPrompt, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
+      const nShots = Math.max(0, Math.min(3, Number(opts.fewShot ?? cfg['writer.fewShot']) || 0));
+      const shots = nShots ? pickExemplars(transcript, nShots, opts.exemplarExclude || []) : [];
+      used.config.fewShot = shots.map((e) => e.id); if (opts.trace) opts.trace.exemplars = shots.map((e) => ({ id: e.id, sim: +e.sim.toFixed(3) }));
+      if (shots.length) log(`[v2:fewshot] ${shots.length} reference note(s): ${shots.map((e) => e.id + ' (' + e.sim.toFixed(2) + ')').join(', ')}`);
+      const writerP = writerLlm.generateContent(writerPrompt, exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
         retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
