@@ -6,7 +6,7 @@ import { ensureAccountSchema } from '../src/auth/quota.js';
 await ensureAccountSchema();
 const P = {
   users: ['', '', 10], user: ['00000000-0000-0000-0000-000000000000'], consults: ['', false, '', 10], consult: ['x'],
-  drafts: ['x'], finals: ['x'], runs: ['x'], audit: ['', 10], audioRow: ['x'], usersByDay: [], consultsByDay: [],
+  drafts: ['x'], finals: ['x'], runs: ['x'], audit: ['', 10], audioRow: ['x'], usersByDay: [], consultsByDay: [], liveDaily: [14], liveByModel: [14], liveErrors: [14], liveSignups: [14], liveNotes: [14],
 };
 let bad = 0;
 for (const [k, sql] of Object.entries(SQL)) {
