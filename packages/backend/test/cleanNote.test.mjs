@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanNote } from '../src/orchestrator/generateNoteV2.js';
+import { cleanNote, collapseLoops } from '../src/orchestrator/generateNoteV2.js';
 import { emptyNote, emptyIssue } from '@notera/schema';
 
 test('removes leaked reasoning, "none stated" filler and run-ons; keeps real facts', () => {
@@ -38,4 +38,14 @@ test('splits "a; b" history lines, strips trailing ; and keeps plan lists intact
   cleanNote(n);
   assert.deepEqual(n.subjective.hpi_details.split('\n'), ['Chest pain started 8 days ago', 'Pain worse with deep breath', 'Shortness of breath worse with exertion']);
   assert.equal(n.assessment_and_plan[0].treatment_planned, 'Continue valsartan 160mg; Continue amlodipine 2.5mg');
+});
+
+test('collapseLoops removes model degeneration but keeps real text', () => {
+  assert.equal(collapseLoops('Infant daughter the patient or the patient or the patient or the patient or the patient'), 'Infant daughter');
+  assert.equal(collapseLoops('Current medications: methonamic acid, the patient, the patient'), 'Current medications: methonamic acid');
+  assert.equal(collapseLoops('pain pain pain pain in the knee'), 'pain in the knee');
+  assert.equal(collapseLoops('Denies fever; the patient reports no cough'), 'Denies fever; the patient reports no cough');
+  assert.equal(collapseLoops('Continue the medication, the medication is tolerated'), 'Continue the medication, the medication is tolerated');
+  assert.equal(collapseLoops('no no'), 'no no');
+  assert.equal(collapseLoops('Metformin 500 mg twice daily'), 'Metformin 500 mg twice daily');
 });
