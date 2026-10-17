@@ -9,11 +9,23 @@ const ico = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICONS = {
   overview: ico('<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>'), users: ico('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6 6 0 013.5 5.5"/>'),
   consults: ico('<path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9zM14 3v6h6M8 13h8M8 17h5"/>'), audio: ico('<path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/>'),
-  activity: ico('<path d="M3 12h4l3-8 4 16 3-8h4"/>'), pipeline: ico('<path d="M4 6h6v4H4zM14 14h6v4h-6zM10 8h4a2 2 0 012 2v4"/>'), lab: ico('<path d="M12 3v4M12 17v4M4.2 7.5l3.5 2M16.3 14.5l3.5 2M4.2 16.5l3.5-2M16.3 9.5l3.5-2"/><circle cx="12" cy="12" r="3"/>'), bench: ico('<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'),
+  activity: ico('<path d="M3 12h4l3-8 4 16 3-8h4"/>'), pipeline: ico('<path d="M4 6h6v4H4zM14 14h6v4h-6zM10 8h4a2 2 0 012 2v4"/>'), lab: ico('<path d="M12 3v4M12 17v4M4.2 7.5l3.5 2M16.3 14.5l3.5 2M4.2 16.5l3.5-2M16.3 9.5l3.5-2"/><circle cx="12" cy="12" r="3"/>'), system: ico('<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 013 3v4"/>'), prompts: ico('<path d="M4 5h16M4 10h16M4 15h10M4 20h6"/>'), settings: ico('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'), compare: ico('<path d="M8 3v18M16 3v18M3 8h5M16 16h5"/>'), optimize: ico('<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/>'), trends: ico('<path d="M3 17l5-6 4 3 8-9M16 5h4v4"/>'), bench: ico('<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'),
 };
-const NAV = [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['activity', 'Activity'], ['pipeline', 'Pipeline'], ['bench', 'Test bench'], ['lab', 'Lab']];
+const NAV = [
+  ['Monitor', [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['activity', 'Activity']]],
+  ['Control', [['system', 'System'], ['prompts', 'Prompts'], ['settings', 'Settings']]],
+  ['Lab', [['lab', 'Evaluate'], ['compare', 'Compare'], ['optimize', 'Optimize'], ['trends', 'Trends']]],
+  ['Tools', [['pipeline', 'Pipeline log'], ['bench', 'Test bench']]],
+];
+const NAVKEYS = NAV.flatMap(([, items]) => items.map(([k]) => k));
 
 import { labView, labStop } from './lab.js';
+import { systemView, systemStop } from './system.js';
+import { settingsView } from './settings.js';
+import { promptsView } from './prompts.js';
+import { compareView } from './compare.js';
+import { optimizeView } from './optimize.js';
+import { trendsView } from './trends.js';
 const S = { user: null, view: 'overview', toastT: 0 };
 
 function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.className = ''; }, 2800); }
@@ -62,7 +74,7 @@ function renderLogin(err = '') {
 /* ───────────── shell ───────────── */
 function shell() {
   $('#app').innerHTML = `<div class="shell"><aside class="side"><div class="brand"><i>N</i><div>Notera<small>Admin console</small></div></div>
-    ${NAV.map(([k, l]) => `<button class="nav${S.view === k ? ' on' : ''}" data-nav="${k}">${ICONS[k]}${l}</button>`).join('')}
+    ${NAV.map(([g, items]) => `<div class="navgrp">${g}</div>${items.map(([k, l]) => `<button class="nav${S.view === k ? ' on' : ''}" data-nav="${k}">${ICONS[k] || ''}${l}</button>`).join('')}`).join('')}
     <div class="grow"></div><div class="who"><b>${esc(S.user?.fullName || S.user?.email || 'Admin')}</b>${esc(S.user?.email || '')}<br><button class="btn sm" id="lo" style="margin-top:8px">Sign out</button></div></aside>
     <main class="main" id="view"></main></div>`;
   document.querySelectorAll('[data-nav]').forEach((b) => { b.onclick = () => go(b.dataset.nav); });
@@ -70,9 +82,9 @@ function shell() {
   go(S.view);
 }
 function go(v) {
-  labStop(); S.view = v; history.replaceState(null, '', '#' + v);
+  labStop(); systemStop(); if (!NAVKEYS.includes(v)) v = 'overview'; S.view = v; history.replaceState(null, '', '#' + v);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX) }[v] || overview;
+  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), compare: () => compareView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || overview;
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
@@ -151,7 +163,7 @@ async function consultDrawer(id) {
     note: dr?.rendered_note ? `<div class="note">${mdToHtml(dr.rendered_note)}</div>` : '<div class="empty">No generated note.</div>',
     transcript: `<div style="white-space:pre-wrap;line-height:1.6">${esc(c.transcript || 'No transcript saved.')}</div>`,
     json: `<pre class="raw">${esc(JSON.stringify({ note: dr?.note, flags: dr?.flags, finals: d.finals }, null, 2))}</pre>`,
-    runs: d.runs.length ? table([{ h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Model', f: (x) => esc(x.model) }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ok' ? 'ok' : 'bad'}">${esc(x.status)}</span>` }, { h: 'Time', num: 1, f: (x) => (x.duration_ms / 1000).toFixed(1) + 's' }, { h: 'Tokens', num: 1, f: (x) => (x.total_tokens || 0).toLocaleString() }, { h: 'Cost', num: 1, f: (x) => '$' + Number(x.est_cost_usd || 0).toFixed(4) }], d.runs) : '<div class="empty">No pipeline run recorded.</div>',
+    runs: (() => { const tr = dr?.note?.metadata?.pipeline_trace; return tr ? `<div class="card" style="margin-bottom:12px"><b>Produced with</b><div class="kv" style="margin-top:6px"><span>Writer</span><code>${esc(tr.config?.writer)}</code><span>Helper</span><code>${esc(tr.config?.helper)}</code><span>Temperature</span><code>${esc(tr.config?.temperature)}</code><span>Top-p</span><code>${esc(tr.config?.topP)}</code></div><div class="kv"><span>Writer prompt</span><code>${esc(tr.prompts?.writer)}</code><span>Checklist prompt</span><code>${esc(tr.prompts?.checklist)}</code><span>Verifier prompt</span><code>${esc(tr.prompts?.verifier)}</code></div></div>` : ''; })() + (d.runs.length ? table([{ h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Model', f: (x) => esc(x.model) }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ok' ? 'ok' : 'bad'}">${esc(x.status)}</span>` }, { h: 'Time', num: 1, f: (x) => (x.duration_ms / 1000).toFixed(1) + 's' }, { h: 'Tokens', num: 1, f: (x) => (x.total_tokens || 0).toLocaleString() }, { h: 'Cost', num: 1, f: (x) => '$' + Number(x.est_cost_usd || 0).toFixed(4) }], d.runs) : '<div class="empty">No pipeline run recorded.</div>'),
     audio: c.has_audio ? '<div id="au"><button class="btn primary" id="lau">Load recording</button></div>' : '<div class="empty">No audio stored for this note.</div>',
   }[tab]);
   const draw = (tab) => {
@@ -306,11 +318,11 @@ async function bench() {
   };
 }
 
-const CTX = { $, esc, ago, fmtDate, table, head, toast, openDrawer, closeDrawer, api, mdToHtml };
+const CTX = { $, esc, ago, fmtDate, table, head, toast, openDrawer, closeDrawer, api, mdToHtml, go };
 
 /* ───────────── boot ───────────── */
 (async () => {
-  const v = location.hash.slice(1); if (NAV.some(([k]) => k === v)) S.view = v;
+  const v = location.hash.slice(1); if (NAVKEYS.includes(v)) S.view = v;
   try { const d = await api('/api/auth/me', { noAuthRedirect: true }); if (d.user?.role === 'admin') { S.user = d.user; shell(); } else { renderLogin(d.user ? 'This account is not an administrator.' : ''); } }
   catch { renderLogin(); }
 })();
