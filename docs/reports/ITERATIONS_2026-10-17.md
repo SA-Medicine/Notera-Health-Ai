@@ -57,3 +57,8 @@ So production does **not** need rotating because of this file. Safe plan:
 1. `git rm --cached db/secrets/pg_password.txt` (the `secrets/` rule in `.gitignore` already covers future files). On the VM the next `git pull` removes that unused file; production is unaffected.
 2. If you ever reused the dev password anywhere else, change it there; for the local dev database run `ALTER ROLE notera_admin PASSWORD '<new>'` and write the new value to your local, untracked file.
 3. Optional hygiene: scrub it from history with `git filter-repo` only if the repo is, or will be, public.
+
+## Decision (2026-10-17)
+
+* **Target changed** from "mean audit ≥ 90" to **critical wrong claims per note < 0.10**, measured on ≥ 200 notes with `scripts/harness-iterate.mjs` (now prints the rate). Baseline today: 0.16 (8/50) and 0.28 (14/50) on two identical runs; unsafe-note rate secondary target < 1 %.
+* **`db/secrets/pg_password.txt` untracked** (`git rm --cached`; local file kept; production password was never in git).
