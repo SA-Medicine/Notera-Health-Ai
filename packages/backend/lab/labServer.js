@@ -27,7 +27,7 @@ const DATA = process.env.LAB_DATA_DIR || path.join(ROOT, 'lab-data');
 const KEY = process.env.LAB_KEY || '';
 const JUDGE_MODEL = process.env.LAB_JUDGE_MODEL || 'gemini-2.5-pro';
 const IMPROVE_MODEL = process.env.LAB_IMPROVE_MODEL || 'gemini-2.5-pro';
-for (const d of ['runs', 'judges', 'candidates']) fs.mkdirSync(path.join(DATA, d), { recursive: true });
+for (const d of ['runs', 'judges', 'candidates', 'analysis', 'reports']) fs.mkdirSync(path.join(DATA, d), { recursive: true });
 if (process.env.NORMALIZE_DEID_DATES === undefined) process.env.NORMALIZE_DEID_DATES = '1';   // gold corpus uses synthetic ISO date placeholders
 
 const M = await import(pathToFileURL(path.join(ROOT, 'eval', 'metrics.mjs')).href);
@@ -86,7 +86,7 @@ async function startRun(cfg) {
     config: { n: ids.length, seed: cfg.seed || 1, exclude: cfg.exclude?.length || 0, promptSource: prompt.source, promptChars: prompt.text.length, writerModel: cfg.writerModel || null, writerTemp: cfg.writerTemp ?? null, writerTopP: cfg.writerTopP ?? null },
     ids, prompt: prompt.text, progress: { done: 0, total: ids.length }, rows: [], summary: null };
   runs.set(run.id, run); persist(run);
-  const notes = {};
+  const notes = {}; const traces = {};
   (async () => {
     let next = 0;
     const worker = async () => {
@@ -94,20 +94,22 @@ async function startRun(cfg) {
         const id = ids[next++]; const t0 = Date.now();
         try {
           const { transcript, gold } = loadFixture(id);
+          const lg = []; const trace = {};
           const r = await generateNote({ transcript, specialty: 'auto', noteType: 'consultation', clinicianId: 'lab' },
-            { persist: false, mode: 'v2', writerPrompt: prompt.text, writerModel: cfg.writerModel || undefined, writerTemp: cfg.writerTemp, writerTopP: cfg.writerTopP });
+            { persist: false, mode: 'v2', writerPrompt: prompt.text, writerModel: cfg.writerModel || undefined, writerTemp: cfg.writerTemp, writerTopP: cfg.writerTopP, onLog: (l) => { if (lg.length < 300) lg.push(l); }, trace });
+          traces[id] = { log: lg, trace };
           const noteText = noteToText(r.note);
           const sc = M.scoreNote({ note: r.note, noteText, goldText: gold, entities: [] });
           run.rows.push({ id, ms: Date.now() - t0, note_words: noteText.split(/\s+/).filter(Boolean).length, schema_valid: sc.schema_valid, section_coverage: sc.section_coverage, similarity_to_gold: sc.similarity_to_gold, omission_rate: sc.omission_rate, story_flow: sc.story_flow, gold_corrupt: sc.gold_corrupt, meds_unsupported: sc.meds_unsupported, omission_missed: sc.omission_missed });
           notes[id] = r.renderedNote || '';
         } catch (e) { run.rows.push({ id, ms: Date.now() - t0, error: String(e.message || e).slice(0, 200), schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] }); }
         run.progress.done = run.rows.length; run.summary = M.aggregate(run.rows);
-        if (run.rows.length % 3 === 0) { persist(run); writeJson(notesFile(run.id), notes); }
+        if (run.rows.length % 3 === 0) { persist(run); writeJson(notesFile(run.id), notes); writeJson(traceFile(run.id), traces); }
       }
     };
     await Promise.all(Array.from({ length: Number(process.env.LAB_CONCURRENCY) || 3 }, worker));
     run.status = run.status === 'cancelled' ? 'cancelled' : 'done'; run.finishedAt = new Date().toISOString(); run.summary = M.aggregate(run.rows);
-    persist(run); writeJson(notesFile(run.id), notes);
+    persist(run); writeJson(notesFile(run.id), notes); writeJson(traceFile(run.id), traces);
   })().catch((e) => { run.status = 'error'; run.error = String(e.message || e); persist(run); });
   return run.id;
 }
@@ -213,7 +215,7 @@ async function improve(runId, k = 6) {
 }
 
 // ── comparison, trend, promotion gate, validation pipeline ───────────────────
-const allRuns = () => fs.readdirSync(path.join(DATA, 'runs')).filter((f) => f.startsWith('run_') && !f.endsWith('.notes.json')).map((f) => loadRun(f.replace('.json', ''))).filter(Boolean).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+const allRuns = () => fs.readdirSync(path.join(DATA, 'runs')).filter((f) => f.startsWith('run_') && !/.(notes|trace).json$/.test(f)).map((f) => loadRun(f.replace('.json', ''))).filter(Boolean).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
 const pct = (a, p) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
 // two-sided sign test on paired improvements (exact binomial, p=0.5)
@@ -297,6 +299,101 @@ async function startValidation(candId, n = 40, writerModel) {
   return v.id;
 }
 
+// ── per-note audit, overall diagnosis, custom-input try-out ──────────────────
+// (1) NOTE AUDIT: one note vs the transcript and the clinician's gold note → what it lacks, what is wrong, what is padding.
+// (2) OVERALL DIAGNOSIS: aggregates every audit in a run + metrics + pipeline logs → recurring patterns, which stage to blame,
+//     prioritised recommendations (prompt / setting / pipeline / guardrail / data) with a status you can track.
+const analysisFile = (runId) => path.join(DATA, 'analysis', runId + '.json');
+const traceFile = (runId) => path.join(DATA, 'runs', runId + '.trace.json');
+const AUDIT_SYS = `You are a senior physician auditing an AI-written SOAP note for one consultation.
+TRANSCRIPT = the only ground truth of what was said. GOLD NOTE = a clinician-written note showing what a good note keeps.
+Return JSON:
+{"verdict":"excellent|good|needs_work|unsafe","score":0-100,"summary":"one sentence",
+ "missing":[{"fact":"...","importance":"critical|important|minor"}],            // clinically relevant facts in the transcript/gold that the AI note lacks
+ "wrong":[{"claim":"quote from the AI note","problem":"why it is wrong, unsupported or in the wrong place","severity":"critical|major|minor"}],
+ "extra":[{"text":"quote","why":"padding, duplicate, commentary or filler"}],
+ "structure":["section/format/tone problems"],
+ "strengths":["what it did well"],
+ "root_cause":{"stage":"writer|checklist|verifier|cleanup|rules|data","why":"short reason"},
+ "suggestions":["generic, reusable prompt-level fixes — nothing specific to this patient"]}
+At most 8 items per list. Be specific and terse. "unsafe" = a wrong drug/dose/side/diagnosis or an invented finding.`;
+const parseJ = (raw) => JSON.parse(String(raw).replace(/^```json|```$/g, '').trim());
+async function auditNote(runId, fid, { force = false } = {}) {
+  const cache = readJson(analysisFile(runId), {}); if (cache[fid] && !force) return cache[fid];
+  const notes = readJson(notesFile(runId), {}); if (!notes[fid]) throw new Error('no generated note for this fixture');
+  const { transcript, gold } = loadFixture(fid);
+  const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
+  const raw = await llm.generateContent(AUDIT_SYS, `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== AI NOTE ===\n${notes[fid]}\n\nReturn ONLY the JSON.`, null,
+    { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
+  const a = parseJ(raw); a.at = new Date().toISOString(); a.model = JUDGE_MODEL;
+  const fresh = readJson(analysisFile(runId), {}); fresh[fid] = a; writeJson(analysisFile(runId), fresh);
+  return a;
+}
+// run an audit over many notes with limited concurrency (worst first)
+async function auditMany(runId, ids, onProgress) {
+  let next = 0, done = 0;
+  const worker = async () => { while (next < ids.length) { const id = ids[next++]; try { await auditNote(runId, id); } catch { /* skip this one */ } onProgress?.(++done, ids.length); } };
+  await Promise.all(Array.from({ length: 3 }, worker));
+}
+
+const OVERALL_SYS = `You are a clinical-AI quality lead. You receive the audit of many SOAP notes written by an AI scribe pipeline (each audit compares the AI note with the transcript and a clinician's gold note), the run's metrics, and statistics from the pipeline logs.
+The pipeline stages are: writer (one LLM call drafting the note, driven by a long prompt of rules), checklist (parallel LLM call extracting meds/results/orders/referrals which is merged back), cleanup (deterministic removal of commentary/duplicates/misplaced facts), verifier (LLM flags unsupported/duplicate lines, code confirms before removing), guardrails/condense (deterministic).
+Diagnose the SYSTEM, not single notes. Return JSON:
+{"headline":"one sentence verdict","assessment":"3-5 sentences","what_works":["..."],
+ "patterns":[{"title":"...","count":N,"of":N,"severity":"critical|major|minor","stage":"writer|checklist|verifier|cleanup|rules|data","evidence":"what recurs","example":"short generic example"}],
+ "stage_blame":{"writer":N,"checklist":N,"verifier":N,"cleanup":N,"rules":N,"data":N},
+ "recommendations":[{"title":"...","detail":"exactly what to change","category":"prompt|setting|pipeline|guardrail|data|metric","stage":"writer|checklist|verifier|cleanup|rules|data","impact":"high|medium|low","effort":"low|medium|high"}]}
+Order recommendations by impact. Only claim what the audits support; give counts. At most 8 patterns and 10 recommendations.`;
+function logStats(runId) {
+  const tr = readJson(traceFile(runId), {}); const ids = Object.keys(tr); const s = { notes_with_logs: ids.length, verifier_removed: 0, verifier_refused: 0, verifier_skipped: 0, cleanup_removed: 0, checklist_skipped: 0, checklist_merged: 0, dedupe_removed: 0, stage_ms: {} };
+  for (const id of ids) {
+    for (const l of tr[id].log || []) {
+      if (/\[v2:verify\] ✂/.test(l)) s.verifier_removed++; if (/\[v2:verify\] refused/.test(l)) s.verifier_refused++; if (/\[v2:verify\] skipped/.test(l)) s.verifier_skipped++;
+      const c = l.match(/\[v2:clean\] removed (\d+)/); if (c) s.cleanup_removed += Number(c[1]); if (/\[v2:checklist\] skipped/.test(l)) s.checklist_skipped++;
+      if (/\[v2:merge\]|merged from checklist|checklist merge/i.test(l)) s.checklist_merged++; const d = l.match(/\[dedupe\] 0 duplicate problem\(s\) merged, (\d+) duplicate/); if (d) s.dedupe_removed += Number(d[1]);
+    }
+    for (const [k, v] of Object.entries(tr[id].trace?.timings || {})) { (s.stage_ms[k] ||= []).push(v); }
+  }
+  s.stage_ms = Object.fromEntries(Object.entries(s.stage_ms).map(([k, v]) => [k, Math.round(v.reduce((a, b) => a + b, 0) / v.length)]));
+  return s;
+}
+const reports = new Map();
+async function startReport(runId, limit = 15) {
+  const run = loadRun(runId); if (!run || run.status === 'running') throw new Error('pick a finished run');
+  const notes = readJson(notesFile(runId), {});
+  const ranked = run.rows.filter((r) => !r.error && !r.gold_corrupt && notes[r.id]).map((r) => ({ id: r.id, bad: (r.omission_rate || 0) * 0.6 + (1 - (r.similarity_to_gold || 0)) * 0.4 })).sort((a, b) => b.bad - a.bad);
+  const pick = ranked.slice(0, Math.min(Math.max(5, Number(limit) || 15), 40)).map((r) => r.id);
+  const rep = { id: uid('rep'), runId, status: 'running', stage: 'auditing notes', createdAt: new Date().toISOString(), progress: { done: 0, total: pick.length }, notes: pick.length, recommendations: [], patterns: [] };
+  reports.set(rep.id, rep); const save = () => writeJson(path.join(DATA, 'reports', rep.id + '.json'), rep); save();
+  (async () => {
+    await auditMany(runId, pick, (d) => { rep.progress.done = d; });
+    rep.stage = 'diagnosing the system'; save();
+    const audits = readJson(analysisFile(runId), {}); const used = pick.filter((id) => audits[id]);
+    if (used.length < 3) throw new Error('fewer than 3 notes could be audited');
+    const compact = used.map((id) => { const a = audits[id]; return { note: id, verdict: a.verdict, score: a.score, summary: a.summary, missing: (a.missing || []).slice(0, 6), wrong: (a.wrong || []).slice(0, 6), extra: (a.extra || []).slice(0, 4), structure: a.structure, root_cause: a.root_cause, suggestions: a.suggestions }; });
+    const stats = logStats(runId); rep.logStats = stats; rep.metrics = run.summary; rep.config = run.config;
+    const llm = await createGeminiService(null, { model: IMPROVE_MODEL }); llm._agent = 'lab-overall';
+    const raw = await llm.generateContent(OVERALL_SYS, `=== RUN ===\nwriter: ${run.config.writerModel || 'default'} · prompt: ${run.config.promptSource} · ${run.config.n} notes (the ${used.length} worst-scoring were audited)\nmetrics: ${JSON.stringify(run.summary)}\n\n=== PIPELINE LOG STATS (all notes) ===\n${JSON.stringify(stats)}\n\n=== AUDITS ===\n${JSON.stringify(compact)}\n\nReturn ONLY the JSON.`, null,
+      { maxOutputTokens: 9000, temperature: 0.2, responseMimeType: 'application/json', timeoutMs: 240000, retries: 1, thinkingBudget: 2048, hedgeMs: 0 });
+    const out = parseJ(raw);
+    Object.assign(rep, { headline: out.headline, assessment: out.assessment, what_works: out.what_works || [], patterns: out.patterns || [], stage_blame: out.stage_blame || {},
+      recommendations: (out.recommendations || []).map((r, i) => ({ ...r, id: 'r' + (i + 1), status: 'open' })), audited: used.length, status: 'done', stage: 'done', finishedAt: new Date().toISOString() });
+    save();
+  })().catch((e) => { rep.status = 'error'; rep.error = String(e.message || e); save(); });
+  return rep.id;
+}
+
+// custom input: paste a transcript (optionally with a gold note) → note, pipeline log, metrics
+async function tryTranscript({ transcript, gold = '', writerModel, prompt, candidateId, promptText }) {
+  const t = String(transcript || '').trim(); if (t.length < 80) throw new Error('transcript is too short');
+  const p = await resolvePrompt({ prompt, candidateId, promptText }); const log = []; const trace = {}; const t0 = Date.now();
+  const r = await generateNote({ transcript: t.slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'lab' },
+    { persist: false, mode: 'v2', writerPrompt: p.text, writerModel: writerModel || undefined, onLog: (l) => { if (log.length < 400) log.push(l); }, trace });
+  let metrics = null;
+  if (String(gold).trim().length > 100) { const noteText = noteToText(r.note); const sc = M.scoreNote({ note: r.note, noteText, goldText: String(gold), entities: [] }); metrics = { similarity_to_gold: sc.similarity_to_gold, omission_rate: sc.omission_rate, omission_missed: sc.omission_missed, story_flow: sc.story_flow, section_coverage: sc.section_coverage }; }
+  return { note: r.renderedNote || '', json: r.note, ms: Date.now() - t0, promptSource: p.source, log, trace, metrics };
+}
+
 // ── http ────────────────────────────────────────────────────────────────────
 const app = express();
 app.disable('x-powered-by');
@@ -315,17 +412,24 @@ app.get('/fixtures', wrap(async (_req, res) => { const f = goldIndex().filter((x
 app.get('/fixtures/:id', wrap(async (req, res) => res.json(loadFixture(req.params.id))));
 app.post('/runs', wrap(async (req, res) => res.json({ id: await startRun(req.body || {}) })));
 app.get('/runs', wrap(async (_req, res) => {
-  const ids = fs.readdirSync(path.join(DATA, 'runs')).filter((f) => f.startsWith('run_') && !f.endsWith('.notes.json')).map((f) => f.replace('.json', ''));
+  const ids = fs.readdirSync(path.join(DATA, 'runs')).filter((f) => f.startsWith('run_') && !/.(notes|trace).json$/.test(f)).map((f) => f.replace('.json', ''));
   const list = ids.map((id) => loadRun(id)).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 60).map((r) => runView(r));
   res.json({ runs: list });
 }));
 app.get('/runs/:id', wrap(async (req, res) => { const r = loadRun(req.params.id); r ? res.json(runView(r, true)) : res.status(404).json({ error: 'not found' }); }));
 app.get('/runs/:id/prompt', wrap(async (req, res) => { const r = loadRun(req.params.id); r ? res.json({ text: r.prompt, source: r.config.promptSource }) : res.status(404).json({ error: 'not found' }); }));
-app.get('/runs/:id/rows/:fid', wrap(async (req, res) => { const notes = readJson(notesFile(req.params.id), {}); const { transcript, gold } = loadFixture(req.params.fid); res.json({ note: notes[req.params.fid] || '', transcript, gold }); }));
+app.get('/runs/:id/rows/:fid', wrap(async (req, res) => { const notes = readJson(notesFile(req.params.id), {}); const { transcript, gold } = loadFixture(req.params.fid); const tr = readJson(traceFile(req.params.id), {})[req.params.fid] || null; const row = (loadRun(req.params.id)?.rows || []).find((x) => x.id === req.params.fid) || null; res.json({ note: notes[req.params.fid] || '', transcript, gold, log: tr?.log || [], trace: tr?.trace || null, row, audit: readJson(analysisFile(req.params.id), {})[req.params.fid] || null }); }));
 app.post('/runs/:id/cancel', wrap(async (req, res) => { const r = runs.get(req.params.id); if (r && r.status === 'running') { r.status = 'cancelled'; } res.json({ ok: true }); }));
 app.post('/judge', wrap(async (req, res) => res.json({ id: await startJudge(req.body?.a, req.body?.b, Math.min(Number(req.body?.limit) || 30, 60)) })));
 app.get('/judge/:id', wrap(async (req, res) => { const j = readJson(path.join(DATA, 'judges', req.params.id + '.json')); j ? res.json(j) : res.status(404).json({ error: 'not found' }); }));
 app.post('/improve', wrap(async (req, res) => res.json(await improve(req.body?.runId, Number(req.body?.k) || 6))));
+app.post('/runs/:id/rows/:fid/audit', wrap(async (req, res) => res.json(await auditNote(req.params.id, req.params.fid, { force: !!req.body?.force }))));
+app.get('/runs/:id/audits', wrap(async (req, res) => { const a = readJson(analysisFile(req.params.id), {}); res.json({ audits: Object.fromEntries(Object.entries(a).map(([k, v]) => [k, { verdict: v.verdict, score: v.score, summary: v.summary }])) }); }));
+app.post('/runs/:id/report', wrap(async (req, res) => res.json({ id: await startReport(req.params.id, req.body?.limit) })));
+app.get('/reports', wrap(async (_req, res) => res.json({ reports: fs.readdirSync(path.join(DATA, 'reports')).map((f) => readJson(path.join(DATA, 'reports', f))).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30).map(({ patterns, recommendations, what_works, ...r }) => ({ ...r, recs: recommendations?.length || 0, open: recommendations?.filter((x) => x.status === 'open').length || 0 })) })));
+app.get('/reports/:id', wrap(async (req, res) => { const r = reports.get(req.params.id) || readJson(path.join(DATA, 'reports', req.params.id + '.json')); r ? res.json(r) : res.status(404).json({ error: 'not found' }); }));
+app.patch('/reports/:id/recs/:rid', wrap(async (req, res) => { const f = path.join(DATA, 'reports', req.params.id + '.json'); const r = readJson(f); if (!r) return res.status(404).json({ error: 'not found' }); const rec = r.recommendations.find((x) => x.id === req.params.rid); if (!rec) return res.status(404).json({ error: 'not found' }); if (!['open', 'accepted', 'dismissed', 'done'].includes(req.body?.status)) return res.status(400).json({ error: 'bad status' }); rec.status = req.body.status; writeJson(f, r); reports.delete(r.id); res.json({ ok: true }); }));
+app.post('/try', wrap(async (req, res) => res.json(await tryTranscript(req.body || {}))));
 app.get('/compare', wrap(async (req, res) => res.json(compareRuns(String(req.query.a), String(req.query.b)))));
 app.get('/trend', wrap(async (_req, res) => res.json({ runs: trend() })));
 app.get('/baseline-run', wrap(async (_req, res) => { const b = readJson(path.join(DATA, 'baseline-run.json'), null); const r = b && loadRun(b.runId); res.json({ baseline: r ? { ...runView(r), pinnedAt: b.pinnedAt } : null }); }));

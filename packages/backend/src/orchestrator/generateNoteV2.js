@@ -352,7 +352,7 @@ export async function generateNoteV2(input, opts = {}) {
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
   const persist = opts.persist !== false;
   const onProgress = opts.onProgress || (() => {});
-  const log = (l) => console.log(l);
+  const log = (l) => { console.log(l); try { if (opts.onLog) opts.onLog(String(l)); } catch { /* logging must never break a note */ } };
   const consultId = input.consultId || `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const stage = {};                                       // per-stage wall-clock for the monitor
   const lap = (k, from) => { stage[k] = Date.now() - from; log(`⏱️ [Timing] v2:${k}: ${stage[k]}ms`); };
@@ -409,6 +409,7 @@ export async function generateNoteV2(input, opts = {}) {
       const [writerRaw, check] = await Promise.all([writerP, checkP]);
       lap('writer+checklist', tw);
       const out = parseJson(writerRaw);
+      if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
       note = buildNote(out, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
       { const n = cleanNote(note); if (n) log(`[v2:clean] removed ${n} commentary/filler/duplicate line(s)`); }
@@ -428,6 +429,7 @@ export async function generateNoteV2(input, opts = {}) {
         const tv = Date.now();
         const v = await verifyNote(verifyLlm, note, transcript, log, { prompt: vMeta?.text, timeoutMs: cfg['verifier.timeoutMs'] });
         lap('verifier', tv);
+        if (opts.trace) opts.trace.verifier = v;
         if (v.dropped) log(`[v2:verify] removed ${v.dropped} line(s)`);
       }
     }
@@ -436,7 +438,8 @@ export async function generateNoteV2(input, opts = {}) {
     throw e;
   }
   note.specialty = specialtyResolved; note.metadata.encounter_id = consultId;
-  note.metadata.pipeline_trace = used;   // exactly which prompt versions + settings produced this note (shown in the admin console)
+  note.metadata.pipeline_trace = used;
+  if (opts.trace) { opts.trace.used = used; opts.trace.timings = stage; }   // exactly which prompt versions + settings produced this note (shown in the admin console)
 
   // 4) deterministic guardrails / render (same code as v1) ---------------------------
   try { const up = applyUpgradeGuardrails(note, { transcript, entities: [] }); if (up.flags?.length) note.metadata.flags = [...(note.metadata.flags || []), ...up.flags]; } catch (e) { log(`[v2] guardrails skipped: ${e.message}`); }
