@@ -329,6 +329,31 @@ async function auditNote(runId, fid, { force = false } = {}) {
   const fresh = readJson(analysisFile(runId), {}); fresh[fid] = a; writeJson(analysisFile(runId), fresh);
   return a;
 }
+// PARITY SCORE — the comparator the original Testing Lab used (admin/handler.js COMPARATOR_SYS, byte-for-byte, same date caveat,
+// same default model): "NOTERA note vs GOLD note", overall_score 0-100 = how close the note is to the clinician's, with a verdict
+// notera_better | gold_better | equivalent. This is the "90+" score from the earlier pipeline; it is NOT the absolute audit.
+const PARITY_SYS = `You are a clinical documentation comparator scoring two SOAP notes. Compare the NOTERA note (system under test) against the GOLD reference note.
+Score objectively, evidence-based, never rewarding fluent-but-unsupported text.
+IMPORTANT: the GOLD note is de-identified and may contain SYNTHETIC or corrupted DATE artifacts (shifted years, placeholder dates). Do NOT penalize Notera for not matching a corrupted or implausible gold date, and do not treat a date mismatch as a factual error unless the transcript itself gives the date.
+Return ONLY valid JSON matching this schema — no prose, no markdown:
+{
+  "overall_score": 0-100,
+  "verdict": "notera_better | gold_better | equivalent",
+  "dimensions": [ { "name": "Faithfulness", "notera": 0-5, "gold": 0-5, "comment": "short" },
+                  { "name": "Completeness", "notera": 0-5, "gold": 0-5, "comment": "short" },
+                  { "name": "Structure", "notera": 0-5, "gold": 0-5, "comment": "short" },
+                  { "name": "Clarity", "notera": 0-5, "gold": 0-5, "comment": "short" } ],
+  "notera_missing": ["facts in gold missing from notera"],
+  "notera_extra": ["facts in notera not supported by gold (possible fabrication)"],
+  "key_differences": ["short phrases"],
+  "summary": "2-3 sentence verdict"
+}`;
+async function parityScore(note, gold) {
+  const llm = await createGeminiService(); llm._agent = 'lab-parity';   // default model, as the original comparator
+  const out = await llm.generateContent(PARITY_SYS, `=== NOTERA NOTE (system under test) ===\n\n${note}\n\n=== GOLD NOTE (reference) ===\n\n${gold || '(no gold reference available)'}\n\nCompare and return ONLY the JSON.`);
+  const parsed = JSON.parse(String(out).replace(/```json/g, '').replace(/```/g, '').trim());
+  return { ...parsed, model: process.env.GEMINI_MODEL || 'default' };
+}
 // audit a note that is not part of a stored run (e.g. produced from audio): transcript is the truth, gold is optional
 async function auditAdhoc({ transcript, note, gold = '' }) {
   const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
@@ -437,6 +462,7 @@ app.post('/runs/:id/report', wrap(async (req, res) => res.json({ id: await start
 app.get('/reports', wrap(async (_req, res) => res.json({ reports: fs.readdirSync(path.join(DATA, 'reports')).map((f) => readJson(path.join(DATA, 'reports', f))).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30).map(({ patterns, recommendations, what_works, ...r }) => ({ ...r, recs: recommendations?.length || 0, open: recommendations?.filter((x) => x.status === 'open').length || 0 })) })));
 app.get('/reports/:id', wrap(async (req, res) => { const r = reports.get(req.params.id) || readJson(path.join(DATA, 'reports', req.params.id + '.json')); r ? res.json(r) : res.status(404).json({ error: 'not found' }); }));
 app.patch('/reports/:id/recs/:rid', wrap(async (req, res) => { const f = path.join(DATA, 'reports', req.params.id + '.json'); const r = readJson(f); if (!r) return res.status(404).json({ error: 'not found' }); const rec = r.recommendations.find((x) => x.id === req.params.rid); if (!rec) return res.status(404).json({ error: 'not found' }); if (!['open', 'accepted', 'dismissed', 'done'].includes(req.body?.status)) return res.status(400).json({ error: 'bad status' }); rec.status = req.body.status; writeJson(f, r); reports.delete(r.id); res.json({ ok: true }); }));
+app.post('/parity', wrap(async (req, res) => { if (!req.body?.note || !req.body?.gold) return res.status(400).json({ error: 'note and gold are required' }); res.json(await parityScore(req.body.note, req.body.gold)); }));
 app.post('/audit-adhoc', wrap(async (req, res) => { if (!req.body?.transcript || !req.body?.note) return res.status(400).json({ error: 'transcript and note are required' }); res.json(await auditAdhoc(req.body)); }));
 app.post('/try', wrap(async (req, res) => res.json(await tryTranscript(req.body || {}))));
 app.get('/compare', wrap(async (req, res) => res.json(compareRuns(String(req.query.a), String(req.query.b)))));

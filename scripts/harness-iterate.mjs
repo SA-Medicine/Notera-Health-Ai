@@ -35,13 +35,15 @@ console.log(`${NAME}: run ${runId} (${ids.length} notes, ${MODEL})`);
 let run; for (;;) { run = await lab('/runs/' + runId); process.stdout.write(`\r  generating ${run.progress.done}/${run.progress.total}  `); if (run.status !== 'running') break; await sleep(6000); }
 console.log(`\n  similarity ${run.summary.avg_similarity_to_gold} omission ${run.summary.avg_omission_rate} flow ${run.summary.avg_story_flow} p50 ${run.summary.p50_s}s p95 ${run.summary.p95_s}s failed ${run.summary.failed}`);
 
-const scores = {}; const details = {}; const goldref = {}; const refDetails = {}; const reviews = {};
+const parity = {}; const parDetails = {}; const scores = {}; const details = {}; const goldref = {}; const refDetails = {}; const reviews = {};
 const goldFile = path.join(DIR, 'gold_ceiling.json'); let gold = fs.existsSync(goldFile) ? JSON.parse(fs.readFileSync(goldFile, 'utf8')) : null;
 const rowsOk = run.rows.filter((r) => !r.error).map((r) => r.id);
 let done = 0;
 await pool(rowsOk, 4, async (id) => {
   try {
     const fx = await lab(`/runs/${runId}/rows/${encodeURIComponent(id)}`);
+    if (has('parity')) { const pr = await lab('/parity', { note: fx.note, gold: fx.gold }); parity[id] = pr.overall_score; parDetails[id] = pr; }
+    if (has('only-parity')) { process.stdout.write('\r  parity ' + Object.keys(parity).length + '/' + rowsOk.length + '  '); return; }
     const a = await lab('/audit-adhoc', { transcript: fx.transcript, note: fx.note });
     if (has('goldref')) { const gr = await lab('/runs/' + runId + '/rows/' + encodeURIComponent(id) + '/audit', {}); goldref[id] = gr.score; refDetails[id] = gr; }
     reviews[id] = { note: fx.note, log: (fx.log || []).filter((l) => !/Timing]|tokens]/.test(l)), exemplars: fx.trace?.exemplars, editor: fx.trace?.editor?.why };
@@ -50,6 +52,14 @@ await pool(rowsOk, 4, async (id) => {
   } catch (e) { console.log('  audit failed', id, e.message); }
   process.stdout.write(`\r  auditing ${++done}/${rowsOk.length}  `);
 });
+if (Object.keys(parity).length) {
+  const pv = Object.values(parity).filter((x) => typeof x === 'number'); const verd = {}; Object.values(parDetails).forEach((d) => { verd[d.verdict] = (verd[d.verdict] || 0) + 1; });
+  const dim = (name, who) => mean(Object.values(parDetails).map((d) => (d.dimensions || []).find((x) => x.name === name)?.[who]).filter((x) => typeof x === 'number'));
+  console.log(`\n${NAME}: PARITY score (the original comparator, Notera vs gold) mean ${mean(pv).toFixed(1)} · ${pv.filter((x) => x >= 90).length}/${pv.length} notes at 90+ · verdicts ${JSON.stringify(verd)}`);
+  console.log('  dimensions (notera vs gold, 0-5): ' + ['Faithfulness', 'Completeness', 'Structure', 'Clarity'].map((n) => n + ' ' + dim(n, 'notera')?.toFixed(2) + ' vs ' + dim(n, 'gold')?.toFixed(2)).join(' · '));
+  fs.writeFileSync(path.join(DIR, NAME + '.parity.json'), JSON.stringify({ name: NAME, runId, mean: +mean(pv).toFixed(2), n: pv.length, at90: pv.filter((x) => x >= 90).length, verdicts: verd, parity, details: parDetails }));
+}
+if (has('only-parity')) process.exit(0);
 if (gold) fs.writeFileSync(goldFile, JSON.stringify(gold));
 const vals = Object.values(scores); const verdicts = {}; Object.values(details).forEach((d) => { verdicts[d.verdict] = (verdicts[d.verdict] || 0) + 1; });
 const crit = Object.values(details).reduce((s, d) => s + d.wrong.filter((w) => w.s === 'critical').length, 0);
