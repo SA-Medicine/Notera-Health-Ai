@@ -462,9 +462,10 @@ export async function generateNoteV2(input, opts = {}) {
   // The WRITER carries the quality, so it gets the stronger model; the small checklist/verifier calls stay on the fast one.
   const cfg = await effectiveConfig();   // admin-console overrides > env > code defaults (cached 30 s)
   const writerLlm = await createGeminiService(null, { model: opts.writerModel || cfg['writer.model'] }); writerLlm._agent = 'v2-writer';
-  const checkLlm = await createGeminiService(null, { model: cfg['aux.model'] }); checkLlm._agent = 'v2-checklist';
-  const verifyLlm = await createGeminiService(null, { model: cfg['aux.model'] });
-  const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: cfg['aux.model'] }, prompts: {} };
+  const auxModel = opts.auxModel || cfg['aux.model'];
+  const checkLlm = await createGeminiService(null, { model: auxModel }); checkLlm._agent = 'v2-checklist';
+  const verifyLlm = await createGeminiService(null, { model: auxModel });
+  const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: auxModel }, prompts: {} };
 
   let note;
   try {
