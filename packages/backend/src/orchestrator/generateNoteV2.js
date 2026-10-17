@@ -166,6 +166,16 @@ function splitSentences(ln) {
   if (ln.length <= 260) return [ln];
   return ln.split(/(?<=[.;])\s+(?=[A-Z0-9])/).map((x) => x.trim()).filter(Boolean);
 }
+/** Model-degeneration guard (seen in the 50-note audit): "the patient or the patient or the patient…" and "X, the patient, the patient".
+ *  Collapses any 1–6 word phrase repeated 3+ times in a row, drops repeated/dangling "the patient" artefacts. */
+export function collapseLoops(s) {
+  let t = String(s || '');
+  t = t.replace(/\b((?:[\w'’-]+\s+){0,5}[\w'’-]+)(?:\s*[,;]?\s*(?:or|and)?\s+\1\b){2,}/gi, '$1');
+  t = t.replace(/(?:\s*[,;]?\s*(?:or|and)?\s*\bthe patient\b){2,}/gi, '');
+  t = t.replace(/\s+the patient[.,;]*$/i, '');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+
 function cleanText(text, { splitSemi = false } = {}) {
   const out = [];
   for (const raw of String(text || '').split('\n')) {
@@ -174,7 +184,7 @@ function cleanText(text, { splitSemi = false } = {}) {
     // History/exam fields are one fact per line: "a; b; c" becomes three lines. Plan fields keep their "; " lists.
     const pieces = splitSemi ? ln.split(/\s*;\s+/).filter(Boolean) : [ln];
     for (let part of pieces.flatMap((x) => splitSentences(x))) {
-      part = part.replace(/\s{2,}/g, ' ').replace(/[;,]+$/, '').trim();
+      part = collapseLoops(part.replace(/\s{2,}/g, ' ')).replace(/[;,]+$/, '').trim();
       if (!part || isMeta(part)) continue;
       if (part.length > 420) part = part.slice(0, 420).replace(/\s+\S*$/, '');   // runaway line: cut at a word boundary
       out.push(part);
