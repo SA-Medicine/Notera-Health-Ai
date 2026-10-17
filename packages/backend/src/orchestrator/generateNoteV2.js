@@ -453,7 +453,7 @@ export async function generateNoteV2(input, opts = {}) {
       const vMeta = await getActivePromptMeta(VERIFIER_PROMPT_NAME); used.prompts.verifier = vMeta ? `v${vMeta.version}` : 'default';
       const writerP = writerLlm.generateContent(writerPrompt, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
-        retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
+        retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
       const checkP = checkLlm.generateContent(cMeta?.text || CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
