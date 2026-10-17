@@ -25,24 +25,26 @@ export function ensurePromptSchema() {
   return _ready;
 }
 
-const _cache = new Map();   // name -> { at, text }
+const _cache = new Map();   // name -> { at, text, version, id }
 const TTL = 60_000;
 
-/** Active override text for a prompt name, or null when the code default should be used. Never throws. */
-export async function getActivePrompt(name) {
+/** Active override for a prompt name → { text, version, id } or null when the code default applies. Never throws. */
+export async function getActivePromptMeta(name) {
   const hit = _cache.get(name);
-  if (hit && Date.now() - hit.at < TTL) return hit.text;
-  let text = null;
+  if (hit && Date.now() - hit.at < TTL) return hit.text ? hit : null;
+  let rec = { at: Date.now(), text: null, version: null, id: null };
   try {
     if (process.env.DATABASE_URL) {
       await ensurePromptSchema();
-      const row = await one(`SELECT text FROM ops.prompt_versions WHERE name = $1 AND active ORDER BY id DESC LIMIT 1`, [name]);
-      text = row?.text || null;
+      const row = await one(`SELECT id, version, text FROM ops.prompt_versions WHERE name = $1 AND active ORDER BY id DESC LIMIT 1`, [name]);
+      if (row?.text) rec = { at: Date.now(), text: row.text, version: row.version, id: row.id };
     }
   } catch { /* DB unavailable (e.g. local eval) → default prompt */ }
-  _cache.set(name, { at: Date.now(), text });
-  return text;
+  _cache.set(name, rec);
+  return rec.text ? rec : null;
 }
+/** Active override text for a prompt name, or null when the code default should be used. Never throws. */
+export async function getActivePrompt(name) { return (await getActivePromptMeta(name))?.text || null; }
 export function clearPromptCache() { _cache.clear(); }
 
 export async function listVersions(name) {
