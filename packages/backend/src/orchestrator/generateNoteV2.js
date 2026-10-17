@@ -27,7 +27,8 @@ import { condenseNote } from './condenseNote.js';
 import { dedupeNote } from './dedupeNote.js';
 import { noteToMarkdown } from './renderMarkdown.js';
 import { collectMeds } from './structureNote.js';
-import { getActivePrompt } from './promptStore.js';
+import { getActivePrompt, getActivePromptMeta } from './promptStore.js';
+import { effectiveConfig } from './runtimeConfig.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -133,6 +134,15 @@ function clinicRules() { return CLINIC_RULES; }
 
 /** The built-in writer system prompt (instructions + clinic rules). The lab reads this as the baseline to improve. */
 export const WRITER_PROMPT_NAME = 'v2-writer';
+export const CHECKLIST_PROMPT_NAME = 'v2-checklist';
+export const VERIFIER_PROMPT_NAME = 'v2-verifier';
+/** Every LLM prompt in the pipeline, editable from the admin console. `must` = substrings a replacement has to keep
+ *  (the code that parses the model's answer depends on them), so a bad edit is rejected instead of breaking notes. */
+export const PROMPT_REGISTRY = {
+  [WRITER_PROMPT_NAME]:    { stage: 'Writer', label: 'Note writer', help: 'Drafts the whole SOAP note from the transcript. The main quality lever.', default: () => defaultWriterPrompt(), must: ['JSON'], min: 800 },
+  [CHECKLIST_PROMPT_NAME]: { stage: 'Checklist', label: 'Fact checklist', help: 'Extracts medications, results, orders, referrals and follow-up so nothing the writer drops is lost.', default: () => CHECK_SYS, must: ['medications', 'results', 'orders', 'referrals', 'follow_up', 'JSON'], min: 200 },
+  [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
+};
 export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}`; }
 
 // ── deterministic cleaner: the writer must never leak reasoning or filler into a clinical note ──
@@ -296,16 +306,16 @@ function mergeChecklist(note, check, transcript, log) {
 }
 
 // ── verifier (model proposes, code confirms) ─────────────────────────────────
-async function verifyNote(llm, note, transcript, log) {
+async function verifyNote(llm, note, transcript, log, cfg = {}) {
   const lines = enumerateLines(note);
   if (lines.length < 4) return { dropped: 0 };
   const numbered = lines.map((l) => `${l.id}. [${l.label}] ${l.text}`).join('\n');
   llm._agent = 'v2-verifier';
   let res;
   try {
-    res = parseJson(await llm.generateContent(VERIFY_SYS,
+    res = parseJson(await llm.generateContent(cfg.prompt || VERIFY_SYS,
       `=== TRANSCRIPT ===\n${transcript.slice(0, 90000)}\n\n=== NOTE ===\n${numbered}\n\nReturn ONLY the JSON.`, null,
-      { maxOutputTokens: 900, timeoutMs: Number(process.env.V2_VERIFY_TIMEOUT_MS) || 15000, retries: 0, hedgeMs: 6000, temperature: 0, responseMimeType: 'application/json' }));
+      { maxOutputTokens: 900, timeoutMs: cfg.timeoutMs || Number(process.env.V2_VERIFY_TIMEOUT_MS) || 15000, retries: 0, hedgeMs: 6000, temperature: 0, responseMimeType: 'application/json' }));
   } catch (e) { log(`[v2:verify] skipped — ${e.message}`); return { dropped: 0 }; }
   if (!res) return { dropped: 0 };
 
@@ -366,9 +376,11 @@ export async function generateNoteV2(input, opts = {}) {
 
   // Separate LLM instances so parallel calls keep correct per-agent token attribution.
   // The WRITER carries the quality, so it gets the stronger model; the small checklist/verifier calls stay on the fast one.
-  const writerLlm = await createGeminiService(null, { model: opts.writerModel || process.env.V2_WRITER_MODEL || 'gemini-2.5-flash' }); writerLlm._agent = 'v2-writer';
-  const checkLlm = await createGeminiService(); checkLlm._agent = 'v2-checklist';
-  const verifyLlm = await createGeminiService();
+  const cfg = await effectiveConfig();   // admin-console overrides > env > code defaults (cached 30 s)
+  const writerLlm = await createGeminiService(null, { model: opts.writerModel || cfg['writer.model'] }); writerLlm._agent = 'v2-writer';
+  const checkLlm = await createGeminiService(null, { model: cfg['aux.model'] }); checkLlm._agent = 'v2-checklist';
+  const verifyLlm = await createGeminiService(null, { model: cfg['aux.model'] });
+  const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: cfg['aux.model'] }, prompts: {} };
 
   let note;
   try {
@@ -381,13 +393,17 @@ export async function generateNoteV2(input, opts = {}) {
       onProgress({ status: 'drafting', consultId });
       const tw = Date.now();
       // Prompt precedence: per-call override (lab experiments) > active promoted version (admin console) > code default.
-      const writerPrompt = opts.writerPrompt || (await getActivePrompt(WRITER_PROMPT_NAME)) || defaultWriterPrompt();
+      const wMeta = opts.writerPrompt ? null : await getActivePromptMeta(WRITER_PROMPT_NAME);
+      const writerPrompt = opts.writerPrompt || wMeta?.text || defaultWriterPrompt();
+      used.prompts.writer = opts.writerPrompt ? 'experiment' : wMeta ? `v${wMeta.version}` : 'default';
+      const cMeta = await getActivePromptMeta(CHECKLIST_PROMPT_NAME); used.prompts.checklist = cMeta ? `v${cMeta.version}` : 'default';
+      const vMeta = await getActivePromptMeta(VERIFIER_PROMPT_NAME); used.prompts.verifier = vMeta ? `v${vMeta.version}` : 'default';
       const writerP = writerLlm.generateContent(writerPrompt, `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
-        maxOutputTokens: Number(process.env.V2_WRITER_MAX_TOKENS) || 6000, timeoutMs: Number(process.env.V2_WRITER_TIMEOUT_MS) || 50000,
-        retries: 1, hedgeMs: Number(process.env.V2_WRITER_HEDGE_MS) || 25000, temperature: opts.writerTemp ?? Number(process.env.V2_WRITER_TEMP ?? 0.3), thinkingBudget: Number(process.env.V2_WRITER_THINKING ?? 0), fallbackModel: process.env.V2_WRITER_FALLBACK || 'gemini-3.5-flash-lite',
-        topP: opts.writerTopP ?? Number(process.env.V2_WRITER_TOP_P ?? 0.9), ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
+        maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
+        retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
+        topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
-      const checkP = checkLlm.generateContent(CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
+      const checkP = checkLlm.generateContent(cMeta?.text || CHECK_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, CHECK_SCHEMA, {
         maxOutputTokens: 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
       const [writerRaw, check] = await Promise.all([writerP, checkP]);
@@ -408,9 +424,9 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 3) deterministic placement fixes, then ONE verifier call ---------------------
       try { note = reconcileNote(note); } catch (e) { log(`[v2] reconcile skipped: ${e.message}`); }
-      if (process.env.V2_VERIFIER !== '0') {
+      if (cfg['verifier.enabled']) {
         const tv = Date.now();
-        const v = await verifyNote(verifyLlm, note, transcript, log);
+        const v = await verifyNote(verifyLlm, note, transcript, log, { prompt: vMeta?.text, timeoutMs: cfg['verifier.timeoutMs'] });
         lap('verifier', tv);
         if (v.dropped) log(`[v2:verify] removed ${v.dropped} line(s)`);
       }
@@ -420,6 +436,7 @@ export async function generateNoteV2(input, opts = {}) {
     throw e;
   }
   note.specialty = specialtyResolved; note.metadata.encounter_id = consultId;
+  note.metadata.pipeline_trace = used;   // exactly which prompt versions + settings produced this note (shown in the admin console)
 
   // 4) deterministic guardrails / render (same code as v1) ---------------------------
   try { const up = applyUpgradeGuardrails(note, { transcript, entities: [] }); if (up.flags?.length) note.metadata.flags = [...(note.metadata.flags || []), ...up.flags]; } catch (e) { log(`[v2] guardrails skipped: ${e.message}`); }
