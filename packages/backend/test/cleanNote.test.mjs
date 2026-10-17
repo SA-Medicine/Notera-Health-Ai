@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanNote, collapseLoops } from '../src/orchestrator/generateNoteV2.js';
+import { cleanNote, collapseLoops, editorAccepts } from '../src/orchestrator/generateNoteV2.js';
 import { emptyNote, emptyIssue } from '@notera/schema';
 
 test('removes leaked reasoning, "none stated" filler and run-ons; keeps real facts', () => {
@@ -48,4 +48,16 @@ test('collapseLoops removes model degeneration but keeps real text', () => {
   assert.equal(collapseLoops('Continue the medication, the medication is tolerated'), 'Continue the medication, the medication is tolerated');
   assert.equal(collapseLoops('no no'), 'no no');
   assert.equal(collapseLoops('Metformin 500 mg twice daily'), 'Metformin 500 mg twice daily');
+});
+
+test('editorAccepts keeps safe edits and rejects loss or invention', () => {
+  const transcript = 'Patient has knee pain for 3 weeks. Denies fever. Taking naproxen 500 mg twice daily. Referred to physiotherapy. Follow up in 3 months.';
+  const draft = { subjective: { hpi_details: 'Knee pain for 3 weeks\nDenies fever' }, objective: { vital_signs: 'Naproxen 500 mg twice daily' }, assessment_and_plan: [{ issue: 'Knee pain', treatment_planned: 'Naproxen 500 mg twice daily', referrals: 'Physiotherapy' }, { issue: 'Follow-up', treatment_planned: 'Rtc: 3 months' }] };
+  const moved = { subjective: { hpi_details: 'Knee pain for 3 weeks\nDenies fever\nTaking naproxen 500 mg twice daily' }, objective: { vital_signs: '' }, assessment_and_plan: draft.assessment_and_plan };
+  assert.equal(editorAccepts(draft, moved, transcript).ok, true, 'moving a line between sections is accepted');
+  assert.equal(editorAccepts(draft, { ...moved, assessment_and_plan: [] }, transcript).ok, false, 'dropping every problem is rejected');
+  const invented = { ...moved, assessment_and_plan: [{ issue: 'Knee pain', treatment_planned: 'Naproxen 750 mg twice daily', referrals: 'Physiotherapy' }, draft.assessment_and_plan[1]] };
+  assert.equal(editorAccepts(draft, invented, transcript).ok, false, 'a dose that is not in the transcript is rejected');
+  const gutted = { subjective: { hpi_details: 'Knee pain' }, objective: {}, assessment_and_plan: [{ issue: 'Knee pain' }] };
+  assert.equal(editorAccepts(draft, gutted, transcript).ok, false, 'losing most of the draft is rejected');
 });
