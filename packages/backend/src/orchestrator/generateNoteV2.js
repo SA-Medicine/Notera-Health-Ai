@@ -486,18 +486,25 @@ export async function generateNoteV2(input, opts = {}) {
       const shots = nShots ? pickExemplars(transcript, nShots, opts.exemplarExclude || []) : [];
       used.config.fewShot = shots.map((e) => e.id); if (opts.trace) opts.trace.exemplars = shots.map((e) => ({ id: e.id, sim: +e.sim.toFixed(3) }));
       if (shots.length) log(`[v2:fewshot] ${shots.length} reference note(s): ${shots.map((e) => e.id + ' (' + e.sim.toFixed(2) + ')').join(', ')}`);
-      const writerP = writerLlm.generateContent(writerPrompt, exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`, WRITER_SCHEMA, {
+      const writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
+      const writerOpts = {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
         retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
-        ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) });
+        ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
+      const writerP = writerLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, writerOpts);
       const recallOn = opts.recall !== undefined ? !!opts.recall : cfg['recall.extended']; used.config.recall = recallOn;
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
         maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
       const [writerRaw, check] = await Promise.all([writerP, checkP]);
       lap('writer+checklist', tw);
-      const out = parseJson(writerRaw);
+      let out = parseJson(writerRaw);
+      if (!out) {   // a stronger model occasionally returns truncated/invalid JSON (~4% on gemini-3.7-flash): retry once, deterministic, on the fallback model
+        log('[v2:writer] unparseable JSON — retrying once on the fallback model at temperature 0');
+        try { const retryLlm = await createGeminiService(null, { model: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite' }); retryLlm._agent = 'v2-writer';
+          out = parseJson(await retryLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, { ...writerOpts, temperature: 0, thinkingBudget: 0, fallbackModel: undefined, retries: 0 })); } catch (e) { log(`[v2:writer] retry failed — ${e.message}`); }
+      }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
       let finalOut = out;

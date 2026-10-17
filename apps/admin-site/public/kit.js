@@ -13,6 +13,7 @@ export const f3 = (x) => (x == null || Number.isNaN(x) ? '—' : Number(x).toFix
 export const sgn = (x, d = 3) => (x == null ? '—' : (x > 0 ? '+' : '') + Number(x).toFixed(d));
 export const MODELS = [
   ['gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite — cheapest, fastest'],
+  ['gemini-3.7-flash', 'Gemini 3.7 Flash — best measured quality, ~2x slower'],
   ['gemini-2.5-flash', 'Gemini 2.5 Flash — current production writer'],
   ['gemini-2.5-pro', 'Gemini 2.5 Pro — highest quality'],
 ];
