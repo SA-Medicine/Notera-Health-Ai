@@ -24,13 +24,18 @@ const lab = async (p, json) => {
 const pool = async (items, n, fn) => { let i = 0; await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const it = items[i++]; await fn(it); } })); };
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
 
-const src = await lab('/runs/' + FROM); const ids = (src.ids || src.rows.map((r) => r.id)).slice(0, Number(arg('n', 50)));
-const { id: runId } = await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}), ...(arg('temp', '') !== '' ? { writerTemp: Number(arg('temp')) } : {}), ...(arg('think', '') !== '' ? { writerThinking: Number(arg('think')) } : {}), ...(arg('topp', '') !== '' ? { writerTopP: Number(arg('topp')) } : {}), ...(arg('prompt', '') ? { candidateId: arg('prompt') } : {}) });
+const used = new Set(); for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json') && x !== 'gold_ceiling.json')) Object.keys(JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')).scores || {}).forEach((i) => used.add(i));
+try { JSON.parse(fs.readFileSync(path.resolve('packages/backend/exemplars/bank.json'), 'utf8')).forEach((b) => used.add(b.id)); } catch { /* no bank */ }
+let ids; const AUDIT_RUN = arg('audit-run', '');
+if (AUDIT_RUN) { const r0 = await lab('/runs/' + AUDIT_RUN); ids = r0.ids || r0.rows.map((r) => r.id); }
+else if (arg('fresh', '')) { const all = (await lab('/fixtures')).fixtures.map((f) => f[0]).filter((i) => !used.has(i)); for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; } ids = all.slice(0, Number(arg('fresh'))); }
+else { const src = await lab('/runs/' + FROM); ids = (src.ids || src.rows.map((r) => r.id)).slice(0, Number(arg('n', 50))); }
+const runId = AUDIT_RUN || (await lab('/runs', { ids, writerModel: MODEL, label: NAME, ...(has('editor') ? { editor: true } : {}), ...(arg('temp', '') !== '' ? { writerTemp: Number(arg('temp')) } : {}), ...(arg('think', '') !== '' ? { writerThinking: Number(arg('think')) } : {}), ...(arg('topp', '') !== '' ? { writerTopP: Number(arg('topp')) } : {}), ...(arg('prompt', '') ? { candidateId: arg('prompt') } : {}), ...(arg('fewshot', '') !== '' ? { fewShot: Number(arg('fewshot')) } : {}) })).id;
 console.log(`${NAME}: run ${runId} (${ids.length} notes, ${MODEL})`);
 let run; for (;;) { run = await lab('/runs/' + runId); process.stdout.write(`\r  generating ${run.progress.done}/${run.progress.total}  `); if (run.status !== 'running') break; await sleep(6000); }
 console.log(`\n  similarity ${run.summary.avg_similarity_to_gold} omission ${run.summary.avg_omission_rate} flow ${run.summary.avg_story_flow} p50 ${run.summary.p50_s}s p95 ${run.summary.p95_s}s failed ${run.summary.failed}`);
 
-const scores = {}; const details = {};
+const scores = {}; const details = {}; const goldref = {}; const refDetails = {}; const reviews = {};
 const goldFile = path.join(DIR, 'gold_ceiling.json'); let gold = fs.existsSync(goldFile) ? JSON.parse(fs.readFileSync(goldFile, 'utf8')) : null;
 const rowsOk = run.rows.filter((r) => !r.error).map((r) => r.id);
 let done = 0;
@@ -38,6 +43,8 @@ await pool(rowsOk, 4, async (id) => {
   try {
     const fx = await lab(`/runs/${runId}/rows/${encodeURIComponent(id)}`);
     const a = await lab('/audit-adhoc', { transcript: fx.transcript, note: fx.note });
+    if (has('goldref')) { const gr = await lab('/runs/' + runId + '/rows/' + encodeURIComponent(id) + '/audit', {}); goldref[id] = gr.score; refDetails[id] = gr; }
+    reviews[id] = { note: fx.note, log: (fx.log || []).filter((l) => !/Timing]|tokens]/.test(l)), exemplars: fx.trace?.exemplars, editor: fx.trace?.editor?.why };
     scores[id] = a.score; details[id] = { verdict: a.verdict, score: a.score, wrong: (a.wrong || []).map((w) => ({ s: w.severity, c: w.claim, p: w.problem })), missing: (a.missing || []).map((m) => ({ i: m.importance, f: m.fact })), extra: (a.extra || []).length, structure: a.structure || [], cause: a.root_cause?.stage };
     if (has('gold') && !gold?.scores?.[id]) { gold = gold || { scores: {} }; const g = await lab('/audit-adhoc', { transcript: fx.transcript, note: fx.gold }); gold.scores[id] = g.score; }
   } catch (e) { console.log('  audit failed', id, e.message); }
@@ -46,9 +53,12 @@ await pool(rowsOk, 4, async (id) => {
 if (gold) fs.writeFileSync(goldFile, JSON.stringify(gold));
 const vals = Object.values(scores); const verdicts = {}; Object.values(details).forEach((d) => { verdicts[d.verdict] = (verdicts[d.verdict] || 0) + 1; });
 const crit = Object.values(details).reduce((s, d) => s + d.wrong.filter((w) => w.s === 'critical').length, 0);
-const out = { critical_per_note: +(crit / Math.max(1, vals.length)).toFixed(3), name: NAME, runId, model: MODEL, notes: vals.length, mean_audit: +mean(vals).toFixed(2), verdicts, critical_wrong: crit, unsafe: verdicts.unsafe || 0, summary: run.summary, details, scores, at: new Date().toISOString() };
+const meanRef = Object.keys(goldref).length ? mean(Object.values(goldref)) : null;
+const out = { goldref_mean: meanRef != null ? +meanRef.toFixed(2) : null, goldref, critical_per_note: +(crit / Math.max(1, vals.length)).toFixed(3), name: NAME, runId, model: MODEL, notes: vals.length, mean_audit: +mean(vals).toFixed(2), verdicts, critical_wrong: crit, unsafe: verdicts.unsafe || 0, summary: run.summary, details, scores, at: new Date().toISOString() };
 fs.writeFileSync(path.join(DIR, NAME + '.json'), JSON.stringify(out));
 const goldMean = gold ? mean(ids.map((i) => gold.scores[i]).filter((x) => x != null)) : null;
+if (meanRef != null) console.log(`\n${NAME}: GOLD-REFERENCED audit mean ${meanRef.toFixed(1)} (target 90) · verdicts ${JSON.stringify(Object.values(refDetails).reduce((o, a) => ((o[a.verdict] = (o[a.verdict] || 0) + 1), o), {}))}`);
+if (has('review')) { const md = ['# Manual log review — ' + NAME, '', ...Object.keys(reviews).flatMap((id) => { const r = reviews[id], d = details[id], g = refDetails[id]; return ['## ' + id + ' — transcript-only ' + d.score + (g ? ', gold-referenced ' + g.score + ' (' + g.verdict + ')' : ''), '', '```', ...(r.log || []).slice(0, 40), '```', 'exemplars: ' + JSON.stringify(r.exemplars || []) + ' · editor: ' + (r.editor || '-'), '', '**Note**', '', r.note, '', '**Audit findings**', ...((g || d).wrong || []).slice(0, 6).map((w) => '- WRONG ' + (w.severity || w.s) + ': ' + (w.claim || w.c) + ' — ' + (w.problem || w.p)), ...((g || d).missing || []).slice(0, 6).map((m) => '- MISSING ' + (m.importance || m.i) + ': ' + (m.fact || m.f)), ''] })].join('\n'); fs.writeFileSync(path.join(DIR, NAME + '.review.md'), md); console.log('review dump: docs/reports/iterations/' + NAME + '.review.md'); }
 console.log(`\n${NAME}: mean audit ${out.mean_audit} · verdicts ${JSON.stringify(verdicts)} · critical wrong claims ${crit} (${(crit / Math.max(1, vals.length)).toFixed(2)} per note; TARGET < 0.10)${goldMean != null ? ` · gold notes ${goldMean.toFixed(1)}` : ''}`);
 const prevName = arg('vs', ''); if (prevName && fs.existsSync(path.join(DIR, prevName + '.json'))) {
   const p = JSON.parse(fs.readFileSync(path.join(DIR, prevName + '.json'), 'utf8')); const common = Object.keys(scores).filter((i) => p.scores[i] != null);
