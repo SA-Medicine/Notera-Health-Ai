@@ -3,9 +3,9 @@
 import { lab, pretty, f3, sgn, barChart, kpi } from './kit.js';
 
 const ST = { a: '', b: '', judge: null };
-export async function compareView(ctx) {
+export async function compareView(ctx, mode = 'stats') {
   const { $, esc, ago, table, head, toast, openDrawer, mdToHtml } = ctx;
-  $('#view').innerHTML = head('Compare', 'Does version B really beat version A? Paired on the same notes, with statistics and a blind judge.', '<button class="btn" id="crf">Refresh</button>') + '<div id="cmp" class="card empty">Loading…</div>';
+  $('#view').innerHTML = head(mode === 'stats' ? 'Compare runs' : 'Blind judge', mode === 'stats' ? 'Does version B really beat version A? Paired on the same notes: metric changes, statistics and every note that got better or worse.' : 'A strong model reads both notes without knowing which version wrote them (in both orders), then counts what each lacks and invents.', '<button class="btn" id="crf">Refresh</button>') + '<div id="cmp" class="card empty">Loading…</div>';
   $('#crf').onclick = () => draw();
   let runs = [], pinned = null;
   const label = (r) => `${r.label || r.id.slice(-8)} · ${r.config.writerModel || 'default'} · ${String(r.config.promptSource).replace('candidate:', 'cand ')} · ${r.config.n} notes · ${ago(r.createdAt)}`;
@@ -13,7 +13,7 @@ export async function compareView(ctx) {
   async function draw() {
     runs = (await lab('/runs')).runs.filter((r) => r.status === 'done' && r.summary);
     pinned = (await lab('/baseline-run')).baseline;
-    if (runs.length < 2) { $('#cmp').className = 'card empty'; $('#cmp').innerHTML = 'You need at least two finished runs. Start them on the Evaluate screen (same notes for both).'; return; }
+    if (runs.length < 2) { $('#cmp').className = 'card empty'; $('#cmp').innerHTML = 'You need at least two finished runs on the same notes. Start them in Run & inputs (use Re-run to repeat the same notes with another model or prompt).'; return; }
     if (!ST.a || !runs.some((r) => r.id === ST.a)) ST.a = pinned?.id && runs.some((r) => r.id === pinned.id) ? pinned.id : runs[1].id;
     if (!ST.b || !runs.some((r) => r.id === ST.b)) ST.b = runs.find((r) => r.id !== ST.a).id;
     const opt = (cur) => runs.map((r) => `<option value="${r.id}"${r.id === cur ? ' selected' : ''}>${esc(label(r))}</option>`).join('');
@@ -25,7 +25,7 @@ export async function compareView(ctx) {
     $('#ca').onchange = (e) => { ST.a = e.target.value; ST.judge = null; draw(); }; $('#cb').onchange = (e) => { ST.b = e.target.value; ST.judge = null; draw(); };
     $('#swap').onclick = () => { [ST.a, ST.b] = [ST.b, ST.a]; ST.judge = null; draw(); };
     $('#pin').onclick = async () => { try { await lab('/baseline-run', { method: 'PUT', json: { runId: ST.a } }); toast('Pinned as baseline'); draw(); } catch (e) { toast(e.message, true); } };
-    await stats(); judgeSection();
+    if (mode === 'stats') await stats(); else judgeSection();
   }
 
   async function stats() {
@@ -53,8 +53,8 @@ export async function compareView(ctx) {
     let tab = 'ab';
     const draw2 = () => {
       const pane = (t, b) => `<div class="card"><b>${t}</b><div class="note">${mdToHtml(b || '(none)')}</div></div>`;
-      const body = tab === 'ab' ? `<div class="two">${pane('A', x.note)}${pane('B', y.note)}</div>` : tab === 'gold' ? `<pre class="raw">${esc(x.gold)}</pre>` : `<div style="white-space:pre-wrap;line-height:1.6">${esc(x.transcript)}</div>`;
-      openDrawer(`<div class="drawer-head"><div><h2>${esc(pretty(id))}</h2></div><button class="btn sm" data-close>Close</button></div><div class="tabs">${[['ab', 'A vs B'], ['gold', 'Gold note'], ['tx', 'Transcript']].map(([k, l]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div class="drawer-body" style="padding-top:14px;max-width:none">${body}</div>`);
+      const body = tab === 'ab' ? `<div class="cols3">${pane('A', x.note)}${pane('B', y.note)}<div class="card"><b>Gold</b><pre class="raw goldraw">${esc(x.gold)}</pre></div></div>` : tab === 'gold' ? `<pre class="raw">${esc(x.gold)}</pre>` : `<div style="white-space:pre-wrap;line-height:1.6">${esc(x.transcript)}</div>`;
+      openDrawer(`<div class="drawer-head"><div><h2>${esc(pretty(id))}</h2></div><button class="btn sm" data-close>Close</button></div><div class="tabs">${[['ab', 'A vs B'], ['gold', 'Gold note'], ['tx', 'Transcript']].map(([k, l]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div class="drawer-body wide" style="padding-top:14px">${body}</div>`);
       document.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; draw2(); }; });
     };
     draw2();
