@@ -80,3 +80,6 @@ const prevName = arg('vs', ''); if (prevName && fs.existsSync(path.join(DIR, pre
   const d = common.map((i) => scores[i] - p.scores[i]); const up = d.filter((x) => x > 5).length, down = d.filter((x) => x < -5).length;
   console.log(`vs ${prevName}: mean ${p.mean_audit} → ${out.mean_audit} (Δ ${(out.mean_audit - p.mean_audit).toFixed(1)}), ${up} notes better / ${down} worse by >5 points; unsafe ${p.unsafe} → ${out.unsafe}; critical wrong ${p.critical_wrong} → ${crit}; p50 ${p.summary.p50_s}s → ${run.summary.p50_s}s`);
 }
+// store the scores on the run so Trends can chart them
+try { const q = {}; if (Object.keys(parity).length) { const pv = Object.values(parity).filter((x) => typeof x === 'number'); q.parity_mean = +mean(pv).toFixed(2); q.parity_at90 = pv.filter((x) => x >= 90).length; q.parity_n = pv.length; } if (vals.length) { q.audit_mean = out.mean_audit; q.critical_per_note = out.critical_per_note; q.unsafe = out.unsafe; } if (meanRef != null) q.goldref_mean = out.goldref_mean;
+  if (Object.keys(q).length) await fetch(BASE + '/runs/' + runId + '/quality', { method: 'PUT', headers: { 'X-Lab-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(q) }); } catch { /* optional */ }

@@ -223,3 +223,12 @@ pre.raw { background: var(--surface); border: 1px solid var(--line); border-radi
 .loop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--ink-3); } .loop span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--ink); font-weight: 600; }
 .rec { margin-bottom: 8px; } .rec.done, .rec.dismissed { opacity: .55; } .rec.accepted { border-left: 3px solid var(--accent); }
 .seg .hint { font-weight: 500; margin-left: 4px; }
+
+/* ───── metric hover popovers ───── */
+.mtip { position: relative; cursor: help; border-bottom: 1px dotted var(--ink-3); display: inline-block; }
+.mtip i { font-style: normal; margin-left: 4px; font-size: 11px; color: var(--accent); }
+.mtip .mpop { display: none; position: absolute; z-index: 60; left: 0; top: calc(100% + 6px); width: 320px; max-width: 80vw; padding: 12px 14px; border-radius: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0,0,0,.35); font-weight: 450; font-size: 12.5px; line-height: 1.5; text-transform: none; letter-spacing: 0; white-space: normal; text-align: left; }
+.mtip .mpop b { display: block; font-size: 13px; } .mtip .mpop em { display: block; font-style: normal; color: var(--accent); font-weight: 600; margin: 2px 0 6px; } .mtip .mpop small { display: block; margin-top: 6px; color: var(--ink-3); font-size: 12px; }
+.mtip:hover .mpop, .mtip:focus .mpop, .mtip:focus-within .mpop { display: block; }
+th .mtip .mpop, .stat .l .mtip .mpop { left: auto; } th:last-child .mtip .mpop { right: 0; }
+.guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 20px; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); } .guide b { color: var(--ink); }
