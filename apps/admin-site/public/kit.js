@@ -63,7 +63,23 @@ export function spark(vals, { w = 90, h = 26 } = {}) {
   const v = vals.filter((x) => x != null); if (v.length < 2) return ''; const [lo, hi] = scale(v, 0.1); const X = (i) => (i * w) / (v.length - 1), Y = (y) => h - ((y - lo) / (hi - lo)) * h;
   return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="spark"><path d="${v.map((y, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(y).toFixed(1)}`).join('')}" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
 }
-export const kpi = (label, value, sub = '', tone = '') => `<div class="card stat"><div class="l">${esc(label)}</div><div class="n ${tone}">${value}</div><div class="s">${sub}</div></div>`;
+/** Every number on a chart, with what it means and how it is computed (shown on hover / keyboard focus). */
+export const METRICS = {
+  similarity: { label: 'Similarity to gold', range: '0 – 1 · higher is better', formula: 'Jaccard overlap of unique words:  |note ∩ gold| ÷ |note ∪ gold|  (dates removed from the gold side).', note: 'A word-overlap score, NOT accuracy. A perfect paraphrase scores ~0.4 because wording differs; 0.35 is normal for a good note.' },
+  omission: { label: 'Omission rate', range: '0 – 1 · lower is better', formula: 'Gold words (longer than 3 letters, unique) that never appear in the note  ÷  all such gold words.', note: '0.50 means half of the gold note\'s distinct words are not in the generated note (some are just different wording).' },
+  flow: { label: 'Story / flow', range: '0 – 1 · higher is better', formula: '0.7 × (good lines ÷ all lines)  +  0.3 × min(1, average words per line ÷ 6).  A good line has 3+ words and no filler such as "N/A", "none", "not mentioned", and no doubled words.', note: 'A formatting check, not clinical accuracy. Concise bullet notes score lower than long prose.' },
+  coverage: { label: 'Section coverage', range: '0 – 1 · higher is better', formula: 'Share of the 4 core sections (Subjective, Past history, Objective, Assessment & plan) that contain anything.', note: '1.00 = all four sections are filled.' },
+  p50: { label: 'Latency p50', range: 'seconds · lower is better', formula: 'Median time to generate one note (half the notes are faster).', note: '' },
+  p95: { label: 'Latency p95', range: 'seconds · lower is better', formula: '95th percentile: 95 % of notes finish at least this fast. The slow tail users actually notice.', note: '' },
+  words: { label: 'Note length', range: 'words', formula: 'Average word count of the rendered note.', note: 'Gold notes average about 230 words.' },
+  parity: { label: 'Parity score', range: '0 – 100 · higher is better', formula: 'An LLM reads the Notera note and the clinician\'s gold note side by side and rates how close the Notera note is (Faithfulness, Completeness, Structure, Clarity, each 0–5 for both notes). This is the "90+" score from the original Testing Lab.', note: '90+ = about as good as the clinician\'s note. 100 notes: 79.5 (old config) → 82.9 (now).' },
+  at90: { label: 'Notes at 90+', range: '% of notes · higher is better', formula: 'Parity-scored notes with a score of 90 or more  ÷  all scored notes.', note: 'Shows consistency, not just the average.' },
+  audit: { label: 'Audit score', range: '0 – 100 · higher is better', formula: 'gemini-2.5-pro audits one note against the transcript only (no gold): missing facts, wrong or unsupported claims, padding. The clinicians\' own gold notes score 73.4 on this scale.', note: 'Stricter than parity. Use it to find errors.' },
+  critical: { label: 'Critical wrong claims per note', range: 'count · lower is better (target < 0.10)', formula: 'Audit findings marked "critical" (invented or contradicted drug, dose, negation, diagnosis)  ÷  notes audited.', note: 'The safety measure that matters most.' },
+};
+/** label with a hover/focus popover explaining the metric */
+export const mtip = (key, text) => { const m = METRICS[key]; if (!m) return esc(text || key); return `<span class="mtip" tabindex="0">${esc(text || m.label)}<i aria-hidden="true">ⓘ</i><span class="mpop" role="tooltip"><b>${esc(m.label)}</b><em>${esc(m.range)}</em><span>${esc(m.formula)}</span>${m.note ? `<small>${esc(m.note)}</small>` : ''}</span></span>`; };
+export const kpi = (label, value, sub = '', tone = '', tipKey = '') => `<div class="card stat"><div class="l">${tipKey ? mtip(tipKey, label) : esc(label)}</div><div class="n ${tone}">${value}</div><div class="s">${sub}</div></div>`;
 
 // shared "currently selected run / note" so every Harness screen opens on what you were just looking at
 export const cur = {

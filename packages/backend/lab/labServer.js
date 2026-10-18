@@ -243,7 +243,7 @@ function compareRuns(aId, bId) {
   return { a: { id: A.id, label: A.label, config: A.config }, b: { id: B.id, label: B.label, config: B.config }, paired: pairs.length, metrics, rows };
 }
 function trend() {
-  return allRuns().filter((r) => r.status === 'done' && r.summary).map((r) => ({ id: r.id, label: r.label, createdAt: r.createdAt, n: r.config.n, writerModel: r.config.writerModel, promptSource: r.config.promptSource, ...r.summary }));
+  return allRuns().filter((r) => r.status === 'done' && r.summary).map((r) => ({ id: r.id, label: r.label, createdAt: r.createdAt, n: r.config.n, writerModel: r.config.writerModel, promptSource: r.config.promptSource, quality: r.quality || null, ...r.summary }));
 }
 const sameSet = (x, y) => x.ids && y.ids && x.ids.length === y.ids.length && [...x.ids].sort().join('|') === [...y.ids].sort().join('|');
 const judgesFor = (a, b) => fs.readdirSync(path.join(DATA, 'judges')).map((f) => readJson(path.join(DATA, 'judges', f))).filter((j) => j && j.status === 'done' && j.a === a && j.b === b).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
@@ -463,6 +463,14 @@ app.post('/runs/:id/report', wrap(async (req, res) => res.json({ id: await start
 app.get('/reports', wrap(async (_req, res) => res.json({ reports: fs.readdirSync(path.join(DATA, 'reports')).map((f) => readJson(path.join(DATA, 'reports', f))).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30).map(({ patterns, recommendations, what_works, ...r }) => ({ ...r, recs: recommendations?.length || 0, open: recommendations?.filter((x) => x.status === 'open').length || 0 })) })));
 app.get('/reports/:id', wrap(async (req, res) => { const r = reports.get(req.params.id) || readJson(path.join(DATA, 'reports', req.params.id + '.json')); r ? res.json(r) : res.status(404).json({ error: 'not found' }); }));
 app.patch('/reports/:id/recs/:rid', wrap(async (req, res) => { const f = path.join(DATA, 'reports', req.params.id + '.json'); const r = readJson(f); if (!r) return res.status(404).json({ error: 'not found' }); const rec = r.recommendations.find((x) => x.id === req.params.rid); if (!rec) return res.status(404).json({ error: 'not found' }); if (!['open', 'accepted', 'dismissed', 'done'].includes(req.body?.status)) return res.status(400).json({ error: 'bad status' }); rec.status = req.body.status; writeJson(f, r); reports.delete(r.id); res.json({ ok: true }); }));
+// run-level quality scores (parity / audits) stored on the run so Trends can chart them
+app.put('/runs/:id/quality', wrap(async (req, res) => { const r = loadRun(req.params.id); if (!r) return res.status(404).json({ error: 'not found' }); const q = {}; for (const k of ['parity_mean', 'parity_at90', 'parity_n', 'audit_mean', 'goldref_mean', 'critical_per_note', 'unsafe']) if (typeof req.body?.[k] === 'number') q[k] = req.body[k]; r.quality = { ...(r.quality || {}), ...q, at: new Date().toISOString() }; writeJson(runFile(r.id), r); runs.delete(r.id); res.json({ ok: true, quality: r.quality }); }));
+app.post('/runs/:id/parity', wrap(async (req, res) => {
+  const r = loadRun(req.params.id); if (!r || r.status === 'running') return res.status(400).json({ error: 'pick a finished run' });
+  const notes = readJson(notesFile(r.id), {}); const ids = r.rows.filter((x) => !x.error && notes[x.id]).map((x) => x.id); res.json({ started: ids.length });
+  (async () => { const sc = []; let i = 0; await Promise.all(Array.from({ length: 5 }, async () => { while (i < ids.length) { const id = ids[i++]; try { const p = await parityScore(notes[id], loadFixture(id).gold); if (typeof p.overall_score === 'number') sc.push(p.overall_score); } catch { /* skip */ } } }));
+    if (sc.length) { const f = loadRun(r.id); f.quality = { ...(f.quality || {}), parity_mean: +(sc.reduce((a, b) => a + b, 0) / sc.length).toFixed(2), parity_at90: sc.filter((x) => x >= 90).length, parity_n: sc.length, at: new Date().toISOString() }; writeJson(runFile(f.id), f); runs.delete(f.id); } })().catch(() => {});
+}));
 app.post('/parity', wrap(async (req, res) => { if (!req.body?.note || !req.body?.gold) return res.status(400).json({ error: 'note and gold are required' }); res.json(await parityScore(req.body.note, req.body.gold)); }));
 app.post('/audit-adhoc', wrap(async (req, res) => { if (!req.body?.transcript || !req.body?.note) return res.status(400).json({ error: 'transcript and note are required' }); res.json(await auditAdhoc(req.body)); }));
 app.post('/try', wrap(async (req, res) => res.json(await tryTranscript(req.body || {}))));
