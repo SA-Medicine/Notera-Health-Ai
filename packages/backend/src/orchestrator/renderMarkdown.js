@@ -41,7 +41,12 @@ export function noteToMarkdown(note) {
     ...bullets(s.symptom_progression), ...bullets(s.previous_episodes), ...bullets(s.functional_impact),
   ];
   const assoc = bullets(s.associated_symptoms);
-  if (story.length || assoc.length) {
+  if (note.metadata?.subjective_style === 'narrative') {
+    // The story agent wrote this as prose: render paragraphs, not one bullet per sentence.
+    const para = (v) => String(v || '').split(/\n+/).map((x) => x.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
+    const paras = [...para(s.reason_for_visit), ...para(s.hpi_details), ...para(s.aggravating_relieving_factors), ...para(s.symptom_progression), ...para(s.previous_episodes), ...para(s.functional_impact), ...para(s.associated_symptoms)];
+    if (paras.length) { L.push('### Subjective'); for (const p of paras) { L.push(p); L.push(''); } }
+  } else if (story.length || assoc.length) {
     L.push('### Subjective');
     for (const b of story) L.push(`- ${b}`);
     if (assoc.length) {

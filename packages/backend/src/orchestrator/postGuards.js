@@ -1,0 +1,103 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Deterministic post-writer guardrails, built from the diagnosis reports of the improvement loop (no model call):
+//   1. enforceTemplate     the clinic template has no "current medications" list and no separate "Follow-up" problem
+//   2. fixMisplacement     patient-reported symptoms found under Objective are moved to Subjective
+//   3. drugPlausibility    FLAG-ONLY: a common drug with no matching indication anywhere in the transcript
+//   4. checkInput          a schedule / list / ward round pasted as a "transcript" is flagged (or refused, by setting)
+// Every function returns what it did so the lab trace and the admin console can show it. Nothing here invents text.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+'use strict';
+
+const flag = (note, f) => { (note.metadata.flags ||= []).push({ severity: 'warning', ...f }); };
+const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
+const addLine = (cur, line) => (lines(cur).some((l) => l.toLowerCase() === line.toLowerCase()) ? cur : (cur ? cur + '\n' : '') + line);
+
+/** 1) Template conformance. Medication names stay in the treatment of their problem; the standalone list goes. */
+export function enforceTemplate(note, log = () => {}) {
+  const out = { medLinesRemoved: 0, followUpFolded: 0 };
+  const pmh = note.past_medical_history || {};
+  for (const k of Object.keys(pmh)) {
+    const kept = lines(pmh[k]).filter((l) => { const bad = /^(current|home|regular|usual)\s+medications?\s*:/i.test(l); if (bad) out.medLinesRemoved++; return !bad; });
+    if (kept.length !== lines(pmh[k]).length) pmh[k] = kept.join('\n');
+  }
+  const ap = note.assessment_and_plan || [];
+  const isFu = (p) => /^(follow[\s-]?up|return visit|rtc|next visit|review)\b/i.test(String(p.issue || '').trim()) && !p.diagnosis;
+  const real = ap.filter((p) => !isFu(p));
+  if (real.length && real.length < ap.length) {
+    const host = real[real.length - 1];
+    for (const p of ap.filter(isFu)) {
+      const t = [p.treatment_planned, p.assessment, p.investigations_planned].flatMap(lines);
+      for (const l of t) host.treatment_planned = addLine(host.treatment_planned, /^follow/i.test(l) ? l : `Follow-up: ${l}`);
+      out.followUpFolded++;
+    }
+    note.assessment_and_plan = real;
+  }
+  if (out.medLinesRemoved || out.followUpFolded) log(`[v2:template] removed ${out.medLinesRemoved} medication-list line(s), folded ${out.followUpFolded} follow-up problem(s) into the last real problem`);
+  return out;
+}
+
+const REPORTED = /^(patient\s+)?(reports?|reported|complains?|complained|c\/o|states?|stated|describes?|denies|denied|admits|endorses|has been (having|feeling|experiencing)|feels?|feeling|notes?\s+that|pain\b|cough\b|nausea\b|vomit)/i;
+const EXAM = /\b(exam|auscult|palpat|inspect|tender(ness)?\s+on|bp\b|blood pressure|hr\b|heart rate|temp(erature)?|spo2|sat(uration)?s?|resp(iratory)? rate|weight|bmi|lungs? (clear|sounds?)|abdomen (soft|non)|no (rash|edema|oedema|murmur)|normal (rate|rhythm|exam)|on exam|noted on)\b/i;
+
+/** 2) Patient-reported statements under Objective belong to Subjective (history). Exam findings never move. */
+export function fixMisplacement(note, log = () => {}) {
+  const moved = [];
+  const obj = note.objective || {}; const subj = note.subjective || {};
+  if (!('hpi_details' in subj)) return { moved };
+  for (const k of Object.keys(obj)) {
+    const keep = [];
+    for (const l of lines(obj[k])) {
+      if (REPORTED.test(l) && !EXAM.test(l)) { moved.push(l); subj.hpi_details = addLine(subj.hpi_details, l); } else keep.push(l);
+    }
+    if (keep.length !== lines(obj[k]).length) obj[k] = keep.join('\n');
+  }
+  if (moved.length) log(`[v2:place] moved ${moved.length} patient-reported line(s) from Objective to Subjective`);
+  return { moved };
+}
+
+// A small dictionary of very common drugs → words that justify them. Used ONLY to flag, never to edit.
+const DRUG_USE = {
+  metformin: /diabet|glyc|a1c|glucose|sugar|pcos|polycystic|prediab|insulin resist/, insulin: /diabet|glucose|sugar|a1c/, gliclazide: /diabet|glucose|sugar|a1c/, empagliflozin: /diabet|glucose|heart failure|kidney|ckd/,
+  atorvastatin: /cholesterol|lipid|statin|cardiovasc|heart|stroke|ldl|hyperlip/, rosuvastatin: /cholesterol|lipid|statin|cardiovasc|heart|stroke|ldl/, simvastatin: /cholesterol|lipid|statin|cardiovasc|heart|stroke|ldl/,
+  amlodipine: /blood pressure|hypertens|bp\b|angina/, ramipril: /blood pressure|hypertens|bp\b|heart|kidney|ckd|diabet/, lisinopril: /blood pressure|hypertens|bp\b|heart|kidney|ckd|diabet/, losartan: /blood pressure|hypertens|bp\b|kidney|ckd|diabet|heart/, valsartan: /blood pressure|hypertens|bp\b|heart/, hydrochlorothiazide: /blood pressure|hypertens|bp\b|edema|oedema|swelling/,
+  levothyroxine: /thyroid|tsh|hypothyroid/, warfarin: /clot|afib|atrial|fibrillation|dvt|embol|valve|inr|anticoag|blood thin/, apixaban: /clot|afib|atrial|fibrillation|dvt|embol|anticoag|blood thin/, rivaroxaban: /clot|afib|atrial|fibrillation|dvt|embol|anticoag|blood thin/,
+  amoxicillin: /infect|strep|throat|sinus|ear|otitis|pneumon|bronch|tonsil|uti|abscess|antibiotic|tooth|dental/, azithromycin: /infect|pneumon|bronch|chlamyd|antibiotic|sinus|throat|strep/, nitrofurantoin: /uti|urin|bladder|cystitis|dysuria|infect/, ciprofloxacin: /infect|uti|urin|antibiotic|diarr/, doxycycline: /infect|acne|lyme|antibiotic|pneumon|chlamyd|rosacea|malaria/,
+  omeprazole: /reflux|gerd|heartburn|ulcer|gastr|stomach|dyspep|indigest|ppi|acid/, pantoprazole: /reflux|gerd|heartburn|ulcer|gastr|stomach|dyspep|indigest|ppi|acid/, famotidine: /reflux|gerd|heartburn|ulcer|stomach|acid|dyspep/,
+  sertraline: /depress|anxi|mood|panic|ocd|ptsd|stress/, escitalopram: /depress|anxi|mood|panic|ocd|stress/, fluoxetine: /depress|anxi|mood|panic|ocd|bulimi/, citalopram: /depress|anxi|mood|panic/, venlafaxine: /depress|anxi|mood|panic/, mirtazapine: /depress|sleep|appetite|mood/,
+  salbutamol: /asthma|wheez|copd|breath|bronch|inhaler|cough/, albuterol: /asthma|wheez|copd|breath|bronch|inhaler|cough/, prednisone: /asthma|copd|flare|inflamm|arthrit|rash|allerg|steroid|gout|croup|crohn|colitis|polymyalgia/, prednisolone: /asthma|copd|flare|inflamm|arthrit|rash|allerg|steroid|gout|croup/,
+  cetirizine: /allerg|hay fever|rhinitis|itch|hives|urticaria|rash/, loratadine: /allerg|hay fever|rhinitis|itch|hives|urticaria|rash/, montelukast: /asthma|allerg|rhinitis|wheez/,
+  gabapentin: /nerve|neuropath|pain|seizure|neuralgia|shingles|zoster/, pregabalin: /nerve|neuropath|pain|seizure|anxi|neuralgia|fibromyalg/, sumatriptan: /migraine|headache/, tamsulosin: /prostate|urin|bph|flow|retention|stone/,
+  allopurinol: /gout|uric|urate/, colchicine: /gout|pericard|flare|joint/, alendronate: /osteopor|bone|fracture|dexa/, sildenafil: /erectile|ed\b|erection|pulmonary hypertension/, finasteride: /prostate|hair|bph|alopecia/,
+};
+const DRUG_RX = new RegExp('\\b(' + Object.keys(DRUG_USE).join('|') + ')\\b', 'gi');
+
+/** 3) Flag-only: drug named in the plan whose usual indication is not hinted anywhere in the transcript or the note. */
+export function drugPlausibility(note, transcript, log = () => {}) {
+  const T = (String(transcript || '') + '\n' + JSON.stringify(note.assessment_and_plan || []) + JSON.stringify(note.past_medical_history || {})).toLowerCase();
+  const flagged = [];
+  const seen = new Set();
+  for (const p of note.assessment_and_plan || []) {
+    for (const m of String([p.treatment_planned, p.assessment].join(' ')).matchAll(DRUG_RX)) {
+      const d = m[1].toLowerCase(); if (seen.has(d)) continue; seen.add(d);
+      if (!DRUG_USE[d].test(T)) {
+        flagged.push({ drug: d, issue: p.issue });
+        flag(note, { type: 'drug_indication_unclear', field: 'treatment_planned', message: `"${m[1]}" is planned under "${p.issue}", but nothing in the transcript mentions what it is for — please verify the drug.` });
+      }
+    }
+  }
+  if (flagged.length) log(`[v2:plausible] flagged ${flagged.map((f) => f.drug).join(', ')} (no indication in transcript)`);
+  return { flagged };
+}
+
+/** 4) Is this a consultation at all? A schedule / roster / shopping-list style paste has many time or list markers and few sentences. */
+export function checkInput(transcript) {
+  const t = String(transcript || ''); const ls = t.split('\n').map((x) => x.trim()).filter(Boolean);
+  const words = (t.match(/\S+/g) || []).length;
+  if (words < 25) return { ok: false, reason: 'too_short', message: `Only ${words} words — too short to be a consultation.` };
+  const timed = ls.filter((l) => /^(\[?\d{1,2}[:.]\d{2}\]?|\d{1,2}\s?(am|pm)\b|mon|tue|wed|thu|fri|sat|sun)\b/i.test(l)).length;
+  const bullets = ls.filter((l) => /^([-*•]|\d+[.)])\s/.test(l)).length;
+  const speech = (t.match(/\b(I|you|my|your|me|we|doctor|patient|feel|have|been|take|taking|pain|how|what|okay|yes|no)\b/gi) || []).length;
+  const listy = ls.length >= 6 && (timed + bullets) / ls.length >= 0.6;
+  if (listy && speech / Math.max(words, 1) < 0.12) return { ok: false, reason: 'schedule_or_list', message: 'The text looks like a schedule or a list, not a spoken consultation.' };
+  return { ok: true };
+}
