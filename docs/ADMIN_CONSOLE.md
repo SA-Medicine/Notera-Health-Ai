@@ -83,3 +83,6 @@ Conclusion at the time: keep 2.5 Flash for the writer; use the Optimize loop to 
 * No alerting yet (e.g. failure-rate threshold email). `System` shows the numbers; paging is a follow-up.
 * Production writer is still `gemini-2.5-flash`; change it in *Settings → Writer model* when evidence supports it.
 * Earlier open items still stand: DB password committed in `db/secrets/pg_password.txt` should be rotated; no email verification on sign-up; clinician review of note quality.
+
+## 2026-10-20 addendum: story agent and report guardrails
+The pipeline now ends with an independent **Story agent** (Prompts → Story agent, Settings → Story agent) that rewrites the Subjective as a grammatical clinical history; code rejects any rewrite that changes numbers or loses facts. Deterministic **template** and **placement** guards, a **drug plausibility** flag and an **input check** sit before it (Settings → Safety guards). All are on by default and can be switched off in Settings; per-run overrides are in Lab → Run & inputs → "pipeline stages for this run". Evidence and limits: `docs/reports/STORY_AGENT_2026-10-20.md`.
