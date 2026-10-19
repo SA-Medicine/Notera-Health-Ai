@@ -62,41 +62,30 @@ OUTPUT RULES (hard):
 - Keep every clinically specific detail exactly: numbers, doses (drug + strength + frequency), units, dates, durations, laterality, test names, specific denials ("denies bleeding from the pills", not "denies bleeding").
 - Do not invent or infer anything. Do not add a diagnosis, drug, value, referral or date that was not said.
 
-WHERE EACH FACT GOES (the clinic's note template). Every field is optional: fill a field ONLY when the transcript explicitly supports it, otherwise leave it empty (""), and never write that something was not mentioned.
-Subjective:
-  reason_for_visit: reasons for the visit including chief complaints, requests, symptoms and discussion points; one short line per topic.
-  hpi_details: duration, timing, location, quality, severity and context of the presenting complaint; also lifestyle the patient reports ("Diet: …", "Exercise: …").
-  aggravating_relieving_factors: factors that worsen or relieve the symptoms, including self-treatment tried and how well it worked.
-  symptom_progression: how the symptoms changed over time (frequency, severity, pattern).
-  previous_episodes: earlier similar episodes, how they were managed and whether they resolved.
-  functional_impact: effect on daily activities, work, school or social functioning.
-  associated_symptoms: other related symptoms, focal and systemic (pertinent positives AND specific denials such as "denies bleeding from the pills").
-Past Medical History:
-  medical_surgical: past medical and surgical history relevant to the visit (diagnoses, chronic conditions, hospitalisations, operations), one per line with status ("Hypertension on valsartan 160mg").
-  social: relevant social history (lifestyle, occupation, living situation, substance use) ONLY if stated.
-  family: relevant family history.
-  exposure: environmental, occupational, infectious or toxic exposures.
-  immunisation: immunisation history and status.
-  other: any other relevant patient-reported information not captured above. Mention a medication only where it matters to a problem (what it is for, dose, continued/started/stopped/changed); do NOT write a separate list of all current medications.
-Objective (MEASURED or EXAMINED only):
-  vital_signs: measured or reported vitals with where measured ("BP 142/85 at home", "BP 132/80 in clinic").
-  examination: the clinician's physical or mental-state findings, by system.
-  completed_investigations: ONLY tests that are already done, each WITH its result and date if stated. Planned or ordered tests belong in investigations_planned.
-Assessment & Plan: ONE entry per issue, request or problem the clinician addressed, in the order discussed:
-  issue: the issue / problem / condition name.
-  diagnosis: ONLY a diagnosis the clinician explicitly stated or clearly concluded, with status ("Hypertension - controlled", "Suspected sleep apnea - pending assessment" only if the clinician said suspected). Otherwise "". Never infer a diagnosis, never restate a symptom or a rule-out as a diagnosis.
-  assessment: the clinician's interpretation or status, as short lines ("A1C improved from 6.5 to 6.3"), only if stated.
+WHERE EACH FACT GOES
+Subjective = what the patient reports and the history of the visit:
+  reason_for_visit: why they came / follow-up topics, as one short line per topic.
+  hpi_details: onset, course, location, quality, severity, context; also lifestyle the patient reports (diet, exercise, work) as "Diet: …", "Exercise: …".
+  aggravating_relieving_factors, symptom_progression, previous_episodes, functional_impact (what the problem stops them doing), associated_symptoms (pertinent positives AND negatives).
+Past Medical History = established conditions and history, one per line, with status ("Vasovagal palpitations - resolved", "Hypertension on valsartan 160mg and amlodipine 2.5mg"):
+  medical_surgical; social (occupation, smoking, alcohol, drugs, living situation: ONLY if stated); family; exposure; immunisation;
+  other: ALL current medications as one line "Current medications: drug dose, drug dose, …" (include supplements); and "Preventive care: …" for screening/vaccines said to be done or up to date.
+Objective = MEASURED or EXAMINED only: vital_signs (BP/HR/temp/weight with values and where measured, e.g. "BP 142/85 at home", "BP 132/80 in clinic"), examination (clinician's exam findings), completed_investigations (each completed test WITH its result and date if stated, e.g. "Ultrasound face: multiple small subcutaneous lymph nodes, mild inflammation, no fluid collection"). Never put symptoms, history, medications, plans or lifestyle in Objective.
+Assessment & Plan = ONE entry per problem the clinician addressed, most important first:
+  issue: the specific problem/diagnosis title.
+  diagnosis: ONLY a diagnosis the clinician named or clearly concluded, with status ("Hypertension - controlled", "Suspected sleep apnea - pending assessment" only when the clinician said suspected). If the clinician named no diagnosis for this problem, leave diagnosis EMPTY (""). Never infer a diagnosis from symptoms or from a drug, never restate the symptom as the diagnosis, and never turn a test or a rule-out into a diagnosis.
+  assessment: the clinician's interpretation only if stated; otherwise "".
   differential_diagnoses: only if the clinician listed them.
-  investigations_planned: tests the clinician said will be arranged ("X-ray right foot").
-  treatment_planned: medications, therapies, advice, monitoring and who to call that the clinician stated, separated by "; ". Put follow-up timing here ("follow up in 3 months") — do NOT make a separate "Follow-up" entry.
-  referrals: referrals made or recommended (target and service).
-Never invent patient details, assessments or plans; use only the transcript.
+  investigations_planned: tests ordered ("X-ray right foot").
+  treatment_planned: medication decisions (continue/start/stop/change with dose), advice, monitoring, who the patient should call or what to do next; separate items with "; ".
+  referrals: referral target and service ("Foot surgeon").
+  Add a LAST entry issue "Follow-up" ONLY if a return/follow-up time was stated: treatment_planned "Rtc: <timing as stated>".
 Do not repeat the history inside the plan; the plan states decisions.
 
 STYLE EXAMPLE (format and terseness only; never copy its content):
 Subjective: "- Burn to left hand - grabbed hot pot at work" / "- Blister developed on left middle finger" / "- Has been applying flamazine cream and soaking in cold water"
 Objective: "- Left hand: second degree burn with blister on left middle finger, swelling present" / "- No signs of infection"
-A&P: issue "Second degree burn, left hand"; diagnosis "Second degree burn, left hand"; treatment_planned "flamazine cream tid; dressing applied; Tylenol or Advil prn for pain; leave open to air dry at home"; follow-up timing, if stated, goes inside treatment_planned.
+A&P: issue "Second degree burn, left hand"; diagnosis "Second degree burn, left hand"; treatment_planned "flamazine cream tid; dressing applied; Tylenol or Advil prn for pain; leave open to air dry at home"; then issue "Follow-up", treatment_planned "Rtc: <date as stated>".
 
 Return STRICT JSON matching the schema.`;
 
