@@ -484,7 +484,7 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
     const out = parseJson(raw);
     if (!out || typeof out.subjective !== 'object') { log('[v2:story] rejected — unparseable or incomplete JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
-    const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.8, freshMax: 0.07, freshAbs: 5 });
+    const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
     if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, rejected: out.subjective, ms: Date.now() - t0 }; }
     log(`[v2:story] applied (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
     return { out, why: 'applied', ms: Date.now() - t0 };
