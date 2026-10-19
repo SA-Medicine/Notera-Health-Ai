@@ -422,7 +422,7 @@ const EDITOR_SYS = `You are the senior reviewer of an AI-drafted SOAP note (JSON
 Style: one fact per line, short clinical phrases, exact numbers, doses and specific denials. Return ONLY the JSON.`;
 
 /** Accept the editor's output only if it did not lose or invent clinical content (deterministic check). */
-const NARRATIVE_WORDS = new Set('been have with from that which since after despite however while there their they this these those then than also again currently previously recently several about around over during before because causing where when were being would could patient presents present presenting reports reported denies denied states stated notes noted describes described complains complained associated symptoms symptom include includes including history onset gradually subsequently continues continued remains remained improved improving worse worsening better overall otherwise further further still just only most some both either neither each other another into onto upon within without between through until while though although whereas thereafter therefore thus hence once twice'.split(' '));
+const NARRATIVE_WORDS = new Set('been have with from that which since after despite however while there their they this these those then than also again currently previously recently several about around over during before because causing where when were being would could patient presents present presenting reports reported denies denied states stated notes noted describes described complains complained associated symptoms symptom include includes including history onset gradually subsequently continues continued remains remained improved improving worse worsening better overall otherwise further further still just only most some both either neither each other another into onto upon within without between through until while though although whereas thereafter therefore thus hence once twice follow following followed ongoing such involving evaluation approximately occasionally episode episodes received receiving identified monitor monitors monitoring regarding initially known began begun began started starts continues later earlier early shortly became become becoming remained remain tried trying sought seeking due having had has made make getting gets got went goes gone come came coming told said says asked asks reason visit concerns concern'.split(' '));
 export function editorAccepts(draft, edited, transcript, o = {}) {
   const flat = (o) => (o && typeof o === 'object' ? Object.values(o).map(flat).join(' ') : String(o ?? ''));   // string values only (no keys, no JSON escapes)
   const T = new Set(words(transcript)); const D = new Set(words(flat(draft))); const E = new Set(words(flat(edited)));
@@ -441,7 +441,8 @@ export function editorAccepts(draft, edited, transcript, o = {}) {
   // Prose needs connectives and inflections ("takes" for "taking"): in story mode a word is not new if it shares its first 4 letters with a transcript/draft word or is a narrative function word.
   const stems = o.noPlan ? new Set([...T, ...D].map((w) => w.slice(0, 4))) : null;
   const fresh = [...E].filter((w) => !T.has(w) && !D.has(w) && !(stems && (stems.has(w.slice(0, 4)) || NARRATIVE_WORDS.has(w)))); const freshRate = fresh.length / Math.max(1, E.size);
-  if (freshRate > (o.freshMax ?? 0.06)) return { ok: false, why: `${(freshRate * 100).toFixed(0)}% brand-new words (${fresh.slice(0, 4).join(', ')})` };
+  if (freshRate > (o.freshMax ?? 0.06) || (o.freshAbs != null && fresh.length > o.freshAbs)) return { ok: false, why: `${(freshRate * 100).toFixed(0)}% brand-new words (${fresh.slice(0, 4).join(', ')})` };
+  if (o.noPlan && /unspecified|not (mentioned|specified|stated|documented)|unknown date/i.test(flat(edited)) && !/unspecified|not (mentioned|specified|stated|documented)|unknown date/i.test(flat(draft))) return { ok: false, why: 'states that something was unspecified / not mentioned' };
   return { ok: true, kept, numKeep, fresh: fresh.length };
 }
 async function editWriterJson(llm, draft, transcript, log, { prompt, model, timeoutMs }) {
@@ -472,6 +473,7 @@ SUBJECTIVE
 - Move the content of aggravating_relieving_factors, symptom_progression, previous_episodes and functional_impact INTO the story above and leave those four fields as empty strings.
 PAST MEDICAL HISTORY: keep the same fields and the same facts, but make every line a clear grammatical statement ("Hypertension for 10 years, treated with ramipril." "Lives with her husband and does not smoke.").
 STYLE: third person, neutral clinical register, no quotes of the patient, no first person. Use "he" or "she" ONLY if the transcript makes the sex explicit; otherwise write "the patient" once and then rely on sentence structure. Tense follows the facts (current problems present tense, past events past tense).
+PLACEHOLDERS: the text may contain de-identification placeholders such as [date], [name] or "the specialist"; keep them exactly as written and never write "unspecified", "unknown" or "not mentioned" around them. Use the transcript only to check wording; do not pull in facts that are not in the NOTE JSON.
 HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note; never state that something was not mentioned; never move facts out of Subjective or Past Medical History; leave an empty field empty. Return ONLY the JSON.`;
 export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
   const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
@@ -482,7 +484,7 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
     const out = parseJson(raw);
     if (!out || typeof out.subjective !== 'object') { log('[v2:story] rejected — unparseable or incomplete JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
-    const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.85, freshMax: 0.08 });
+    const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.8, freshMax: 0.07, freshAbs: 5 });
     if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, rejected: out.subjective, ms: Date.now() - t0 }; }
     log(`[v2:story] applied (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
     return { out, why: 'applied', ms: Date.now() - t0 };
