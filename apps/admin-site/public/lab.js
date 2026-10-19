@@ -59,6 +59,8 @@ export async function labView(ctx) {
     const body = { writerModel: P.model, label: P.label.trim() };
     const a = chosen() || pickRandom(P.n); body.ids = a;
     if (P.temp !== '') body.writerTemp = Number(P.temp); if (P.topP !== '') body.writerTopP = Number(P.topP);
+    for (const [k, f] of [['story', 'story'], ['gt', 'guardTemplate'], ['gp', 'guardPlacement']]) if (P[k]) body[f] = P[k] === 'on';
+    if (P.storyModel) body.storyModel = P.storyModel;
     if (P.prompt === 'default') body.prompt = 'default'; else if (P.prompt !== 'active') body.candidateId = P.prompt;
     $('#lgo').disabled = true;
     try { await lab('/runs', { method: 'POST', json: body }); toast(`Run started · ${a.length} notes`); } catch (e) { toast(e.message, true); }
@@ -84,7 +86,8 @@ export async function labView(ctx) {
           <label class="lbl">Prompt<select class="select" id="lp">${opts([['active', 'Production (active)'], ['default', 'Built-in default'], ...cands.candidates.map((c) => [c.id, 'Candidate ' + c.id.slice(-6) + ' · ' + ago(c.createdAt)])], P.prompt)}</select></label>
           <label class="lbl">Run name <span class="hint">(optional)</span><input class="input" id="ll" placeholder="e.g. Lite vs Flash" value="${esc(P.label)}"></label>
         </div>
-        <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Advanced: temperature / topP</summary><div class="grid2" style="margin-top:8px"><label class="lbl">Temperature<input class="input" id="lt" type="number" step="0.1" min="0" max="1" placeholder="0.3" value="${esc(P.temp)}"></label><label class="lbl">topP<input class="input" id="ltp" type="number" step="0.05" min="0.1" max="1" placeholder="0.9" value="${esc(P.topP)}"></label></div></details></div>
+        <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Advanced: temperature / topP</summary><div class="grid2" style="margin-top:8px"><label class="lbl">Temperature<input class="input" id="lt" type="number" step="0.1" min="0" max="1" placeholder="0.3" value="${esc(P.temp)}"></label><label class="lbl">topP<input class="input" id="ltp" type="number" step="0.05" min="0.1" max="1" placeholder="0.9" value="${esc(P.topP)}"></label></div></details>
+        <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Advanced: pipeline stages for this run (story agent, guards)</summary><div class="grid2" style="margin-top:8px">${[['ls1', 'Story agent', 'story'], ['ls2', 'Template guard', 'gt'], ['ls3', 'Placement guard', 'gp']].map(([id, t, k]) => `<label class="lbl">${t}<select class="select" id="${id}">${opts([['', 'Production setting'], ['on', 'On for this run'], ['off', 'Off for this run']], P[k] || '')}</select></label>`).join('')}<label class="lbl">Story model<select class="select" id="ls4">${opts([['', 'Production setting'], ...models().map((m) => (Array.isArray(m) ? m : [m, m]))], P.storyModel || '')}</select></label></div></details></div>
       <div class="fstep"><div class="stephead"><b>3 · Start</b></div><div class="tools"><button class="btn primary" id="lgo">Start run</button><span class="hint">About 6 s per note, 3 at a time — 20 notes ≈ 1–2 min. Runs on the Google VM.</span></div></div>
       </div>
       <div id="ownpane" style="display:none"></div><div id="audiopane" style="display:none"></div>
@@ -94,6 +97,7 @@ export async function labView(ctx) {
     <p class="hint">Similarity ↑ better · Omission ↓ better (gold-note facts missing) · Flow ↑ better. To judge which version really wins, use <b>Compare</b>.</p>`;
     drawSelector(); showInput();
     $('#lm').onchange = (e) => { P.model = e.target.value; }; $('#lp').onchange = (e) => { P.prompt = e.target.value; };
+    [['ls1', 'story'], ['ls2', 'gt'], ['ls3', 'gp'], ['ls4', 'storyModel']].forEach(([id, k]) => { $('#' + id).onchange = (e) => { P[k] = e.target.value; }; });
     $('#ll').oninput = (e) => { P.label = e.target.value; }; $('#lt').oninput = (e) => { P.temp = e.target.value; }; $('#ltp').oninput = (e) => { P.topP = e.target.value; };
     $('#lgo').onclick = startRun; $('#tocmp').onclick = () => go('compare'); $('#totr').onclick = () => go('trends');
     document.querySelectorAll('[data-inp]').forEach((b) => { b.onclick = () => { P.input = b.dataset.inp; showInput(); }; });
