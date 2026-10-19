@@ -61,3 +61,18 @@ test('editorAccepts keeps safe edits and rejects loss or invention', () => {
   const gutted = { subjective: { hpi_details: 'Knee pain' }, objective: {}, assessment_and_plan: [{ issue: 'Knee pain' }] };
   assert.equal(editorAccepts(draft, gutted, transcript).ok, false, 'losing most of the draft is rejected');
 });
+
+test('storyPass applies a faithful rewrite and rejects one that invents a fact', async () => {
+  const { storyPass } = await import('../src/orchestrator/generateNoteV2.js');
+  const transcript = 'Patient has left knee pain for 3 weeks, worse on stairs. Denies fever. Taking naproxen 500 mg twice daily. Referred to physiotherapy.';
+  const note = { subjective: { hpi_details: 'Pain\nLeft knee\n3 weeks\nWorse on stairs\nDenies fever' }, past_medical_history: {}, objective: {}, assessment_and_plan: [{ issue: 'Knee pain', treatment_planned: 'Naproxen 500 mg twice daily', referrals: 'Physiotherapy' }] };
+  const rewrite = (o) => ({ generateContent: async () => JSON.stringify(o) });
+  const good = { ...note, subjective: { hpi_details: 'Left knee pain for 3 weeks, worse on stairs\nDenies fever' } };
+  const ok = await storyPass(rewrite(good), note, transcript, () => {}, {});
+  assert.ok(ok.out, 'faithful rewrite is applied');
+  const bad = { ...good, assessment_and_plan: [{ issue: 'Knee pain', treatment_planned: 'Naproxen 750 mg twice daily', referrals: 'Physiotherapy' }] };
+  const no = await storyPass(rewrite(bad), note, transcript, () => {}, {});
+  assert.equal(no.out, null, 'changed dose is rejected');
+  const err = await storyPass({ generateContent: async () => { throw new Error('boom'); } }, note, transcript, () => {}, {});
+  assert.equal(err.out, null, 'an LLM error keeps the draft');
+});
