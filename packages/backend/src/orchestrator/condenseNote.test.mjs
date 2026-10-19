@@ -68,7 +68,7 @@ console.log('render · A&P stays bulleted after condensing');
   });
   condenseNote(n, {}, () => {});
   const md = noteToMarkdown(n);
-  ok('A&P renders as a numbered issue with sub-bullets', /1\. \*\*Anemia\*\*/.test(md) && /- Treatment: Continue iron/.test(md));
+  ok('A&P renders as a numbered issue with sub-bullets', /1\. \*\*Anemia\*\*/.test(md) && /- Treatment planned: Continue iron/.test(md));
   ok('the redundant sentence is gone from the render', !/Severe anemia not improving on oral iron/.test(md.split('Assessment & Plan')[1] || ''));
 }
 

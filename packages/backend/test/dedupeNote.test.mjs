@@ -264,7 +264,7 @@ test('history bled into a single-line plan field is removed, orders are kept', a
   for (const keep of ['Increase amlodipine to 10 mg', 'Continue daily home blood pressure', 'Follow up in clinic in 2 weeks', 'Paracetamol 1 g PRN']) {
     assert.match(plan, new RegExp(keep, 'i'), `order wrongly removed from the Plan: ${keep}`);
   }
-  assert.match(noteToMarkdown(n), /Investigations: Kidney function and electrolytes/);
+  assert.match(noteToMarkdown(n), /Investigations planned: Kidney function and electrolytes/);
 });
 
 test('bled history is KEPT when the Subjective is empty', () => {
