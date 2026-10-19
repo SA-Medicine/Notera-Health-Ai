@@ -75,7 +75,7 @@ export async function labView(ctx) {
     $('#lab-root').className = '';
     $('#lab-root').innerHTML = `
     <section class="card" style="margin-bottom:18px"><h3 style="margin:0 0 10px">What do you want to test? <span class="hint">${info.usable.toLocaleString()} gold notes available · production writer is ${esc(info.writerModel)}</span></h3>
-      <div class="segs" id="inp" role="group" aria-label="Input type"><button type="button" class="seg" data-inp="gold">Gold notes <span class="hint">test many, scored</span></button><button type="button" class="seg" data-inp="own">Paste a transcript <span class="hint">test one</span></button><button type="button" class="seg" data-inp="audio">Upload audio <span class="hint">full pipeline</span></button></div>
+      <div class="segs" id="inp" role="group" aria-label="Input type"><button type="button" class="seg" data-inp="gold">Gold notes <span class="hint">test many, scored</span></button><button type="button" class="seg" data-inp="own">Paste a transcript <span class="hint">test one</span></button><button type="button" class="seg" data-inp="audio">Predefined audio <span class="hint">listen · download</span></button></div>
       <div id="goldpane">
       <div class="fstep"><div class="stephead"><b>1 · Choose notes</b><span id="lcnt" class="pill acc"></span></div><div id="lsel"></div></div>
       <div class="fstep"><div class="stephead"><b>2 · Writer &amp; prompt</b></div>
@@ -87,7 +87,7 @@ export async function labView(ctx) {
         <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Advanced: temperature / topP</summary><div class="grid2" style="margin-top:8px"><label class="lbl">Temperature<input class="input" id="lt" type="number" step="0.1" min="0" max="1" placeholder="0.3" value="${esc(P.temp)}"></label><label class="lbl">topP<input class="input" id="ltp" type="number" step="0.05" min="0.1" max="1" placeholder="0.9" value="${esc(P.topP)}"></label></div></details></div>
       <div class="fstep"><div class="stephead"><b>3 · Start</b></div><div class="tools"><button class="btn primary" id="lgo">Start run</button><span class="hint">About 6 s per note, 3 at a time — 20 notes ≈ 1–2 min. Runs on the Google VM.</span></div></div>
       </div>
-      <div id="ownpane" style="display:none"></div><div id="audiopane" style="display:none"><div class="card empty">Audio goes through the real pipeline (speech-to-text, then the note) in <a class="lnk" id="toaudio">Test bench</a>. Pick a file there; it is recorded in the Notes list marked [TEST].</div></div>
+      <div id="ownpane" style="display:none"></div><div id="audiopane" style="display:none"></div>
     </section>
     <div class="head" style="margin:0 0 8px"><h3>Runs <span class="hint">press “Review notes” on a finished run to read every note beside its gold note</span></h3><div class="tools"><button class="btn sm" id="tocmp">Compare runs →</button><button class="btn sm" id="totr">Trends →</button></div></div>
     <div id="lruns"></div>
@@ -97,13 +97,24 @@ export async function labView(ctx) {
     $('#ll').oninput = (e) => { P.label = e.target.value; }; $('#lt').oninput = (e) => { P.temp = e.target.value; }; $('#ltp').oninput = (e) => { P.topP = e.target.value; };
     $('#lgo').onclick = startRun; $('#tocmp').onclick = () => go('compare'); $('#totr').onclick = () => go('trends');
     document.querySelectorAll('[data-inp]').forEach((b) => { b.onclick = () => { P.input = b.dataset.inp; showInput(); }; });
-    const ta = $('#toaudio'); if (ta) ta.onclick = () => go('bench');
     await refreshRuns();
   }
   function showInput() {
     document.querySelectorAll('[data-inp]').forEach((b) => b.classList.toggle('on', b.dataset.inp === P.input));
     $('#goldpane').style.display = P.input === 'gold' ? '' : 'none'; $('#audiopane').style.display = P.input === 'audio' ? '' : 'none'; $('#ownpane').style.display = P.input === 'own' ? '' : 'none';
     if (P.input === 'own') drawOwn();
+    if (P.input === 'audio') drawAudio();
+  }
+  // predefined audio library: listen in the browser, download the mp3, or reuse its human transcript as the test input
+  async function drawAudio() {
+    const box = $('#audiopane'); if (box.dataset.ready) return; box.dataset.ready = '1'; box.innerHTML = '<div class="empty">Loading recordings…</div>';
+    let list; try { list = (await lab('/audio')).audio; } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; box.dataset.ready = ''; return; }
+    box.innerHTML = `<p class="hint" style="margin:0 0 10px">Real simulated doctor–patient consultations (${list.length} recordings, 9–13 min each). <b>Play</b> to listen, <b>Download</b> to save the mp3, <b>Use transcript</b> to test the note writer on what was said. To test speech-to-text as well, download an mp3 and upload it in <a class="lnk" id="toaudio">Test bench</a>.</p>
+      <div class="audlist">${list.map((a) => `<div class="audrow"><div class="audinfo"><b>${esc(a.id)}</b> <span class="pill">${esc(a.category)}</span> <span class="hint">≈${a.minutes} min · ${(a.bytes / 1e6).toFixed(1)} MB</span></div>
+        <audio controls preload="none" src="/lab/audio/${esc(a.id)}/file"></audio>
+        <div class="tools"><a class="btn sm" href="/lab/audio/${esc(a.id)}/file?download=1" download>Download mp3</a>${a.hasTranscript ? `<button class="btn sm primary" data-use="${esc(a.id)}">Use transcript</button>` : ''}</div></div>`).join('')}</div>`;
+    const ta = $('#toaudio'); if (ta) ta.onclick = () => go('bench');
+    box.querySelectorAll('[data-use]').forEach((b) => { b.onclick = async () => { try { const t = await lab('/audio/' + b.dataset.use + '/transcript'); P.own = t.text; P.ownGold = ''; $('#ownpane').dataset.ready = ''; $('#ownpane').innerHTML = ''; P.input = 'own'; showInput(); toast('Transcript loaded — press “Run on this transcript”'); } catch (e) { toast(e.message, true); } }; });
   }
   function drawOwn() {
     const box = $('#ownpane'); if (box.dataset.ready) return; box.dataset.ready = '1';

@@ -28,7 +28,7 @@ const DATA = process.env.LAB_DATA_DIR || path.join(ROOT, 'lab-data');
 const KEY = process.env.LAB_KEY || '';
 const JUDGE_MODEL = process.env.LAB_JUDGE_MODEL || 'gemini-2.5-pro';
 const IMPROVE_MODEL = process.env.LAB_IMPROVE_MODEL || 'gemini-2.5-pro';
-for (const d of ['runs', 'judges', 'candidates', 'analysis', 'reports']) fs.mkdirSync(path.join(DATA, d), { recursive: true });
+for (const d of ['runs', 'judges', 'candidates', 'analysis', 'reports', 'audio']) fs.mkdirSync(path.join(DATA, d), { recursive: true });
 if (process.env.NORMALIZE_DEID_DATES === undefined) process.env.NORMALIZE_DEID_DATES = '1';   // gold corpus uses synthetic ISO date placeholders
 
 const M = await import(pathToFileURL(path.join(ROOT, 'eval', 'metrics.mjs')).href);
@@ -474,6 +474,11 @@ app.post('/runs/:id/parity', wrap(async (req, res) => {
 app.post('/parity', wrap(async (req, res) => { if (!req.body?.note || !req.body?.gold) return res.status(400).json({ error: 'note and gold are required' }); res.json(await parityScore(req.body.note, req.body.gold)); }));
 app.post('/audit-adhoc', wrap(async (req, res) => { if (!req.body?.transcript || !req.body?.note) return res.status(400).json({ error: 'transcript and note are required' }); res.json(await auditAdhoc(req.body)); }));
 app.post('/try', wrap(async (req, res) => res.json(await tryTranscript(req.body || {}))));
+// predefined audio library: real simulated consultations (mp3) with their human transcripts — play, download, reuse the transcript
+const AUDIO = path.join(DATA, 'audio'); const CAT = { CAR: 'Cardiovascular', DER: 'Dermatology', GAS: 'Gastrointestinal', MSK: 'Musculoskeletal', RES: 'Respiratory' };
+app.get('/audio', wrap(async (_req, res) => res.json({ audio: fs.readdirSync(AUDIO).filter((f) => f.endsWith('.mp3')).sort().map((f) => { const id = f.replace(/\.mp3$/, ''); const st = fs.statSync(path.join(AUDIO, f)); return { id, category: CAT[id.slice(0, 3)] || 'Other', bytes: st.size, minutes: Math.round(st.size / 1e6 / 0.9), hasTranscript: fs.existsSync(path.join(AUDIO, id + '.txt')) }; }) })));
+app.get('/audio/:id/file', wrap(async (req, res) => { if (!/^[A-Za-z0-9_-]+$/.test(req.params.id)) return res.status(400).json({ error: 'bad id' }); const f = path.join(AUDIO, req.params.id + '.mp3'); if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' }); if (req.query.download) res.attachment(req.params.id + '.mp3'); res.sendFile(f, { acceptRanges: true }); }));
+app.get('/audio/:id/transcript', wrap(async (req, res) => { if (!/^[A-Za-z0-9_-]+$/.test(req.params.id)) return res.status(400).json({ error: 'bad id' }); const f = path.join(AUDIO, req.params.id + '.txt'); if (!fs.existsSync(f)) return res.status(404).json({ error: 'no transcript' }); res.json({ id: req.params.id, text: fs.readFileSync(f, 'utf8') }); }));
 app.get('/compare', wrap(async (req, res) => res.json(compareRuns(String(req.query.a), String(req.query.b)))));
 app.get('/trend', wrap(async (_req, res) => res.json({ runs: trend() })));
 app.get('/baseline-run', wrap(async (_req, res) => { const b = readJson(path.join(DATA, 'baseline-run.json'), null); const r = b && loadRun(b.runId); res.json({ baseline: r ? { ...runView(r), pinnedAt: b.pinnedAt } : null }); }));
