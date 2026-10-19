@@ -247,6 +247,8 @@ export function cleanNote(note) {
 // ── helpers ──────────────────────────────────────────────────────────────────
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 const words = (s) => norm(s).split(' ').filter((w) => w.length > 3);
+const NUMWORD = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const numWordsToDigits = (s) => String(s || '').replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/gi, (w) => String(NUMWORD[w.toLowerCase()]));
 const numsOf = (s) => String(s || '').match(/\d+(?:\.\d+)?/g) || [];
 
 function parseJson(raw) {
@@ -424,7 +426,8 @@ const NARRATIVE_WORDS = new Set('been have with from that which since after desp
 export function editorAccepts(draft, edited, transcript, o = {}) {
   const flat = (o) => (o && typeof o === 'object' ? Object.values(o).map(flat).join(' ') : String(o ?? ''));   // string values only (no keys, no JSON escapes)
   const T = new Set(words(transcript)); const D = new Set(words(flat(draft))); const E = new Set(words(flat(edited)));
-  const tNums = new Set(numsOf(transcript)); const dNums = new Set(numsOf(flat(draft))); const eNums = new Set(numsOf(flat(edited)));
+  const nw = o.noPlan ? numWordsToDigits : (x) => x;   // prose may write "three weeks" for "3 weeks"
+  const tNums = new Set(numsOf(nw(transcript))); const dNums = new Set(numsOf(nw(flat(draft)))); const eNums = new Set(numsOf(nw(flat(edited))));
   if (!o.noPlan) {
     if (!Array.isArray(edited?.assessment_and_plan)) return { ok: false, why: 'no assessment_and_plan' };
     if ((draft.assessment_and_plan || []).length && !edited.assessment_and_plan.length) return { ok: false, why: 'dropped every problem' };
@@ -463,13 +466,13 @@ async function editWriterJson(llm, draft, transcript, log, { prompt, model, time
 // model and switch, and editorAccepts() (story mode) rejects any rewrite that loses a fact or invents one — the verified draft is then kept.
 const STORY_SYS = `You are the story editor of a clinical scribe. You receive the SUBJECTIVE and PAST MEDICAL HISTORY of a clinical note as JSON, plus the TRANSCRIPT they came from. Rewrite them so a physician reads a proper clinical story, not a list of fragments. Return the SAME JSON keys.
 SUBJECTIVE
-- reason_for_visit: ONE complete sentence saying why the patient came ("Presents with left knee pain for three weeks.").
+- reason_for_visit: ONE complete sentence saying why the patient came ("Presents with left knee pain for 3 weeks.").
 - hpi_details: the history of the presenting complaint as one to three short paragraphs of complete, grammatical sentences, in the order a physician would tell it: onset and duration; character, location and severity; how it has progressed; what makes it better or worse and what has been tried; previous episodes; the effect on daily life, work or sleep. Link the sentences with natural connectives (since, after, despite, which, however, so) so each follows from the one before. Use paragraphs, not bullets, and no dashes or list markers.
 - associated_symptoms: one or two sentences ("Associated symptoms include X and Y. She denies Z.") — positives first, then the specific denials.
 - Move the content of aggravating_relieving_factors, symptom_progression, previous_episodes and functional_impact INTO the story above and leave those four fields as empty strings.
-PAST MEDICAL HISTORY: keep the same fields and the same facts, but make every line a clear grammatical statement ("Hypertension for ten years, treated with ramipril." "Lives with her husband and does not smoke.").
+PAST MEDICAL HISTORY: keep the same fields and the same facts, but make every line a clear grammatical statement ("Hypertension for 10 years, treated with ramipril." "Lives with her husband and does not smoke.").
 STYLE: third person, neutral clinical register, no quotes of the patient, no first person. Use "he" or "she" ONLY if the transcript makes the sex explicit; otherwise write "the patient" once and then rely on sentence structure. Tense follows the facts (current problems present tense, past events past tense).
-HARD RULES: keep every fact exactly — every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note; never state that something was not mentioned; never move facts out of Subjective or Past Medical History; leave an empty field empty. Return ONLY the JSON.`;
+HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note; never state that something was not mentioned; never move facts out of Subjective or Past Medical History; leave an empty field empty. Return ONLY the JSON.`;
 export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
   const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
@@ -480,7 +483,7 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
     const out = parseJson(raw);
     if (!out || typeof out.subjective !== 'object') { log('[v2:story] rejected — unparseable or incomplete JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
     const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.85, freshMax: 0.08 });
-    if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, ms: Date.now() - t0 }; }
+    if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, rejected: out.subjective, ms: Date.now() - t0 }; }
     log(`[v2:story] applied (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
     return { out, why: 'applied', ms: Date.now() - t0 };
   } catch (e) { log(`[v2:story] skipped — ${e.message}`); return { out: null, why: 'error: ' + e.message, ms: Date.now() - t0 }; }
@@ -636,7 +639,7 @@ export async function generateNoteV2(input, opts = {}) {
       for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').trim();
       note.metadata.subjective_style = 'narrative';
     }
-    if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null };
+    if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
   const renderedNote = noteToMarkdown(note);
 
