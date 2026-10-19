@@ -134,10 +134,11 @@ For EACH note give:
 - completeness 1-10: captures the clinically important facts the gold note keeps (diagnoses, meds+doses, results, plan, follow-up, referrals)
 - accuracy 1-10: every statement is supported by the transcript
 - concision 1-10: specific facts only, no padding or repetition
+- readability 1-10: reads as a coherent clinical story in proper grammar (complete sentences, logical order from onset to now, natural flow) rather than a list of clipped fragments — judge the Subjective above all
 - unsupported: integer count of statements in the note that the TRANSCRIPT does not support (invented or distorted facts: a wrong drug, dose, number, side, finding, plan). Count only real fabrications, not reasonable summaries.
 - missed: integer count of CLINICALLY IMPORTANT facts in the transcript that the note omits (diagnosis, medication change, abnormal result, plan item, follow-up, referral).
-Return JSON {"A":{"completeness":n,"accuracy":n,"concision":n,"unsupported":n,"missed":n},"B":{...},"winner":"A"|"B"|"tie","note":"one short sentence"}.`;
-const KEYS = ['completeness', 'accuracy', 'concision', 'unsupported', 'missed'];
+Return JSON {"A":{"completeness":n,"accuracy":n,"concision":n,"unsupported":n,"missed":n},"B":{...} (each with the same keys incl. readability),"winner":"A"|"B"|"tie","note":"one short sentence"}.`;
+const KEYS = ['completeness', 'accuracy', 'concision', 'readability', 'unsupported', 'missed'];
 const kappa = (pairs) => {   // Cohen's kappa over categorical labels [[judge, human], …]
   if (!pairs.length) return null; const cats = ['A', 'B', 'tie']; const n = pairs.length;
   const po = pairs.filter(([a, b]) => a === b).length / n;
