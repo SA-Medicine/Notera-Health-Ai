@@ -17,6 +17,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
+import fs from 'node:fs';
+
 import { emptyNote, emptyIssue, validateNote } from '@notera/schema';
 import { createGeminiService } from '../services/LLMService.js';
 import { store, audit } from '../firestore/store.js';
@@ -167,7 +169,14 @@ const COMPLETENESS_RULES = `COMPLETENESS (this clinic's clinicians record the fo
 - Exact timelines (how long, since when, previous episodes) and each concrete detail the patient gives (amounts, counts, triggers, what has been tried).
 - Each plan item with its specifics: what, who, where and when (pharmacy, referral target, test, follow-up timing), and what the patient agreed to or declined.
 Completeness means no clinical fact is left out; it does not mean longer sentences. Keep one short fact per line.`;
-export function defaultWriterPrompt() { return `${WRITER_SYS}\n\n${clinicRules()}\n\n${COMPLETENESS_RULES}`; }
+// v3 (2026-10-20): produced by the Lab's "prompt upgrade from a diagnosis report" (audits + logs + clinic template), validated on 100 unseen
+// notes (parity 85.2 vs 83.0, strict gold audit 63.2 vs 61.0, critical wrong claims 0.25 vs 0.31 per note). Lives in prompts/writer-v3.txt;
+// the earlier hand-written prompt below is only the fallback if that file is missing.
+let _v3 = null;
+export function defaultWriterPrompt() {
+  if (_v3 === null) { try { _v3 = fs.readFileSync(new URL('../../prompts/writer-v3.txt', import.meta.url), 'utf8').replace(/\r/g, '').trim(); } catch { _v3 = ''; } }
+  return _v3 || `${WRITER_SYS}\n\n${clinicRules()}\n\n${COMPLETENESS_RULES}`;
+}
 
 // ── deterministic cleaner: the writer must never leak reasoning or filler into a clinical note ──
 const META_RX = [
