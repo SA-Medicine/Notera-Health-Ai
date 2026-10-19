@@ -153,12 +153,14 @@ export const WRITER_PROMPT_NAME = 'v2-writer';
 export const CHECKLIST_PROMPT_NAME = 'v2-checklist';
 export const VERIFIER_PROMPT_NAME = 'v2-verifier';
 export const EDITOR_PROMPT_NAME = 'v2-editor';
+export const STORY_PROMPT_NAME = 'v2-story';
 /** Every LLM prompt in the pipeline, editable from the admin console. `must` = substrings a replacement has to keep
  *  (the code that parses the model's answer depends on them), so a bad edit is rejected instead of breaking notes. */
 export const PROMPT_REGISTRY = {
   [WRITER_PROMPT_NAME]:    { stage: 'Writer', label: 'Note writer', help: 'Drafts the whole SOAP note from the transcript. The main quality lever.', default: () => defaultWriterPrompt(), must: ['JSON'], min: 800 },
   [CHECKLIST_PROMPT_NAME]: { stage: 'Checklist', label: 'Fact checklist', help: 'Extracts medications, results, orders, referrals and follow-up so nothing the writer drops is lost.', default: () => CHECK_SYS, must: ['medications', 'results', 'orders', 'referrals', 'follow_up', 'JSON'], min: 200 },
   [EDITOR_PROMPT_NAME]:    { stage: 'Editor', label: 'Reviewer (editor pass)', help: 'Optional second pass that fixes section placement, plan attribution, contradictions with the transcript and padding in the writer\'s draft. Off unless Settings → Editor pass is on.', default: () => EDITOR_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
+  [STORY_PROMPT_NAME]:     { stage: 'Story', label: 'Story agent', help: 'Rewrites each section so it reads as one coherent clinical story (joins fragments, orders by time, removes repetition) without adding or losing any fact. Off unless Settings → Story agent is on.', default: () => STORY_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
   [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
 };
 // Added after the 100-note A/B on gemini-3.7-flash (docs/reports/HISTORY_90_FINDINGS + FINAL_37_ROLLOUT): +1.7 parity, completeness 3.89 → 4.06.
@@ -448,6 +450,32 @@ async function editWriterJson(llm, draft, transcript, log, { prompt, model, time
   } catch (e) { log(`[v2:editor] skipped — ${e.message}`); return { out: null, why: 'error: ' + e.message, ms: Date.now() - t0 }; }
 }
 
+// ── STORY agent: an independent stage that makes the note read as one coherent clinical story ──────────────────────────────────────
+// The old multi-agent pipeline had a story composer; v2 dropped it for speed and notes became lists of disconnected fragments. This stage
+// brings it back as its OWN step (own prompt, own model, own on/off switch). It only rewrites wording and grouping inside each field;
+// editorAccepts() rejects the rewrite if it loses content words/numbers or invents new ones, and the draft is kept.
+const STORY_SYS = `You are the story editor of a clinical scribe. You receive a clinical note as JSON (subjective, past_medical_history, objective, assessment_and_plan) and the TRANSCRIPT it came from. Return the SAME JSON structure with the wording improved so each section reads as one coherent clinical story, written the way a careful physician writes.
+Do, inside each field only:
+- Join fragments that belong together into one clear line ("Pain" + "left knee" + "3 weeks" + "worse on stairs" -> "Left knee pain for 3 weeks, worse on stairs").
+- Order lines chronologically or by problem so the history reads from onset to now; keep related facts next to each other.
+- Remove repetition and filler; use terse, specific clinical language, third person, no first person, no quotes of the patient, no sentences starting "The patient ...".
+- Keep every fact: every number, dose, unit, date, duration, laterality, drug name, test result and specific denial exactly as it is. Keep negations as negations.
+Never: add any fact that is not already in the note, move a fact to a different field, change a diagnosis, add a diagnosis or plan item, or state that something was not mentioned. Leave empty fields empty. Return ONLY the JSON.`;
+export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
+  const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history, objective: note.objective, assessment_and_plan: note.assessment_and_plan };
+  try {
+    llm._agent = 'v2-story';
+    const raw = await llm.generateContent(prompt || STORY_SYS, `TRANSCRIPT (for checking facts only):\n"""\n${transcript.slice(0, 60000)}\n"""\n\nNOTE JSON:\n${JSON.stringify(draft)}\n\nReturn the improved JSON.`, WRITER_SCHEMA,
+      { maxOutputTokens: 6000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: 0.2, thinkingBudget: 0 });
+    const out = parseJson(raw);
+    if (!out) { log('[v2:story] rejected — unparseable JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
+    const chk = editorAccepts(draft, out, transcript);
+    if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, ms: Date.now() - t0 }; }
+    log(`[v2:story] applied (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
+    return { out, why: 'applied', ms: Date.now() - t0 };
+  } catch (e) { log(`[v2:story] skipped — ${e.message}`); return { out: null, why: 'error: ' + e.message, ms: Date.now() - t0 }; }
+}
+
 export async function generateNoteV2(input, opts = {}) {
   const t0 = Date.now();
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
@@ -544,6 +572,15 @@ export async function generateNoteV2(input, opts = {}) {
       // 2) deterministic merge of anything the writer dropped ----------------------
       mergeChecklist(note, check, transcript, log);
       if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
+      // 2b) STORY agent (independent stage, optional): coherent wording, facts untouched
+      if (opts.story !== undefined ? !!opts.story : cfg['story.enabled']) {
+        const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
+        const storyLlm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); used.config.story = opts.storyModel || cfg['story.model'];
+        const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text, timeoutMs: cfg['story.timeoutMs'] });
+        lap('story', ts);
+        if (sr.out) { const meta = note.metadata; const n2 = buildNote(sr.out, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION }); n2.metadata = meta; note = n2; }
+        if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms };
+      }
       note.metadata.medications_mentioned = [...new Set([...(collectMeds(note)), ...((check?.medications || []).map((m) => m?.name).filter(Boolean))])];
 
       // 3) deterministic placement fixes, then ONE verifier call ---------------------
