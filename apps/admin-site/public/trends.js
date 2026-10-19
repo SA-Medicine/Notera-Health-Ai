@@ -20,7 +20,7 @@ export async function trendsView(ctx) {
       <div class="cards">
         ${kpi('RUNS', R.length, `latest ${ago(last.createdAt)}`)}
         ${kpi('PARITY SCORE', lastQ ? lastQ.quality.parity_mean.toFixed(1) : '—', lastQ ? `latest scored run · ${pct(lastQ)}% of notes at 90+` : 'press “Score” on a run', '', 'parity')}
-        ${kpi('SIMILARITY TO GOLD', f3(last.avg_similarity_to_gold), dlt('avg_similarity_to_gold'), '', 'similarity')}
+        ${kpi('SIMILARITY (AS SHOWN)', f3(last.avg_similarity_rendered ?? last.avg_similarity_to_gold), dlt(last.avg_similarity_rendered != null ? 'avg_similarity_rendered' : 'avg_similarity_to_gold'), '', 'similarity_rendered')}
         ${kpi('OMISSION RATE', f3(last.avg_omission_rate), dlt('avg_omission_rate', true), '', 'omission')}
         ${kpi('STORY / FLOW', f3(last.avg_story_flow), dlt('avg_story_flow'), '', 'flow')}
         ${kpi('LATENCY P50', `${last.p50_s}s <small>/ p95 ${last.p95_s}s</small>`, `${last.failed || 0} failed notes`, '', 'p50')}
@@ -38,7 +38,7 @@ export async function trendsView(ctx) {
         { h: mtip('at90', '90+'), num: 1, f: (r) => (pct(r) != null ? pct(r) + '%' : '—') },
         { h: mtip('audit', 'Audit'), num: 1, f: (r) => (r.quality?.audit_mean != null ? r.quality.audit_mean.toFixed(1) : '—') },
         { h: mtip('critical', 'Crit/note'), num: 1, f: (r) => (r.quality?.critical_per_note != null ? r.quality.critical_per_note.toFixed(2) : '—') },
-        { h: mtip('similarity', 'Sim'), num: 1, f: (r) => f3(r.avg_similarity_to_gold) }, { h: mtip('omission', 'Omit'), num: 1, f: (r) => f3(r.avg_omission_rate) }, { h: mtip('flow', 'Flow'), num: 1, f: (r) => f3(r.avg_story_flow) },
+        { h: mtip('similarity', 'Sim'), num: 1, f: (r) => f3(r.avg_similarity_to_gold) }, { h: mtip('similarity_rendered', 'Sim shown'), num: 1, f: (r) => f3(r.avg_similarity_rendered) }, { h: mtip('omission', 'Omit'), num: 1, f: (r) => f3(r.avg_omission_rate) }, { h: mtip('flow', 'Flow'), num: 1, f: (r) => f3(r.avg_story_flow) },
         { h: mtip('p50', 'p50'), num: 1, f: (r) => r.p50_s + 's' }, { h: 'Failed', num: 1, f: (r) => r.failed ?? 0 }, { h: '', f: (r) => `<a class="btn sm" href="/lab/runs/${r.id}/export.csv" download>CSV</a>${base?.id === r.id ? ' <span class="pill ok">baseline</span>' : ''}` }], R.slice().reverse())}`;
     document.querySelectorAll('[data-score]').forEach((b) => { b.onclick = async () => { b.disabled = true; b.textContent = 'Scoring…'; try { await lab(`/runs/${b.dataset.score}/parity`, { method: 'POST', json: {} }); toast('Scoring started — refresh in about a minute'); } catch (e) { toast(e.message, true); b.disabled = false; b.textContent = 'Score'; } }; });
   }

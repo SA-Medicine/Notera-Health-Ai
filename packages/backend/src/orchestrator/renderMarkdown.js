@@ -86,11 +86,11 @@ export function noteToMarkdown(note) {
       const title = (!isPlaceholder(issue) ? issue : '') || diag || issue || `Issue ${i + 1}`;
       L.push(`${i + 1}. **${title}**`);
       const sub = (label, val) => { for (const b of bullets(val)) L.push(`   - ${label}${b}`); };
-      if (it.diagnosis && norm(it.diagnosis) !== norm(title)) sub('Diagnosis: ', it.diagnosis);
+      if (String(it.diagnosis || '').trim()) sub('Diagnosis: ', it.diagnosis);   // gold notes repeat it under the title
       sub('', it.assessment);
-      if (Array.isArray(it.differential_diagnoses) && it.differential_diagnoses.length) L.push(`   - Differentials: ${it.differential_diagnoses.join(', ')}`);
-      sub('Investigations: ', it.investigations_planned);
-      sub('Treatment: ', it.treatment_planned);
+      if (Array.isArray(it.differential_diagnoses) && it.differential_diagnoses.length) L.push(`   - Differential diagnoses: ${it.differential_diagnoses.join(', ')}`);
+      sub('Investigations planned: ', it.investigations_planned);
+      sub('Treatment planned: ', it.treatment_planned);
       sub('Referrals: ', it.referrals);
     });
     L.push('');

@@ -62,6 +62,8 @@ const loadFixture = (id) => { if (!/^[\w.\-]+$/.test(id)) throw new Error('bad i
 const runs = new Map();   // id -> run (in memory while active; persisted always)
 const runFile = (id) => path.join(DATA, 'runs', id + '.json');
 const notesFile = (id) => path.join(DATA, 'runs', id + '.notes.json');
+// M.aggregate + the score of the note AS THE DOCTOR SEES IT (labels included) against the gold note
+const aggregateRun = (rows) => { const a = M.aggregate(rows); const v = rows.map((r) => r.similarity_rendered).filter((x) => typeof x === 'number'); return { ...a, avg_similarity_rendered: v.length ? +(v.reduce((x, y) => x + y, 0) / v.length).toFixed(3) : null }; };
 const persist = (run) => writeJson(runFile(run.id), { ...run, cancel: undefined });
 
 async function resolvePrompt(cfg) {
@@ -102,14 +104,14 @@ async function startRun(cfg) {
           const noteText = noteToText(r.note);
           const sc = M.scoreNote({ note: r.note, noteText, goldText: gold, entities: [] });
           run.rows.push({ id, ms: Date.now() - t0, note_words: noteText.split(/\s+/).filter(Boolean).length, schema_valid: sc.schema_valid, section_coverage: sc.section_coverage, similarity_to_gold: sc.similarity_to_gold, omission_rate: sc.omission_rate, story_flow: sc.story_flow, gold_corrupt: sc.gold_corrupt, meds_unsupported: sc.meds_unsupported, omission_missed: sc.omission_missed });
-          notes[id] = r.renderedNote || '';
+          notes[id] = r.renderedNote || ''; run.rows[run.rows.length - 1].similarity_rendered = gold ? +M.similarityToGold(r.renderedNote || '', gold).toFixed(3) : null;
         } catch (e) { run.rows.push({ id, ms: Date.now() - t0, error: String(e.message || e).slice(0, 200), schema_valid: false, section_coverage: 0, similarity_to_gold: 0, meds_unsupported: [] }); }
-        run.progress.done = run.rows.length; run.summary = M.aggregate(run.rows);
+        run.progress.done = run.rows.length; run.summary = aggregateRun(run.rows);
         if (run.rows.length % 3 === 0) { persist(run); writeJson(notesFile(run.id), notes); writeJson(traceFile(run.id), traces); }
       }
     };
     await Promise.all(Array.from({ length: Number(process.env.LAB_CONCURRENCY) || 3 }, worker));
-    run.status = run.status === 'cancelled' ? 'cancelled' : 'done'; run.finishedAt = new Date().toISOString(); run.summary = M.aggregate(run.rows);
+    run.status = run.status === 'cancelled' ? 'cancelled' : 'done'; run.finishedAt = new Date().toISOString(); run.summary = aggregateRun(run.rows);
     persist(run); writeJson(notesFile(run.id), notes); writeJson(traceFile(run.id), traces);
   })().catch((e) => { run.status = 'error'; run.error = String(e.message || e); persist(run); });
   return run.id;
@@ -306,25 +308,13 @@ async function startValidation(candId, n = 40, writerModel) {
 //     prioritised recommendations (prompt / setting / pipeline / guardrail / data) with a status you can track.
 const analysisFile = (runId) => path.join(DATA, 'analysis', runId + '.json');
 const traceFile = (runId) => path.join(DATA, 'runs', runId + '.trace.json');
-const AUDIT_SYS = `You are a senior physician auditing an AI-written SOAP note for one consultation.
-TRANSCRIPT = the only ground truth of what was said. GOLD NOTE = a clinician-written note showing what a good note keeps.
-Return JSON:
-{"verdict":"excellent|good|needs_work|unsafe","score":0-100,"summary":"one sentence",
- "missing":[{"fact":"...","importance":"critical|important|minor"}],            // clinically relevant facts in the transcript/gold that the AI note lacks
- "wrong":[{"claim":"quote from the AI note","problem":"why it is wrong, unsupported or in the wrong place","severity":"critical|major|minor"}],
- "extra":[{"text":"quote","why":"padding, duplicate, commentary or filler"}],
- "structure":["section/format/tone problems"],
- "strengths":["what it did well"],
- "root_cause":{"stage":"writer|checklist|verifier|cleanup|rules|data","why":"short reason"},
- "suggestions":["generic, reusable prompt-level fixes — nothing specific to this patient"]}
-At most 8 items per list. Be specific and terse. "unsafe" = a wrong drug/dose/side/diagnosis or an invented finding.`;
 const parseJ = (raw) => JSON.parse(String(raw).replace(/^```json|```$/g, '').trim());
 async function auditNote(runId, fid, { force = false } = {}) {
   const cache = readJson(analysisFile(runId), {}); if (cache[fid] && !force) return cache[fid];
   const notes = readJson(notesFile(runId), {}); if (!notes[fid]) throw new Error('no generated note for this fixture');
   const { transcript, gold } = loadFixture(fid);
   const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
-  const raw = await llm.generateContent(AUDIT_SYS, `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== AI NOTE ===\n${notes[fid]}\n\nReturn ONLY the JSON.`, null,
+  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== AI NOTE ===\n${notes[fid]}\n\nReturn ONLY the JSON.`, null,
     { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
   const a = parseJ(raw); a.at = new Date().toISOString(); a.model = JUDGE_MODEL;
   const fresh = readJson(analysisFile(runId), {}); fresh[fid] = a; writeJson(analysisFile(runId), fresh);
@@ -359,7 +349,7 @@ async function parityScore(note, gold) {
 async function auditAdhoc({ transcript, note, gold = '' }) {
   const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
   const goldBlock = String(gold).trim() ? String(gold).slice(0, 8000) : '(none provided — judge only against the transcript)';
-  const raw = await llm.generateContent(AUDIT_SYS, `=== TRANSCRIPT ===\n${String(transcript).slice(0, 60000)}\n\n=== GOLD NOTE ===\n${goldBlock}\n\n=== AI NOTE ===\n${String(note)}\n\nReturn ONLY the JSON.`, null,
+  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${String(transcript).slice(0, 60000)}\n\n=== GOLD NOTE ===\n${goldBlock}\n\n=== AI NOTE ===\n${String(note)}\n\nReturn ONLY the JSON.`, null,
     { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
   return parseJ(raw);
 }
@@ -370,8 +360,62 @@ async function auditMany(runId, ids, onProgress) {
   await Promise.all(Array.from({ length: 3 }, worker));
 }
 
+// ── the clinic's gold-note template (from the software that writes the gold notes) ─────────────────────────────────────────
+// Used to brief the auditor (do not penalise a note for following it) and the prompt-upgrade agent (make the writer follow it).
+const GOLD_TEMPLATE_SPEC = `THE CLINIC'S NOTE TEMPLATE (the gold notes follow it; a note that follows it is correct):
+Subjective: reasons for visit incl. chief complaints/requests/symptoms; duration, timing, location, quality, severity, context; worsening/relieving factors incl. self-treatment; progression over time; previous episodes and outcomes; impact on daily activities/work/social functioning; associated symptoms (focal and systemic).
+Past Medical History: relevant past medical/surgical history; relevant social history; relevant family history; exposure history; immunisation history; any other relevant subjective information.
+Objective: vital signs; physical or mental-state examination findings by system; COMPLETED investigations with results (never planned ones).
+Assessment & Plan: numbered, one block per issue/problem explicitly identified: issue name; diagnosis ONLY if explicitly stated; differential diagnoses ONLY if explicitly listed; investigations planned; treatment planned; referrals made or recommended.
+RULES: every field is optional and included ONLY if explicitly in the transcript; otherwise left blank. Never infer, summarise into or invent a diagnosis. Never invent patient details, assessments or plans. Never state that something was not mentioned. There is no separate "current medications" list and no separate "follow-up" problem: drugs and follow-up timing appear inside the relevant issue's treatment planned. Use as many lines as needed to capture all relevant information.`;
+const AUDIT_DEFAULT = (spec) => `You are a senior physician auditing an AI-written SOAP note for one consultation.
+TRANSCRIPT = the only ground truth of what was said. GOLD NOTE = a clinician-written note showing what a good note keeps (it may be missing from this check).
+${spec}
+Do NOT mark something wrong or extra merely because it follows this template (e.g. social history under Past Medical History, a home blood pressure under vital signs, follow-up timing inside the treatment plan, an empty diagnosis).
+Return JSON:
+{"verdict":"excellent|good|needs_work|unsafe","score":0-100,"summary":"one sentence",
+ "missing":[{"fact":"...","importance":"critical|important|minor"}],
+ "wrong":[{"claim":"quote from the AI note","problem":"why it is wrong, unsupported or in the wrong place","severity":"critical|major|minor"}],
+ "extra":[{"text":"quote","why":"padding, duplicate, commentary or filler"}],
+ "structure":["deviations from the template: wrong section, invented diagnosis, a field filled without support, a 'not mentioned' statement, wrong labels"],
+ "strengths":["what it did well"],
+ "root_cause":{"stage":"writer|checklist|verifier|cleanup|rules|data","why":"short reason"},
+ "suggestions":["generic, reusable prompt-level fixes — nothing specific to this patient"]}
+At most 8 items per list. Be specific and terse. "unsafe" = a wrong drug/dose/side/diagnosis or an invented finding.`;
+const auditPromptFile = path.join(DATA, 'audit-prompt.txt');
+const auditSys = () => { try { const t = fs.readFileSync(auditPromptFile, 'utf8').trim(); if (t.length > 300) return t; } catch { /* default */ } return AUDIT_DEFAULT(GOLD_TEMPLATE_SPEC); };
+
+// ── PROMPT UPGRADE FROM A WHOLE REPORT ───────────────────────────────────────────────────────────────────────────────────────
+// Input: the overall diagnosis (patterns, stage blame, recommendations), the individual audits behind it, the pipeline logs of the
+// weakest notes, the similarity/omission numbers, the clinic template and the CURRENT prompt. Output: a candidate prompt plus
+// concrete suggestions (prompt / setting / pipeline / data) — saved as a candidate so it goes through validation and the gate.
+const UPGRADE_SYS = `You are a prompt engineer upgrading the system prompt of a clinical scribe that writes SOAP notes as strict JSON from a consultation transcript.
+You receive: the CURRENT PROMPT; the clinic's NOTE TEMPLATE; an OVERALL DIAGNOSIS of a test run (recurring patterns, which pipeline stage is to blame, recommendations); the individual AUDITS behind it (what each note lacked / got wrong / padded); PIPELINE LOGS of the weakest notes (what the checklist, verifier and cleanup stages added or removed); and word-overlap metrics versus the gold notes.
+Goals, in order: (1) no wrong or invented content; (2) follow the clinic template exactly; (3) include every clinically relevant fact the gold notes include; (4) match the gold notes' wording and level of detail so similarity to gold rises.
+Rules: make TARGETED rewordings or additions that address the recurring patterns; keep every hard rule, the field-placement rules and the strict-JSON/schema instruction; add NOTHING specific to the examples (no names, drugs, dates or numbers from them); do not lengthen the prompt by more than 15%; prefer replacing a weak rule with a sharper one over adding another.
+Return JSON: {"summary":"2-3 sentences on what you changed and why","changes":["each change and the pattern it fixes"],"suggestions":[{"title":"...","detail":"...","area":"prompt|setting|pipeline|guardrail|data|metric","impact":"high|medium|low"}],"prompt":"<the full upgraded prompt text>"}.
+"suggestions" are things a prompt cannot fix (code, settings, data) — be concrete.`;
+async function upgradeFromReport(reportId) {
+  const rep = readJson(path.join(DATA, 'reports', reportId + '.json')); if (!rep || rep.status !== 'done') throw new Error('report not finished');
+  const run = loadRun(rep.runId); if (!run) throw new Error('run not found');
+  const audits = readJson(analysisFile(rep.runId), {}); const notes = readJson(notesFile(rep.runId), {}); const traces = readJson(traceFile(rep.runId), {});
+  const ranked = run.rows.filter((r) => !r.error && audits[r.id]).map((r) => ({ id: r.id, sim: r.similarity_to_gold, om: r.omission_rate, a: audits[r.id] })).sort((x, y) => (x.a.score ?? 100) - (y.a.score ?? 100));
+  const compact = ranked.slice(0, 24).map((x) => ({ note: x.id, score: x.a.score, verdict: x.a.verdict, similarity: x.sim, omission: x.om, missing: (x.a.missing || []).slice(0, 5), wrong: (x.a.wrong || []).slice(0, 5), extra: (x.a.extra || []).slice(0, 3), structure: x.a.structure, cause: x.a.root_cause, fixes: x.a.suggestions }));
+  const logs = ranked.slice(0, 8).map((x) => `--- ${x.id} (audit ${x.a.score}) ---\n${((traces[x.id]?.log) || []).filter((l) => /merge\]|verify\]|clean\]|drugs\]|fewshot\]|condense|dedupe|editor\]/.test(l)).slice(0, 14).join('\n')}`).join('\n\n');
+  const p = await resolvePrompt({ prompt: 'active' }); const current = run.prompt || p.text;
+  const llm = await createGeminiService(null, { model: IMPROVE_MODEL }); llm._agent = 'lab-upgrade';
+  const raw = await llm.generateContent(UPGRADE_SYS, `=== NOTE TEMPLATE ===\n${GOLD_TEMPLATE_SPEC}\n\n=== CURRENT PROMPT ===\n${current}\n\n=== OVERALL DIAGNOSIS ===\n${JSON.stringify({ headline: rep.headline, assessment: rep.assessment, patterns: rep.patterns, stage_blame: rep.stage_blame, recommendations: rep.recommendations, metrics: rep.metrics, log_stats: rep.logStats })}\n\n=== INDIVIDUAL AUDITS (weakest first) ===\n${JSON.stringify(compact)}\n\n=== PIPELINE LOGS OF THE WEAKEST NOTES ===\n${logs}\n\nReturn ONLY the JSON.`, null,
+    { maxOutputTokens: 28000, temperature: 0.3, responseMimeType: 'application/json', timeoutMs: 280000, retries: 1, thinkingBudget: 4096, hedgeMs: 0 });
+  const out = parseJ(raw); const text = String(out.prompt || '');
+  if (text.length < current.length * 0.75 || text.length > current.length * 1.25) throw new Error(`upgraded prompt length ${text.length} is outside the allowed range of the current ${current.length}`);
+  if (!/STRICT JSON|schema/i.test(text)) throw new Error('upgraded prompt dropped the strict-JSON instruction');
+  const cand = { id: uid('cand'), createdAt: new Date().toISOString(), basedOnRun: rep.runId, basedOnReport: reportId, basePromptChars: current.length, chars: text.length, patterns: (rep.patterns || []).map((x) => `${x.title} (${x.count}/${x.of}, ${x.stage})`), changes: out.changes || [], suggestions: out.suggestions || [], summary: out.summary || '', usedFixtures: ranked.slice(0, 24).map((x) => x.id), text };
+  writeJson(path.join(DATA, 'candidates', cand.id + '.json'), cand); return cand;
+}
+
 const OVERALL_SYS = `You are a clinical-AI quality lead. You receive the audit of many SOAP notes written by an AI scribe pipeline (each audit compares the AI note with the transcript and a clinician's gold note), the run's metrics, and statistics from the pipeline logs.
 The pipeline stages are: writer (one LLM call drafting the note, driven by a long prompt of rules), checklist (parallel LLM call extracting meds/results/orders/referrals which is merged back), cleanup (deterministic removal of commentary/duplicates/misplaced facts), verifier (LLM flags unsupported/duplicate lines, code confirms before removing), guardrails/condense (deterministic).
+Also judge conformance to the clinic's note template (empty fields when unsupported, no invented diagnosis, no separate medication or follow-up lists, completed vs planned investigations).
 Diagnose the SYSTEM, not single notes. Return JSON:
 {"headline":"one sentence verdict","assessment":"3-5 sentences","what_works":["..."],
  "patterns":[{"title":"...","count":N,"of":N,"severity":"critical|major|minor","stage":"writer|checklist|verifier|cleanup|rules|data","evidence":"what recurs","example":"short generic example"}],
@@ -479,6 +523,10 @@ const AUDIO = path.join(DATA, 'audio'); const CAT = { CAR: 'Cardiovascular', DER
 app.get('/audio', wrap(async (_req, res) => res.json({ audio: fs.readdirSync(AUDIO).filter((f) => f.endsWith('.mp3')).sort().map((f) => { const id = f.replace(/\.mp3$/, ''); const st = fs.statSync(path.join(AUDIO, f)); return { id, category: CAT[id.slice(0, 3)] || 'Other', bytes: st.size, minutes: Math.max(1, Math.round(st.size / 330000)), hasTranscript: fs.existsSync(path.join(AUDIO, id + '.txt')) }; }) })));
 app.get('/audio/:id/file', wrap(async (req, res) => { if (!/^[A-Za-z0-9_-]+$/.test(req.params.id)) return res.status(400).json({ error: 'bad id' }); const f = path.join(AUDIO, req.params.id + '.mp3'); if (!fs.existsSync(f)) return res.status(404).json({ error: 'not found' }); if (req.query.download) res.attachment(req.params.id + '.mp3'); res.sendFile(f, { acceptRanges: true }); }));
 app.get('/audio/:id/transcript', wrap(async (req, res) => { if (!/^[A-Za-z0-9_-]+$/.test(req.params.id)) return res.status(400).json({ error: 'bad id' }); const f = path.join(AUDIO, req.params.id + '.txt'); if (!fs.existsSync(f)) return res.status(404).json({ error: 'no transcript' }); res.json({ id: req.params.id, text: fs.readFileSync(f, 'utf8') }); }));
+app.get('/audit-prompt', wrap(async (_req, res) => res.json({ text: auditSys(), custom: fs.existsSync(auditPromptFile), template: GOLD_TEMPLATE_SPEC })));
+app.put('/audit-prompt', wrap(async (req, res) => { const t = String(req.body?.text || '').trim(); if (t.length < 300 || t.length > 20000 || !/JSON/.test(t) || !/verdict/.test(t) || !/missing/.test(t)) return res.status(400).json({ error: 'the audit prompt must be 300–20,000 characters and keep the JSON fields (verdict, score, missing, wrong, extra, structure, root_cause, suggestions)' }); fs.writeFileSync(auditPromptFile, t); res.json({ ok: true }); }));
+app.delete('/audit-prompt', wrap(async (_req, res) => { try { fs.unlinkSync(auditPromptFile); } catch { /* already default */ } res.json({ ok: true }); }));
+app.post('/reports/:id/upgrade', wrap(async (req, res) => res.json(await upgradeFromReport(req.params.id))));
 app.get('/compare', wrap(async (req, res) => res.json(compareRuns(String(req.query.a), String(req.query.b)))));
 app.get('/trend', wrap(async (_req, res) => res.json({ runs: trend() })));
 app.get('/baseline-run', wrap(async (_req, res) => { const b = readJson(path.join(DATA, 'baseline-run.json'), null); const r = b && loadRun(b.runId); res.json({ baseline: r ? { ...runView(r), pinnedAt: b.pinnedAt } : null }); }));

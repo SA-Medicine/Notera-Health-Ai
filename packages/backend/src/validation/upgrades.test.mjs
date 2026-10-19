@@ -186,7 +186,7 @@ console.log('UI · noteToMarkdown');
   ok('renders section headings', /### Subjective/.test(mdOut) && /### Objective/.test(mdOut) && /### Assessment & Plan/.test(mdOut));
   ok('renders one bullet per line', /- Trying to conceive/.test(mdOut) && /- Increased sweating/.test(mdOut) && /- Denies fever/.test(mdOut));
   ok('numbers A&P issues with a bold title', /1\. \*\*PCOS\*\*/.test(mdOut));
-  ok('labels A&P sub-bullets', /- Treatment: Prenatal vitamins/.test(mdOut));
+  ok('labels A&P sub-bullets', /- Treatment planned: Prenatal vitamins/.test(mdOut));
 }
 
 console.log('G(3) · date grounding');

@@ -35,9 +35,9 @@ export async function optimizeView(ctx) {
     const vals = (await lab('/validations')).validations.filter((v) => v.candidate === id); const busy = vals.find((v) => v.status === 'running');
     openDrawer(`<div class="drawer-head"><div><h2>Candidate ${esc(id.slice(-8))}</h2><div class="hint">${c.chars.toLocaleString()} chars (live ${live.text.length.toLocaleString()}) · from run ${esc(c.basedOnRun.slice(-8))}</div></div><button class="btn sm" data-close>Close</button></div>
       <div class="drawer-body" style="max-width:none">
-        <h3 class="sect" style="margin-top:0">What it found</h3><ul>${c.patterns.map((p) => `<li>${esc(asText(p))}</li>`).join('')}</ul>
+        ${c.summary ? `<div class="card" style="margin-bottom:10px">${esc(c.summary)}${c.basedOnReport ? ` <span class="hint">· built from diagnosis ${esc(c.basedOnReport.slice(-6))}, its audits and the pipeline logs</span>` : ''}</div>` : ''}<h3 class="sect" style="margin-top:0">What it found</h3><ul>${c.patterns.map((p) => `<li>${esc(asText(p))}</li>`).join('')}</ul>
         <h3 class="sect">What it changed</h3><ul>${c.changes.map((p) => `<li>${esc(asText(p))}</li>`).join('')}</ul>
-        <h3 class="sect">Exact text difference vs the live prompt</h3><div class="card">${diffHtml(live.text, c.text)}</div>
+        ${(c.suggestions || []).length ? `<h3 class="sect">Suggestions beyond the prompt</h3><ul>${c.suggestions.map((x) => `<li><span class="chip">${esc(x.area || '')}</span> <b>${esc(x.title || '')}</b> — ${esc(x.detail || '')}</li>`).join('')}</ul>` : ''}<h3 class="sect">Exact text difference vs the live prompt</h3><div class="card">${diffHtml(live.text, c.text)}</div>
         <h3 class="sect">2 · Validate</h3>
         <div class="card"><div class="tools"><button class="btn primary" id="val" ${busy ? 'disabled' : ''}>${busy ? esc(busy.stage) + '…' : 'Run validation on 40 unseen notes'}</button><span class="hint">Runs the live prompt and this candidate on the same notes the candidate never saw, then judges them blind (order-swapped). About 8–10 minutes.</span></div>
           ${vals.length ? `<div class="hint" style="margin-top:8px">${vals.slice(0, 3).map((v) => `${ago(v.createdAt)}: ${esc(v.status === 'error' ? 'failed — ' + v.error : v.status)}`).join(' · ')}</div>` : ''}</div>
