@@ -161,7 +161,7 @@ export const PROMPT_REGISTRY = {
   [WRITER_PROMPT_NAME]:    { stage: 'Writer', label: 'Note writer', help: 'Drafts the whole SOAP note from the transcript. The main quality lever.', default: () => defaultWriterPrompt(), must: ['JSON'], min: 800 },
   [CHECKLIST_PROMPT_NAME]: { stage: 'Checklist', label: 'Fact checklist', help: 'Extracts medications, results, orders, referrals and follow-up so nothing the writer drops is lost.', default: () => CHECK_SYS, must: ['medications', 'results', 'orders', 'referrals', 'follow_up', 'JSON'], min: 200 },
   [EDITOR_PROMPT_NAME]:    { stage: 'Editor', label: 'Reviewer (editor pass)', help: 'Optional second pass that fixes section placement, plan attribution, contradictions with the transcript and padding in the writer\'s draft. Off unless Settings → Editor pass is on.', default: () => EDITOR_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
-  [STORY_PROMPT_NAME]:     { stage: 'Story', label: 'Story agent', help: 'Last step: rewrites the Subjective into a flowing, grammatical clinical story and tidies the Past Medical History, without adding or losing any fact. Off unless Settings → Story agent is on.', default: () => STORY_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
+  [STORY_PROMPT_NAME]:     { stage: 'Story', label: 'Story agent', help: 'Last step: rewrites the Subjective into a flowing, grammatical clinical story, without adding or losing any fact. Off unless Settings → Story agent is on.', default: () => STORY_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
   [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
 };
 // Added after the 100-note A/B on gemini-3.7-flash (docs/reports/HISTORY_90_FINDINGS + FINAL_37_ROLLOUT): +1.7 parity, completeness 3.89 → 4.06.
@@ -465,18 +465,18 @@ async function editWriterJson(llm, draft, transcript, log, { prompt, model, time
 // how it started and progressed, what helps or hurts, what was tried, what it does to daily life — in grammatical sentences that follow
 // one another. This stage runs LAST (after the safety checks, so it only rewrites wording that was already verified), has its own prompt,
 // model and switch, and editorAccepts() (story mode) rejects any rewrite that loses a fact or invents one — the verified draft is then kept.
-const STORY_SYS = `You are the story editor of a clinical scribe. You receive the SUBJECTIVE and PAST MEDICAL HISTORY of a clinical note as JSON, plus the TRANSCRIPT they came from. Rewrite them so a physician reads a proper clinical story, not a list of fragments. Return the SAME JSON keys.
+const STORY_SYS = `You are the story editor of a clinical scribe. You receive the SUBJECTIVE of a clinical note as JSON, plus the TRANSCRIPT it came from. Rewrite it so a physician reads a proper clinical story, not a list of fragments. Return JSON with the single key "subjective" and the SAME inner keys.
 SUBJECTIVE
 - reason_for_visit: ONE complete sentence saying why the patient came ("Presents with left knee pain for 3 weeks.").
 - hpi_details: the history of the presenting complaint as one to three short paragraphs of complete, grammatical sentences, in the order a physician would tell it: onset and duration; character, location and severity; how it has progressed; what makes it better or worse and what has been tried; previous episodes; the effect on daily life, work or sleep. Link the sentences with natural connectives (since, after, despite, which, however, so) so each follows from the one before. Use paragraphs, not bullets, and no dashes or list markers.
 - associated_symptoms: one or two sentences ("Associated symptoms include X and Y. She denies Z.") — positives first, then the specific denials.
 - Move the content of aggravating_relieving_factors, symptom_progression, previous_episodes and functional_impact INTO the story above and leave those four fields as empty strings.
-PAST MEDICAL HISTORY: keep the same fields and the same facts, but make every line a clear grammatical statement ("Hypertension for 10 years, treated with ramipril." "Lives with her husband and does not smoke.").
+Do not touch anything else in the note; the Past Medical History, Objective and Plan are handled elsewhere.
 STYLE: write the way a physician dictates a history: concise, fluent clinical prose in the third person, no quotes of the patient, no first person. Do NOT begin sentence after sentence with "The patient" — begin with the symptom, finding or event ("Right hand pain and swelling have been ongoing for years, worse on the right, especially around the knuckle."; "Pain worsens with painting and using a weed wacker, and eases with rest."; "Has not taken analgesics because of concern about side effects."), using "The patient" at most once or twice. Use "he" or "she" ONLY if the transcript makes the sex explicit. Tense follows the facts (current problems present tense, past events past tense).
 PLACEHOLDERS: the text may contain de-identification placeholders such as [date], [name] or "the specialist"; keep them exactly as written and never write "unspecified", "unknown" or "not mentioned" around them. Use the transcript only to check wording; do not pull in facts that are not in the NOTE JSON.
-HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note — in particular never name a condition from a drug ("blood pressure medication" stays "blood pressure medication", it does not become "hypertension") and never turn a denial into a finding or the reverse; never state that something was not mentioned; never move facts out of Subjective or Past Medical History; leave an empty field empty. Return ONLY the JSON.`;
+HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note — in particular never name a condition from a drug ("blood pressure medication" stays "blood pressure medication", it does not become "hypertension") and never turn a denial into a finding or the reverse; never state that something was not mentioned; never move facts out of Subjective; leave an empty field empty. Return ONLY the JSON.`;
 export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
-  const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
+  const t0 = Date.now(); const draft = { subjective: note.subjective };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
   try {
     llm._agent = 'v2-story';
@@ -638,7 +638,7 @@ export async function generateNoteV2(input, opts = {}) {
     const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text, timeoutMs: cfg['story.timeoutMs'] });
     lap('story', ts);
     if (sr.out) {
-      for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').trim();
+      for (const [sec, keys] of SEC_FIELDS.slice(0, 1)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').trim();
       note.metadata.subjective_style = 'narrative';
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
