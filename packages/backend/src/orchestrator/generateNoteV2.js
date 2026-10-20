@@ -25,7 +25,7 @@ import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
 import { reconcileNote } from './reconcileNote.js';
-import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements, tidyPlan, dropCoveredFragments, dedupeObjective } from './postGuards.js';
+import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements, tidyPlan, dropCoveredFragments, dedupeObjective, stripAddresses } from './postGuards.js';
 import { describeMeds, codeDiagnoses } from './refNames.js';
 import { condenseNote } from './condenseNote.js';
 import { dedupeNote } from './dedupeNote.js';
@@ -679,7 +679,7 @@ export async function generateNoteV2(input, opts = {}) {
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
-  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
+  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   if (!blank && cfg['ref.enabled']) {
     const tr = Date.now();

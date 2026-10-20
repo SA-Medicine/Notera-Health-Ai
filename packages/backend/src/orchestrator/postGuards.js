@@ -205,3 +205,19 @@ export function dedupeObjective(note, log = () => {}) {
   if (n) log(`[v2:tidy] removed ${n} repeated result line(s) from Objective`);
   return { dropped: n };
 }
+
+/** The doctor does not want addresses or housing in the note: segments such as "Lives in Lake Shore, East Pike Creek" or "previously lived on Russell Woods" are removed (who the patient lives WITH is kept). */
+export function stripAddresses(note, log = () => {}) {
+  let n = 0;
+  const PLACE = { test: (sg) => { const m = sg.match(/\b(?:lives?|lived|living|resides?|resided|moved|relocated|stays?|staying)\s+(?:in|on|at|to|near)\s+(?:an?\s+|the\s+)?(\S+)/i); return !!m && /^[A-Z]/.test(m[1]); } };
+  const STREET = /\b\d{1,5}\s+[A-Z][\w'-]+\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Lane|Ln|Court|Ct)\b|\b(?:Street|Avenue|Road|Drive|Boulevard)\b/;
+  for (const k of Object.keys(note.past_medical_history || {})) {
+    const out = lines(note.past_medical_history[k]).map((l) => {
+      const segs = l.split(/;\s*/); const keep = segs.filter((sg) => { const bad = PLACE.test(sg) || STREET.test(sg); if (bad) n++; return !bad; });
+      return keep.join('; ').replace(/,\s*$/, '');
+    }).filter(Boolean);
+    note.past_medical_history[k] = out.join('\n');
+  }
+  if (n) log(`[v2:tidy] removed ${n} address / housing segment(s) from Past Medical History`);
+  return { removed: n };
+}
