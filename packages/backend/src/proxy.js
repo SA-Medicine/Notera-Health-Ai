@@ -11,7 +11,8 @@
 
 import express from 'express';
 import { extractMultipartFile, transcodePcm16k } from './asr/audio.js';
-import { billableModel, transcribeChirpPcm, transcribePcm } from './asr/googleSpeech.js';
+import { billableModel } from './asr/googleSpeech.js';
+import { transcribeWithChain } from './asr/engines.js';
 import { collapseRepetitions } from './validation/textSimilarity.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -207,48 +208,19 @@ export function mountProxy(app) {
       const model = billableModel(/^chirp/i.test(asrModel) ? 'latest_long' : asrModel, (l) => console.log(`[proxy ${id}] ${l}`));
 
       if (pcm && pcm.length) {
-        // Chirp 2 (Speech-to-Text V2): standard-priced and much more accurate on
-        // conversational/accented medical speech. It shares V1's ~60s synchronous limit,
-        // so it is windowed exactly the same way — a long recording keeps the model it was
-        // configured with instead of silently dropping to latest_long. Any failure falls
-        // back to the V1 path below.
-        if (/^chirp/i.test(asrModel)) {
-          try {
-            const r = await transcribeChirpPcm(pcm, {
-              model: asrModel,
-              languageCode: process.env.ASR_LANGUAGE || 'en-US',
-              log: (l) => console.log(`[proxy ${id}] ${l}`),
-            });
-            const text = collapseRepetitions(r.text);
-            const totalMs = Date.now() - t0;
-            console.log(`[proxy ${id}] ✅ ASR finished | chirp v2 ${asrModel} | audio=${r.durationSeconds.toFixed(1)}s `
-              + `| total=${totalMs}ms (decode=${decodeMs}ms) | windows=${r.windows}${r.failedWindows ? ` (${r.failedWindows} failed)` : ''} | ${text.length} chars`);
-            return res.json({
-              text, transcript: text, requestId: id, latencyMs: totalMs,
-              durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows,
-            });
-          } catch (e) {
-            console.warn(`[proxy ${id}] Chirp v2 failed (${e.message}); falling back to V1 ${model}`);
-          }
-        }
-
-        const r = await transcribePcm(pcm, {
-          model,
-          languageCode: process.env.ASR_LANGUAGE || 'en-US',
-          log: (l) => console.log(`[proxy ${id}] ${l}`),
-        });
-        // A decoder can repeat a phrase over and over; collapse those runs so the
-        // artefact never reaches the note as duplicated content.
+        // Speech-to-text runs through the ENGINE CHAIN (src/asr/engines.js): a primary engine, ordered fallbacks, a circuit breaker and a
+        // silent-failure check, all switchable by the owner in the admin console ("Speech to text"). With no setting stored the chain is what
+        // production always did: ASR_MODEL (chirp_2) first, then latest_long. The cost guard in googleSpeech.js still applies to every V1 request.
+        const r = await transcribeWithChain(pcm, { log: (l) => console.log(`[proxy ${id}] ${l}`) });
+        // A decoder can repeat a phrase over and over; collapse those runs so the artefact never reaches the note as duplicated content.
         const text = collapseRepetitions(r.text);
         const totalMs = Date.now() - t0;
         const rtf = r.durationSeconds > 0 ? totalMs / 1000 / r.durationSeconds : null;
-        console.log(`[proxy ${id}] ✅ ASR finished at ${new Date().toISOString().slice(11, 23)} `
-          + `| audio=${r.durationSeconds.toFixed(1)}s | total=${totalMs}ms (decode=${decodeMs}ms) `
-          + `| windows=${r.windows}${r.failedWindows ? ` (${r.failedWindows} failed)` : ''} `
-          + `| RTF=${rtf == null ? 'n/a' : rtf.toFixed(3)} | model=${model}`);
+        console.log(`[proxy ${id}] ✅ ASR finished | engine=${r.engine}${r.fellBack ? ' (FALLBACK)' : ''} | audio=${r.durationSeconds.toFixed(1)}s `
+          + `| total=${totalMs}ms (decode=${decodeMs}ms) | windows=${r.windows}${r.failedWindows ? ` (${r.failedWindows} failed)` : ''} | RTF=${rtf == null ? 'n/a' : rtf.toFixed(3)} | ${text.length} chars`);
         return res.json({
           text, transcript: text, requestId: id, latencyMs: totalMs,
-          durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows,
+          durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows, engine: r.engine,
         });
       }
 

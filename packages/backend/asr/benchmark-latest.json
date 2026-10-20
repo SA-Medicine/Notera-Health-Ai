@@ -1,0 +1,385 @@
+{
+ "date": "2026-10-20T17:50:50.773Z",
+ "files": 9,
+ "recordings": [
+  {
+   "id": "CAR0001",
+   "minutes": 10.4,
+   "ref_words": 1026
+  },
+  {
+   "id": "CAR0002",
+   "minutes": 8.8,
+   "ref_words": 1042
+  },
+  {
+   "id": "DER0001",
+   "minutes": 10.8,
+   "ref_words": 1477
+  },
+  {
+   "id": "GAS0001",
+   "minutes": 9.5,
+   "ref_words": 973
+  },
+  {
+   "id": "GAS0002",
+   "minutes": 9.8,
+   "ref_words": 1101
+  },
+  {
+   "id": "MSK0001",
+   "minutes": 8.8,
+   "ref_words": 960
+  },
+  {
+   "id": "RES0001",
+   "minutes": 13.3,
+   "ref_words": 1465
+  },
+  {
+   "id": "RES0002",
+   "minutes": 10.9,
+   "ref_words": 1133
+  },
+  {
+   "id": "RES0003",
+   "minutes": 11,
+   "ref_words": 1210
+  }
+ ],
+ "method": "Same 9 recordings (public simulated patient–physician interviews, 8–13 minutes each) with human transcripts, scored after removing fillers, speaker labels and punctuation and treating number words as digits. Gemini cost is estimated from tokens; Google prices are list prices.",
+ "summary": [
+  {
+   "model": "chirp_3",
+   "files": 9,
+   "failed": 0,
+   "wer_mean": 0.10517253337520599,
+   "wer_worst": 0.18623124448367168,
+   "deletions_pct": 0.024453643978049486,
+   "key_recall": 0.9402116402116403,
+   "rtf": 0.014767017752568905,
+   "cost_per_10min": 0.16,
+   "note": "Marginally better than Chirp 2; produced a 10,000-word repetition loop on one real recording and took 118 s — needs the output guard."
+  },
+  {
+   "model": "chirp_2",
+   "files": 9,
+   "failed": 0,
+   "wer_mean": 0.11025028512299372,
+   "wer_worst": 0.18711385701676964,
+   "deletions_pct": 0.023009531144700106,
+   "key_recall": 0.9119929453262786,
+   "rtf": 0.014610577316158216,
+   "cost_per_10min": 0.16,
+   "note": "Production default. Fast and consistent."
+  },
+  {
+   "model": "latest_long",
+   "files": 9,
+   "failed": 0,
+   "wer_mean": 0.16422151917620742,
+   "wer_worst": 0.2471315092674316,
+   "deletions_pct": 0.057475690767305285,
+   "key_recall": 0.843694885361552,
+   "rtf": 0.054247362715421694,
+   "cost_per_10min": 0.16,
+   "note": "Cheapest Google model but clearly the least accurate: misses 2× more words."
+  },
+  {
+   "model": "medical_conversation",
+   "files": 9,
+   "failed": 0,
+   "wer_mean": 0.1497165183273805,
+   "wer_worst": 0.21977052074139453,
+   "deletions_pct": 0.028112063155867912,
+   "key_recall": 0.8983245149911817,
+   "rtf": 0.0745274580299592,
+   "cost_per_10min": 0.7800000000000001,
+   "note": "Premium medical model (5× the price): not better than Chirp. Blocked by the cost guard in production."
+  },
+  {
+   "model": "gemini-2.5-flash",
+   "files": 8,
+   "failed": 1,
+   "wer_mean": 0.10931119723228276,
+   "wer_worst": 0.18711385701676964,
+   "deletions_pct": 0.021294810058855,
+   "key_recall": 0.9416666666666667,
+   "rtf": 0.029743804319206025,
+   "cost_per_10min": 0.01974463090663581,
+   "note": "As accurate as Chirp at about 1/8 of the price; can answer 429 (quota) when many long requests run at once."
+  },
+  {
+   "model": "gemini-3.7-flash",
+   "files": 6,
+   "failed": 3,
+   "wer_mean": 0.11383641204108674,
+   "wer_worst": 0.1879964695498676,
+   "deletions_pct": 0.02632708541994563,
+   "key_recall": 0.9177248677248677,
+   "rtf": 0.044279645166681446,
+   "cost_per_10min": 0.020785653594873634,
+   "note": "Similar accuracy; slower and 3 of 9 runs failed (timeouts / quota)."
+  }
+ ],
+ "perFile": [
+  {
+   "id": "CAR0001",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.081,
+     "sec": 10
+    },
+    "chirp_2": {
+     "wer": 0.077,
+     "sec": 8
+    },
+    "latest_long": {
+     "wer": 0.129,
+     "sec": 34
+    },
+    "medical_conversation": {
+     "wer": 0.141,
+     "sec": 49
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.075,
+     "sec": 70
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.085,
+     "sec": 16
+    }
+   }
+  },
+  {
+   "id": "CAR0002",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.068,
+     "sec": 7
+    },
+    "chirp_2": {
+     "wer": 0.075,
+     "sec": 7
+    },
+    "latest_long": {
+     "wer": 0.122,
+     "sec": 29
+    },
+    "medical_conversation": {
+     "wer": 0.104,
+     "sec": 45
+    },
+    "gemini-2.5-flash": {
+     "error": "HTTP 429: {\"error\":{\"code\":429,\"message\":\"Resource exhausted"
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.077,
+     "sec": 22
+    }
+   }
+  },
+  {
+   "id": "DER0001",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.131,
+     "sec": 12
+    },
+    "chirp_2": {
+     "wer": 0.14,
+     "sec": 10
+    },
+    "latest_long": {
+     "wer": 0.198,
+     "sec": 39
+    },
+    "medical_conversation": {
+     "wer": 0.19,
+     "sec": 50
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.137,
+     "sec": 13
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.157,
+     "sec": 17
+    }
+   }
+  },
+  {
+   "id": "GAS0001",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.148,
+     "sec": 9
+    },
+    "chirp_2": {
+     "wer": 0.151,
+     "sec": 10
+    },
+    "latest_long": {
+     "wer": 0.185,
+     "sec": 31
+    },
+    "medical_conversation": {
+     "wer": 0.207,
+     "sec": 46
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.146,
+     "sec": 11
+    },
+    "gemini-3.7-flash": {
+     "error": "The operation was aborted due to timeout"
+    }
+   }
+  },
+  {
+   "id": "GAS0002",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.073,
+     "sec": 7
+    },
+    "chirp_2": {
+     "wer": 0.08,
+     "sec": 10
+    },
+    "latest_long": {
+     "wer": 0.116,
+     "sec": 30
+    },
+    "medical_conversation": {
+     "wer": 0.104,
+     "sec": 42
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.071,
+     "sec": 11
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.077,
+     "sec": 19
+    }
+   }
+  },
+  {
+   "id": "MSK0001",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.067,
+     "sec": 8
+    },
+    "chirp_2": {
+     "wer": 0.08,
+     "sec": 7
+    },
+    "latest_long": {
+     "wer": 0.134,
+     "sec": 29
+    },
+    "medical_conversation": {
+     "wer": 0.108,
+     "sec": 43
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.068,
+     "sec": 8
+    },
+    "gemini-3.7-flash": {
+     "error": "The operation was aborted due to timeout"
+    }
+   }
+  },
+  {
+   "id": "RES0001",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.102,
+     "sec": 12
+    },
+    "chirp_2": {
+     "wer": 0.109,
+     "sec": 11
+    },
+    "latest_long": {
+     "wer": 0.165,
+     "sec": 41
+    },
+    "medical_conversation": {
+     "wer": 0.136,
+     "sec": 57
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.105,
+     "sec": 14
+    },
+    "gemini-3.7-flash": {
+     "error": "HTTP 429: {\"error\":{\"code\":429,\"message\":\"Resource exhausted"
+    }
+   }
+  },
+  {
+   "id": "RES0002",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.186,
+     "sec": 9
+    },
+    "chirp_2": {
+     "wer": 0.187,
+     "sec": 10
+    },
+    "latest_long": {
+     "wer": 0.247,
+     "sec": 35
+    },
+    "medical_conversation": {
+     "wer": 0.22,
+     "sec": 43
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.187,
+     "sec": 12
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.188,
+     "sec": 16
+    }
+   }
+  },
+  {
+   "id": "RES0003",
+   "engines": {
+    "chirp_3": {
+     "wer": 0.091,
+     "sec": 10
+    },
+    "chirp_2": {
+     "wer": 0.093,
+     "sec": 10
+    },
+    "latest_long": {
+     "wer": 0.182,
+     "sec": 37
+    },
+    "medical_conversation": {
+     "wer": 0.139,
+     "sec": 41
+    },
+    "gemini-2.5-flash": {
+     "wer": 0.086,
+     "sec": 11
+    },
+    "gemini-3.7-flash": {
+     "wer": 0.099,
+     "sec": 76
+    }
+   }
+  }
+ ]
+}

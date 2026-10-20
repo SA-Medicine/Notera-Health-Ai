@@ -14,7 +14,7 @@ const ICONS = {
 const NAV = [
   ['', [['guide', 'Start here']]],
   ['Admin · Monitor', [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['activity', 'Activity']]],
-  ['Admin · Control production', [['system', 'System'], ['prompts', 'Prompts'], ['settings', 'Settings']]],
+  ['Admin · Control production', [['system', 'System'], ['prompts', 'Prompts'], ['settings', 'Settings'], ['speech', 'Speech to text']]],
   ['Harness · Test and improve', [['lab', '1 · Run & inputs'], ['results', '2 · Review notes'], ['compare', '3 · Compare runs'], ['judge', '3 · Blind judge'], ['insights', '4 · Diagnose'], ['optimize', '5 · Improve'], ['trends', 'Trends']]],
   ['Tools', [['pipeline', 'Pipeline log'], ['bench', 'Test bench']]],
 ];
@@ -23,6 +23,7 @@ const NAVKEYS = NAV.flatMap(([, items]) => items.map(([k]) => k));
 import { labView, labStop } from './lab.js';
 import { systemView, systemStop } from './system.js';
 import { settingsView } from './settings.js';
+import { speechView } from './speech.js';
 import { promptsView } from './prompts.js';
 import { compareView } from './compare.js';
 import { optimizeView } from './optimize.js';
@@ -88,7 +89,7 @@ function shell() {
 function go(v) {
   labStop(); systemStop(); if (!NAVKEYS.includes(v)) v = 'guide'; S.view = v; history.replaceState(null, '', '#' + v);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
+  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), speech: () => speechView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
