@@ -463,11 +463,11 @@ async function startReport(runId, limit = 15) {
 }
 
 // custom input: paste a transcript (optionally with a gold note) → note, pipeline log, metrics
-async function tryTranscript({ transcript, gold = '', writerModel, prompt, candidateId, promptText }) {
+async function tryTranscript({ transcript, gold = '', writerModel, prompt, candidateId, promptText, editor, story }) {
   const t = String(transcript || '').trim(); if (t.length < 80) throw new Error('transcript is too short');
   const p = await resolvePrompt({ prompt, candidateId, promptText }); const log = []; const trace = {}; const t0 = Date.now();
   const r = await generateNote({ transcript: t.slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'lab' },
-    { persist: false, mode: 'v2', writerPrompt: p.text, writerModel: writerModel || undefined, onLog: (l) => { if (log.length < 400) log.push(l); }, trace });
+    { persist: false, mode: 'v2', writerPrompt: p.text, writerModel: writerModel || undefined, ...(editor !== undefined ? { editor: !!editor } : {}), ...(story !== undefined ? { story: !!story } : {}), onLog: (l) => { if (log.length < 400) log.push(l); }, trace });
   let metrics = null;
   if (String(gold).trim().length > 100) { const noteText = noteToText(r.note); const sc = M.scoreNote({ note: r.note, noteText, goldText: String(gold), entities: [] }); metrics = { similarity_to_gold: sc.similarity_to_gold, omission_rate: sc.omission_rate, omission_missed: sc.omission_missed, story_flow: sc.story_flow, section_coverage: sc.section_coverage }; }
   return { note: r.renderedNote || '', json: r.note, ms: Date.now() - t0, promptSource: p.source, log, trace, metrics };

@@ -512,6 +512,11 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       const outText = norm(JSON.stringify(out)); const lostMed = norm(medLine).split(' ').filter((w) => w.length >= 4 && w !== 'medications' && w !== 'medication').find((w) => !outText.includes(w));
       let chk = editorAccepts(draft, noHeads(out), transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
       if (chk.ok && bullets >= 4 && heads < 2) chk = { ok: false, why: 'the Subjective has no topic headings — group the bullets under headings such as "Abdominal Pain:" and "Breathing:" (each heading is a line ending in a colon)' };
+      if (chk.ok) {   // the same bullet twice (the model sometimes appends the old fragments after the new topics)
+        const bl = String(out.subjective.hpi_details || '').split('\n').filter((l) => l.trim() && !isHead(l)).map((l) => new Set(norm(l).split(' ').filter((w) => w.length > 3)));
+        let dupPair = false; for (let i = 0; i < bl.length && !dupPair; i++) for (let j = i + 1; j < bl.length; j++) { const sh = [...bl[i]].filter((w) => bl[j].has(w)).length; if (bl[i].size >= 3 && bl[j].size >= 3 && sh / Math.min(bl[i].size, bl[j].size) >= 0.8) { dupPair = true; break; } }
+        if (dupPair) chk = { ok: false, why: 'some bullets repeat each other — say every fact once, under its topic, and do not append the old fragments' };
+      }
       if (chk.ok && lostMed) chk = { ok: false, why: `the medication line lost "${lostMed}" — keep every drug name and strength exactly` };
       if (!chk.ok) { why = chk.why; rejected = out.subjective; log(`[v2:story] attempt ${attempt + 1} rejected — ${chk.why}`); continue; }
       log(`[v2:story] applied${attempt ? ' on retry' : ''} (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
