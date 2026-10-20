@@ -51,3 +51,9 @@ test('a result stated twice in Objective is kept once, in the fuller form', () =
   const n = { metadata: {}, objective: { completed_investigations: 'MIBI scan (11 Apr 2025): normal perfusion study, no evidence of blockage or heart attack\nMibi test: normal perfusion study (April 11th)\nChest X-ray: normal' } };
   dedupeObjective(n); assert.equal(n.objective.completed_investigations, 'MIBI scan (11 Apr 2025): normal perfusion study, no evidence of blockage or heart attack\nChest X-ray: normal');
 });
+
+import { stripAddresses } from '../src/orchestrator/postGuards.js';
+test('addresses and housing are removed, who the patient lives with is kept', () => {
+  const n = { metadata: {}, past_medical_history: { social: 'Lives in Lake Shore, East Pike Creek; previously lived on Russell Woods Street; husband passed away from dementia', other: 'Lives with her daughter' } };
+  stripAddresses(n); assert.equal(n.past_medical_history.social, 'husband passed away from dementia'); assert.equal(n.past_medical_history.other, 'Lives with her daughter');
+});
