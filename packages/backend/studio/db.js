@@ -33,6 +33,15 @@ export function ensureStudioSchema() {
       CREATE TABLE IF NOT EXISTS studio.gate_runs (
         id BIGSERIAL PRIMARY KEY, status TEXT NOT NULL DEFAULT 'running', n INT, done INT NOT NULL DEFAULT 0, started_by TEXT,
         started_at TIMESTAMPTZ NOT NULL DEFAULT now(), finished_at TIMESTAMPTZ, summary JSONB, rows JSONB);
+      CREATE TABLE IF NOT EXISTS studio.interviewees (
+        user_id TEXT PRIMARY KEY, full_name TEXT, source TEXT NOT NULL DEFAULT 'existing', active BOOLEAN NOT NULL DEFAULT true, added_by TEXT, added_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      CREATE TABLE IF NOT EXISTS studio.interviews (
+        user_id TEXT NOT NULL, part INT NOT NULL, answers JSONB NOT NULL DEFAULT '{}'::jsonb, followups JSONB, status TEXT NOT NULL DEFAULT 'open',
+        started_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), submitted_at TIMESTAMPTZ, PRIMARY KEY (user_id, part));
+      CREATE TABLE IF NOT EXISTS studio.style_profiles (
+        id BIGSERIAL PRIMARY KEY, user_id TEXT NOT NULL, version INT NOT NULL, profile JSONB, markdown TEXT, status TEXT NOT NULL DEFAULT 'draft', confirmations JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(), confirmed_at TIMESTAMPTZ, UNIQUE (user_id, version));
+      CREATE TABLE IF NOT EXISTS studio.interview_synthesis (id BIGSERIAL PRIMARY KEY, data JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
       CREATE TABLE IF NOT EXISTS studio.audit (
         id BIGSERIAL PRIMARY KEY, user_id TEXT, action TEXT NOT NULL, detail JSONB, at TIMESTAMPTZ NOT NULL DEFAULT now());
     `).catch((e) => { _ready = null; throw e; });

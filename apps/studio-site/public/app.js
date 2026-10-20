@@ -1,16 +1,19 @@
 // Notera Studio — the training doctor's review desk, and the owner's control room.
 import { $, $$, esc, when, S, toast, studio, backend, busy, pill, scoreTone, head } from './kit.js';
 import { reviewView } from './review.js';
+import { interviewHome, interviewPart, profileView, interviewsAdmin, personView, compareView } from './interview.js';
 
 const app = $('#app');
-const OWNER_NAV = [['queue', 'All notes'], ['proposals', 'Proposals'], ['dashboard', 'Dashboard'], ['spec', 'Style Spec'], ['corpus', 'Corpus'], ['tools', 'Tools']];
-const DOC_NAV = [['queue', 'My notes to review'], ['proposals', 'My suggestions']];
+const OWNER_NAV = [['queue', 'All notes'], ['proposals', 'Proposals'], ['dashboard', 'Dashboard'], ['interview', 'My interview'], ['interviews', 'Interviews'], ['spec', 'Style Spec'], ['corpus', 'Corpus'], ['tools', 'Tools']];
+const DOC_NAV = [['queue', 'My notes to review'], ['proposals', 'My suggestions'], ['interview', 'My interview']];
+const INTERVIEW_NAV = [['interview', 'My interview']];
+const homeFor = () => (S.me?.access === 'interviewee' ? '#/interview' : '#/queue');
 
 function shell(view) {
-  const nav = S.me.access === 'owner' ? OWNER_NAV : DOC_NAV;
+  const nav = S.me.access === 'owner' ? OWNER_NAV : S.me.access === 'interviewee' ? INTERVIEW_NAV : DOC_NAV;
   const lock = S.me.spec?.locked ? pill('Style Spec v' + S.me.spec.version + ' · locked', 'acc') : pill('Style Spec unlocked', 'warn');
   app.innerHTML = `<div class="top"><span class="brand">Notera Studio</span><nav class="nav">${nav.map(([k, l]) => `<a href="#/${k}" class="${view === k ? 'on' : ''}">${l}</a>`).join('')}</nav><div class="grow"></div>
-    ${lock}<span class="hint">${esc(S.me.name || 'Signed in')} · ${S.me.access === 'owner' ? 'owner' : 'reviewer'}</span><button class="btn sm" id="out">Sign out</button></div><main id="view"></main>`;
+    ${lock}<span class="hint">${esc(S.me.name || 'Signed in')} · ${S.me.access === 'owner' ? 'owner' : S.me.access === 'interviewee' ? 'interview' : 'reviewer'}</span><button class="btn sm" id="out">Sign out</button></div><main id="view"></main>`;
   $('#out').onclick = async () => { await backend('/api/auth/logout', { method: 'POST', json: {}, quiet: true }).catch(() => {}); S.me = null; location.hash = '#/login'; };
   return $('#view');
 }
@@ -24,7 +27,7 @@ function loginView(msg = '') {
     await busy($('#go'), 'Signing in…', async () => {
       try { await backend('/api/auth/login', { method: 'POST', json: { email: $('#em').value.trim(), password: $('#pw').value }, quiet: true }); } catch (err) { $('#er').textContent = err.message; return; }
       try { S.me = await studio('/me', { quiet: true }); } catch (err) { await backend('/api/auth/logout', { method: 'POST', json: {}, quiet: true }).catch(() => {}); $('#er').textContent = err.status === 403 ? 'This account has not been given access to Studio.' : err.message; return; }
-      location.hash = '#/queue'; route();
+      location.hash = homeFor(); route();
     });
   };
 }
@@ -112,14 +115,17 @@ async function toolsView(root) {
 }
 
 async function route() {
-  const h = (location.hash || '#/queue').replace(/^#\//, ''); const [view, arg] = h.split('/');
+  const h = (location.hash || '#/').replace(/^#\//, ''); const [view, arg, arg2] = h.split('/');
   if (view === 'login') return loginView();
   if (!S.me) { try { S.me = await studio('/me', { quiet: true }); } catch (e) { return loginView(e.status === 403 ? 'This account has not been given access to Studio.' : ''); } }
   const owner = S.me.access === 'owner';
+  if (!view || (S.me.access === 'interviewee' && !['interview'].includes(view))) { location.hash = homeFor(); return; }
   const v = view === 'review' ? 'queue' : view; const root = shell(v);
   try {
     root.innerHTML = '<div class="empty"><span class="spin"></span></div>';
-    if (view === 'review') await reviewView(root, arg);
+    if (view === 'interview') { if (arg === 'part') await interviewPart(root, Number(arg2)); else if (arg === 'profile') await profileView(root); else await interviewHome(root); }
+    else if (owner && view === 'interviews') { if (arg === 'person') await personView(root, arg2); else if (arg === 'compare') await compareView(root); else await interviewsAdmin(root); }
+    else if (view === 'review') await reviewView(root, arg);
     else if (view === 'proposals') await proposalsView(root);
     else if (owner && view === 'dashboard') await dashboardView(root);
     else if (owner && view === 'spec') await specView(root);

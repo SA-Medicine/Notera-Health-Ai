@@ -31,3 +31,11 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 10px
 .err-item{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line)}.pop{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--accbg);color:var(--ink)}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#14231f;color:#fff;padding:10px 18px;border-radius:99px;opacity:0;pointer-events:none;transition:.25s;z-index:20}#toast.show{opacity:1;transform:translateX(-50%)}#toast.bad{background:#b3261e}
 .sep{height:1px;background:var(--line);margin:16px 0}.empty{text-align:center;color:var(--ink3);padding:30px}.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}@keyframes sp{to{transform:rotate(360deg)}}
+
+.bar{height:8px;background:var(--mut);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:99px;transition:width .3s}
+.sticky{position:sticky;top:56px;z-index:4;background:var(--bg);padding:8px 0 10px;border-bottom:1px solid var(--line);margin-bottom:10px;display:grid;gap:4px}
+.grp{margin:22px 0 8px;color:var(--acc2);font-size:15px;text-transform:uppercase;letter-spacing:.5px}.scale{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ex{white-space:pre-wrap;background:var(--mut);border-radius:8px;padding:8px 10px;margin:6px 0 2px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace}
+.rank{margin:6px 0;padding-left:22px}.rank li{display:flex;align-items:center;gap:6px;padding:4px 0}.rank li span{flex:1}.q.miss{border-color:var(--bad);background:var(--badbg)}
+.stmt{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}.stmt .stars button{width:auto;padding:0 12px}.fix{margin:4px 0 8px}
+.hbar{display:grid;grid-template-columns:minmax(120px,38%) 1fr 28px;gap:8px;align-items:center;margin:3px 0;font-size:13px}.hbar i{display:block;height:10px;background:var(--acc);border-radius:5px;min-width:3px}.hbar em{color:var(--ink3);font-style:normal}

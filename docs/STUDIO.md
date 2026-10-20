@@ -48,3 +48,18 @@ Notes created before the approved format went live (2026-10-20) are marked **leg
 * Caddy: `handle_path /studio/*` -> `notera-studio:8080` (a Caddy container restart is needed after the Caddyfile changes because it is a single-file bind mount).
 * Regression gate: Studio -> Tools -> Run the gate, before any release.
 * Tuning experiment: Tools -> Tuning export writes Vertex AI supervised-tuning files; starting a tuning job and adopting a tuned model require unlocking the Style Spec first.
+
+## The Style Interview (all invited accounts)
+A long, detailed, three-part interview about exactly how each doctor wants notes written. It is the "what do you want, in your own words" counterpart of the per-note review.
+
+| Part | Title | Questions | What it covers |
+|---|---|---|---|
+| 1 | You and your notes | 27 | practice and visit types, who reads the notes, what is edited today, length and abbreviation comfort, trust and safety |
+| 2 | Section by section | 49 + follow-ups | Subjective, Past Medical History, Objective, Assessment & Plan, language and layout; side-by-side examples to choose between |
+| 3 | **The defining part** | 42 + follow-ups | priorities (ranked), trade-offs, deal-breakers, hard "Always/Never" rules, the perfect note, special situations, and a **rule-by-rule review of the approved Style Spec v1** (keep / change / drop) |
+
+* **Who gets it:** every active account created before 2026-10-20 23:59 UTC that did not sign up by itself (the administrator and the clinician accounts created by the owner). Self sign-ups and later accounts are **not** invited automatically; the owner can invite any account by email (Studio -> Interviews). Invited accounts see **only** the interview in Studio; reviewers also see their notes; the owner sees everything.
+* **How it works:** parts open in order; answers autosave as they are typed; required questions must be answered to submit; a submitted part can be reopened. After Part 1 and Part 2 the model reads that person's answers and adds 6-8 **personalised follow-up questions** to the next part.
+* **What is stored** (schema `studio`): `interviewees`, `interviews` (answers per part), `style_profiles`, `interview_synthesis`. After Part 3 a **Style Profile** is synthesised (priorities, rules per section, hard rules, terminology, trade-offs, review of the approved format, contradictions, open questions) and the doctor **confirms it statement by statement** (right / not quite / wrong + correction). Changes asked for in the rule review and corrections become **proposals**; nothing is applied.
+* **Owner views:** everyone's progress, every answer, a Markdown/JSON export per person, and **Compare doctors** (answer distributions for every choice question plus a written view of agreements, conflicts and rules most would accept) — the basis for restructuring the system later.
+* **Safe by design:** answering never changes how notes are produced; the Style Spec v1 stays locked.

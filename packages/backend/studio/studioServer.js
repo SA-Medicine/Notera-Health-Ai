@@ -19,6 +19,7 @@ import { exportTuning } from './tuning.js';
 import { runGate } from './gate.js';
 import { pollOnce, processPending, captureFinals, seedReviewers, reviewerIds } from './ingest.js';
 import { specLockState } from '../src/orchestrator/specLock.js';
+import { registerInterviewRoutes, seedInterviewees, isInterviewee } from './interview.js';
 
 const KEY = process.env.STUDIO_KEY || '';
 const DATA = process.env.STUDIO_DATA_DIR || path.resolve(process.cwd(), '.studio-data');
@@ -43,7 +44,13 @@ app.use(async (req, res, next) => {
     await ensureStudioSchema();
     if (!name) { const u = await one(`SELECT full_name FROM auth.users WHERE id::text = $1`, [id]).catch(() => null); name = u?.full_name || ''; }
     if (role === 'admin') req.who = { id, name, access: 'owner' };
-    else { const r = await one(`SELECT user_id FROM studio.reviewers WHERE user_id = $1 AND active`, [id]); if (!r) return res.status(403).json({ error: 'This account is not a Studio reviewer.' }); req.who = { id, name, access: 'reviewer' }; }
+    else {
+      const r = await one(`SELECT user_id FROM studio.reviewers WHERE user_id = $1 AND active`, [id]);
+      if (r) req.who = { id, name, access: 'reviewer' };
+      else if (await isInterviewee(id)) req.who = { id, name, access: 'interviewee' };      // invited to the Style Interview only
+      else return res.status(403).json({ error: 'This account has not been given access to Studio.' });
+    }
+    if (req.who.access === 'interviewee' && !/^\/(me|interview)(\/|$)/.test(req.path)) return res.status(403).json({ error: 'The interview is the only part of Studio open to this account.' });
     next();
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -195,6 +202,8 @@ app.post('/gate/run', owner, wrap(async (req, res) => {
 app.get('/gate/runs', owner, wrap(async (req, res) => ok(res, { runs: await query(`SELECT id, status, n, done, started_at, finished_at, summary FROM studio.gate_runs ORDER BY id DESC LIMIT 20`) })));
 app.post('/ingest/run', owner, wrap(async (req, res) => { const added = await pollOnce(); const edits = await captureFinals(); ok(res, { added, edits_captured: edits }); }));
 
+registerInterviewRoutes(app, { wrap, owner });
+
 export { app };
 
 // ── start ──
@@ -203,6 +212,7 @@ if (process.argv[1] && process.argv[1].endsWith('studioServer.js')) {
   await ensureStudioSchema();
   await query(`INSERT INTO studio.spec_versions (version, status, title, spec, created_by) VALUES ($1, 'locked', $2, $3::jsonb, 'owner') ON CONFLICT (version) DO NOTHING`, [SPEC.version, SPEC.title, JSON.stringify(SPEC)]);
   await seedReviewers().catch((e) => console.warn('[studio] reviewer seed:', e.message));
+  await seedInterviewees().then((n) => console.log(`[studio] interview invitations: ${n} new`)).catch((e) => console.warn('[studio] interviewee seed:', e.message));
   const tick = async () => { try { await pollOnce(); await processPending(); await captureFinals(); } catch (e) { console.warn('[studio] tick:', e.message); } };
   setInterval(tick, Number(process.env.STUDIO_POLL_MS) || 60000); setTimeout(tick, 3000);
   app.listen(PORT, () => console.log(`[studio] listening on ${PORT}${KEY ? '' : ' — STUDIO_KEY missing, every request will be refused'}`));
