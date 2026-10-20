@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "status": "locked",
+  "title": "Style Spec v1 — doctor-approved (2026-10-20)",
+  "approvedBy": "owner + training doctor",
+  "summary": "Topic-headed Subjective with short bullets; compact PMH with one Medications line; grouped Objective; one problem per issue with plain titles and an assessment only when the clinician concluded something.",
+  "rules": [
+    { "id": "S1", "section": "Subjective", "severity": "major", "text": "Subjective is grouped under topic headings; the first topic is Presenting Complaint." },
+    { "id": "S2", "section": "Subjective", "severity": "minor", "text": "Bullets are short clinical clauses (at most 24 words), never paragraphs." },
+    { "id": "S3", "section": "Subjective", "severity": "major", "text": "No lifestyle, diet, habits, smoking, alcohol, social or family topics in Subjective (they belong in Past Medical History)." },
+    { "id": "S4", "section": "Subjective", "severity": "major", "text": "Every fact and every denial appears once; no repeated bullets." },
+    { "id": "S5", "section": "Subjective", "severity": "minor", "text": "Bullets start with the finding, not with \"The patient\"." },
+    { "id": "P1", "section": "Past Medical History", "severity": "minor", "text": "At most about six bullets (plus the Medications line)." },
+    { "id": "P2", "section": "Past Medical History", "severity": "major", "text": "At most one Medications line, with no repeated drug." },
+    { "id": "P3", "section": "Past Medical History", "severity": "major", "text": "No addresses or housing details." },
+    { "id": "P4", "section": "Past Medical History", "severity": "major", "text": "No lines that only say something was not mentioned." },
+    { "id": "O1", "section": "Objective", "severity": "major", "text": "Vital signs carry numbers; statements without numbers are history, not vitals." },
+    { "id": "O2", "section": "Objective", "severity": "major", "text": "A result is stated once; the results of one panel are grouped on one line." },
+    { "id": "O3", "section": "Objective", "severity": "major", "text": "No patient-reported statements in Objective." },
+    { "id": "A1", "section": "Assessment & Plan", "severity": "major", "text": "Numbered problems, one per distinct issue." },
+    { "id": "A2", "section": "Assessment & Plan", "severity": "major", "text": "Plain problem titles: no rule-out lists, suspected causes, \"vs\" or question marks." },
+    { "id": "A3", "section": "Assessment & Plan", "severity": "major", "text": "Each investigation, treatment or follow-up appears once." },
+    { "id": "A4", "section": "Assessment & Plan", "severity": "major", "text": "Assessment lines hold only the clinician's conclusion, never a retelling of the history." },
+    { "id": "A5", "section": "Assessment & Plan", "severity": "minor", "text": "Refills sit under the condition the drug treats, not in a separate refills problem." },
+    { "id": "A6", "section": "Assessment & Plan", "severity": "major", "text": "No separate Follow-up problem." },
+    { "id": "A7", "section": "Assessment & Plan", "severity": "minor", "text": "A diagnosis is never just the symptom title." },
+    { "id": "G1", "section": "Note", "severity": "major", "text": "No wording such as unspecified / not mentioned / not stated." }
+  ]
+}
