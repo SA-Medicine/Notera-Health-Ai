@@ -50,7 +50,8 @@ export function noteToMarkdown(note) {
       let first = true;
       for (const r of rows) {
         const clean = r.replace(/^[-•*]\s*/, '');
-        if (/^[A-Za-z][A-Za-z &/,'-]{1,50}:$/.test(clean)) { if (!first) L.push(''); L.push('**' + clean + '**'); first = false; } else L.push('- ' + clean);
+        if (/^[A-Za-z][A-Za-z &/,'-]{1,50}:$/.test(clean)) { if (!first) L.push(''); L.push('**' + clean + '**'); } else L.push('- ' + clean);
+        first = false;
       }
       L.push('');
     }
