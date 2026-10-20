@@ -221,3 +221,23 @@ export function stripAddresses(note, log = () => {}) {
   if (n) log(`[v2:tidy] removed ${n} address / housing segment(s) from Past Medical History`);
   return { removed: n };
 }
+
+const STEM = (w) => w.toLowerCase().replace(/[^a-z]/g, '').slice(0, 5);
+const GENERIC = new Set(['pain', 'right', 'left', 'upper', 'lower', 'chronic', 'acute', 'test', 'tests', 'blood', 'today', 'repeat', 'bloods', 'scan', 'study', 'plan', 'follow', 'other', 'with', 'from', 'issue', 'problem', 'administrative', 'medication', 'refills']);
+/** An investigation sits under the problem it is about: "ultrasound for abdomen and pelvis" under "Hypothyroidism" moves to "Abdominal pain" when it shares a body-part word with that problem's title and none with its own. */
+export function reattachInvestigations(note, log = () => {}) {
+  const probs = note.assessment_and_plan || []; let moved = 0;
+  const own = probs.map((p) => new Set(`${p.issue} ${p.diagnosis}`.split(/[^A-Za-z]+/).filter((w) => w.length > 3 && !GENERIC.has(w.toLowerCase())).map(STEM)));
+  probs.forEach((p, i) => {
+    const items = String(p.investigations_planned || '').split('\n').map((x) => x.trim()).filter(Boolean); const keep = [];
+    for (const it of items) {
+      const stems = it.split(/[^A-Za-z]+/).filter((w) => w.length > 3 && !GENERIC.has(w.toLowerCase())).map(STEM);
+      const fitsOwn = stems.some((s) => own[i].has(s));
+      const j = fitsOwn ? -1 : probs.findIndex((q, k) => k !== i && stems.some((s) => own[k].has(s)));
+      if (j >= 0) { probs[j].investigations_planned = [probs[j].investigations_planned, it].filter(Boolean).join('\n'); moved++; } else keep.push(it);
+    }
+    if (keep.length !== items.length) p.investigations_planned = keep.join('\n');
+  });
+  if (moved) log(`[v2:tidy] moved ${moved} investigation(s) to the problem they are about`);
+  return { moved };
+}
