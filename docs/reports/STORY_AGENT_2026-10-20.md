@@ -35,3 +35,17 @@ Story agent on · template guard on · placement guard on · drug plausibility f
 * About 1 note in 5 keeps the original bullet Subjective because the fact check refuses the rewrite (a changed number, or too many dropped words). That is the safe direction.
 * The writer's own draft is the input, so a thin or de-identified draft ("the specialist", `[date]`) gives a thin story. The agent keeps placeholders as written.
 * The pronoun is "the patient" unless the transcript makes the sex explicit.
+
+## Addendum: doctor-directed format (live session, 2026-10-20)
+The note format was changed from the doctor's answers on a live 21,000-character consultation, not from a test loop.
+
+| Doctor's decision | Implemented as |
+|---|---|
+| Subjective in bullets under topic headings, short clinical clauses, each denial once, symptoms only | Story agent v2 (headings + bullets); social/lifestyle moved to PMH; repeated bullets and old fragments dropped |
+| PMH: few grammatical bullets, one Medications line, no addresses, chronic conditions always listed | Story agent PMH rewrite (medication tokens must survive), `stripAddresses`, `ensureChronicInPMH`, writer prompt v4 |
+| A&P: one problem per issue, plain titles, assessment = clinician's conclusion only, refills under the condition | Writer prompt v4, `trimAssessment`, `reattachInvestigations`, `tidyPlan`, reviewer (editor) stage on |
+| Objective: only measured/examined, normals grouped | Writer prompt v4, `dedupeObjective`, numberless "vital signs" moved to history |
+| Proper disease / drug names from a reference | `refNames.js`: RxNorm brand -> generic in brackets; ICD-10-CM code attached for an exact / "unspecified" match, review flag if none |
+
+Regression check (100 unseen notes, gemini-3.7-flash, all features on, versus the same notes before): parity 84.1 vs 80.7, notes at 90+ 47 vs 34, strict gold audit 63.5 vs 62.8, transcript audit 66.3 vs 64.0, critical wrong claims per note 0.30 vs 0.29, omission 0.515 vs 0.540, similarity as shown 0.398 vs 0.396. The heuristic flow score falls (0.81 vs 0.86) because it rewards longer lines; short bullet clauses were the doctor's choice. Median 21 s per note (was 17 s).
+Known limits: the writer still varies between runs on problem structure; a refill can still appear as its own problem when no condition is named; reference lookups only cover brand names and stated diagnoses.
