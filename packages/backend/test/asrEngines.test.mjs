@@ -62,3 +62,9 @@ test('impossible output is rejected: a repetition loop or a speech rate no human
   resetHealth(); const r = await transcribeWithChain(pcm(20, 4000), { settings: S(), runners: runners({ v2: ok(loop) }) });   // 20 s of audio with a 360-word reply
   assert.equal(r.engine, 'latest_long', 'the loop is treated as a failure and the next engine answers'); assert.match(r.tried[0].error, /implausible/);
 });
+
+import { rerunSettings } from '../src/asr/engines.js';
+test('the re-transcribe pass uses Gemini 2.5 Flash first, Chirp 2 only as its fallback, and fits the proxy time limit', () => {
+  const r = rerunSettings(defaultSettings({ ASR_MODEL: 'chirp_2' })); assert.equal(r.primary, 'gemini-2.5-flash'); assert.deepEqual(r.fallbacks, ['chirp_2']); assert.ok(r.timeoutMs <= 90000); assert.equal(r.speechCheck, true);
+  const g = rerunSettings(validateSettings({ primary: 'chirp_3', fallbacks: ['latest_long'] })); assert.equal(g.primary, 'gemini-2.5-flash', 'whatever the owner chose as primary, the re-run is always Gemini');
+});
