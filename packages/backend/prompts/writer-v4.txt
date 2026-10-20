@@ -18,9 +18,10 @@ Past Medical History = established conditions and history, one per line, with st
 Objective = What was MEASURED or EXAMINED by the clinician during this visit. It must NOT contain patient-reported symptoms, history, home readings, or past results.
   vital_signs: BP/HR/temp/weight with values and where measured, e.g. "BP 142/85 at home", "BP 132/80 in clinic".
   examination: clinician's physical or mental-state exam findings.
-  completed_investigations: each completed test WITH its result and date if stated, e.g. "Ultrasound face: multiple small subcutaneous lymph nodes, mild inflammation, no fluid collection".
+  completed_investigations: each completed test WITH its result and date if stated, e.g. "Ultrasound face: multiple small subcutaneous lymph nodes, mild inflammation, no fluid collection". GROUP the results of one panel or date on one line, abnormal values first and the normal ones together: "Bloods (Apr 2025): Hb 139; LDL 4 (high); TSH high (underactive); sodium, potassium, renal function, B12, iron, uric acid, A1c normal". One line per different test or imaging study ("MIBI (11 Apr 2025): normal perfusion, no evidence of blockage or infarct"). Never repeat a result on a second line.
+  Objective NEVER contains what the patient reports ("BP well controlled at home", "doing well"): vital_signs holds only values with numbers measured at this visit or reported home readings with their numbers.
 Assessment & Plan = ONE entry per problem the clinician addressed, most important first:
-  issue: the specific problem/diagnosis title.
+  issue: the PLAIN problem name as the clinician discussed it ("Right upper quadrant abdominal pain", "Hypothyroidism", "Hypertension"). NEVER put "rule out", "suspected", "vs", a list of possible causes, a reason or an etiology in the title; possible causes go in differential_diagnoses ONLY if the clinician listed them.
   diagnosis: ONLY a diagnosis the clinician explicitly named. If the clinician named no diagnosis, leave this EMPTY (""). A diagnosis is NOT a symptom (e.g., 'Cough'), a test result (e.g., 'Positive FIT'), a reason for visit (e.g., 'Medication renewal'), or a planned test (e.g., 'Rule out fracture'). Never infer a diagnosis from symptoms or a drug.
   assessment: the clinician's interpretation only if stated; otherwise "".
   differential_diagnoses: only if the clinician listed them.

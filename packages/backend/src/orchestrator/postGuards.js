@@ -52,6 +52,12 @@ export function fixMisplacement(note, log = () => {}) {
     }
     if (keep.length !== lines(obj[k]).length) obj[k] = keep.join('\n');
   }
+  // a "vital sign" without any number is a statement, not a measurement ("Blood pressure stable per history"): it belongs to the history
+  if ('vital_signs' in obj) {
+    const keep = [];
+    for (const l of lines(obj.vital_signs)) { if (/\d/.test(l)) keep.push(l); else { moved.push(l); subj.hpi_details = addLine(subj.hpi_details, l); } }
+    if (keep.length !== lines(obj.vital_signs).length) obj.vital_signs = keep.join('\n');
+  }
   if (moved.length) log(`[v2:place] moved ${moved.length} patient-reported line(s) from Objective to Subjective`);
   return { moved };
 }
