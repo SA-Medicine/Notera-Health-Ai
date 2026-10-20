@@ -41,3 +41,10 @@ Cost guard unchanged: the premium Google models can never be billed in productio
 2. Keep the new default chain; use the **Speech to text** page to promote Gemini 2.5 Flash to primary if cost matters (8× cheaper, same accuracy, but it answers 429 under heavy parallel load, so keep Chirp 2 as its fallback).
 3. **Add a completeness check after each recording**: compare the stored transcript's words-per-minute with the saved audio and offer "re-transcribe from the saved audio" when it is far below normal speech density. This is what would have caught the 12.7-minute consult. It needs a change in the web client, so it is not part of this change.
 4. Run `tools/asr-benchmark.mjs` after any engine or setting change; keep human-transcribed recordings as the yardstick.
+
+## 5. Completeness check after each recording (built and live)
+* **When:** when a recording finishes, the app compares the transcript's words per minute with the length of the recording. It only judges recordings of two minutes or more. Below **75 words a minute** (normal conversation is 100–160; the 12.7-minute consult that lost half its speech was at 44) a banner offers **Re-transcribe**. The check costs nothing: it is two numbers already in the browser.
+* **What the click does:** the full recording kept by the browser is sent to `POST /api/asr?rerun=1`, which transcribes it with **Gemini 2.5 Flash** (Chirp 2 only if Gemini fails). The new text replaces the old one only if it holds at least 15 % more words; otherwise the transcript is kept and the doctor is told the recording holds no more speech.
+* **Cost:** about $0.03 for a 12-minute recording; at most one offer per recording; a per-person cap of 30 re-runs a day (`ASR_RERUN_PER_DAY`).
+* **Live check on the deployed backend:** a 10.4-minute recording took 8.1 s through the re-run path (Gemini 2.5 Flash, 1,169 words) and 10.0 s through the normal path (Chirp 2, 1,136 words).
+* After a re-transcribe the doctor presses Create note again; the existing note, if any, is not changed automatically.
