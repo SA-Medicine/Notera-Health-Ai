@@ -122,3 +122,33 @@ export function sweepEmptyStatements(note, log = () => {}) {
   if (n) log(`[v2:sweep] removed ${n} "not mentioned" line(s)`);
   return { removed: n };
 }
+
+const cw = (t) => new Set(String(t).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !/^(patient|today|planned|with|that|this|from|will|have|following|after)$/.test(w)));
+const similar = (a, b, th = 0.75) => { const A = cw(a), B = cw(b); if (!A.size || !B.size) return false; const sh = [...A].filter((w) => B.has(w)).length; return sh / Math.min(A.size, B.size) >= th; };
+/** The plan states every item once: a bare "Rtc", and an investigation/treatment item that repeats an earlier one (in the same or another problem), are dropped; the Medications line has no repeated drug. */
+export function tidyPlan(note, log = () => {}) {
+  let dropped = 0; const seen = [];
+  const items = (v) => String(v || '').split(/\n|;/).map((x) => x.trim()).filter(Boolean);
+  for (const p of note.assessment_and_plan || []) {
+    for (const f of ['investigations_planned', 'treatment_planned', 'referrals']) {
+      const keep = [];
+      for (const it of items(p[f])) {
+        if (/^(rtc|rtc:|follow[- ]?up:?)$/i.test(it)) { dropped++; continue; }
+        const th = f === 'investigations_planned' ? 0.6 : 0.75;
+        if (seen.some((x) => x.f === f && similar(x.t, it, th)) || keep.some((k) => similar(k, it, th))) { dropped++; continue; }
+        keep.push(it); seen.push({ f, t: it });
+      }
+      if (keep.length !== items(p[f]).length) p[f] = keep.join(f === 'treatment_planned' ? '; ' : '\n');
+    }
+  }
+  const other = note.past_medical_history?.other;
+  if (other) {
+    note.past_medical_history.other = String(other).split('\n').map((l) => {
+      const m = l.match(/^(\s*medications?\s*:\s*)(.*)$/i); if (!m) return l;
+      const seenDrug = new Set(); const parts = m[2].split(/,\s*/).filter((x) => { const k = (x.toLowerCase().match(/[a-z]+/) || [''])[0].slice(0, 6); if (!k || seenDrug.has(k)) { dropped++; return false; } seenDrug.add(k); return true; });
+      return m[1] + parts.join(', ');
+    }).join('\n');
+  }
+  if (dropped) log(`[v2:tidy] removed ${dropped} repeated / empty plan or medication item(s)`);
+  return { dropped };
+}
