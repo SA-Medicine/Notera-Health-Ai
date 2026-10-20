@@ -37,3 +37,9 @@ test('the profile renders to readable markdown', () => {
   const md = profileMarkdown({ summary: 'A family doctor.', priorities: ['Nothing made up', 'Short'], sections: { subjective: [{ id: 'r1', text: 'Topic headings with short bullets.', confidence: 'low' }] }, hard_rules: ['Never write addresses'], terminology: { abbreviations_ok: ['HTN'], avoid: ['QD'] }, spec_v1_feedback: [{ rule: 'S2', verdict: 'change', change: 'longer bullets' }], contradictions: [], open_questions: ['Allergies placement'] });
   for (const s of ['# Style profile', '1. Nothing made up', '## Subjective', '(low confidence)', '## Hard rules', 'Never write addresses', 'S2: change — longer bullets', 'Allergies placement']) assert.ok(md.includes(s), s);
 });
+
+import { flat } from '../studio/interview.js';
+test('structured model items are flattened to readable text', () => {
+  assert.equal(flat('plain'), 'plain'); assert.equal(flat({ a: 'Wants short notes', b: 'but every negative written' }), 'Wants short notes — but every negative written');
+  assert.equal(flat(['x', { y: 'z' }]), 'x; z'); assert.equal(flat(null), '');
+});
