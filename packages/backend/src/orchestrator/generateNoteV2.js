@@ -25,7 +25,7 @@ import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
 import { reconcileNote } from './reconcileNote.js';
-import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements, tidyPlan, dropCoveredFragments, dedupeObjective, stripAddresses, reattachInvestigations } from './postGuards.js';
+import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements, tidyPlan, dropCoveredFragments, dedupeObjective, stripAddresses, reattachInvestigations, ensureChronicInPMH, trimAssessment } from './postGuards.js';
 import { describeMeds, codeDiagnoses } from './refNames.js';
 import { condenseNote } from './condenseNote.js';
 import { dedupeNote } from './dedupeNote.js';
@@ -434,6 +434,7 @@ const EDITOR_SYS = `You are the senior reviewer of an AI-drafted SOAP note (JSON
 1 CONTRADICTIONS WITH THE TRANSCRIPT: negations flipped ("denies X" when the patient has X, or the reverse), wrong drug / strength / frequency / value / side / date, a diagnosis, treatment or referral that was not said. Correct it using the transcript's own words or delete it. Never add anything that is not in the transcript.
 2 PLAN ATTRIBUTION: every investigation, treatment, referral and instruction sits under the problem it is for. Move misplaced items. Merge entries that are the same condition. A test, procedure, refill or visit task is not a problem: fold it under the problem it serves. One entry per genuinely distinct problem; keep distinct diagnoses separate.
 3 SECTION PLACEMENT: Subjective = what the patient says (symptoms, history, requests, reported readings, lifestyle). Objective = only what was measured, examined or reviewed (exam findings, vitals with where measured such as "BP 142/85 at home", completed results with values). Move symptoms and history out of Objective, exam findings out of Subjective, and planned or pending tests into investigations_planned. Past medical history = diagnosed conditions, surgeries, family / social / immunisation history and one "Current medications" line: move current-illness details to Subjective, keep family history only in family, and remove drugs that are only being newly prescribed from "Current medications".
+3b DOCTOR PREFERENCES: the assessment field holds ONLY a conclusion the clinician stated (delete lines that retell the history or start with "Patient reports/has/previously"); Past Medical History always lists every established chronic condition the transcript names (with status) even if it is also a plan problem; refills and renewals sit under the condition the drug treats, never as a separate refills problem; no addresses or housing details; an investigation sits under the problem it is about (an abdominal ultrasound belongs to the abdominal problem).
 4 PADDING: delete visit-agenda lines ("Discussion of ...", "Evaluation of ..."), filler, commentary, duplicates, and anything stated twice.
 5 COMPLETENESS: if the transcript clearly states an important fact the draft lacks (diagnosis, medication change with dose, abnormal result with value, referral, follow-up timing), add it to the right field in the same terse style.
 Style: one fact per line, short clinical phrases, exact numbers, doses and specific denials. Return ONLY the JSON.`;
@@ -631,6 +632,7 @@ export async function generateNoteV2(input, opts = {}) {
       if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
       // 2a) guardrails built from the diagnosis reports (each has its own switch in Settings)
       if (gOn('guards.template', opts.guardTemplate)) { try { const r = enforceTemplate(note, log); if (opts.trace) opts.trace.template = r; } catch (e) { log(`[v2:template] skipped — ${e.message}`); } }
+      if (gOn('guards.template', opts.guardTemplate)) { try { ensureChronicInPMH(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
       if (gOn('guards.placement', opts.guardPlacement)) { try { const r = fixMisplacement(note, log); if (opts.trace) opts.trace.placement = r; } catch (e) { log(`[v2:place] skipped — ${e.message}`); } }
       if (gOn('guards.drugPlausibility', opts.guardPlausibility)) { try { const r = drugPlausibility(note, transcript, log); if (opts.trace) opts.trace.plausibility = r; } catch (e) { log(`[v2:plausible] skipped — ${e.message}`); } }
       if (!inputChk.ok) note.metadata.flags = [...(note.metadata.flags || []), { type: 'input_not_consultation', field: 'transcript', message: inputChk.message + ' Please check the recording or text.', severity: 'warning' }];
@@ -679,7 +681,7 @@ export async function generateNoteV2(input, opts = {}) {
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
-  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
+  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   if (!blank && cfg['ref.enabled']) {
     const tr = Date.now();

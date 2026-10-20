@@ -64,3 +64,13 @@ test('an investigation about the abdomen moves from Hypothyroidism to the abdomi
   reattachInvestigations(n);
   assert.equal(n.assessment_and_plan[0].investigations_planned, 'Repeat thyroid function tests'); assert.equal(n.assessment_and_plan[1].investigations_planned, 'Ultrasound for abdomen and pelvis');
 });
+
+import { ensureChronicInPMH, trimAssessment } from '../src/orchestrator/postGuards.js';
+test('a chronic condition with a stated diagnosis is always in Past Medical History; an acute one is not', () => {
+  const n = { metadata: {}, past_medical_history: { medical_surgical: 'Fatty liver' }, assessment_and_plan: [{ issue: 'Hypothyroidism', diagnosis: 'Hypothyroidism' }, { issue: 'Elevated cholesterol', diagnosis: 'Hypercholesterolemia' }, { issue: 'Burn', diagnosis: 'Second degree burn' }, { issue: 'Fatty liver', diagnosis: 'Fatty liver' }] };
+  ensureChronicInPMH(n); assert.equal(n.past_medical_history.medical_surgical, 'Fatty liver\nHypothyroidism\nHigh cholesterol');
+});
+test('assessment lines that retell the history are removed, conclusions stay', () => {
+  const n = { metadata: {}, assessment_and_plan: [{ issue: 'SOB', assessment: 'Patient reports shortness of breath with walking.\nHistory of fatty liver.\nCardiac work-up normal; thyroid may be contributing' }] };
+  trimAssessment(n); assert.equal(n.assessment_and_plan[0].assessment, 'Cardiac work-up normal; thyroid may be contributing');
+});

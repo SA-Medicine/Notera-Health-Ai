@@ -241,3 +241,28 @@ export function reattachInvestigations(note, log = () => {}) {
   if (moved) log(`[v2:tidy] moved ${moved} investigation(s) to the problem they are about`);
   return { moved };
 }
+
+const CHRONIC = /hypothyroid|hyperthyroid|hypertens|diabet|asthma|copd|hypercholest|hyperlipid|dyslipid|cholesterol|arthritis|osteopor|osteopen|depress|anxiety|epilep|gout|heart failure|atrial fib|coronary|angina|migraine|fibromyalg|sleep apn|ckd|chronic kidney|crohn|colitis|psoriasis|hypogonad|menopaus|gerd|reflux/i;
+/** An established chronic condition that has a stated diagnosis in the plan is always listed in Past Medical History too. */
+export function ensureChronicInPMH(note, log = () => {}) {
+  const pmh = note.past_medical_history || (note.past_medical_history = {});
+  const have = (t) => JSON.stringify(pmh).toLowerCase().includes(String(t).toLowerCase().replace(/[^a-z ]/g, '').trim().split(' ')[0].slice(0, 6));
+  const add = [];
+  for (const p of note.assessment_and_plan || []) {
+    const t = String(p.diagnosis || '').trim(); if (!t || !CHRONIC.test(t) || have(t)) continue;
+    add.push(t.replace(/^elevated /i, '').replace(/^hypercholesterolemia$/i, 'High cholesterol'));
+  }
+  if (add.length) { pmh.medical_surgical = [pmh.medical_surgical, ...add].filter(Boolean).join('\n'); log(`[v2:tidy] added ${add.length} chronic condition(s) to Past Medical History: ${add.join(', ')}`); }
+  return { added: add };
+}
+const RESTATES = /^(the\s+)?patient\s+(reports?|states?|has|had|previously|denies|is|was|continues|stopped|noncompliant|non-compliant|requires|needs)\b|^history of\b|^reports?\b/i;
+/** The Assessment line holds only the clinician's conclusion: lines that retell the history are dropped. */
+export function trimAssessment(note, log = () => {}) {
+  let n = 0;
+  for (const p of note.assessment_and_plan || []) {
+    const all = lines(p.assessment); const keep = all.filter((l) => { const bad = RESTATES.test(l); if (bad) n++; return !bad; });
+    if (keep.length !== all.length) p.assessment = keep.join('\n');
+  }
+  if (n) log(`[v2:tidy] removed ${n} assessment line(s) that only restated the history`);
+  return { removed: n };
+}
