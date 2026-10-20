@@ -82,5 +82,14 @@ const det = await I.personDetail(U.a); assert.ok(det.answers.length > 100); asse
 const md = await I.exportPerson(U.a, 'md'); assert.match(md.body, /## Part 1/); assert.match(md.body, /# Style profile/); const js = JSON.parse((await I.exportPerson(U.a, 'json')).body); assert.ok(js.profile && js.answers.length);
 const syn = await I.synthesis({ narrative: true, llm: fake({ agreements: ['all want short notes'], conflicts: [], surprises: [], recommended_shared_rules: [], personal_variations: [] }) });
 assert.equal(syn.people, 1); const q1 = syn.questions.find((d) => d.id === 'p1.q2'); assert.equal(q1.n, 1); assert.equal(syn.narrative.agreements[0], 'all want short notes'); assert.ok((await I.latestSynthesis()).people === 1);
+// ── the product-side invitation status used by the main app's banner ──
+const express = (await import('express')).default; const { mountStudioInvite } = await import('../src/studio/invite.js');
+const app = express(); mountStudioInvite(app, (req, res, next) => { const id = req.headers['x-test-user']; if (!id) return res.status(401).json({ error: 'unauthenticated' }); req.user = { id }; next(); });
+const srv = app.listen(0); const port = srv.address().port; const inv = async (id) => { const r = await fetch('http://127.0.0.1:' + port + '/api/studio/invite', { headers: id ? { 'x-test-user': id } : {} }); return { status: r.status, body: await r.json() }; };
+assert.equal((await inv(null)).status, 401, 'signed-out callers get 401');
+const ia = (await inv(U.a)).body; assert.equal(ia.eligible, true); assert.deepEqual(ia.parts.map((p) => p.status), ['submitted', 'submitted', 'submitted']); assert.equal(ia.profile, 'confirmed'); assert.equal(ia.url, 'https://studio.aitoolsfordoctor.com/#/interview');
+const ib = (await inv(U.b)).body; assert.equal(ib.eligible, true); assert.deepEqual(ib.parts.map((p) => p.status), ['new', 'new', 'new']); assert.equal(ib.profile, null);
+assert.deepEqual((await inv(U.c)).body, { eligible: false }, 'a self sign-up sees no invitation'); assert.deepEqual((await inv(U.d)).body, { eligible: false }, 'a later account sees no invitation');
+srv.closeAllConnections?.(); await new Promise((r) => srv.close(r));
 console.log('interview: all assertions passed');
-process.exit(0);
+setTimeout(() => process.exit(0), 100);

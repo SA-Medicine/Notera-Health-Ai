@@ -152,3 +152,14 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 @media (prefers-reduced-motion: reduce) {
   .notera-shell *, .notera-shell *::before, .app-splash * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Style Interview invitation (invited accounts only) */
+.notera-shell .invite-banner { display: flex; align-items: center; gap: 14px; margin: 12px 18px 0; padding: 10px 14px; background: #eef4ff; border: 1px solid #d6e4ff; border-radius: 12px; font-size: 14px; color: #0f1b2d; }
+.notera-shell .invite-banner .invite-text { flex: 1; line-height: 1.4; }
+.notera-shell .invite-banner .invite-btn { background: #1f6feb; color: #fff; border-radius: 9px; padding: 7px 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.notera-shell .invite-banner .invite-btn:hover { background: #1a5fcf; }
+.notera-shell .invite-banner .invite-x { border: 0; background: transparent; font-size: 20px; line-height: 1; color: #8a97ab; cursor: pointer; padding: 2px 6px; }
+.notera-shell.dark-mode .invite-banner { background: #14233b; border-color: #243a5e; color: #e6eefc; }
+.notera-shell .invite-dot { width: 8px; height: 8px; border-radius: 50%; background: #1f6feb; margin-left: auto; }
+@media (max-width: 720px) { .notera-shell .invite-banner { flex-wrap: wrap; margin: 8px 10px 0; } }
+.notera-shell .nav-item .invite-dot { flex: 0 0 8px !important; width: 8px !important; height: 8px !important; min-width: 8px; padding: 0 !important; margin-left: auto; border-radius: 50%; background: #1f6feb; display: inline-block; }
