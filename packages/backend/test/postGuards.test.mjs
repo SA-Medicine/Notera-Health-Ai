@@ -57,3 +57,10 @@ test('addresses and housing are removed, who the patient lives with is kept', ()
   const n = { metadata: {}, past_medical_history: { social: 'Lives in Lake Shore, East Pike Creek; previously lived on Russell Woods Street; husband passed away from dementia', other: 'Lives with her daughter' } };
   stripAddresses(n); assert.equal(n.past_medical_history.social, 'husband passed away from dementia'); assert.equal(n.past_medical_history.other, 'Lives with her daughter');
 });
+
+import { reattachInvestigations } from '../src/orchestrator/postGuards.js';
+test('an investigation about the abdomen moves from Hypothyroidism to the abdominal pain problem', () => {
+  const n = { metadata: {}, assessment_and_plan: [{ issue: 'Hypothyroidism', diagnosis: 'Hypothyroidism', investigations_planned: 'Repeat thyroid function tests\nUltrasound for abdomen and pelvis' }, { issue: 'Right upper quadrant abdominal pain', diagnosis: '', investigations_planned: '' }] };
+  reattachInvestigations(n);
+  assert.equal(n.assessment_and_plan[0].investigations_planned, 'Repeat thyroid function tests'); assert.equal(n.assessment_and_plan[1].investigations_planned, 'Ultrasound for abdomen and pelvis');
+});
