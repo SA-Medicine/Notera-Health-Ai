@@ -12,12 +12,13 @@ const flag = (note, f) => { (note.metadata.flags ||= []).push({ severity: 'warni
 const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
 const addLine = (cur, line) => (lines(cur).some((l) => l.toLowerCase() === line.toLowerCase()) ? cur : (cur ? cur + '\n' : '') + line);
 
-/** 1) Template conformance. Medication names stay in the treatment of their problem; the standalone list goes. */
+/** 1) Template conformance. A separate "Follow-up" problem is folded into the last real problem. (The doctor WANTS one "Medications:" line in Past Medical History, so it is kept; only a duplicate "Current/Home/Regular medications:" line is dropped when a "Medications:" line exists.) */
 export function enforceTemplate(note, log = () => {}) {
   const out = { medLinesRemoved: 0, followUpFolded: 0 };
   const pmh = note.past_medical_history || {};
   for (const k of Object.keys(pmh)) {
-    const kept = lines(pmh[k]).filter((l) => { const bad = /^(current|home|regular|usual)\s+medications?\s*:/i.test(l); if (bad) out.medLinesRemoved++; return !bad; });
+    const all = lines(pmh[k]); const hasPlain = Object.values(pmh).some((v) => lines(v).some((l) => /^medications?\s*:/i.test(l)));
+    const kept = all.filter((l) => { const bad = hasPlain && /^(current|home|regular|usual)\s+medications?\s*:/i.test(l); if (bad) out.medLinesRemoved++; return !bad; });
     if (kept.length !== lines(pmh[k]).length) pmh[k] = kept.join('\n');
   }
   const ap = note.assessment_and_plan || [];

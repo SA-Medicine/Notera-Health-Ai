@@ -161,7 +161,7 @@ export const PROMPT_REGISTRY = {
   [WRITER_PROMPT_NAME]:    { stage: 'Writer', label: 'Note writer', help: 'Drafts the whole SOAP note from the transcript. The main quality lever.', default: () => defaultWriterPrompt(), must: ['JSON'], min: 800 },
   [CHECKLIST_PROMPT_NAME]: { stage: 'Checklist', label: 'Fact checklist', help: 'Extracts medications, results, orders, referrals and follow-up so nothing the writer drops is lost.', default: () => CHECK_SYS, must: ['medications', 'results', 'orders', 'referrals', 'follow_up', 'JSON'], min: 200 },
   [EDITOR_PROMPT_NAME]:    { stage: 'Editor', label: 'Reviewer (editor pass)', help: 'Optional second pass that fixes section placement, plan attribution, contradictions with the transcript and padding in the writer\'s draft. Off unless Settings → Editor pass is on.', default: () => EDITOR_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
-  [STORY_PROMPT_NAME]:     { stage: 'Story', label: 'Story agent', help: 'Last step: rewrites the Subjective into a flowing, grammatical clinical story, without adding or losing any fact. Off unless Settings → Story agent is on.', default: () => STORY_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
+  [STORY_PROMPT_NAME]:     { stage: 'Story', label: 'Story agent', help: 'Last step: groups the Subjective into topics with bullet points that follow on from each other, and tidies the Past Medical History into a few grammatical bullets, without adding or losing any fact. Off unless Settings → Story agent is on.', default: () => STORY_SYS, must: ['JSON', 'TRANSCRIPT'], min: 400 },
   [VERIFIER_PROMPT_NAME]:  { stage: 'Verifier', label: 'Fact verifier', help: 'Flags note lines the transcript does not support and duplicate lines. Code confirms every flag before removing anything.', default: () => VERIFY_SYS, must: ['unsupported', 'duplicates', 'JSON'], min: 200 },
 };
 // Added after the 100-note A/B on gemini-3.7-flash (docs/reports/HISTORY_90_FINDINGS + FINAL_37_ROLLOUT): +1.7 parity, completeness 3.89 → 4.06.
@@ -177,7 +177,7 @@ Completeness means no clinical fact is left out; it does not mean longer sentenc
 // the earlier hand-written prompt below is only the fallback if that file is missing.
 let _v3 = null;
 export function defaultWriterPrompt() {
-  if (_v3 === null) { try { _v3 = fs.readFileSync(new URL('../../prompts/writer-v3.txt', import.meta.url), 'utf8').replace(/\r/g, '').trim(); } catch { _v3 = ''; } }
+  if (_v3 === null) { try { _v3 = fs.readFileSync(new URL('../../prompts/writer-v4.txt', import.meta.url), 'utf8').replace(/\r/g, '').trim(); } catch { _v3 = ''; } }
   return _v3 || `${WRITER_SYS}\n\n${clinicRules()}\n\n${COMPLETENESS_RULES}`;
 }
 
@@ -274,7 +274,7 @@ const SEC_FIELDS = [
 ];
 const ISSUE_FIELDS = ['diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals'];
 
-function buildNote(out, meta) {
+export function buildNote(out, meta) {
   const note = emptyNote(meta);
   for (const [sec, keys] of SEC_FIELDS) for (const k of keys) note[sec][k] = String(out?.[sec]?.[k] ?? '').trim();
   const ap = Array.isArray(out?.assessment_and_plan) ? out.assessment_and_plan : [];
@@ -335,7 +335,20 @@ function mergeChecklist(note, check, transcript, log) {
     else curMeds.push(line);
     added++;
   }
-  // (current medications are NOT listed in a separate PMH line: the clinic template has no such field and gold notes mention a drug only where it matters to a problem)
+  // The doctor wants ONE "Medications:" line in Past Medical History (regular medications with strength/frequency, as stated).
+  if (curMeds.length || (check.medications || []).length) {
+    const regular = (check.medications || []).filter((m) => m?.name && inTranscript(String(m.name)) && !/new|stop|declin/.test(String(m.status || '').toLowerCase()))
+      .map((m) => `${String(m.name).trim()}${m.detail ? ' ' + String(m.detail).trim() : ''}`);
+    const have = String(note.past_medical_history.other || '').split('\n').findIndex((l) => /^medications?\s*:/i.test(l.trim()));
+    if (regular.length) {
+      const ls = String(note.past_medical_history.other || '').split('\n').filter(Boolean);
+      if (have < 0) { ls.push('Medications: ' + [...new Set(regular)].join(', ')); note.past_medical_history.other = ls.join('\n'); added++; }
+      else {
+        const line = ls[ls.findIndex((l) => /^medications?\s*:/i.test(l.trim()))]; const missing = regular.filter((r) => !norm(line).includes(norm(r.split(' ')[0])));
+        if (missing.length) { ls[ls.findIndex((l) => /^medications?\s*:/i.test(l.trim()))] = line.replace(/[.;,\s]+$/, '') + ', ' + missing.join(', '); note.past_medical_history.other = ls.join('\n'); added++; }
+      }
+    }
+  }
 
   for (const r of (check.results || [])) {
     const test = String(r?.test || '').trim(), val = String(r?.value || '').trim(); if (!test || !val) continue;
@@ -465,18 +478,15 @@ async function editWriterJson(llm, draft, transcript, log, { prompt, model, time
 // how it started and progressed, what helps or hurts, what was tried, what it does to daily life — in grammatical sentences that follow
 // one another. This stage runs LAST (after the safety checks, so it only rewrites wording that was already verified), has its own prompt,
 // model and switch, and editorAccepts() (story mode) rejects any rewrite that loses a fact or invents one — the verified draft is then kept.
-const STORY_SYS = `You are the story editor of a clinical scribe. You receive the SUBJECTIVE of a clinical note as JSON, plus the TRANSCRIPT it came from. Rewrite it so a physician reads a proper clinical story, not a list of fragments. Return JSON with the single key "subjective" and the SAME inner keys.
-SUBJECTIVE
-- reason_for_visit: ONE complete sentence saying why the patient came ("Presents with left knee pain for 3 weeks.").
-- hpi_details: the history of the presenting complaint as one to three short paragraphs of complete, grammatical sentences, in the order a physician would tell it: onset and duration; character, location and severity; how it has progressed; what makes it better or worse and what has been tried; previous episodes; the effect on daily life, work or sleep. Link the sentences with natural connectives (since, after, despite, which, however, so) so each follows from the one before. Use paragraphs, not bullets, and no dashes or list markers.
-- associated_symptoms: one or two sentences ("Associated symptoms include X and Y. She denies Z.") — positives first, then the specific denials.
-- Move the content of aggravating_relieving_factors, symptom_progression, previous_episodes and functional_impact INTO the story above and leave those four fields as empty strings.
-Do not touch anything else in the note; the Past Medical History, Objective and Plan are handled elsewhere.
-STYLE: write the way a physician dictates a history: concise, fluent clinical prose in the third person, no quotes of the patient, no first person. Do NOT begin sentence after sentence with "The patient" — begin with the symptom, finding or event ("Right hand pain and swelling have been ongoing for years, worse on the right, especially around the knuckle."; "Pain worsens with painting and using a weed wacker, and eases with rest."; "Has not taken analgesics because of concern about side effects."), using "The patient" at most once or twice. Use "he" or "she" ONLY if the transcript makes the sex explicit. Tense follows the facts (current problems present tense, past events past tense).
-PLACEHOLDERS: the text may contain de-identification placeholders such as [date], [name] or "the specialist"; keep them exactly as written and never write "unspecified", "unknown" or "not mentioned" around them. Use the transcript only to check wording; do not pull in facts that are not in the NOTE JSON.
-HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note — in particular never name a condition from a drug ("blood pressure medication" stays "blood pressure medication", it does not become "hypertension") and never turn a denial into a finding or the reverse; never state that something was not mentioned; never move facts out of Subjective; leave an empty field empty. Return ONLY the JSON.`;
+const STORY_SYS = `You are the story editor of a clinical scribe. You receive the SUBJECTIVE and PAST MEDICAL HISTORY of a clinical note as JSON, plus the TRANSCRIPT. Rewrite them the way a careful physician would want to read them: grouped by topic, in bullet points that follow on from each other. Return JSON with the keys "subjective" and "past_medical_history" and the SAME inner keys.
+SUBJECTIVE — a list of TOPICS. Each topic is a heading line ending with a colon, followed by bullet lines. Put the first topic, "Presenting Complaint:", in reason_for_visit (one short bullet per reason for the visit). Put every other topic in hpi_details, topics separated by a blank line. Name the topics after what the patient talked about (a symptom, a body system or a theme such as "Abdominal Pain:", "Breathing:", "Bowel Symptoms:", "Mood:", "Medications and Adherence:", "Weight Management:", "Lifestyle:"); only topics that have content. A heading is a plain line like "Mood:" with no dash.
+BULLETS: each bullet is a short, grammatical clinical statement (about 6 to 20 words, no paragraphs). Order the bullets inside a topic so each follows from the one before and refers back to it: onset and duration, then character and severity, then course, then what helps or worsens it, then what was tried, then the effect on daily life. Join closely related fragments into one bullet with a comma or " - " ("Pain for 3 weeks - worse on stairs, eased by rest"). Say every fact and EVERY denial ONCE, in the topic it belongs to ("Denies nausea, fever or cough" goes with the abdominal pain, not repeated elsewhere). Leave aggravating_relieving_factors, symptom_progression, previous_episodes, functional_impact and associated_symptoms as empty strings: their content is already in the topics.
+PAST MEDICAL HISTORY — at most 6 bullets in total, in the same fields: medical_surgical (conditions and operations, combined into grammatical bullets), social (ONE bullet: marital status, occupation, smoking, alcohol, who the patient lives with; never addresses, street names or housing), family, exposure, immunisation, and other. Keep the single "Medications: …" line exactly (names, strengths, frequencies) and the "Preventive care: …" line if present. Combine items of the same kind to make a bullet; never combine a medication with a condition unless the note already links them, and never name a condition from a drug.
+STYLE: concise clinical language, third person, no quotes, no first person; "The patient" almost never (start bullets with the finding). Use he or she ONLY if the transcript makes the sex explicit.
+PLACEHOLDERS: the text may contain de-identification placeholders such as [date], [name] or "the specialist"; keep them exactly as written and never write "unspecified", "unknown" or "not mentioned". Use the transcript only to check wording; do not pull in facts that are not in the NOTE JSON.
+HARD RULES: keep every fact exactly — write numbers as numerals exactly as in the note ("3 weeks", "500 mg", never "three weeks"); every number, dose, unit, date, duration, laterality, drug name, result and every specific denial; keep negations as negations. Never add a fact, a cause, a diagnosis or a judgement that is not already in the note — never name a condition from a drug and never turn a denial into a finding or the reverse; never move facts out of Subjective or Past Medical History; leave an empty field empty. Return ONLY the JSON.`;
 export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
-  const t0 = Date.now(); const draft = { subjective: note.subjective };
+  const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
   try {
     llm._agent = 'v2-story';
@@ -484,7 +494,8 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
     const out = parseJson(raw);
     if (!out || typeof out.subjective !== 'object') { log('[v2:story] rejected — unparseable or incomplete JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
-    const chk = editorAccepts(draft, out, transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
+    const noHeads = (o) => { const c = {}; for (const [sec, f] of Object.entries(o || {})) { c[sec] = {}; for (const [k, v] of Object.entries(f || {})) c[sec][k] = String(v ?? '').split('\n').filter((l) => !/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(l.trim())).join('\n'); } return c; };   // topic headings are structure, not facts
+    const chk = editorAccepts(draft, noHeads(out), transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
     if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, rejected: out.subjective, ms: Date.now() - t0 }; }
     log(`[v2:story] applied (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
     return { out, why: 'applied', ms: Date.now() - t0 };
@@ -638,8 +649,8 @@ export async function generateNoteV2(input, opts = {}) {
     const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text, timeoutMs: cfg['story.timeoutMs'] });
     lap('story', ts);
     if (sr.out) {
-      for (const [sec, keys] of SEC_FIELDS.slice(0, 1)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').trim();
-      note.metadata.subjective_style = 'narrative';
+      for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim();
+      note.metadata.subjective_style = 'topics';
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }

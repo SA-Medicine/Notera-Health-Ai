@@ -41,11 +41,19 @@ export function noteToMarkdown(note) {
     ...bullets(s.symptom_progression), ...bullets(s.previous_episodes), ...bullets(s.functional_impact),
   ];
   const assoc = bullets(s.associated_symptoms);
-  if (note.metadata?.subjective_style === 'narrative') {
-    // The story agent wrote this as prose: render paragraphs, not one bullet per sentence.
-    const para = (v) => String(v || '').split(/\n+/).map((x) => x.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
-    const paras = [...para(s.reason_for_visit), ...para(s.hpi_details), ...para(s.aggravating_relieving_factors), ...para(s.symptom_progression), ...para(s.previous_episodes), ...para(s.functional_impact), ...para(s.associated_symptoms)];
-    if (paras.length) { L.push('### Subjective'); for (const p of paras) { L.push(p); L.push(''); } }
+  if (note.metadata?.subjective_style === 'topics') {
+    // Story agent output: topic headings ("Mood:") followed by bullet lines that follow on from each other.
+    const rows = [s.reason_for_visit, s.hpi_details, s.aggravating_relieving_factors, s.symptom_progression, s.previous_episodes, s.functional_impact, s.associated_symptoms]
+      .flatMap((v) => String(v || '').split('\n').map((x) => x.trim()).filter((x) => x !== ''));
+    if (rows.length) {
+      L.push('### Subjective');
+      let first = true;
+      for (const r of rows) {
+        const clean = r.replace(/^[-•*]\s*/, '');
+        if (/^[A-Za-z][A-Za-z &/,'-]{1,50}:$/.test(clean)) { if (!first) L.push(''); L.push('**' + clean + '**'); first = false; } else L.push('- ' + clean);
+      }
+      L.push('');
+    }
   } else if (story.length || assoc.length) {
     L.push('### Subjective');
     for (const b of story) L.push(`- ${b}`);
