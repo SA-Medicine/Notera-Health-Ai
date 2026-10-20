@@ -41,3 +41,13 @@ test('sweepEmptyStatements removes "not mentioned" lines but keeps real denials'
   const n = { metadata: {}, subjective: { hpi_details: 'Denies nausea\nFamily history: none mentioned' }, past_medical_history: { other: 'Preventive care: none mentioned.' }, objective: {} };
   sweepEmptyStatements(n); assert.equal(n.subjective.hpi_details, 'Denies nausea'); assert.equal(n.past_medical_history.other, '');
 });
+
+import { dropCoveredFragments, dedupeObjective } from '../src/orchestrator/postGuards.js';
+test('old fragments covered by the topics are dropped; uncovered ones stay', () => {
+  const n = { metadata: {}, subjective: { reason_for_visit: 'Presenting Complaint:\nAbdominal pain', hpi_details: 'Abdominal Pain:\nWorse after eating, not fatty foods\nDenies nausea or fever', aggravating_relieving_factors: 'Abdominal pain: worse after eating\nBetter when lying flat', associated_symptoms: 'Abdominal pain: denies nausea, fever' } };
+  dropCoveredFragments(n); assert.equal(n.subjective.aggravating_relieving_factors, 'Better when lying flat'); assert.equal(n.subjective.associated_symptoms, '');
+});
+test('a result stated twice in Objective is kept once, in the fuller form', () => {
+  const n = { metadata: {}, objective: { completed_investigations: 'MIBI scan (11 Apr 2025): normal perfusion study, no evidence of blockage or heart attack\nMibi test: normal perfusion study (April 11th)\nChest X-ray: normal' } };
+  dedupeObjective(n); assert.equal(n.objective.completed_investigations, 'MIBI scan (11 Apr 2025): normal perfusion study, no evidence of blockage or heart attack\nChest X-ray: normal');
+});
