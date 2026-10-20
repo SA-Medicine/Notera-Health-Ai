@@ -102,3 +102,17 @@ export function checkInput(transcript) {
   if (listy && speech / Math.max(words, 1) < 0.12) return { ok: false, reason: 'schedule_or_list', message: 'The text looks like a schedule or a list, not a spoken consultation.' };
   return { ok: true };
 }
+
+const EMPTY_STATEMENT = /\b(none|nothing|not|no)\s+(mentioned|stated|documented|specified|recorded|discussed|reported)\b|:\s*(n\/?a|none|nil|unknown)\.?\s*$/i;
+/** Removes lines that only say something was not mentioned ("Preventive care: none mentioned."). Real denials ("Denies nausea") never match. */
+export function sweepEmptyStatements(note, log = () => {}) {
+  let n = 0;
+  for (const sec of ['subjective', 'past_medical_history', 'objective']) {
+    for (const k of Object.keys(note[sec] || {})) {
+      const all = lines(note[sec][k]); const kept = all.filter((l) => !EMPTY_STATEMENT.test(l));
+      if (kept.length !== all.length) { n += all.length - kept.length; note[sec][k] = kept.join('\n'); }
+    }
+  }
+  if (n) log(`[v2:sweep] removed ${n} "not mentioned" line(s)`);
+  return { removed: n };
+}
