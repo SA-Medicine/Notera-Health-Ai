@@ -27,3 +27,17 @@ test('checkInput accepts a consultation and flags a schedule', () => {
   const sched = Array.from({ length: 10 }, (_, i) => `${8 + i}:00 Ward round bay ${i} MRI list`).join('\n') + '\nTheatre list for Monday and clinics for Tuesday on level four of the east building';
   assert.equal(checkInput(sched).reason, 'schedule_or_list'); assert.equal(checkInput('hello there').reason, 'too_short');
 });
+
+import { tidyPlan, sweepEmptyStatements } from '../src/orchestrator/postGuards.js';
+test('tidyPlan removes repeated and bare plan items and a repeated drug in the Medications line', () => {
+  const n = { metadata: {}, past_medical_history: { other: 'Medications: Synthroid 88 mcg, metoprolol bid, Senna prn, senna' },
+    assessment_and_plan: [{ issue: 'Abdominal pain', investigations_planned: 'Ultrasound abdomen via Belle River\nultrasound for abdomen and pelvis', treatment_planned: 'Follow-up: January; Rtc' }, { issue: 'Hypothyroidism', investigations_planned: 'Repeat blood test', treatment_planned: 'Restart Synthroid 88 mcg daily' }] };
+  const r = tidyPlan(n);
+  assert.equal(n.assessment_and_plan[0].investigations_planned, 'Ultrasound abdomen via Belle River');
+  assert.equal(n.assessment_and_plan[0].treatment_planned, 'Follow-up: January');
+  assert.equal(n.past_medical_history.other, 'Medications: Synthroid 88 mcg, metoprolol bid, Senna prn'); assert.ok(r.dropped >= 3);
+});
+test('sweepEmptyStatements removes "not mentioned" lines but keeps real denials', () => {
+  const n = { metadata: {}, subjective: { hpi_details: 'Denies nausea\nFamily history: none mentioned' }, past_medical_history: { other: 'Preventive care: none mentioned.' }, objective: {} };
+  sweepEmptyStatements(n); assert.equal(n.subjective.hpi_details, 'Denies nausea'); assert.equal(n.past_medical_history.other, '');
+});

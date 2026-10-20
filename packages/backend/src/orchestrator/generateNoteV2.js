@@ -25,7 +25,7 @@ import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
 import { reconcileNote } from './reconcileNote.js';
-import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements } from './postGuards.js';
+import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput, sweepEmptyStatements, tidyPlan } from './postGuards.js';
 import { describeMeds, codeDiagnoses } from './refNames.js';
 import { condenseNote } from './condenseNote.js';
 import { dedupeNote } from './dedupeNote.js';
@@ -353,7 +353,9 @@ function mergeChecklist(note, check, transcript, log) {
 
   for (const r of (check.results || [])) {
     const test = String(r?.test || '').trim(), val = String(r?.value || '').trim(); if (!test || !val) continue;
-    if (!inTranscript(test) || present(`${test} ${val}`) || (numsOf(val).length && numsOf(val).every((n) => noteNorm().includes(n)) && present(test))) continue;
+    const objNorm = norm(JSON.stringify(note.objective)); const keyWords = norm(test).split(' ').filter((w) => w.length >= 4 && !/^(test|tests|blood|level|levels|scan|study|result|results|panel)$/.test(w));
+    const testShown = keyWords.length > 0 && keyWords.some((w) => new RegExp('\\b' + w + '\\b').test(objNorm)) && (numsOf(val).length === 0 || numsOf(val).every((n) => objNorm.includes(n)));
+    if (!inTranscript(test) || present(`${test} ${val}`) || testShown || (numsOf(val).length && numsOf(val).every((n) => noteNorm().includes(n)) && present(test))) continue;
     if (numsOf(val).some((n) => !tNorm.includes(n))) continue;                       // value must be spoken
     append(note.objective, 'completed_investigations', `${test}: ${val}${r.date ? ` (${r.date})` : ''}`); added++;
   }
@@ -502,7 +504,14 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       if (!out || typeof out.subjective !== 'object') { why = 'unparseable or incomplete JSON'; log(`[v2:story] attempt ${attempt + 1} rejected — ${why}`); continue; }
       // the model sometimes returns a field as a list of lines instead of one string: always one string, one line per item
       for (const sec of ['subjective', 'past_medical_history']) for (const [k, v] of Object.entries(out[sec] || {})) if (Array.isArray(v)) out[sec][k] = v.map((x) => String(x ?? '').trim()).filter(Boolean).join('\n');
-      const chk = editorAccepts(draft, noHeads(out), transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
+      const isHead = (l) => /^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(l).trim());
+      const heads = [out.subjective.reason_for_visit, out.subjective.hpi_details].flatMap((v) => String(v || '').split('\n')).filter(isHead).length;
+      const bullets = String(out.subjective.hpi_details || '').split('\n').filter((l) => l.trim() && !isHead(l)).length;
+      const medLine = String(draft.past_medical_history?.other || '').split('\n').find((l) => /^medications?\s*:/i.test(l.trim())) || '';
+      const outText = norm(JSON.stringify(out)); const lostMed = norm(medLine).split(' ').filter((w) => w.length >= 4 && w !== 'medications' && w !== 'medication').find((w) => !outText.includes(w));
+      let chk = editorAccepts(draft, noHeads(out), transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
+      if (chk.ok && bullets >= 4 && heads < 2) chk = { ok: false, why: 'the Subjective has no topic headings — group the bullets under headings such as "Abdominal Pain:" and "Breathing:" (each heading is a line ending in a colon)' };
+      if (chk.ok && lostMed) chk = { ok: false, why: `the medication line lost "${lostMed}" — keep every drug name and strength exactly` };
       if (!chk.ok) { why = chk.why; rejected = out.subjective; log(`[v2:story] attempt ${attempt + 1} rejected — ${chk.why}`); continue; }
       log(`[v2:story] applied${attempt ? ' on retry' : ''} (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
       return { out, why: attempt ? 'applied on retry' : 'applied', ms: Date.now() - t0 };
@@ -554,7 +563,7 @@ export async function generateNoteV2(input, opts = {}) {
   const verifyLlm = await createGeminiService(null, { model: auxModel });
   const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: auxModel }, prompts: {} };
 
-  let note;
+  let note; let checkForRef = null;
   try {
     if (blank) {
       log('[upgrade:blank-encounter] nothing clinical in the transcript — emitting an empty note');
@@ -585,7 +594,7 @@ export async function generateNoteV2(input, opts = {}) {
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
         maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
-      const [writerRaw, check] = await Promise.all([writerP, checkP]);
+      const [writerRaw, check] = await Promise.all([writerP, checkP]); checkForRef = check;
       lap('writer+checklist', tw);
       let out = parseJson(writerRaw);
       if (!out) {   // a stronger model occasionally returns truncated/invalid JSON (~4% on gemini-3.7-flash): retry once, deterministic, on the fallback model
@@ -661,15 +670,15 @@ export async function generateNoteV2(input, opts = {}) {
       for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim();
       note.metadata.subjective_style = 'topics';
       if (!/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(note.subjective.reason_for_visit || '').split('\n')[0].trim())) note.subjective.reason_for_visit = ('Presenting Complaint:\n' + String(note.subjective.reason_for_visit || '')).trim();
-      if (cfg['guards.template']) { try { sweepEmptyStatements(note, log); } catch { /* optional */ } }
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
+  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   if (!blank && cfg['ref.enabled']) {
     const tr = Date.now();
     try {
-      const names = [...(check?.medications || []).map((m) => String(m?.name || '').trim())];
+      const names = [...(checkForRef?.medications || []).map((m) => String(m?.name || '').trim())];
       const [meds, dx] = await Promise.all([describeMeds(note, names, { log, timeoutMs: cfg['ref.timeoutMs'] }), codeDiagnoses(note, { log, timeoutMs: cfg['ref.timeoutMs'] })]);
       if (opts.trace) opts.trace.reference = { meds, dx, ms: Date.now() - tr };
     } catch (e) { log(`[v2:ref] skipped — ${e.message}`); }
