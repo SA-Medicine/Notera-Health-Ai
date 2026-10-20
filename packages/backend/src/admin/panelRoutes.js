@@ -11,11 +11,14 @@
 'use strict';
 
 import express from 'express';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { query, one } from '../db/pool.js';
 import { audit } from '../auth/users.js';
 import { ensureAccountSchema, FREE_NOTE_LIMIT } from '../auth/quota.js';
 import { listVersions, getVersion, promote, activate, resetToDefault, getActivePromptMeta } from '../orchestrator/promptStore.js';
 import { WRITER_PROMPT_NAME, PROMPT_REGISTRY } from '../orchestrator/generateNoteV2.js';
+import { ENGINES, getSettings, saveSettings, resetSettings, settingsMeta, defaultSettings, healthSnapshot, resetHealth } from '../asr/engines.js';
 import { specLockState, unlockSpec, relockSpec, specLockHistory, isLockedPrompt } from '../orchestrator/specLock.js';
 import { describeConfig, setConfig, resetConfig, configHistory, effectiveConfig, REGISTRY as CONFIG_REGISTRY } from '../orchestrator/runtimeConfig.js';
 
@@ -205,13 +208,23 @@ export function mountPanel(app, requireAuthMw) {
     const did = await resetConfig(req.params.key, { by: req.user.email }); await audit(req.user.id, 'config_reset', { key: req.params.key }, ipOf(req)); res.json({ ok: true, changed: did });
   }));
 
+  // ── speech to text: engine chain (primary, fallbacks), health, and the latest measured benchmark ──
+  const readBench = () => { try { return JSON.parse(fs.readFileSync(fileURLToPath(new URL('../../asr/benchmark-latest.json', import.meta.url)), 'utf8')); } catch { return null; } };
+  R.get('/asr', r(async (req, res) => res.json({ settings: await getSettings(), defaults: defaultSettings(), meta: await settingsMeta(), engines: ENGINES, health: healthSnapshot(), benchmark: readBench() })));
+  R.put('/asr/settings', jsonBody, r(async (req, res) => {
+    try { const v = await saveSettings(req.body, req.user.email); await audit(req.user.id, 'asr_settings', { primary: v.primary, fallbacks: v.fallbacks }, ipOf(req)); res.json({ ok: true, settings: v }); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  R.delete('/asr/settings', r(async (req, res) => { const v = await resetSettings(); await audit(req.user.id, 'asr_settings_reset', {}, ipOf(req)); res.json({ ok: true, settings: v }); }));
+  R.post('/asr/health/reset', jsonBody, r(async (req, res) => { resetHealth(req.body?.engine); res.json({ ok: true, health: healthSnapshot() }); }));
+
   // ── system map: every stage of the pipeline, what runs it, and what is live right now ──
   R.get('/system', r(async (req, res) => {
     const cfg = await effectiveConfig(); const pm = {};
     for (const name of Object.keys(PROMPT_REGISTRY)) { const m = await getActivePromptMeta(name); pm[name] = m ? `v${m.version}` : 'default'; }
     const stages = [
       { id: 'capture', label: 'Audio capture', kind: 'client', detail: 'The browser records the consultation and uploads audio in chunks.' },
-      { id: 'asr', label: 'Speech to text', kind: 'model', detail: 'Chunked transcription.', model: process.env.ASR_MODEL || null },
+      { id: 'asr', label: 'Speech to text', kind: 'model', detail: 'Engine chain with fallbacks and a circuit breaker; switch it in Speech to text.', model: (await getSettings()).primary, fallback: (await getSettings()).fallbacks.join(' → ') || null },
       { id: 'classify', label: 'Encounter classifier', kind: 'code', detail: 'Deterministic specialty and blank-encounter detection.' },
       { id: 'writer', label: 'Note writer', kind: 'llm', prompt: 'v2-writer', prompt_live: pm['v2-writer'], model: cfg['writer.model'], fallback: cfg['writer.fallbackModel'], params: { temperature: cfg['writer.temperature'], topP: cfg['writer.topP'], thinking: cfg['writer.thinkingBudget'], maxTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'], hedgeMs: cfg['writer.hedgeMs'] } },
       { id: 'editor', label: 'Editor pass (optional reviewer)', kind: 'llm', prompt: 'v2-editor', prompt_live: pm['v2-editor'], model: cfg['editor.model'], enabled: cfg['editor.enabled'], params: { timeoutMs: cfg['editor.timeoutMs'] }, detail: 'Fixes section placement, plan attribution, contradictions and padding in the draft. Code rejects any edit that loses or invents facts.' },
