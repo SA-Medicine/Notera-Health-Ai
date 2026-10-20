@@ -353,9 +353,10 @@ function mergeChecklist(note, check, transcript, log) {
 
   for (const r of (check.results || [])) {
     const test = String(r?.test || '').trim(), val = String(r?.value || '').trim(); if (!test || !val) continue;
-    const objNorm = norm(JSON.stringify(note.objective)); const keyWords = norm(test).split(' ').filter((w) => w.length >= 4 && !/^(test|tests|blood|level|levels|scan|study|result|results|panel)$/.test(w));
-    const testShown = keyWords.length > 0 && keyWords.some((w) => new RegExp('\\b' + w + '\\b').test(objNorm)) && (numsOf(val).length === 0 || numsOf(val).every((n) => objNorm.includes(n)));
-    if (!inTranscript(test) || present(`${test} ${val}`) || testShown || (numsOf(val).length && numsOf(val).every((n) => noteNorm().includes(n)) && present(test))) continue;
+    const objNorm = norm(JSON.stringify(note.objective)); const keyWords = norm(test).split(' ').filter((w) => w.length >= 3 && !/^(test|tests|blood|level|levels|scan|study|result|results|panel|the|and)$/.test(w));
+    const testShown = keyWords.length > 0 && keyWords.some((w) => new RegExp('\\b' + w + '\\b').test(objNorm)) && (numsOf(numWordsToDigits(val)).length === 0 || numsOf(numWordsToDigits(val)).every((n) => objNorm.includes(n)));
+    const valueShown = numsOf(val).filter((n) => !/^(19|20)\d\d$/.test(n)).some((n) => n.length >= 2) && numsOf(val).filter((n) => !/^(19|20)\d\d$/.test(n)).every((n) => objNorm.includes(n));   // e.g. 139 is already on a grouped line
+    if (!inTranscript(test) || present(`${test} ${val}`) || testShown || valueShown || (numsOf(val).length && numsOf(val).every((n) => noteNorm().includes(n)) && present(test))) continue;
     if (numsOf(val).some((n) => !tNorm.includes(n))) continue;                       // value must be spoken
     append(note.objective, 'completed_investigations', `${test}: ${val}${r.date ? ` (${r.date})` : ''}`); added++;
   }

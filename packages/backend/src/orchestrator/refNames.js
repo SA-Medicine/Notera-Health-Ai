@@ -56,10 +56,12 @@ export async function codeDiagnoses(note, { log = () => {}, timeoutMs, fetchImpl
   await Promise.all(todo.map(async (p) => {
     const term = String(p.diagnosis).replace(/\(.*?\)/g, '').replace(/[,;].*$/, '').trim();
     try {
-      const j = await getJson(`${ICD()}?sf=code,name&terms=${encodeURIComponent(term)}&maxList=5`, timeoutMs || 2500, fetchImpl);
+      const j = await getJson(`${ICD()}?sf=code,name&terms=${encodeURIComponent(term)}&maxList=15`, timeoutMs || 2500, fetchImpl);
       const hits = (j?.[3] || []).map(([code, name]) => ({ code, name }));
       const words = term.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
-      const best = hits.find((h) => words.length && words.every((w) => h.name.toLowerCase().includes(w.replace(/s$/, '')))) || null;
+      // a code is attached only for the exact term or its "…, unspecified" entry — never a more specific subtype (a wrong code is worse than none)
+      const t = term.toLowerCase();
+      const best = hits.find((h) => h.name.toLowerCase() === t) || hits.find((h) => h.name.toLowerCase() === `${t}, unspecified`) || null;
       if (best) { (note.metadata.problem_codes ||= []).push({ issue: p.issue, diagnosis: p.diagnosis, icd10: best.code, reference: best.name }); res.push({ diagnosis: p.diagnosis, icd10: best.code }); }
       else if (hits.length === 0 && words.length) { (note.metadata.flags ||= []).push({ type: 'diagnosis_not_in_reference', field: 'diagnosis', severity: 'info', message: `"${p.diagnosis}" was not found in the ICD-10-CM reference — please check the wording.` }); res.push({ diagnosis: p.diagnosis, icd10: null }); }
     } catch { /* reference unreachable: note unchanged */ }
