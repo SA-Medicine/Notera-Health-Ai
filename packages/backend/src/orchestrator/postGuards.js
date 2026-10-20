@@ -256,13 +256,23 @@ export function ensureChronicInPMH(note, log = () => {}) {
   return { added: add };
 }
 const RESTATES = /^(the\s+)?patient\s+(reports?|states?|has|had|previously|denies|is|was|continues|stopped|noncompliant|non-compliant|requires|needs)\b|^history of\b|^reports?\b/i;
-/** The Assessment line holds only the clinician's conclusion: lines that retell the history are dropped. */
+/** The Assessment line holds only the clinician's conclusion: lines that retell the history are dropped; a "diagnosis" that is just the symptom title is cleared. */
 export function trimAssessment(note, log = () => {}) {
   let n = 0;
-  for (const p of note.assessment_and_plan || []) {
-    const all = lines(p.assessment); const keep = all.filter((l) => { const bad = RESTATES.test(l); if (bad) n++; return !bad; });
-    if (keep.length !== all.length) p.assessment = keep.join('\n');
+  const hist = new Set(); for (const sec of ['subjective', 'past_medical_history']) for (const v of Object.values(note[sec] || {})) for (const w of cw(v)) { hist.add(w); hist.add(w.slice(0, 5)); }
+  const CONCLUDES = /\b(may|might|likely|probabl|possibl|suggest|consistent|concern|suspect|rule out|normal|negative|improv|stable|controlled|worse|contribut|due to|secondary|compatible)\b/i;
+  const SYMPTOM = /\b(pain|cough|fever|nausea|headache|dizziness|dyspnoea|dyspnea|shortness of breath|fatigue|rash|vomiting|diarrh|constipation|swelling)\b/i;
+  for (const q of note.assessment_and_plan || []) {
+    const all = lines(q.assessment);
+    const keep = all.filter((l) => {
+      let bad = RESTATES.test(l);
+      if (!bad && !CONCLUDES.test(l)) { const W = [...cw(l)]; bad = W.length > 0 && W.filter((w) => hist.has(w) || hist.has(w.slice(0, 5))).length / W.length >= 0.8; }
+      if (bad) n++; return !bad;
+    });
+    if (keep.length !== all.length) q.assessment = keep.join('\n');
+    const dx = String(q.diagnosis || '').trim().toLowerCase(), is = String(q.issue || '').trim().toLowerCase();
+    if (dx && SYMPTOM.test(dx) && (dx === is || is.includes(dx) || dx.includes(is))) { q.diagnosis = ''; n++; }
   }
-  if (n) log(`[v2:tidy] removed ${n} assessment line(s) that only restated the history`);
+  if (n) log(`[v2:tidy] cleaned ${n} assessment / diagnosis field(s) that only restated the history or the symptom`);
   return { removed: n };
 }
