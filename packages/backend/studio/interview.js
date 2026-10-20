@@ -8,6 +8,9 @@ import { askJson, MODELS } from './llm.js';
 import { bank, partInfo, allQuestions, cleanAnswer, INTERVIEW_VERSION } from './interviewBank.js';
 import { SPEC } from './conformance.js';
 
+// models sometimes return structured items where a plain sentence was asked for: always flatten to readable text
+export const flat = (x) => (typeof x === 'string' ? x : Array.isArray(x) ? x.map(flat).join('; ') : x && typeof x === 'object' ? Object.values(x).map(flat).filter(Boolean).join(' — ') : String(x ?? ''));
+
 const CUTOFF = String(process.env.STUDIO_INTERVIEW_CUTOFF || '2026-10-20T23:59:59Z').replace(/[^0-9TZ:.+ -]/g, '');
 
 /** Every account created before the cutoff (by the owner or a script) is invited. Self sign-ups and later accounts are not. Idempotent. */
@@ -125,7 +128,7 @@ export async function buildProfile({ userId, llm }) {
   // ids for every rule so she can confirm them one by one
   let n = 0; const sections = {};
   for (const [k, arr] of Object.entries(out.sections || {})) sections[k] = (Array.isArray(arr) ? arr : []).slice(0, 16).map((r) => ({ id: `r${++n}`, text: String(r.text || r).slice(0, 400), based_on: Array.isArray(r.based_on) ? r.based_on.slice(0, 6).map(String) : [], confidence: ['high', 'medium', 'low'].includes(r.confidence) ? r.confidence : 'medium' }));
-  const list = (a, m = 14, l = 300) => (Array.isArray(a) ? a.slice(0, m).map((x) => String(x).slice(0, l)) : []);
+  const list = (a, m = 14, l = 300) => (Array.isArray(a) ? a.slice(0, m).map((x) => flat(x).slice(0, l)) : []);
   const profile = { summary: String(out.summary || '').slice(0, 1200), priorities: list(out.priorities, 10, 120), sections, hard_rules: list(out.hard_rules, 14), terminology: { abbreviations_ok: list(out.terminology?.abbreviations_ok, 30, 30), avoid: list(out.terminology?.avoid, 30, 40) },
     tradeoffs: list(out.tradeoffs, 10), spec_v1_feedback: (Array.isArray(out.spec_v1_feedback) ? out.spec_v1_feedback : []).slice(0, 30).map((f) => ({ rule: String(f.rule || '').slice(0, 8), verdict: ['keep', 'change', 'drop'].includes(f.verdict) ? f.verdict : 'keep', change: String(f.change || '').slice(0, 300) })),
     contradictions: list(out.contradictions, 10), open_questions: list(out.open_questions, 10), interview_version: INTERVIEW_VERSION };
@@ -219,7 +222,7 @@ export async function synthesis({ llm, narrative = true } = {}) {
     try {
       const texts = []; for (const r of rows) for (const [id, a] of Object.entries(r.answers || {})) { const q = qs[id]; if (q?.type === 'text' && String(a).length > 20) texts.push(`${r.full_name || r.user_id.slice(0, 6)} · ${q.prompt}\n  ${String(a).slice(0, 600)}`); }
       const o = await askJson({ llm, model: MODELS.judge(), agent: 'studio-synthesis', maxOutputTokens: 6000, thinkingBudget: 1024, system: 'You compare the note-writing interviews of several physicians. Return JSON {"agreements":["where they agree, with how many"],"conflicts":["where they disagree and between whom, what decision is needed"],"surprises":["notable or unexpected answers"],"recommended_shared_rules":["rules most doctors would accept"],"personal_variations":["things that should stay personal per doctor"]}. Be specific and short.', user: `Distributions:\n${out.questions.map((d) => `${d.id} ${d.prompt}: ${JSON.stringify(d.counts)}`).join('\n').slice(0, 30000)}\n\nFree-text answers:\n${texts.join('\n').slice(0, 40000)}\n\nReturn ONLY the JSON.` });
-      out.narrative = o;
+      out.narrative = Object.fromEntries(['agreements', 'conflicts', 'surprises', 'recommended_shared_rules', 'personal_variations'].map((k) => [k, (Array.isArray(o?.[k]) ? o[k] : []).slice(0, 12).map((x) => flat(x).slice(0, 400))]));
     } catch (e) { out.narrative_error = String(e.message).slice(0, 160); }
   }
   await query(`INSERT INTO studio.interview_synthesis (data) VALUES ($1::jsonb)`, [JSON.stringify(out)]);
