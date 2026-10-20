@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Notera Studio — a SEPARATE container on the Google VM: doctor-centred evaluation, the review queue and "Teach Notera" for the
+# training doctor, proposals, evidence-linked review, edit learning, corpus cohorts, tuning export and the regression gate.
+# It never serves note generation to clinicians and never changes how notes are produced (Style Spec v1 is locked).
+# Only the Studio Worker (studio.aitoolsfordoctor.com) can reach it, through Caddy at /studio/*, with the secret X-Studio-Key.
+# Run:   docker compose -f docker-compose.studio.yml up -d --build
+# Needs: ./.env.production (shared Vertex/DB settings) and ./.env.studio containing  STUDIO_KEY=<random hex>  and
+#        STUDIO_REVIEWER_NAMES=<full name of the training doctor's account>   (never committed)
+# ─────────────────────────────────────────────────────────────────────────────
+name: notera-studio
+
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile.lab
+    container_name: notera-studio
+    restart: unless-stopped
+    command: ["node", "studio/studioServer.js"]
+    env_file: [./.env.production, ./.env.studio]
+    environment:
+      PORT: "8080"
+      STUDIO_DATA_DIR: /studio-data
+      GOLD_DIR: /app/data/gold
+      PIPELINE_MODE: v2
+      NORMALIZE_DEID_DATES: "1"
+      NODE_OPTIONS: "--max-old-space-size=256"
+    mem_limit: 384m
+    cpus: 0.5
+    volumes:
+      - studio_data:/studio-data
+      - ./secrets/sa-key.json:/app/secrets/sa-key.json:ro
+    networks: [notera_net]
+
+volumes:
+  studio_data: {}
+
+networks:
+  notera_net:
+    external: true
+    name: notera_notera_net

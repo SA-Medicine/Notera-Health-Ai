@@ -45,6 +45,13 @@ api.aitoolsfordoctor.com {
 		}
 	}
 
+	# Notera Studio (doctor review + evaluation, separate container). Only the studio Worker can use it: the service rejects any request without the secret X-Studio-Key.
+	handle_path /studio/* {
+		reverse_proxy notera-studio:8080 {
+			flush_interval -1
+		}
+	}
+
 	handle {
 		reverse_proxy backend:8080 {
 			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
