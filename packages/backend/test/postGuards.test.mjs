@@ -5,9 +5,10 @@ import { enforceTemplate, fixMisplacement, drugPlausibility, checkInput } from '
 const mk = () => ({ metadata: {}, subjective: { hpi_details: 'Cough 3 days' }, past_medical_history: { other: 'Current medications: ramipril 5 mg\nFather had MI' }, objective: { vital_signs: 'BP 130/80', physical_exam: 'Reports chest tightness\nDenies fever\nLungs clear on auscultation' },
   assessment_and_plan: [{ issue: 'Cough', treatment_planned: 'Amoxicillin 500 mg' }, { issue: 'Follow-up', treatment_planned: 'Review in 2 weeks' }] });
 
-test('enforceTemplate drops the medication list and folds the follow-up problem', () => {
-  const n = mk(); const r = enforceTemplate(n);
-  assert.equal(r.medLinesRemoved, 1); assert.equal(n.past_medical_history.other, 'Father had MI');
+test('enforceTemplate keeps the Medications line, drops a duplicate Current-medications line, folds the follow-up problem', () => {
+  const n = mk(); n.past_medical_history.other += '\nMedications: ramipril 5 mg'; const r = enforceTemplate(n);
+  assert.equal(r.medLinesRemoved, 1); assert.equal(n.past_medical_history.other, 'Father had MI\nMedications: ramipril 5 mg');
+  const alone = mk(); enforceTemplate(alone); assert.match(alone.past_medical_history.other, /Current medications/, 'a lone medication line is kept');
   assert.equal(n.assessment_and_plan.length, 1); assert.match(n.assessment_and_plan[0].treatment_planned, /Follow-up: Review in 2 weeks/);
   const only = { metadata: {}, past_medical_history: {}, assessment_and_plan: [{ issue: 'Follow-up', treatment_planned: 'x' }] };
   enforceTemplate(only); assert.equal(only.assessment_and_plan.length, 1, 'a lone Follow-up problem is kept');
