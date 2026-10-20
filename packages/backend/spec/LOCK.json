@@ -1,0 +1,41 @@
+{
+  "specVersion": "1.0.0",
+  "lockedAt": "2026-10-20T13:27:07.724Z",
+  "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V1_LOCKED.md",
+  "files": {
+    "prompts/writer-v4.txt": "8e32e0b6b02249654ccd221a66c01612fb6fa21c2622e4e62fa8f8fbb19a30d0",
+    "src/orchestrator/postGuards.js": "4b4b090b14631ac8378a2220e66901a74f90477b8e7a58e87fffb9ab911e8b4f",
+    "src/orchestrator/renderMarkdown.js": "b42adcd6d5f1411974d508867f185112172126c97dadc0aae25b2c351771ac86",
+    "src/orchestrator/refNames.js": "abd0818430235c0479070688462a0bf78045b467975ba3bdf7f6f420a594b3ef",
+    "src/orchestrator/specLock.js": "b4f57985115bdadc4b5ee19e7058d28771cc7c5166bec4cfff2da8febf29163d"
+  },
+  "prompts": {
+    "v2-writer": "8e32e0b6b02249654ccd221a66c01612fb6fa21c2622e4e62fa8f8fbb19a30d0",
+    "v2-checklist": "2f260afc28d46b8fa0d36fc6e472957c82ecf0c0ef58ac74ae14824951db44b5",
+    "v2-editor": "ba1dba004e23065ac67ec788bf0db22d9adda2c82c00a9a33505d2dd6b9654da",
+    "v2-story": "c3240779c853479a0375c9b1679742040eb9b617f4b735f901e0b8c706b230a3",
+    "v2-verifier": "34d9ea4c2c464dcab9afde7b07a6198a86c1298efcac05b86245b1a2df141cff"
+  },
+  "configDefaults": "b1f73d53b988afb07a7ba29afd9a0990aa4edd80bba51b426a4cd838e1e0b042",
+  "configDefaultValues": {
+    "writer.model": "gemini-3.7-flash",
+    "writer.fallbackModel": "gemini-2.5-flash",
+    "writer.fewShot": 2,
+    "writer.temperature": 0.3,
+    "writer.topP": 0.9,
+    "writer.thinkingBudget": 0,
+    "aux.model": "gemini-3.5-flash-lite",
+    "editor.enabled": true,
+    "editor.model": "gemini-2.5-flash",
+    "drugs.guardEnabled": true,
+    "recall.extended": false,
+    "guards.template": true,
+    "guards.placement": true,
+    "guards.drugPlausibility": true,
+    "guards.inputCheck": "flag",
+    "ref.enabled": true,
+    "story.enabled": true,
+    "story.model": "gemini-2.5-flash",
+    "verifier.enabled": true
+  }
+}

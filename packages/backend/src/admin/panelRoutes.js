@@ -16,6 +16,7 @@ import { audit } from '../auth/users.js';
 import { ensureAccountSchema, FREE_NOTE_LIMIT } from '../auth/quota.js';
 import { listVersions, getVersion, promote, activate, resetToDefault, getActivePromptMeta } from '../orchestrator/promptStore.js';
 import { WRITER_PROMPT_NAME, PROMPT_REGISTRY } from '../orchestrator/generateNoteV2.js';
+import { specLockState, unlockSpec, relockSpec, specLockHistory, isLockedPrompt } from '../orchestrator/specLock.js';
 import { describeConfig, setConfig, resetConfig, configHistory, effectiveConfig, REGISTRY as CONFIG_REGISTRY } from '../orchestrator/runtimeConfig.js';
 
 const lim = (n, d = 100, max = 500) => Math.min(Math.max(1, Number(n) || d), max);
@@ -78,7 +79,7 @@ export const SQL = {
 
 export function mountPanel(app, requireAuthMw) {
   const adminOnly = (req, res, next) => (req.user && req.user.role === 'admin') ? next() : res.status(404).json({ error: 'not found' });
-  const r = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { console.error('[console]', e.message); res.status(500).json({ error: e.message }); } };
+  const r = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { console.error('[console]', e.message); res.status(e.status || 500).json({ error: e.message, ...(e.code ? { code: e.code } : {}) }); } };
   const R = express.Router();
   R.use(requireAuthMw, adminOnly);
 
@@ -165,10 +166,14 @@ export function mountPanel(app, requireAuthMw) {
     }
     res.json({ prompts: out });
   }));
+  // ── STYLE SPEC v1 hard lock: status, and the owner-only unlock / relock (exact confirmation phrase, audited) ──
+  R.get('/spec-lock', r(async (req, res) => res.json({ ...(await specLockState()), history: await specLockHistory(10) })));
+  R.post('/spec-lock/unlock', jsonBody, r(async (req, res) => { const st = await unlockSpec(req.user.email, req.body?.confirm, String(req.body?.note || '').slice(0, 300)); await audit(req.user.id, 'spec_unlock', { note: req.body?.note || '' }, ipOf(req)); res.json(st); }));
+  R.post('/spec-lock/relock', jsonBody, r(async (req, res) => { const st = await relockSpec(req.user.email, String(req.body?.note || '').slice(0, 300)); await audit(req.user.id, 'spec_relock', {}, ipOf(req)); res.json(st); }));
   R.get('/prompts', r(async (req, res) => {
     const name = pname(req.query.name); if (!name) return res.status(400).json({ error: 'unknown prompt' });
     const meta = await getActivePromptMeta(name);
-    res.json({ name, versions: await listVersions(name), using_default: !meta, default_chars: PROMPT_REGISTRY[name].default().length });
+    res.json({ name, versions: await listVersions(name), using_default: !meta, default_chars: PROMPT_REGISTRY[name].default().length, locked: isLockedPrompt(name) && (await specLockState()).locked });
   }));
   R.get('/prompts/default', r(async (req, res) => { const name = pname(req.query.name); if (!name) return res.status(400).json({ error: 'unknown prompt' }); res.json({ name, text: PROMPT_REGISTRY[name].default() }); }));
   // what the pipeline will use for the very next note — proves an edit took effect

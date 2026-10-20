@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
+import { assertKeyUnlocked, isLockedKey, isSpecLocked } from './specLock.js';
 import { query, one } from '../db/pool.js';
 
 const env = (k) => process.env[k];
@@ -87,23 +88,25 @@ export function validate(key, raw) {
 
 /** Everything the pipeline needs, resolved: { 'writer.model': 'gemini-2.5-flash', … }. Never throws. */
 export async function effectiveConfig() {
-  const ov = await overrides(); const out = {};
-  for (const [k, m] of Object.entries(REGISTRY)) out[k] = ov[k] ? ov[k].value : m.def();
+  const ov = await overrides(); const out = {}; const locked = process.env.DATABASE_URL ? await isSpecLocked() : false;
+  // Style Spec v1 lock: database overrides of spec-shaping settings are ignored; the shipped defaults apply
+  for (const [k, m] of Object.entries(REGISTRY)) out[k] = ov[k] && !(locked && isLockedKey(k)) ? ov[k].value : m.def();
   return out;
 }
 
 /** Same plus provenance, for the admin console. */
 export async function describeConfig() {
-  const ov = await overrides();
+  const ov = await overrides(); const locked = await isSpecLocked();
   return Object.entries(REGISTRY).map(([key, m]) => {
     const d = m.def();
     return { key, group: m.group, stage: m.stage, label: m.label, type: m.type, min: m.min, max: m.max, step: m.step, options: m.options, help: m.help,
-      default: d, value: ov[key] ? ov[key].value : d, source: ov[key] ? 'override' : 'default', updated_by: ov[key]?.by || null, updated_at: ov[key]?.at || null };
+      locked: locked && isLockedKey(key), default: d, value: ov[key] && !(locked && isLockedKey(key)) ? ov[key].value : d, source: ov[key] ? 'override' : 'default', updated_by: ov[key]?.by || null, updated_at: ov[key]?.at || null };
   });
 }
 
 export async function setConfig(key, raw, { by = '', reason = '' } = {}) {
   const value = validate(key, raw);
+  await assertKeyUnlocked(key);
   await ensureConfigSchema();
   const old = await one(`SELECT value FROM ops.runtime_config WHERE key = $1`, [key]);
   await query(`INSERT INTO ops.runtime_config (key, value, updated_by, updated_at) VALUES ($1, $2::jsonb, $3, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`, [key, JSON.stringify(value), by]);
@@ -113,6 +116,7 @@ export async function setConfig(key, raw, { by = '', reason = '' } = {}) {
 }
 export async function resetConfig(key, { by = '' } = {}) {
   if (!REGISTRY[key]) throw new Error(`unknown setting "${key}"`);
+  await assertKeyUnlocked(key);
   await ensureConfigSchema();
   const old = await one(`SELECT value FROM ops.runtime_config WHERE key = $1`, [key]);
   if (!old) return false;
