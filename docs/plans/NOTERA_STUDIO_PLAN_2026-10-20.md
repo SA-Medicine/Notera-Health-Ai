@@ -117,3 +117,23 @@ A new repository/service (`notera-studio`) that owns *style, evaluation and lear
 
 ## Sources
 [Heidi — notes that sound like you](https://www.heidihealth.com/blog/heidi-adapts-to-you) · [Freed templates FAQ](https://www.getfreed.ai/resources/faq-freed-note-templates) · [Abridge confabulation approach](https://hitconsultant.net/2025/08/21/abridge-outlines-approach-to-eliminating-ai-hallucinations-in-clinical-notes/) · [Microsoft Dragon Copilot UX guidelines](https://learn.microsoft.com/en-us/industry/healthcare/dragon-copilot/sdk/get-started/ux-guidelines) · [Nabla — AI medical scribes](https://www.nabla.com/blog/ai-medical-scribes) · [UCLA ambient-scribe trial](https://www.uclahealth.org/news/release/ucla-study-finds-ai-scribes-may-reduce-documentation-time) · [Asgari et al. 2025, npj Digit Med](https://pmc.ncbi.nlm.nih.gov/articles/12075489/) · [Palm et al. 2025, PDQI-9 for AI scribes](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1691499/full) · [PDSQI-9 LLM-judge preprint](https://www.medrxiv.org/node/1085777) · [Suki — PDQI-9 critique](https://origin-www.suki.ai/blog/the-broken-ruler-why-the-healthcare-industry-is-measuring-ai-notes-the-wrong-way-and-what-they-should-be-doing-instead/) · [Gao et al. 2024, learning from user edits (PRELUDE/CIPHER)](https://arxiv.org/pdf/2404.15269) · [WangLab MEDIQA-Chat 2023](https://arxiv.org/abs/2305.02220v2) · [Wang et al. 2024, adapting open models](https://arxiv.org/pdf/2405.00715v5) · [Farquhar et al. 2024, semantic entropy](https://pmc.ncbi.nlm.nih.gov/articles/PMC11186750) · [CliniKnote / K-SOAP](https://www.arxiv.org/abs/2408.14568) · [CLI-RAG](https://arxiv.org/pdf/2507.06715)
+
+---
+## Implementation status (2026-10-20, same day)
+Built and deployed **around** the locked Style Spec v1 (production format unchanged; see `docs/STYLE_SPEC_V1_LOCKED.md`, `docs/STUDIO.md`).
+
+| Plan item | Status |
+|---|---|
+| Hard lock of the approved format (database lock, store-level guards, fingerprint test, admin banners) | Done and verified live (a change is refused with HTTP 423) |
+| Phase 0 corpus cohorts (style + date) | Done as **read-only analysis in Studio**. The few-shot bank and the production pipeline were deliberately **not** changed (owner's rule) |
+| Style Spec engine | Spec v1 as machine-readable rules + 20 deterministic checks; doctor suggestions are stored as **proposals** (never auto-applied) |
+| Doctor-centred evaluator | Done (PDQI-9-adapted rubric + CREOLA error taxonomy, judged against the transcript only); judge-vs-doctor agreement tracked on the dashboard (needs the doctor's reviews to fill) |
+| Evidence-linked review | Done in shadow mode (never alters the note; unverifiable quotes are downgraded) |
+| Edit-learning loop | Done: edits in Studio and edits made in the product (draft -> final) produce proposed rules |
+| Teach Notera | Done: per-note interview for the training doctor |
+| Review queue + doctor UI | Done: https://studio.aitoolsfordoctor.com; the training doctor's own notes arrive automatically |
+| Tuning export | Done (files only; no tuning job started) |
+| Regression gate | Done; first baseline on the locked pipeline, 20 newest-style reference transcripts: mean style score 95.5 %, all 20 notes at 90 %+, median 27 s per note. Most frequent misses: topic headings absent in 10 of 20 notes (S1: the story step's fact check kept the plain bullet version), more than 8 PMH bullets in 4, vitals without numbers in 2 |
+| Phase 5 tuning experiment, Phase 6 separate repository | Not started (tuning needs the spec unlocked and the owner's budget; extraction is a mechanical move once the owner wants it) |
+
+Not verified: a real sign-in as the training doctor through the Worker (credentials are not available to me); every layer was tested separately (Worker rejects without a session, the service accepts the key and identity headers and returns her queue).
