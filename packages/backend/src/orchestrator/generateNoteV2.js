@@ -494,6 +494,8 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
       { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
     const out = parseJson(raw);
     if (!out || typeof out.subjective !== 'object') { log('[v2:story] rejected — unparseable or incomplete JSON'); return { out: null, why: 'unparseable', ms: Date.now() - t0 }; }
+    // the model sometimes returns a field as a list of lines instead of one string: always one string, one line per item
+    for (const sec of ['subjective', 'past_medical_history']) for (const [k, v] of Object.entries(out[sec] || {})) if (Array.isArray(v)) out[sec][k] = v.map((x) => String(x ?? '').trim()).filter(Boolean).join('\n');
     const noHeads = (o) => { const c = {}; for (const [sec, f] of Object.entries(o || {})) { c[sec] = {}; for (const [k, v] of Object.entries(f || {})) c[sec][k] = String(v ?? '').split('\n').filter((l) => !/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(l.trim())).join('\n'); } return c; };   // topic headings are structure, not facts
     const chk = editorAccepts(draft, noHeads(out), transcript, { noPlan: true, keptMin: 0.72, freshMax: 0.1, freshAbs: 8 });
     if (!chk.ok) { log(`[v2:story] rejected — ${chk.why}`); return { out: null, why: chk.why, rejected: out.subjective, ms: Date.now() - t0 }; }
