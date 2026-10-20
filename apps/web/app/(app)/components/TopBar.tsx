@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from './AuthProvider';
+import { useInvite } from './useInvite';
 
 export default function TopBar() {
   const { user, signOut } = useAuth();
+  const invite = useInvite(!!user);
   const pathname = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -44,6 +46,9 @@ export default function TopBar() {
                 <div className="card" style={{ position: 'absolute', right: 0, top: 40, padding: 12, minWidth: 190, zIndex: 30 }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{user.name}</div>
                   <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>{user.email}</div>
+                  {invite.eligible && (
+                    <a className="btn ghost sm" style={{ width: '100%', marginBottom: 8 }} href={invite.url} target="_blank" rel="noopener noreferrer">Style interview</a>
+                  )}
                   <button className="btn ghost sm" style={{ width: '100%' }} onClick={doSignOut}>Sign out</button>
                 </div>
               )}

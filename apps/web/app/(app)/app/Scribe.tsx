@@ -7,6 +7,7 @@ import './polish.css';
 import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
 import { VoiceBeam } from 'voice-glow';
+import { useInvite, inviteSummary } from '../components/useInvite';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -104,6 +105,11 @@ export default function Scribe() {
   const [genStep, setGenStep] = useState(0);
   const [consultId, setConsultId] = useState<string | null>(null);
   const [history, setHistory] = useState<HistItem[]>([]);
+  // Style Interview invitation (invited accounts only): a sidebar entry plus a dismissible banner; both open Notera Studio.
+  const invite = useInvite(true);
+  const inviteInfo = inviteSummary(invite);
+  const [inviteHidden, setInviteHidden] = useState(false);
+  useEffect(() => { try { setInviteHidden(sessionStorage.getItem('interviewBannerHidden') === '1'); } catch { /* storage unavailable */ } }, []);
   const [pasteText, setPasteText] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [dark, setDark] = useState(false);
@@ -686,6 +692,9 @@ export default function Scribe() {
         </nav>
         <div className="sidebar-spacer" />
         <nav className="sidebar-nav sidebar-nav-lower">
+          {invite.eligible && (
+            <a className="nav-item" href={invite.url} target="_blank" rel="noopener noreferrer" title="Open the Notera Style Interview">{I.doc}<span>Style interview</span>{!inviteInfo.done && <span className="invite-dot" aria-hidden="true" />}</a>
+          )}
           <div className="nav-item" onClick={() => setDark((v) => !v)}>{I.settings}<span>{dark ? 'Light mode' : 'Dark mode'}</span></div>
           <div className="nav-item nav-item-logout" onClick={logout} title="Sign out">{I.logout}<span>Log out</span></div>
         </nav>
@@ -700,6 +709,13 @@ export default function Scribe() {
 
       {/* ── Main ── */}
       <main className="main-content">
+        {invite.eligible && !inviteHidden && !inviteInfo.done && (
+          <div className="invite-banner" role="note">
+            <span className="invite-text"><b>Style interview.</b> {inviteInfo.line}</span>
+            <a className="invite-btn" href={invite.url} target="_blank" rel="noopener noreferrer">{inviteInfo.cta}</a>
+            <button className="invite-x" aria-label="Hide for now" onClick={() => { setInviteHidden(true); try { sessionStorage.setItem('interviewBannerHidden', '1'); } catch { /* ignore */ } }}>×</button>
+          </div>
+        )}
         {/* Top bar */}
         <header className="top-bar">
           <div className="top-bar-left">

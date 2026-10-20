@@ -21,6 +21,7 @@ import { noteQuotaGate, asrQuotaGate, refundIfReserved } from './src/auth/quota.
 import { mountLibrary } from './src/library/libraryRoutes.js';
 import { mountOps } from './src/ops/opsRoutes.js';
 import { mountPanel } from './src/admin/panelRoutes.js';
+import { mountStudioInvite } from './src/studio/invite.js';
 import { ensureOpsSchema, checkAlerts, recordAudioEvent } from './src/ops/opsLog.js';
 import path from 'node:path';
 
@@ -63,6 +64,9 @@ mountOps(app, requireAuth(DATA_DIR));
 
 // Admin console API (/api/console/*): admin-only, read-only, PHI views audited. Backs the standalone admin site.
 mountPanel(app, requireAuth(DATA_DIR));
+
+// Style Interview invitation status (read-only): lets the main app show a banner/menu link to Notera Studio for invited accounts.
+mountStudioInvite(app, requireAuth(DATA_DIR));
 
 // Production admin console (/api/console/*): admin role only — users, plans, every consult's transcript, SOAP note and audio.
 
