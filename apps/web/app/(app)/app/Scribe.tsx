@@ -8,6 +8,7 @@ import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
 import { VoiceBeam } from 'voice-glow';
 import { useInvite, inviteSummary } from '../components/useInvite';
+import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './transcriptDensity';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -105,6 +106,9 @@ export default function Scribe() {
   const [genStep, setGenStep] = useState(0);
   const [consultId, setConsultId] = useState<string | null>(null);
   const [history, setHistory] = useState<HistItem[]>([]);
+  // Completeness check: after a recording, a transcript far too short for its length can be re-made from the saved recording (Gemini, one click).
+  const [density, setDensity] = useState<{ words: number; wpm: number; minutes: number } | null>(null);
+  const [rerunning, setRerunning] = useState(false);
   // Style Interview invitation (invited accounts only): a sidebar entry plus a dismissible banner; both open Notera Studio.
   const invite = useInvite(true);
   const inviteInfo = inviteSummary(invite);
@@ -236,9 +240,9 @@ export default function Scribe() {
   // appended whatever finished first, scrambling the transcript the note is written
   // from. Segments are therefore keyed by their INDEX and the transcript is always
   // rendered in index order.
-  async function transcribeBlob(blob: Blob): Promise<string> {
+  async function transcribeBlob(blob: Blob, rerun = false): Promise<string> {
     if (!blob.size) return '';
-    const r = await fetch(`${API}/api/asr`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(ASR_REQUEST_TIMEOUT_MS) });
+    const r = await fetch(`${API}/api/asr${rerun ? '?rerun=1' : ''}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(rerun ? 100_000 : ASR_REQUEST_TIMEOUT_MS) });
     if (r.status === 402) { setPaywall(true); throw new Error('free_limit_reached'); }
     if (!r.ok) { const d = await readJson(r).catch(() => ({} as any)); throw new Error(d?.hint || d?.error || 'Transcription failed'); }
     const d = await readJson(r);
@@ -339,7 +343,7 @@ export default function Scribe() {
     teardownCapture();
     segments.current.clear();
     segQueue.current = [];
-    fullChunks.current = []; fullBlob.current = null;  // discard the silent audio — nothing saved
+    fullChunks.current = []; fullBlob.current = null; setDensity(null);  // discard the silent audio — nothing saved
     setLines([]); setTx(''); setElapsed(0); setPendingSegs(0); setFailedSegs(0); setPhase('idle');
     flash('Recording stopped — no speech detected for about 3 minutes. Nothing was saved.', 'error');
     fetch(`${API}/api/ops/audio-event`, {
@@ -369,7 +373,37 @@ export default function Scribe() {
     finishing.current = true;
     if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: fullMime.current });
     await recoverFailedSegments();
+    // Completeness check: is the transcript far too short for the length of the recording? (free: two numbers, no request)
+    try {   // never let the check get in the way of finishing a recording
+      const seconds = (Date.now() - startTs.current) / 1000; const words = countWords(transcriptRef.current);
+      if (fullBlob.current?.size && looksIncomplete(words, seconds)) setDensity({ words, wpm: Math.round(wordsPerMinute(words, seconds)), minutes: Math.round(seconds / 6) / 10 }); else setDensity(null);
+    } catch { setDensity(null); }
     setPhase('done');
+  }
+
+  // Offered when the transcript looks far too short for the recording: send the saved full recording to the Gemini re-transcribe pass.
+  // The new text replaces the old one only when it holds clearly more speech; otherwise the transcript is kept as it is.
+  async function rerunFromRecording() {
+    if (!fullBlob.current?.size || rerunning) return;
+    setRerunning(true);
+    try {
+      const oldWords = countWords(transcriptRef.current);
+      const whole = await transcribeBlob(fullBlob.current, true);
+      const newWords = countWords(whole);
+      if (whole && worthReplacing(oldWords, newWords)) {
+        const sentences = whole.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+        const totalMs = Math.max(1, Date.now() - startTs.current);
+        segments.current.clear();
+        sentences.forEach((text, i) => { segments.current.set(i, { status: 'done', text, attempts: 1, blob: null, offsetMs: Math.round((i / Math.max(1, sentences.length)) * totalMs) }); });
+        renderSegments();
+        flash(`Transcript re-created from the recording: ${newWords} words (was ${oldWords}). Timings are approximate.`);
+      } else {
+        flash('The saved recording does not contain more speech than the transcript, so it was kept as it is.');
+      }
+      setDensity(null);
+    } catch (e) {
+      flash((e as Error).message === 'free_limit_reached' ? 'Free limit reached.' : 'Could not re-transcribe the recording just now. Please try again in a minute.', 'error');
+    } finally { setRerunning(false); }
   }
 
   // SAFETY NET for long consults: if any segment never transcribed, send the WHOLE
@@ -508,7 +542,7 @@ export default function Scribe() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream; setMicStream(stream); stopping.current = false; startTs.current = Date.now();
-      fullChunks.current = []; fullBlob.current = null;
+      fullChunks.current = []; fullBlob.current = null; setDensity(null);
       try {
         const fr = new MediaRecorder(stream); fullRecRef.current = fr;
         fullMime.current = fr.mimeType || 'audio/webm';
@@ -653,7 +687,7 @@ export default function Scribe() {
     segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
     stopping.current = false; captureLive.current = false; finishing.current = false;
     emptySegs.current = 0; silenceAbort.current = false;
-    fullChunks.current = []; fullBlob.current = null;
+    fullChunks.current = []; fullBlob.current = null; setDensity(null);
     setPendingSegs(0); setFailedSegs(0);
     setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
@@ -709,6 +743,13 @@ export default function Scribe() {
 
       {/* ── Main ── */}
       <main className="main-content">
+        {density && phase === 'done' && (
+          <div className="density-banner" role="alert">
+            <span className="invite-text"><b>This transcript may be incomplete.</b> It has about {density.wpm} words a minute for a {density.minutes}-minute recording; normal conversation is 100 or more. Re-create it from the saved recording?</span>
+            <button className="invite-btn" onClick={rerunFromRecording} disabled={rerunning}>{rerunning ? 'Re-transcribing…' : 'Re-transcribe'}</button>
+            <button className="invite-x" aria-label="Keep the transcript" onClick={() => setDensity(null)}>×</button>
+          </div>
+        )}
         {invite.eligible && !inviteHidden && !inviteInfo.done && (
           <div className="invite-banner" role="note">
             <span className="invite-text"><b>Style interview.</b> {inviteInfo.line}</span>

@@ -163,3 +163,12 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 .notera-shell .invite-dot { width: 8px; height: 8px; border-radius: 50%; background: #1f6feb; margin-left: auto; }
 @media (max-width: 720px) { .notera-shell .invite-banner { flex-wrap: wrap; margin: 8px 10px 0; } }
 .notera-shell .nav-item .invite-dot { flex: 0 0 8px !important; width: 8px !important; height: 8px !important; min-width: 8px; padding: 0 !important; margin-left: auto; border-radius: 50%; background: #1f6feb; display: inline-block; }
+
+/* Completeness check banner */
+.notera-shell .density-banner { display: flex; align-items: center; gap: 14px; margin: 12px 18px 0; padding: 10px 14px; background: #fff6e5; border: 1px solid #f3d9a4; border-radius: 12px; font-size: 14px; color: #3d2a05; }
+.notera-shell .density-banner .invite-text { flex: 1; line-height: 1.4; }
+.notera-shell .density-banner .invite-btn { background: #b36b00; color: #fff; border: 0; border-radius: 9px; padding: 7px 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.notera-shell .density-banner .invite-btn:disabled { opacity: .6; cursor: wait; }
+.notera-shell .density-banner .invite-x { border: 0; background: transparent; font-size: 20px; line-height: 1; color: #8a6a2d; cursor: pointer; padding: 2px 6px; }
+.notera-shell.dark-mode .density-banner { background: #3a2c0b; border-color: #6b5214; color: #f6e7c1; }
+@media (max-width: 720px) { .notera-shell .density-banner { flex-wrap: wrap; margin: 8px 10px 0; } }

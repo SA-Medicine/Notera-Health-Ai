@@ -12,7 +12,7 @@
 import express from 'express';
 import { extractMultipartFile, transcodePcm16k } from './asr/audio.js';
 import { billableModel } from './asr/googleSpeech.js';
-import { transcribeWithChain } from './asr/engines.js';
+import { transcribeWithChain, getSettings as getAsrSettings, rerunSettings } from './asr/engines.js';
 import { collapseRepetitions } from './validation/textSimilarity.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -177,6 +177,17 @@ export function mountProxy(app) {
   // The upload limit has to cover a WHOLE consult, not just a 20s chunk: after a long
   // session the client may re-send the full recording to recover segments that failed.
   // WebM/Opus is ~0.5 MB/minute, so 120 MB is roughly four hours.
+  // Re-transcription from the saved recording (the web app offers it when a transcript looks far too short for the audio). Gemini does the pass;
+  // a per-person daily cap bounds the cost. In memory: it resets on restart, which only ever errs on the generous side.
+  const _rerunDay = new Map();
+  const RERUN_PER_DAY = () => Math.max(1, Number(process.env.ASR_RERUN_PER_DAY || 30));
+  function rerunAllowed(req) {
+    const who = String(req.user?.id || req.ip || 'anon'); const day = new Date().toISOString().slice(0, 10);
+    const rec = _rerunDay.get(who); const cur = rec && rec.day === day ? rec : { day, n: 0 };
+    if (cur.n >= RERUN_PER_DAY()) return false;
+    cur.n += 1; _rerunDay.set(who, cur); if (_rerunDay.size > 5000) for (const [k, v] of _rerunDay) if (v.day !== day) _rerunDay.delete(k);
+    return true;
+  }
   app.post('/api/asr', express.raw({ type: () => true, limit: process.env.ASR_MAX_UPLOAD || '120mb' }), async (req, res) => {
     const id = rid();
     const t0 = Date.now();
@@ -211,7 +222,9 @@ export function mountProxy(app) {
         // Speech-to-text runs through the ENGINE CHAIN (src/asr/engines.js): a primary engine, ordered fallbacks, a circuit breaker and a
         // silent-failure check, all switchable by the owner in the admin console ("Speech to text"). With no setting stored the chain is what
         // production always did: ASR_MODEL (chirp_2) first, then latest_long. The cost guard in googleSpeech.js still applies to every V1 request.
-        const r = await transcribeWithChain(pcm, { log: (l) => console.log(`[proxy ${id}] ${l}`) });
+        const rerun = req.query.rerun === '1';
+        if (rerun && !rerunAllowed(req)) return res.status(429).json({ error: 'rerun_limit', message: 'Daily re-transcription limit reached.', requestId: id });
+        const r = await transcribeWithChain(pcm, { log: (l) => console.log(`[proxy ${id}] ${rerun ? '(re-transcribe) ' : ''}${l}`), ...(rerun ? { settings: rerunSettings(await getAsrSettings()) } : {}) });
         // A decoder can repeat a phrase over and over; collapse those runs so the artefact never reaches the note as duplicated content.
         const text = collapseRepetitions(r.text);
         const totalMs = Date.now() - t0;

@@ -62,6 +62,8 @@ export async function saveSettings(raw, by = '') {
   await query(`INSERT INTO ops.asr_settings (id, value, updated_by, updated_at) VALUES (1, $1::jsonb, $2, now()) ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`, [JSON.stringify(v), by]);
   clearAsrSettingsCache(); return v;
 }
+/** The "re-transcribe from the saved recording" pass: Gemini 2.5 Flash first (about 8x cheaper than Google STT and as accurate), Chirp 2 only if Gemini fails. Fits inside the 100 s proxy limit. */
+export function rerunSettings(base = defaultSettings()) { return validateSettings({ ...base, primary: 'gemini-2.5-flash', fallbacks: ['chirp_2'], timeoutMs: 85000, speechCheck: true }, base); }
 export async function resetSettings() { await ensure(); await query(`DELETE FROM ops.asr_settings WHERE id = 1`); clearAsrSettingsCache(); return defaultSettings(); }
 export async function settingsMeta() { try { await ensure(); return await one(`SELECT updated_by, updated_at FROM ops.asr_settings WHERE id = 1`); } catch { return null; } }
 
@@ -102,15 +104,20 @@ const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for wo
 async function geminiRunner(pcm, model, log) {
   const { createGeminiService } = await import('../services/LLMService.js');
   const svc = await createGeminiService(null, { model }); const url = svc._endpoint(false, model); const durationSeconds = pcmDurationSeconds(pcm.length);
-  const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = []; let failed = 0;
-  for (let i = 0; i < windows.length; i++) {
-    try {
-      const headers = await svc._authHeaders(); const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(windows[i].start, windows[i].end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature: 0, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
-      const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) }); const j = await r.json();
+  const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = new Array(windows.length).fill(''); let failed = 0; let next = 0;
+  const one = async (i) => {
+    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(windows[i].start, windows[i].end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature: 0, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(80000) }); const j = await r.json();
+      if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 3000 * (attempt + 1))); continue; }   // quota: wait and retry
       if (!r.ok) throw new Error(`gemini ${r.status}: ${JSON.stringify(j).slice(0, 140)}`);
-      parts.push((j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(' ').replace(/\s+/g, ' ').trim());
-    } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); parts.push(''); }
-  }
+      return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(' ').replace(/\s+/g, ' ').trim();
+    }
+    return '';
+  };
+  await Promise.all(Array.from({ length: Math.min(3, windows.length) }, async () => {
+    while (next < windows.length) { const i = next++; try { parts[i] = await one(i); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
+  }));
   const text = parts.filter(Boolean).join(' ').trim();
   if (!text && failed === windows.length) throw new Error(`Gemini transcription failed for all ${windows.length} window(s)`);
   return { text, windows: windows.length, durationSeconds, failedWindows: failed };
