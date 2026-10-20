@@ -166,3 +166,42 @@ export function tidyPlan(note, log = () => {}) {
   if (dropped) log(`[v2:tidy] removed ${dropped} repeated / empty plan or medication item(s)`);
   return { dropped };
 }
+
+/** After the story agent: old fragments left in the secondary Subjective fields that the topics already cover are dropped (nothing else is touched). */
+export function dropCoveredFragments(note, log = () => {}) {
+  const s = note.subjective || {};
+  const union = new Set();
+  for (const l of lines(s.reason_for_visit).concat(lines(s.hpi_details)).filter((x) => !/:\s*$/.test(x))) for (const w of cw(l)) { union.add(w); union.add(w.slice(0, 5)); }
+  let n = 0;
+  for (const k of ['aggravating_relieving_factors', 'symptom_progression', 'previous_episodes', 'functional_impact', 'associated_symptoms']) {
+    const all = lines(s[k]);
+    const keep = all.filter((l) => {
+      const W = [...cw(l)]; if (!W.length) return true;
+      const covered = W.filter((w) => union.has(w) || union.has(w.slice(0, 5))).length / W.length >= 0.75;
+      if (covered) n++;
+      return !covered;
+    });
+    if (keep.length !== all.length) s[k] = keep.join('\n');
+  }
+  if (n) log(`[v2:tidy] dropped ${n} old fragment(s) already covered by the topics`);
+  return { dropped: n };
+}
+
+/** Objective: a result stated twice (e.g. "MIBI scan …" and "Mibi test …") is kept once, in its fuller form. */
+export function dedupeObjective(note, log = () => {}) {
+  let n = 0;
+  for (const k of ['completed_investigations', 'examination']) {
+    const all = lines(note.objective?.[k]); const sets = all.map(cw); const drop = new Set();
+    for (let i = 0; i < all.length; i++) {
+      for (let j = 0; j < all.length; j++) {
+        if (i === j || drop.has(i) || drop.has(j) || sets[i].size < 3 || sets[j].size < 3) continue;
+        const sh = [...sets[i]].filter((w) => sets[j].has(w)).length;
+        const iSmaller = sets[i].size < sets[j].size || (sets[i].size === sets[j].size && i > j);
+        if (iSmaller && sh / sets[i].size >= 0.5) { drop.add(i); n++; }
+      }
+    }
+    if (drop.size) note.objective[k] = all.filter((_, i) => !drop.has(i)).join('\n');
+  }
+  if (n) log(`[v2:tidy] removed ${n} repeated result line(s) from Objective`);
+  return { dropped: n };
+}
