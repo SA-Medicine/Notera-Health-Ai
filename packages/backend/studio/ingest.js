@@ -47,8 +47,9 @@ export async function pollOnce() {
 }
 
 /** Items still without an automatic review: judge + evidence map (one at a time, so cost and load stay small). */
-export async function processPending({ evaluate = evaluateNote, evidence = mapEvidence, max = 2 } = {}) {
-  const items = await query(`SELECT id, transcript, rendered FROM studio.review_items WHERE evaluated_at IS NULL ORDER BY queued_at LIMIT $1`, [max]);
+export async function processPending({ evaluate = evaluateNote, evidence = mapEvidence, max = 2, since = process.env.STUDIO_SPEC_EFFECTIVE || '2026-10-20T00:00:00Z' } = {}) {
+  // notes made before the approved format are reviewed on demand (the "Run AI review" button), not automatically
+  const items = await query(`SELECT id, transcript, rendered FROM studio.review_items WHERE evaluated_at IS NULL AND created_at >= $2::timestamptz ORDER BY queued_at LIMIT $1`, [max, since]);
   for (const it of items) {
     let auto = null, ev = null;
     try { auto = await evaluate({ transcript: it.transcript, rendered: it.rendered }); } catch (e) { auto = { error: String(e.message).slice(0, 200) }; }

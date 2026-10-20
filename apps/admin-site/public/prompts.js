@@ -8,10 +8,10 @@ export async function promptsView(ctx) {
   const { $, esc, ago, fmtDate, table, head, toast, api, go } = ctx;
   $('#view').innerHTML = head('Prompts', 'The instructions each model stage runs on. Saved versions go live in the production database — no redeploy.', '<button class="btn" id="prf">Refresh</button>') + '<div id="pr" class="card empty">Loading…</div>';
   $('#prf').onclick = () => draw();
-  let reg = [], live = null, detail = null, vers = [], defaultText = '', draft = '', note = '', tab = 'edit', viewV = null;
+  let lockSt = { locked: false }; let reg = [], live = null, detail = null, vers = [], defaultText = '', draft = '', note = '', tab = 'edit', viewV = null;
 
   async function load() {
-    reg = (await api('/api/console/prompts/registry')).prompts;
+    reg = (await api('/api/console/prompts/registry')).prompts; lockSt = await api('/api/console/spec-lock').catch(() => ({ locked: true }));
     const n = encodeURIComponent(SEL.name);
     const [a, v, d] = await Promise.all([api('/api/console/prompts/active?name=' + n), api('/api/console/prompts?name=' + n), api('/api/console/prompts/default?name=' + n)]);
     live = a; vers = v.versions; defaultText = d.text; detail = reg.find((r) => r.name === SEL.name);
@@ -20,7 +20,7 @@ export async function promptsView(ctx) {
   async function draw(keepDraft) {
     const keep = keepDraft ? draft : null; await load(); if (keep != null) draft = keep;
     const dirty = draft !== live.text;
-    $('#pr').className = ''; $('#pr').innerHTML = `
+    $('#pr').className = ''; $('#pr').innerHTML = `${lockSt.locked ? '<div class="card" style="margin-bottom:16px;border-color:var(--accent)"><b>🔒 Style Spec v1 is locked.</b> The note format approved by the doctor cannot be changed here. Prompts and spec-shaping settings are read-only until the owner unlocks them; timeouts and limits stay editable.</div>' : ''}
     <div class="pr-grid">
       <aside class="pr-list" role="tablist" aria-label="Prompts">${reg.map((r) => `<button class="pr-item${r.name === SEL.name ? ' on' : ''}" data-p="${r.name}" role="tab"><b>${esc(r.label)}</b><span class="pill ${r.live === 'default' ? '' : 'acc'}">${esc(r.live)}</span><div class="hint">${esc(r.stage)} · ${r.live_chars.toLocaleString()} chars · ${r.versions} version${r.versions === 1 ? '' : 's'}</div></button>`).join('')}
         <div class="card hint" style="margin-top:10px"><b>How it reaches production</b><br>Saving creates an immutable version in the production database and makes it active. The pipeline reads the active version on every note (cached ≤60 s) and records the version it used inside each note.</div></aside>
@@ -46,7 +46,7 @@ export async function promptsView(ctx) {
           ${SEL.name === 'v2-writer' ? '<button class="btn sm" id="try">Test on 10 gold notes</button>' : ''}
           <button class="btn sm" id="vw" ${dirty ? '' : 'disabled'}>Review changes</button></div>
         <input class="input" id="nt" placeholder="Change note — what and why (like a commit message)" value="${esc(note)}" style="width:100%;margin-top:8px">
-        <div class="pr-bar"><span class="hint">${dirty ? '● Unsaved edits' : 'No unsaved edits'}</span><div class="grow"></div><button class="btn primary" id="sv" ${dirty ? '' : 'disabled'}>Save as new version &amp; go live</button></div>`;
+        <div class="pr-bar"><span class="hint">${dirty ? '● Unsaved edits' : 'No unsaved edits'}</span><div class="grow"></div><button class="btn primary" id="sv" ${dirty && !lockSt.locked ? '' : 'disabled'} ${lockSt.locked ? 'title="Locked: Style Spec v1"' : ''}>${lockSt.locked ? '🔒 Locked' : 'Save as new version &amp; go live'}</button></div>`;
       const ed = $('#ed'); const cnt = () => { $('#cnt').textContent = `${draft.length.toLocaleString()} characters · ~${Math.round(draft.length / 4).toLocaleString()} tokens`; }; cnt();
       ed.oninput = () => { draft = ed.value; cnt(); const d = draft !== live.text; $('#sv').disabled = !d; $('#rl').disabled = !d; $('#vw').disabled = !d; };
       $('#nt').oninput = (e) => { note = e.target.value; };
