@@ -9,6 +9,7 @@
 'use strict';
 
 import { query, one } from '../db/pool.js';
+import { assertPromptUnlocked, isLockedPrompt, isSpecLocked } from './specLock.js';
 
 let _ready = null;
 export function ensurePromptSchema() {
@@ -30,6 +31,7 @@ const TTL = 60_000;
 
 /** Active override for a prompt name → { text, version, id } or null when the code default applies. Never throws. */
 export async function getActivePromptMeta(name) {
+  if (isLockedPrompt(name) && (await isSpecLocked())) return null;   // Style Spec v1 lock: the shipped prompt always applies
   const hit = _cache.get(name);
   if (hit && Date.now() - hit.at < TTL) return hit.text ? hit : null;
   let rec = { at: Date.now(), text: null, version: null, id: null };
@@ -58,6 +60,7 @@ export async function getVersion(id) {
 
 /** Add a version and make it the active one. */
 export async function promote(name, text, { note = '', by = '', evalSummary = null } = {}) {
+  await assertPromptUnlocked(name);
   await ensurePromptSchema();
   const v = await one(`SELECT coalesce(max(version), 0) + 1 AS v FROM ops.prompt_versions WHERE name = $1`, [name]);
   await query(`UPDATE ops.prompt_versions SET active = false WHERE name = $1`, [name]);
@@ -70,11 +73,13 @@ export async function activate(id) {
   await ensurePromptSchema();
   const row = await one(`SELECT id, name FROM ops.prompt_versions WHERE id = $1`, [id]);
   if (!row) return null;
+  await assertPromptUnlocked(row.name);
   await query(`UPDATE ops.prompt_versions SET active = (id = $1) WHERE name = $2`, [id, row.name]);
   clearPromptCache();
   return row;
 }
 export async function resetToDefault(name) {
+  await assertPromptUnlocked(name);
   await ensurePromptSchema();
   await query(`UPDATE ops.prompt_versions SET active = false WHERE name = $1`, [name]);
   clearPromptCache();

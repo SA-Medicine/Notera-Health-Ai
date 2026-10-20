@@ -14,6 +14,20 @@ const ps = await import('../src/orchestrator/promptStore.js');
 const rc = await import('../src/orchestrator/runtimeConfig.js');
 const { PROMPT_REGISTRY } = await import('../src/orchestrator/generateNoteV2.js');
 
+// ── STYLE SPEC v1 HARD LOCK: locked by default; nothing that shapes a note can be changed until the owner unlocks it ──
+const sl = await import('../src/orchestrator/specLock.js');
+assert.equal((await sl.specLockState()).locked, true, 'the doctor-approved Style Spec is locked by default');
+await assert.rejects(() => ps.promote('v2-writer', 'A'.repeat(900) + ' STRICT JSON'), /LOCKED/, 'a prompt cannot be promoted while locked');
+await assert.rejects(() => ps.resetToDefault('v2-story'), /LOCKED/, 'a prompt cannot be reset while locked');
+await assert.rejects(() => rc.setConfig('writer.model', 'gemini-2.5-flash'), /LOCKED/, 'a spec-shaping setting cannot be changed while locked');
+await assert.rejects(() => rc.setConfig('story.enabled', false), /LOCKED/);
+await rc.setConfig('writer.timeoutMs', 45000, { by: 'ops' });                       // operational limits stay tunable
+assert.equal((await rc.effectiveConfig())['writer.timeoutMs'], 45000); await rc.resetConfig('writer.timeoutMs', { by: 'ops' });
+await assert.rejects(() => sl.unlockSpec('owner', 'please'), /exact phrase/, 'unlocking needs the exact confirmation phrase');
+assert.equal((await sl.specLockState()).locked, true);
+await sl.unlockSpec('owner', sl.UNLOCK_PHRASE, 'test');                             // the remaining checks exercise the console machinery
+assert.equal((await sl.specLockState()).locked, false);
+
 // ── prompts ──
 const W = 'v2-writer';
 assert.equal(await ps.getActivePrompt(W), null, 'no override → code default applies');
@@ -56,5 +70,12 @@ assert.equal((await rc.effectiveConfig())['writer.model'], 'gemini-3.7-flash', '
 assert.equal(await rc.resetConfig('writer.model'), false, 'resetting an unchanged setting is a no-op');
 const hist = await rc.configHistory(20);
 assert.ok(hist.length >= 4 && hist.some((h) => h.key === 'writer.model' && h.new_value === null), 'every change, including resets, is in the history');
+// ── locking again: overrides that were set while unlocked stop applying, the shipped spec applies ──
+await rc.setConfig('writer.model', 'gemini-2.5-flash', { by: 'owner' }); await ps.promote(W, 'C'.repeat(900) + ' STRICT JSON', { by: 'owner' });
+assert.equal((await rc.effectiveConfig())['writer.model'], 'gemini-2.5-flash');
+await sl.relockSpec('owner'); sl.clearSpecLockCache();
+assert.equal((await rc.effectiveConfig())['writer.model'], 'gemini-3.7-flash', 'locked: a stored override of a spec setting is ignored');
+assert.equal(await ps.getActivePrompt(W), null, 'locked: a stored prompt override is ignored, the shipped prompt applies');
+assert.equal((await rc.describeConfig()).find((s) => s.key === 'writer.model').locked, true);
 console.log('admin control: all assertions passed');
 process.exit(0);
