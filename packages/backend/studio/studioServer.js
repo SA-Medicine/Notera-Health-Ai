@@ -25,6 +25,8 @@ const DATA = process.env.STUDIO_DATA_DIR || path.resolve(process.cwd(), '.studio
 fs.mkdirSync(DATA, { recursive: true });
 const ok = (res, body) => res.json(body);
 const num = (v, d, lo, hi) => Math.min(hi, Math.max(lo, Number(v) || d));
+// Notes made before the approved format went live were not written to Style Spec v1: they are marked "legacy" and left out of the format statistics.
+const SPEC_EFFECTIVE = String(process.env.STUDIO_SPEC_EFFECTIVE || '2026-10-20T00:00:00Z').replace(/[^0-9TZ:.+ -]/g, '');
 
 const app = express();
 app.disable('x-powered-by');
@@ -35,10 +37,11 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'notera-studio' 
 const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 app.use(async (req, res, next) => {
   if (!KEY || !same(req.headers['x-studio-key'] || '', KEY)) return res.status(401).json({ error: 'unauthorised' });
-  const id = String(req.headers['x-studio-user'] || ''), role = String(req.headers['x-studio-role'] || ''), name = decodeURIComponent(String(req.headers['x-studio-name'] || ''));
+  const id = String(req.headers['x-studio-user'] || ''), role = String(req.headers['x-studio-role'] || ''); let name = ''; try { name = decodeURIComponent(String(req.headers['x-studio-name'] || '')); } catch { /* bad encoding */ }
   if (!id) return res.status(401).json({ error: 'no user' });
   try {
     await ensureStudioSchema();
+    if (!name) { const u = await one(`SELECT full_name FROM auth.users WHERE id::text = $1`, [id]).catch(() => null); name = u?.full_name || ''; }
     if (role === 'admin') req.who = { id, name, access: 'owner' };
     else { const r = await one(`SELECT user_id FROM studio.reviewers WHERE user_id = $1 AND active`, [id]); if (!r) return res.status(403).json({ error: 'This account is not a Studio reviewer.' }); req.who = { id, name, access: 'reviewer' }; }
     next();
@@ -52,13 +55,13 @@ async function getItem(req) {
   if (!it) { const e = new Error('not found'); e.status = 404; throw e; } return it;
 }
 
-app.get('/me', wrap(async (req, res) => ok(res, { ...req.who, spec: { version: SPEC.version, ...(await specLockState()) } })));
+app.get('/me', wrap(async (req, res) => ok(res, { ...req.who, effective: SPEC_EFFECTIVE, spec: { version: SPEC.version, ...(await specLockState()) } })));
 app.get('/spec', wrap(async (req, res) => ok(res, { spec: SPEC, lock: await specLockState(), rubric: RUBRIC, error_types: ERROR_TYPES })));
 
 // ── queue and review ──
 app.get('/queue', wrap(async (req, res) => {
   const v = visible(req.who); const st = ['new', 'reviewed'].includes(req.query.status) ? req.query.status : null;
-  const rows = await query(`SELECT i.id, i.title, i.source, i.status, i.created_at, i.queued_at, i.assigned_to, (i.conformance->>'score')::float AS conformance, i.auto_eval->>'overall' AS auto_overall,
+  const rows = await query(`SELECT i.id, i.title, i.source, i.status, i.created_at, i.queued_at, i.assigned_to, (i.created_at < '${SPEC_EFFECTIVE}'::timestamptz) AS legacy, (i.conformance->>'score')::float AS conformance, i.auto_eval->>'overall' AS auto_overall,
       i.auto_eval->>'major_errors' AS auto_major, (i.evaluated_at IS NOT NULL) AS evaluated, (SELECT count(*) FROM studio.proposals p WHERE p.item_id = i.id) AS proposals,
       (SELECT overall FROM studio.reviews r WHERE r.item_id = i.id ORDER BY updated_at DESC LIMIT 1) AS doctor_overall
     FROM studio.review_items i WHERE ${v.sql} ${st ? `AND i.status = '${st}'` : ''} ORDER BY i.queued_at DESC LIMIT 200`, v.args);
@@ -161,13 +164,14 @@ app.post('/items/seed', owner, wrap(async (req, res) => {
 // ── dashboard ──
 app.get('/dashboard', owner, wrap(async (req, res) => {
   const t = await one(`SELECT count(*)::int AS items, count(*) FILTER (WHERE status = 'reviewed')::int AS reviewed, count(*) FILTER (WHERE evaluated_at IS NOT NULL)::int AS evaluated,
-      avg((conformance->>'score')::float) AS conformance, avg(NULLIF(auto_eval->>'overall', '')::float) AS judge_overall, avg(NULLIF(auto_eval->>'major_errors', '')::float) AS judge_major FROM studio.review_items`);
+      avg((conformance->>'score')::float) FILTER (WHERE created_at >= '${SPEC_EFFECTIVE}'::timestamptz) AS conformance_since_spec, count(*) FILTER (WHERE created_at >= '${SPEC_EFFECTIVE}'::timestamptz)::int AS since_spec,
+      avg(NULLIF(auto_eval->>'overall', '')::float) AS judge_overall, avg(NULLIF(auto_eval->>'major_errors', '')::float) AS judge_major FROM studio.review_items`);
   const rv = await one(`SELECT count(*)::int AS reviews, avg(overall) AS doctor_overall, avg(CASE WHEN would_sign THEN 1 ELSE 0 END) AS would_sign,
       avg((edit_diff->>'edit_rate')::float) AS edit_rate, avg(jsonb_array_length(coalesce(errors, '[]'::jsonb)))::float AS doctor_errors FROM studio.reviews`);
   const ag = await query(`SELECT NULLIF(i.auto_eval->>'overall', '')::float AS j, r.overall AS d FROM studio.reviews r JOIN studio.review_items i ON i.id = r.item_id WHERE r.overall IS NOT NULL AND i.auto_eval ? 'overall'`);
   const within1 = ag.length ? ag.filter((x) => Math.abs(x.j - x.d) <= 1).length / ag.length : null;
   const pr = await query(`SELECT status, count(*)::int AS n FROM studio.proposals GROUP BY status`);
-  const byRule = await query(`SELECT f->>'rule' AS rule, count(*)::int AS n FROM studio.review_items i, jsonb_array_elements(coalesce(i.conformance->'failed', '[]'::jsonb)) f GROUP BY 1 ORDER BY 2 DESC LIMIT 10`);
+  const byRule = await query(`SELECT f->>'rule' AS rule, count(*)::int AS n FROM studio.review_items i, jsonb_array_elements(coalesce(i.conformance->'failed', '[]'::jsonb)) f WHERE i.created_at >= '${SPEC_EFFECTIVE}'::timestamptz GROUP BY 1 ORDER BY 2 DESC LIMIT 10`);
   ok(res, { items: t, reviews: rv, judge_vs_doctor: { paired: ag.length, within_1_point: within1 }, proposals: Object.fromEntries(pr.map((p) => [p.status, p.n])), top_failed_rules: byRule, spec: { version: SPEC.version, ...(await specLockState()) } });
 }));
 
