@@ -20,6 +20,7 @@ import { defaultWriterPrompt } from '../src/orchestrator/generateNoteV2.js';
 import { getActivePrompt } from '../src/orchestrator/promptStore.js';
 import { effectiveConfig } from '../src/orchestrator/runtimeConfig.js';
 import { createGeminiService, runWithModel } from '../src/services/LLMService.js';
+import { formatReport, aggregate as aggregateFormat } from './formatMetrics.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -315,9 +316,10 @@ async function auditNote(runId, fid, { force = false } = {}) {
   const notes = readJson(notesFile(runId), {}); if (!notes[fid]) throw new Error('no generated note for this fixture');
   const { transcript, gold } = loadFixture(fid);
   const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
-  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== AI NOTE ===\n${notes[fid]}\n\nReturn ONLY the JSON.`, null,
-    { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
-  const a = parseJ(raw); a.at = new Date().toISOString(); a.model = JUDGE_MODEL;
+  const fm = formatReport(notes[fid], gold);
+  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${transcript.slice(0, 60000)}\n\n=== GOLD NOTE ===\n${gold.slice(0, 8000)}\n\n=== AI NOTE ===\n${notes[fid]}\n\n=== FORMAT METRICS (computed by code) ===\n${JSON.stringify(fm)}\n\nReturn ONLY the JSON.`, null,
+    { maxOutputTokens: 6000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
+  const a = parseJ(raw); a.at = new Date().toISOString(); a.model = JUDGE_MODEL; a.format_metrics = fm;
   const fresh = readJson(analysisFile(runId), {}); fresh[fid] = a; writeJson(analysisFile(runId), fresh);
   return a;
 }
@@ -350,9 +352,10 @@ async function parityScore(note, gold) {
 async function auditAdhoc({ transcript, note, gold = '' }) {
   const llm = await createGeminiService(null, { model: JUDGE_MODEL }); llm._agent = 'lab-audit';
   const goldBlock = String(gold).trim() ? String(gold).slice(0, 8000) : '(none provided — judge only against the transcript)';
-  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${String(transcript).slice(0, 60000)}\n\n=== GOLD NOTE ===\n${goldBlock}\n\n=== AI NOTE ===\n${String(note)}\n\nReturn ONLY the JSON.`, null,
-    { maxOutputTokens: 4000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
-  return parseJ(raw);
+  const fm = String(gold).trim() ? formatReport(String(note), String(gold)) : null;
+  const raw = await llm.generateContent(auditSys(), `=== TRANSCRIPT ===\n${String(transcript).slice(0, 60000)}\n\n=== GOLD NOTE ===\n${goldBlock}\n\n=== AI NOTE ===\n${String(note)}\n\n=== FORMAT METRICS (computed by code) ===\n${fm ? JSON.stringify(fm) : '(no gold note: judge layout against the format principles only)'}\n\nReturn ONLY the JSON.`, null,
+    { maxOutputTokens: 6000, temperature: 0, responseMimeType: 'application/json', timeoutMs: 120000, retries: 1, thinkingBudget: 1024, hedgeMs: 0 });
+  const a = parseJ(raw); if (fm) a.format_metrics = fm; return a;
 }
 // run an audit over many notes with limited concurrency (worst first)
 async function auditMany(runId, ids, onProgress) {
@@ -369,20 +372,43 @@ Past Medical History: relevant past medical/surgical history; relevant social hi
 Objective: vital signs; physical or mental-state examination findings by system; COMPLETED investigations with results (never planned ones).
 Assessment & Plan: numbered, one block per issue/problem explicitly identified: issue name; diagnosis ONLY if explicitly stated; differential diagnoses ONLY if explicitly listed; investigations planned; treatment planned; referrals made or recommended.
 RULES: every field is optional and included ONLY if explicitly in the transcript; otherwise left blank. Never infer, summarise into or invent a diagnosis. Never invent patient details, assessments or plans. Never state that something was not mentioned. There is no separate "current medications" list and no separate "follow-up" problem: drugs and follow-up timing appear inside the relevant issue's treatment planned. Use as many lines as needed to capture all relevant information.`;
-const AUDIT_DEFAULT = (spec) => `You are a senior physician auditing an AI-written SOAP note for one consultation.
-TRANSCRIPT = the only ground truth of what was said. GOLD NOTE = a clinician-written note showing what a good note keeps (it may be missing from this check).
+// ── FORMAT PRINCIPLES learned from the gold notes (format only) ───────────────────────────────────────────────────────────────
+// Induced from 410 topic-headed gold notes (the newest style) and validated on 30 held-out transcripts; see docs/reports/FORMAT_ANALYSIS_2026-10-22.md.
+// They tell the auditor and the report HOW the best notes lay facts out. They describe layout, never clinical content, and they never change the
+// production writer: Style Spec v1 stays locked, and anything that would go beyond it is reported as a proposal.
+const GOLD_FORMAT_PRINCIPLES = `HOW THE BEST (GOLD) NOTES LAY FACTS OUT — layout only, content always comes from the transcript:
+F1 ONE PROBLEM PER ISSUE. The gold A&P has about 3.9 numbered problems per note. Every distinct issue the clinician spoke about or acted on gets its own numbered problem, even when it is small: an abnormal or borderline result the doctor commented on, a chronic condition reviewed or refilled, a screening or vaccine discussed or given, a form or prescription requested. Two issues are never merged under one title and never hidden inside another problem's lines.
+F2 EACH LABEL ONCE PER PROBLEM. Under a problem, "Diagnosis:", "Investigations planned:", "Treatment planned:", "Referrals:" appear at most once each; several items are joined with commas or semicolons on that one line. The same label repeated on several lines is a readability defect.
+F3 EVERY FACT UNDER ITS RIGHT LABEL. A result or finding is not a treatment; history is not a plan; an investigation is not a treatment. Lines are short (one clinical clause, under about 170 characters). A first line may state the clinician's conclusion in plain words.
+F4 ADVICE AND FOLLOW-UP ARE VISIBLE. When the clinician counselled or advised (what to avoid, what to monitor, red flags, lifestyle) the gold note shows it as its own line ("Advised …", "Counselled on …"); when a return date or review interval was given it is its own line ("Follow-up: …" / "RTC …"). Over half of the gold notes have at least one such line. Aggravating and relieving factors the doctor addressed belong with the symptom in Subjective and, when the doctor advised avoiding or using them, again as an advice line in the plan.
+F5 TITLES NAME THE ISSUE. A problem title is the plain name of the issue (a condition, a result, a screening, a request). Generic buckets ("Lab abnormalities", "Lab review", "Other", "Medications") are not issue names. "Administrative" is the one allowed bucket, for forms and permits.
+F6 READS TOP TO BOTTOM. Subjective: Presenting Complaint first, then about 3-4 topic headings with about 4 short bullets each, each bullet following from the one before. Objective: measurements first, then exam findings, then completed results, grouped by panel. Past Medical History: short list, status beside each condition. The same fact appears once in the whole note.
+F7 NOTHING EMPTY, NOTHING INVENTED. No label with nothing after the colon; no "not mentioned" line; no content that is not in the transcript.`;
+// short copy of the doctor-approved Style Spec v1 (docs/STYLE_SPEC_V1_LOCKED.md) so the auditor can tell "gap inside the spec" from "gap that would need the spec to change"
+const STYLE_SPEC_V1_SHORT = `STYLE SPEC v1 (doctor-approved, locked; the production note must follow it):
+Subjective = Presenting Complaint, then one topic per symptom, short bullets (4-14 words), each fact once, symptoms only (no lifestyle/social/family). Past Medical History = about six bullets incl. one Medications line. Objective = measured/examined/completed results only, one panel per line, no repeats.
+Assessment & Plan = one numbered problem per distinct issue, plain title (never "rule out/suspected/vs"); "Diagnosis:" only if the clinician named one; assessment line = only what the clinician concluded; each investigation/treatment/referral/follow-up once, under its problem; refills under the condition they treat; forms/permits in one "Administrative" problem; no separate "Follow-up" problem.`;
+const AUDIT_DEFAULT = (spec) => `You are a senior physician auditing an AI-written SOAP note for one consultation. You judge TWO things: (A) is the content true and complete, (B) is it laid out so a busy doctor reads it quickly and finds every fact where they expect it.
+TRANSCRIPT = the only ground truth of what was said. GOLD NOTE = a clinician-written note showing what a good note keeps and how it lays facts out (it may be missing from this check).
 ${spec}
-Do NOT mark something wrong or extra merely because it follows this template (e.g. social history under Past Medical History, a home blood pressure under vital signs, follow-up timing inside the treatment plan, an empty diagnosis).
+${STYLE_SPEC_V1_SHORT}
+${GOLD_FORMAT_PRINCIPLES}
+Do NOT mark something wrong or extra merely because it follows the template above (e.g. social history under Past Medical History, a home blood pressure under vital signs, follow-up timing inside the treatment plan, an empty diagnosis, an Administrative problem).
+FORMAT METRICS: the user message contains numbers computed by code (problems, repeated labels, run-on lines, advice lines, gold problems with no match). Treat them as facts and use them; do not contradict them.
+PRESENTATION SCORES (0-100 each, judged against the gold layout and F1-F7, independent of the content score): "flow" = the note reads top to bottom as one story, each line following from the one before; "readability" = short plain lines, labels once, nothing repeated, nothing a doctor must re-read; "organization" = every fact sits in the right section, topic and label, and every issue the doctor addressed has its own place in the plan.
+For every A&P gap use one kind: missing_problem (an issue the doctor addressed has no problem), merged_problems (two issues under one title), missing_line (advice, follow-up or another stated plan item has no line), misplaced_fact (a fact under the wrong label/section), repeated_label (a label repeated under one problem), generic_title (bucket instead of issue name), run_on (a line too long), echo (a line repeats the title). Set "spec" to "inside_spec" when fixing it is allowed by Style Spec v1, or "beyond_spec" when fixing it would change what Style Spec v1 says (such a gap is only ever a proposal).
 Return JSON:
 {"verdict":"excellent|good|needs_work|unsafe","score":0-100,"summary":"one sentence",
+ "presentation":{"flow":0-100,"readability":0-100,"organization":0-100,"summary":"one sentence on how the note reads"},
  "missing":[{"fact":"...","importance":"critical|important|minor"}],
  "wrong":[{"claim":"quote from the AI note","problem":"why it is wrong, unsupported or in the wrong place","severity":"critical|major|minor"}],
  "extra":[{"text":"quote","why":"padding, duplicate, commentary or filler"}],
- "structure":["deviations from the template: wrong section, invented diagnosis, a field filled without support, a 'not mentioned' statement, wrong labels"],
+ "ap_gaps":[{"kind":"missing_problem|merged_problems|missing_line|misplaced_fact|repeated_label|generic_title|run_on|echo","where":"problem title or section","gap":"what the gold or the transcript shows that the note lacks, in generic terms","spec":"inside_spec|beyond_spec"}],
+ "structure":["other deviations from the template: wrong section, invented diagnosis, a field filled without support, a 'not mentioned' statement, wrong labels"],
  "strengths":["what it did well"],
  "root_cause":{"stage":"writer|checklist|verifier|cleanup|rules|data","why":"short reason"},
  "suggestions":["generic, reusable prompt-level fixes — nothing specific to this patient"]}
-At most 8 items per list. Be specific and terse. "unsafe" = a wrong drug/dose/side/diagnosis or an invented finding.`;
+At most 8 items per list. Be specific and terse. "unsafe" = a wrong drug/dose/side/diagnosis or an invented finding. "score" is the content score (A); the presentation scores (B) are separate.`;
 const auditPromptFile = path.join(DATA, 'audit-prompt.txt');
 const auditSys = () => { try { const t = fs.readFileSync(auditPromptFile, 'utf8').trim(); if (t.length > 300) return t; } catch { /* default */ } return AUDIT_DEFAULT(GOLD_TEMPLATE_SPEC); };
 
@@ -392,7 +418,8 @@ const auditSys = () => { try { const t = fs.readFileSync(auditPromptFile, 'utf8'
 // concrete suggestions (prompt / setting / pipeline / data) — saved as a candidate so it goes through validation and the gate.
 const UPGRADE_SYS = `You are a prompt engineer upgrading the system prompt of a clinical scribe that writes SOAP notes as strict JSON from a consultation transcript.
 You receive: the CURRENT PROMPT; the clinic's NOTE TEMPLATE; an OVERALL DIAGNOSIS of a test run (recurring patterns, which pipeline stage is to blame, recommendations); the individual AUDITS behind it (what each note lacked / got wrong / padded); PIPELINE LOGS of the weakest notes (what the checklist, verifier and cleanup stages added or removed); and word-overlap metrics versus the gold notes.
-Goals, in order: (1) no wrong or invented content; (2) follow the clinic template exactly; (3) include every clinically relevant fact the gold notes include; (4) match the gold notes' wording and level of detail so similarity to gold rises.
+Goals, in order: (1) no wrong or invented content; (2) follow the clinic template and the doctor's Style Spec v1 exactly; (3) FLOW, EASY READING and well-organised facts — apply the FORMAT PRINCIPLES (F1-F7) you are given, but only where they fit inside Style Spec v1; (4) include every clinically relevant fact the gold notes include; (5) match the gold notes' wording and level of detail so similarity to gold rises.
+Anything that would go beyond Style Spec v1 goes into "suggestions" only (area "prompt", title starting "BEYOND SPEC:"), never into the upgraded prompt.
 Rules: make TARGETED rewordings or additions that address the recurring patterns; keep every hard rule, the field-placement rules and the strict-JSON/schema instruction; add NOTHING specific to the examples (no names, drugs, dates or numbers from them); do not lengthen the prompt by more than 15%; prefer replacing a weak rule with a sharper one over adding another.
 Return JSON: {"summary":"2-3 sentences on what you changed and why","changes":["each change and the pattern it fixes"],"suggestions":[{"title":"...","detail":"...","area":"prompt|setting|pipeline|guardrail|data|metric","impact":"high|medium|low"}],"prompt":"<the full upgraded prompt text>"}.
 "suggestions" are things a prompt cannot fix (code, settings, data) — be concrete.`;
@@ -401,11 +428,11 @@ async function upgradeFromReport(reportId) {
   const run = loadRun(rep.runId); if (!run) throw new Error('run not found');
   const audits = readJson(analysisFile(rep.runId), {}); const notes = readJson(notesFile(rep.runId), {}); const traces = readJson(traceFile(rep.runId), {});
   const ranked = run.rows.filter((r) => !r.error && audits[r.id]).map((r) => ({ id: r.id, sim: r.similarity_to_gold, om: r.omission_rate, a: audits[r.id] })).sort((x, y) => (x.a.score ?? 100) - (y.a.score ?? 100));
-  const compact = ranked.slice(0, 24).map((x) => ({ note: x.id, score: x.a.score, verdict: x.a.verdict, similarity: x.sim, omission: x.om, missing: (x.a.missing || []).slice(0, 5), wrong: (x.a.wrong || []).slice(0, 5), extra: (x.a.extra || []).slice(0, 3), structure: x.a.structure, cause: x.a.root_cause, fixes: x.a.suggestions }));
+  const compact = ranked.slice(0, 24).map((x) => ({ note: x.id, score: x.a.score, verdict: x.a.verdict, similarity: x.sim, omission: x.om, presentation: x.a.presentation, missing: (x.a.missing || []).slice(0, 5), wrong: (x.a.wrong || []).slice(0, 5), extra: (x.a.extra || []).slice(0, 3), ap_gaps: (x.a.ap_gaps || []).slice(0, 6), structure: x.a.structure, cause: x.a.root_cause, fixes: x.a.suggestions }));
   const logs = ranked.slice(0, 8).map((x) => `--- ${x.id} (audit ${x.a.score}) ---\n${((traces[x.id]?.log) || []).filter((l) => /merge\]|verify\]|clean\]|drugs\]|fewshot\]|condense|dedupe|editor\]/.test(l)).slice(0, 14).join('\n')}`).join('\n\n');
   const p = await resolvePrompt({ prompt: 'active' }); const current = run.prompt || p.text;
   const llm = await createGeminiService(null, { model: IMPROVE_MODEL }); llm._agent = 'lab-upgrade';
-  const raw = await llm.generateContent(UPGRADE_SYS, `=== NOTE TEMPLATE ===\n${GOLD_TEMPLATE_SPEC}\n\n=== CURRENT PROMPT ===\n${current}\n\n=== OVERALL DIAGNOSIS ===\n${JSON.stringify({ headline: rep.headline, assessment: rep.assessment, patterns: rep.patterns, stage_blame: rep.stage_blame, recommendations: rep.recommendations, metrics: rep.metrics, log_stats: rep.logStats })}\n\n=== INDIVIDUAL AUDITS (weakest first) ===\n${JSON.stringify(compact)}\n\n=== PIPELINE LOGS OF THE WEAKEST NOTES ===\n${logs}\n\nReturn ONLY the JSON.`, null,
+  const raw = await llm.generateContent(UPGRADE_SYS, `=== NOTE TEMPLATE ===\n${GOLD_TEMPLATE_SPEC}\n\n=== STYLE SPEC v1 (locked) ===\n${STYLE_SPEC_V1_SHORT}\n\n=== FORMAT PRINCIPLES (F1-F7) ===\n${GOLD_FORMAT_PRINCIPLES}\n\n=== CURRENT PROMPT ===\n${current}\n\n=== OVERALL DIAGNOSIS ===\n${JSON.stringify({ headline: rep.headline, assessment: rep.assessment, presentation: rep.presentation, format_findings: rep.format_findings, format_statistics: rep.formatSummary, patterns: rep.patterns, stage_blame: rep.stage_blame, recommendations: rep.recommendations, metrics: rep.metrics, log_stats: rep.logStats })}\n\n=== INDIVIDUAL AUDITS (weakest first) ===\n${JSON.stringify(compact)}\n\n=== PIPELINE LOGS OF THE WEAKEST NOTES ===\n${logs}\n\nReturn ONLY the JSON.`, null,
     { maxOutputTokens: 28000, temperature: 0.3, responseMimeType: 'application/json', timeoutMs: 280000, retries: 1, thinkingBudget: 4096, hedgeMs: 0 });
   const out = parseJ(raw); const text = String(out.prompt || '');
   if (text.length < current.length * 0.75 || text.length > current.length * 1.25) throw new Error(`upgraded prompt length ${text.length} is outside the allowed range of the current ${current.length}`);
@@ -417,12 +444,18 @@ async function upgradeFromReport(reportId) {
 const OVERALL_SYS = `You are a clinical-AI quality lead. You receive the audit of many SOAP notes written by an AI scribe pipeline (each audit compares the AI note with the transcript and a clinician's gold note), the run's metrics, and statistics from the pipeline logs.
 The pipeline stages are: writer (one LLM call drafting the note, driven by a long prompt of rules), checklist (parallel LLM call extracting meds/results/orders/referrals which is merged back), cleanup (deterministic removal of commentary/duplicates/misplaced facts), verifier (LLM flags unsupported/duplicate lines, code confirms before removing), guardrails/condense (deterministic).
 Also judge conformance to the clinic's note template (empty fields when unsupported, no invented diagnosis, no separate medication or follow-up lists, completed vs planned investigations).
+The doctor's priorities, in order: (1) nothing wrong or invented; (2) FLOW — the note reads top to bottom as one story; (3) HUMAN EASY READING — short plain lines, each label once, nothing repeated; (4) FACTS DISPLAYED AND ORGANISED PROPERLY — every fact in the right section, topic and label, and every issue the doctor addressed with its own problem in the plan, including advice and follow-up lines; (5) completeness. Content always comes from the transcript and the doctor's Style Spec v1; the gold notes are the model for LAYOUT only.
+${STYLE_SPEC_V1_SHORT}
+${GOLD_FORMAT_PRINCIPLES}
+You also receive FORMAT STATISTICS computed by code over EVERY note of the run (ours versus gold): problems per note, repeated label lines, run-on lines, advice and follow-up lines, share of gold problems that have a match. Use them as hard numbers, and use each audit's "presentation" scores and "ap_gaps" to find recurring layout and A&P-completeness patterns. Mark every pattern and recommendation "spec":"inside_spec" when it can be done within Style Spec v1, or "beyond_spec" when it would change the locked spec (those are proposals for the owner only and must say so).
 Diagnose the SYSTEM, not single notes. Return JSON:
-{"headline":"one sentence verdict","assessment":"3-5 sentences","what_works":["..."],
+{"headline":"one sentence verdict","assessment":"3-5 sentences that cover both content and how the notes read","what_works":["..."],
+ "presentation":{"flow":N,"readability":N,"organization":N,"verdict":"2 sentences on how the notes read compared with the gold layout"},
+ "format_findings":[{"title":"...","count":N,"of":N,"principle":"F1-F7","spec":"inside_spec|beyond_spec","evidence":"numbers from the statistics or audits","fix":"generic change to the pipeline or writer instructions that would close the gap"}],
  "patterns":[{"title":"...","count":N,"of":N,"severity":"critical|major|minor","stage":"writer|checklist|verifier|cleanup|rules|data","evidence":"what recurs","example":"short generic example"}],
  "stage_blame":{"writer":N,"checklist":N,"verifier":N,"cleanup":N,"rules":N,"data":N},
- "recommendations":[{"title":"...","detail":"exactly what to change","category":"prompt|setting|pipeline|guardrail|data|metric","stage":"writer|checklist|verifier|cleanup|rules|data","impact":"high|medium|low","effort":"low|medium|high"}]}
-Order recommendations by impact. Only claim what the audits support; give counts. At most 8 patterns and 10 recommendations.`;
+ "recommendations":[{"title":"...","detail":"exactly what to change","category":"prompt|setting|pipeline|guardrail|data|metric","stage":"writer|checklist|verifier|cleanup|rules|data","impact":"high|medium|low","effort":"low|medium|high","spec":"inside_spec|beyond_spec"}]}
+"presentation" values are the mean of the audited notes' scores. Order recommendations by impact. Only claim what the audits and statistics support; give counts. At most 8 patterns, 8 format_findings and 10 recommendations.`;
 function logStats(runId) {
   const tr = readJson(traceFile(runId), {}); const ids = Object.keys(tr); const s = { notes_with_logs: ids.length, verifier_removed: 0, verifier_refused: 0, verifier_skipped: 0, cleanup_removed: 0, checklist_skipped: 0, checklist_merged: 0, dedupe_removed: 0, stage_ms: {} };
   for (const id of ids) {
@@ -436,11 +469,18 @@ function logStats(runId) {
   s.stage_ms = Object.fromEntries(Object.entries(s.stage_ms).map(([k, v]) => [k, Math.round(v.reduce((a, b) => a + b, 0) / v.length)]));
   return s;
 }
+// format statistics over EVERY note of a run (code only, no LLM): layout of ours vs gold, gold problems with no match, repeated labels, run-on lines, advice and follow-up lines
+function formatSummary(runId) {
+  const run = loadRun(runId); if (!run) return null; const notes = readJson(notesFile(runId), {}); const reps = [];
+  for (const r of run.rows) { if (r.error || r.gold_corrupt || !notes[r.id]) continue; try { const { gold } = loadFixture(r.id); if (gold) reps.push(formatReport(notes[r.id], gold)); } catch { /* fixture missing */ } }
+  return reps.length ? aggregateFormat(reps) : null;
+}
 const reports = new Map();
 async function startReport(runId, limit = 15) {
   const run = loadRun(runId); if (!run || run.status === 'running') throw new Error('pick a finished run');
   const notes = readJson(notesFile(runId), {});
-  const ranked = run.rows.filter((r) => !r.error && !r.gold_corrupt && notes[r.id]).map((r) => ({ id: r.id, bad: (r.omission_rate || 0) * 0.6 + (1 - (r.similarity_to_gold || 0)) * 0.4 })).sort((a, b) => b.bad - a.bad);
+  const fmtBad = (id) => { try { const f = formatReport(notes[id], loadFixture(id).gold); return Math.min(1, (f.flags.length + f.missing_gold_problems.length * 0.5) / 6); } catch { return 0; } };   // notes that read badly rank next to notes that omit facts
+  const ranked = run.rows.filter((r) => !r.error && !r.gold_corrupt && notes[r.id]).map((r) => ({ id: r.id, bad: (r.omission_rate || 0) * 0.45 + (1 - (r.similarity_to_gold || 0)) * 0.3 + fmtBad(r.id) * 0.25 })).sort((a, b) => b.bad - a.bad);
   const pick = ranked.slice(0, Math.min(Math.max(5, Number(limit) || 15), 40)).map((r) => r.id);
   const rep = { id: uid('rep'), runId, status: 'running', stage: 'auditing notes', createdAt: new Date().toISOString(), progress: { done: 0, total: pick.length }, notes: pick.length, recommendations: [], patterns: [] };
   reports.set(rep.id, rep); const save = () => writeJson(path.join(DATA, 'reports', rep.id + '.json'), rep); save();
@@ -449,13 +489,14 @@ async function startReport(runId, limit = 15) {
     rep.stage = 'diagnosing the system'; save();
     const audits = readJson(analysisFile(runId), {}); const used = pick.filter((id) => audits[id]);
     if (used.length < 3) throw new Error('fewer than 3 notes could be audited');
-    const compact = used.map((id) => { const a = audits[id]; return { note: id, verdict: a.verdict, score: a.score, summary: a.summary, missing: (a.missing || []).slice(0, 6), wrong: (a.wrong || []).slice(0, 6), extra: (a.extra || []).slice(0, 4), structure: a.structure, root_cause: a.root_cause, suggestions: a.suggestions }; });
+    const compact = used.map((id) => { const a = audits[id]; return { note: id, verdict: a.verdict, score: a.score, summary: a.summary, presentation: a.presentation, missing: (a.missing || []).slice(0, 6), wrong: (a.wrong || []).slice(0, 6), extra: (a.extra || []).slice(0, 4), ap_gaps: (a.ap_gaps || []).slice(0, 8), structure: a.structure, root_cause: a.root_cause, suggestions: a.suggestions }; });
     const stats = logStats(runId); rep.logStats = stats; rep.metrics = run.summary; rep.config = run.config;
+    const fmt = formatSummary(runId); rep.formatSummary = fmt;
     const llm = await createGeminiService(null, { model: IMPROVE_MODEL }); llm._agent = 'lab-overall';
-    const raw = await llm.generateContent(OVERALL_SYS, `=== RUN ===\nwriter: ${run.config.writerModel || 'default'} · prompt: ${run.config.promptSource} · ${run.config.n} notes (the ${used.length} worst-scoring were audited)\nmetrics: ${JSON.stringify(run.summary)}\n\n=== PIPELINE LOG STATS (all notes) ===\n${JSON.stringify(stats)}\n\n=== AUDITS ===\n${JSON.stringify(compact)}\n\nReturn ONLY the JSON.`, null,
-      { maxOutputTokens: 9000, temperature: 0.2, responseMimeType: 'application/json', timeoutMs: 240000, retries: 1, thinkingBudget: 2048, hedgeMs: 0 });
+    const raw = await llm.generateContent(OVERALL_SYS, `=== RUN ===\nwriter: ${run.config.writerModel || 'default'} · prompt: ${run.config.promptSource} · ${run.config.n} notes (the ${used.length} worst-scoring were audited)\nmetrics: ${JSON.stringify(run.summary)}\n\n=== PIPELINE LOG STATS (all notes) ===\n${JSON.stringify(stats)}\n\n=== FORMAT STATISTICS, ours vs gold, over ${fmt?.notes ?? 0} notes ===\n${JSON.stringify(fmt)}\n\n=== AUDITS ===\n${JSON.stringify(compact)}\n\nReturn ONLY the JSON.`, null,
+      { maxOutputTokens: 11000, temperature: 0.2, responseMimeType: 'application/json', timeoutMs: 240000, retries: 1, thinkingBudget: 2048, hedgeMs: 0 });
     const out = parseJ(raw);
-    Object.assign(rep, { headline: out.headline, assessment: out.assessment, what_works: out.what_works || [], patterns: out.patterns || [], stage_blame: out.stage_blame || {},
+    Object.assign(rep, { headline: out.headline, assessment: out.assessment, what_works: out.what_works || [], presentation: out.presentation || null, format_findings: out.format_findings || [], patterns: out.patterns || [], stage_blame: out.stage_blame || {},
       recommendations: (out.recommendations || []).map((r, i) => ({ ...r, id: 'r' + (i + 1), status: 'open' })), audited: used.length, status: 'done', stage: 'done', finishedAt: new Date().toISOString() });
     save();
   })().catch((e) => { rep.status = 'error'; rep.error = String(e.message || e); save(); });
@@ -504,6 +545,8 @@ app.get('/judge/:id', wrap(async (req, res) => { const j = readJson(path.join(DA
 app.post('/improve', wrap(async (req, res) => res.json(await improve(req.body?.runId, Number(req.body?.k) || 6))));
 app.post('/runs/:id/rows/:fid/audit', wrap(async (req, res) => res.json(await auditNote(req.params.id, req.params.fid, { force: !!req.body?.force }))));
 app.get('/runs/:id/audits', wrap(async (req, res) => { const a = readJson(analysisFile(req.params.id), {}); res.json({ audits: Object.fromEntries(Object.entries(a).map(([k, v]) => [k, { verdict: v.verdict, score: v.score, summary: v.summary }])) }); }));
+app.get('/runs/:id/format', wrap(async (req, res) => { const f = formatSummary(req.params.id); f ? res.json(f) : res.status(404).json({ error: 'not found' }); }));
+app.get('/format-principles', wrap(async (_req, res) => res.json({ principles: GOLD_FORMAT_PRINCIPLES, specShort: STYLE_SPEC_V1_SHORT })));
 app.post('/runs/:id/report', wrap(async (req, res) => res.json({ id: await startReport(req.params.id, req.body?.limit) })));
 app.get('/reports', wrap(async (_req, res) => res.json({ reports: fs.readdirSync(path.join(DATA, 'reports')).map((f) => readJson(path.join(DATA, 'reports', f))).filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30).map(({ patterns, recommendations, what_works, ...r }) => ({ ...r, recs: recommendations?.length || 0, open: recommendations?.filter((x) => x.status === 'open').length || 0 })) })));
 app.get('/reports/:id', wrap(async (req, res) => { const r = reports.get(req.params.id) || readJson(path.join(DATA, 'reports', req.params.id + '.json')); r ? res.json(r) : res.status(404).json({ error: 'not found' }); }));
