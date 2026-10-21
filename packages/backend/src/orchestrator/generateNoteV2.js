@@ -35,6 +35,7 @@ import { getActivePrompt, getActivePromptMeta } from './promptStore.js';
 import { effectiveConfig } from './runtimeConfig.js';
 import { pickExemplars, exemplarBlock } from './exemplars.js';
 import { guardDrugNames } from './drugGuard.js';
+import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -608,6 +609,18 @@ export async function generateNoteV2(input, opts = {}) {
         log('[v2:writer] unparseable JSON — retrying once on the fallback model at temperature 0');
         try { const retryLlm = await createGeminiService(null, { model: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite' }); retryLlm._agent = 'v2-writer';
           out = parseJson(await retryLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, { ...writerOpts, temperature: 0, thinkingBudget: 0, fallbackModel: undefined, retries: 0 })); } catch (e) { log(`[v2:writer] retry failed — ${e.message}`); }
+      }
+      if (out && opts.writerDraftRetry !== false) {   // a draft with no plan, or a repetition loop that never reached the plan: ask the same writer once more (2 of 30 test notes, 2026-10-22)
+        const issue = writerDraftIssue(out, transcript);
+        if (issue) {
+          log(`[v2:writer] unusable draft (${issue === 'loop' ? 'repetition loop' : 'no Assessment & Plan'}) — retrying once on the same model`);
+          let again = null; const tr = Date.now();
+          try { again = parseJson(await writerLlm.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: Math.max(0.4, Number(writerOpts.temperature) || 0), retries: 0, hedgeMs: 0 })); } catch (e) { log(`[v2:writer] draft retry failed — ${e.message}`); }
+          const pick = pickDraft(out, again, transcript); lap('writer-retry', tr);
+          log(`[v2:writer] draft retry: kept the ${pick.used} (${pick.before || 'ok'} -> ${pick.after || 'ok'})`);
+          if (opts.trace) opts.trace.writer_retry = { reason: issue, used: pick.used, after: pick.after || 'ok', first_draft: out };
+          out = pick.draft;
+        }
       }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
