@@ -1,6 +1,6 @@
 {
   "specVersion": "2.1.0",
-  "lockedAt": "2026-10-22T17:12:20.779Z",
+  "lockedAt": "2026-10-22T17:18:31.800Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
@@ -15,10 +15,10 @@
     "src/orchestrator/adviceLines.js": "ac60a2d7a8e37fb68c8becc53eab08f4f20fa25d2ac23c6b8a4b88556d55e426",
     "src/orchestrator/writerGuard.js": "044611ae143d140c54b20b2d261daa82564fb4ec6562310d4bf9e97227c07000",
     "src/orchestrator/topicGroup.js": "e5f71f59c381a88aeb45e8f7b4afb469835185d5f0030c3582b88062ff999fdc",
-    "src/orchestrator/groundingAgent.js": "f40bd9c523272b028b0d2c9e0422f646d908bd176ee465853ffa5bad0fd9711a",
+    "src/orchestrator/groundingAgent.js": "504fbe84e4329bc66a1e78be14f3c897af28116bab5bac3fef2ffb8fa0eaf0a0",
     "src/orchestrator/conditionGuard.js": "78a6a20cc21ff1f87d8689eb9e4bf70dd4038fc161c259dcc19d4969c0ca729a",
     "src/orchestrator/planAttribution.js": "25ff83b5ceb8e32982731ede22091e2f3558f6c957b97efa2a894895656985e7",
-    "src/orchestrator/fidelityGuards.js": "1539968c1a316f0a7a78674894aa07cd6bbdf4d2cf150273d057a5919d1e51c2"
+    "src/orchestrator/fidelityGuards.js": "5caad1147508222a0ff49d1a1417dbc20ace1adf58d2c8f1bc33e81cbbe69ed1"
   },
   "prompts": {
     "v2-writer": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",

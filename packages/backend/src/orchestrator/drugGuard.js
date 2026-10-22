@@ -39,7 +39,7 @@ export function guardDrugNames(note, transcript, check, log = () => {}) {
   const out = { replaced: [], flagged: [] };
   for (const name of medNames(note, check)) {
     const key = letters(name);
-    if (T.includes(key) || tSet.has(key)) continue;                                   // said as written
+    if (T.includes(key) || tSet.has(key) || T.replace(/[^a-z]/g, '').includes(key)) continue;   // said as written (also when speech recognition split it: "zep bound")
     if (tWords.some((w) => Math.abs(w.length - key.length) <= 2 && lev(w, key) <= 1)) continue;   // spelling variant of a spoken word
     // not said: find the word the patient/clinician actually said (as heard)
     let best = null, bs = 0;
@@ -56,7 +56,12 @@ export function guardDrugNames(note, transcript, check, log = () => {}) {
       log(`[v2:drugs] "${name}" is not in the transcript — kept as spoken "${spoken}" (${n} place${n === 1 ? '' : 's'}) and flagged`);
     } else {
       out.flagged.push({ name, why: 'no similar word in the transcript' });
-      (note.metadata.flags ||= []).push({ type: 'medication_unverified', field: 'medications', message: `"${name}" is not in the transcript and nothing similar was heard — please verify this medication.`, severity: 'warning' });
+      // nothing in the recording resembles it: the name was inferred (e.g. "Flonase" from "Flex"), so it is not kept in the note
+      const rx2 = new RegExp('\\b' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'); const unclear = 'medication (name unclear)';
+      const fix2 = (v) => (typeof v === 'string' ? v.replace(rx2, unclear) : v);
+      for (const sec of ['subjective', 'past_medical_history', 'objective']) for (const k of Object.keys(note[sec] || {})) note[sec][k] = fix2(note[sec][k]);
+      for (const p of (note.assessment_and_plan || [])) for (const f of ['issue', 'diagnosis', 'assessment', 'investigations_planned', 'treatment_planned', 'referrals']) p[f] = fix2(p[f]);
+      (note.metadata.flags ||= []).push({ type: 'medication_unverified', field: 'medications', message: `"${name}" is not in the recording and nothing similar was heard, so it is written as "${unclear}". Check which drug was meant.`, severity: 'warning' });
       log(`[v2:drugs] "${name}" is not in the transcript and nothing similar was heard — flagged`);
     }
   }

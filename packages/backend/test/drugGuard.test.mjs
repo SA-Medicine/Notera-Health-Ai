@@ -22,10 +22,16 @@ test('a drug that is said (even with a different spelling) is left alone', () =>
   assert.equal(r.replaced.length, 0); assert.equal(r.flagged.length, 0); assert.equal(note.metadata.flags.length, 0);
 });
 
-test('a drug with nothing similar in the transcript is flagged, not rewritten', () => {
+test('a drug with nothing similar in the transcript is not kept: it becomes "medication (name unclear)" and is flagged with the name', () => {
   const note = mk('Current medications: Bisoprolol 5 mg daily', 'Continue Bisoprolol');
   const r = guardDrugNames(note, 'We talked about the swelling and the walking plan for next month.', { medications: [] });
-  assert.equal(r.flagged.length, 1); assert.match(note.past_medical_history.other, /Bisoprolol/);
+  assert.equal(r.flagged.length, 1); assert.doesNotMatch(note.past_medical_history.other, /Bisoprolol/); assert.match(note.past_medical_history.other, /medication \(name unclear\)/);
+  assert.match(note.metadata.flags[0].message, /Bisoprolol/);
+});
+test('a drug the recognizer split into two words is still said ("zep bound")', () => {
+  const note = mk('Current medications: Zepbound 5 mg weekly', 'Continue Zepbound');
+  const r = guardDrugNames(note, 'I am on zep bound once a week and it is going fine.', { medications: [] });
+  assert.equal(r.flagged.length, 0); assert.match(note.past_medical_history.other, /Zepbound/);
 });
 
 test('generic words and multi-word names are not treated as drugs', () => {

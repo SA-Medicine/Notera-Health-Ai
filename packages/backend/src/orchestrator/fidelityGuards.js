@@ -33,7 +33,7 @@ function fields(note) {
   return out;
 }
 const sepOf = (raw) => (/\n/.test(raw) ? '\n' : '; ');
-const pieces = (f) => String(f.obj[f.key]).split(sepOf(f.obj[f.key]));
+const pieces = (f) => (f.plan ? String(f.obj[f.key]).split(/\n|; /) : String(f.obj[f.key]).split('\n'));   // plan items arrive newline-separated or joined with "; "
 function setPieces(f, list) { const sep = sepOf(f.obj[f.key]); f.obj[f.key] = list.filter((x) => x !== null && String(x).trim() !== '').join(sep); }
 const flag = (note, type, message, severity = 'info') => { (note.metadata ||= {}).flags = [...(note.metadata.flags || []), { type, field: 'note', message, severity }]; };
 
@@ -172,17 +172,86 @@ export function tidyPlanLines(note) {
     // vaccines are treatment, not investigations
     if (typeof p.investigations_planned === 'string' && p.investigations_planned.trim()) {
       const keep = [], move = [];
-      for (const c of p.investigations_planned.split('; ')) (/\b(?:tetanus|vaccin\w*|immuni[sz]ation|booster)\b/i.test(c) && !/\b(?:blood|titre|titer|screen|test)\b/i.test(c) ? move : keep).push(c);
-      if (move.length) { out.vaccines += move.length; p.investigations_planned = keep.join('; '); const have = /\b(?:tetanus|vaccin\w*|immuni[sz]ation|booster)\b/i.test(String(p.treatment_planned || '')); if (!have) p.treatment_planned = [p.treatment_planned, ...move.map((m) => (/^(?:administer|give|given|treatment)/i.test(m) ? m : 'Administer ' + m.replace(/^[A-Z]/, (c) => c.toLowerCase())))].filter((x) => x && String(x).trim()).join('; '); }
+      for (const c of cl(p.investigations_planned)) (/\b(?:tetanus|vaccin\w*|immuni[sz]ation|booster)\b/i.test(c) && !/\b(?:blood|titre|titer|screen|test)\b/i.test(c) ? move : keep).push(c);
+      if (move.length) { out.vaccines += move.length; put(p, 'investigations_planned', keep); const have = /\b(?:tetanus|vaccin\w*|immuni[sz]ation|booster)\b/i.test(String(p.treatment_planned || '')); if (!have) p.treatment_planned = [p.treatment_planned, ...move.map((m) => (/^(?:administer|give|given|treatment)/i.test(m) ? m : 'Administer ' + m.replace(/^[A-Z]/, (c) => c.toLowerCase())))].filter((x) => x && String(x).trim()).join('; '); }
     }
     // a stool test named twice in one problem is written once
     let seen = false;
     for (const k of ['investigations_planned', 'treatment_planned']) if (typeof p?.[k] === 'string' && p[k].trim()) {
-      const keep = p[k].split('; ').filter((c) => { if (!STOOL.test(c)) return true; if (!seen) { seen = true; return true; } out.duplicates++; return false; });
-      p[k] = keep.join('; ');
+      const keep = cl(p[k]).filter((c) => { if (!STOOL.test(c)) return true; if (!seen) { seen = true; return true; } out.duplicates++; return false; });
+      put(p, k, keep);
+    }
+    // a referral already written in the investigations or treatment line is not repeated in Referrals
+    if (typeof p.referrals === 'string' && p.referrals.trim()) {
+      const other = letters([p.investigations_planned, p.treatment_planned].join(' '));
+      const keep = cl(p.referrals).filter((c) => { const k = letters(c.replace(/^(?:referral|referred|refer)\s+(?:to|for)\s+/i, '')); if (k.length >= 5 && other.includes(k)) { out.duplicates++; return false; } return true; });
+      put(p, 'referrals', keep);
     }
   }
   return out;
+}
+
+const cl = (v) => String(v || '').split(/\n|; /).map((x) => x.trim()).filter(Boolean);
+const put = (p, k, list) => { p[k] = list.join(/\n/.test(String(p[k])) ? '\n' : '; '); };
+
+// ── 6. same drug listed twice, diet already in the story, numbers the recording never says, MRI wording ─────────────────────────────────
+export function dedupeMedList(note) {
+  const dropped = [];
+  for (const f of fields(note)) {
+    if (f.where !== 'pmh') continue;
+    const mine = pieces(f);
+    const out = mine.map((line) => {
+      const m = line.match(/^(\s*(?:[-•*]\s*)?medications?\s*:\s*)(.+)$/i); if (!m) return line;
+      const seen = new Set(); const keep = [];
+      for (const item of m[2].split(/,\s+/)) {
+        const key = letters(item.replace(/\(.*?\)/g, '').replace(/\s\d.*$/, '')); const gens = [...item.matchAll(/\(([^)]+)\)/g)].map((x) => letters(x[1]));
+        if (key && seen.has(key)) { dropped.push(item); continue; }
+        if (key) seen.add(key); gens.forEach((g) => seen.add(g)); keep.push(item);
+      }
+      return keep.length === m[2].split(/,\s+/).length ? line : m[1] + keep.join(', ');
+    });
+    if (out.some((x, i) => x !== mine[i])) setPieces(f, out);
+  }
+  return dropped;
+}
+
+const LIFESTYLE = /\b(?:coffee|caffeine|soda|gatorade|tea|tomato\w*|diet\w*|drinks?|drinking|eats?|meals?|breakfast)\b/i;
+export function dropDietRepeats(note) {
+  const subj = fields(note).filter((f) => f.where === 'subjective').map((f) => String(f.obj[f.key])).join(' ').toLowerCase(); const dropped = [];
+  for (const f of fields(note)) {
+    if (f.where !== 'pmh') continue;
+    const mine = pieces(f);
+    const out = mine.map((line) => {
+      const body = line.replace(/^\s*[-•*]\s*/, ''); if (!LIFESTYLE.test(body) || /^(?:medications?|allergies|preventive)/i.test(body)) return line;
+      const words = body.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !['daily', 'approximately', 'denies', 'drinks', 'about'].includes(w));
+      if (words.length < 2 || words.filter((w) => subj.includes(w.slice(0, 6))).length / words.length < 0.7) return line;
+      dropped.push(body); return null;
+    });
+    if (out.some((x, i) => x !== mine[i])) setPieces(f, out);
+  }
+  return dropped;
+}
+
+const UNIT = /(\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?)\s*(?:mg|mcg|g|ml|units?|days?|weeks?|months?|years?|times|tablets?|capsules?|puffs?|hours?|%|degrees)\b/gi;
+/** A dose or a duration in the plan that the recording never says is flagged (never removed: "one and a half" and similar spoken forms are not all understood). */
+export function numberFlags(note, transcript, missing) {
+  const found = [];
+  for (const f of fields(note)) {
+    if (!f.plan) continue;
+    for (const line of pieces(f)) { for (const m of line.matchAll(UNIT)) { const bad = missing(m[1], transcript); if (bad.length) found.push({ line: line.trim(), num: m[1] }); } }
+  }
+  const seen = new Set(); const uniq = found.filter((x) => (seen.has(x.line + x.num) ? false : (seen.add(x.line + x.num), true))).slice(0, 4);
+  for (const x of uniq) flag(note, 'check_against_recording', `"${x.line.slice(0, 110)}" - the number ${x.num} is not in the recording`, 'warning');
+  return uniq;
+}
+
+/** Whether an implant is MRI compatible is safety-critical; when the recording is not clear about it, the wording is flagged. */
+export function mriCheck(note, transcript) {
+  if (/\bmri[ -](?:compatible|safe|conditional)\b|\bcompatible with (?:an )?mri\b/i.test(transcript)) return [];
+  const rx = /\bMRI\b[^.;\n]{0,40}\b(?:compatib\w*|safe|unsafe|conditional)\b|\b(?:compatib\w*|incompatib\w*|non-MRI)\b[^.;\n]{0,40}\bMRI\b|\bnon[- ]MRI\b/i;
+  const hit = fields(note).flatMap((f) => pieces(f)).find((l) => rx.test(l)); if (!hit) return [];
+  flag(note, 'check_against_recording', `"${hit.trim().replace(/^[-•*]\s*/, '').slice(0, 110)}" - the recording is not clear about MRI compatibility of the hardware. Confirm it from the operative record.`, 'warning');
+  return [hit.trim()];
 }
 
 const SCREEN_WORDS = [['mammogram', /mammo/i], ['pap', /\bpap\b|cervical/i], ['stool', /stool|\bfit\b|fobt|faecal|fecal|colonoscopy/i], ['tetanus', /tetanus/i], ['vaccine', /vaccin|immuni[sz]/i], ['screening', /screening/i]];
@@ -205,7 +274,7 @@ export function dropCoveredScreeningStatus(note) {
 }
 
 /** Runs all guards. Returns what each one did (for the trace); never throws. */
-export function fidelityGuards(note, transcript, { refMeds = [], log = () => {} } = {}) {
+export function fidelityGuards(note, transcript, { refMeds = [], log = () => {}, missing = () => [] } = {}) {
   const r = {};
   const run = (name, fn) => { try { r[name] = fn(); } catch (e) { log(`[v2:fidelity] ${name} skipped - ${e.message}`); } };
   run('spellings', () => unifySpellings(note, transcript, refMeds));
@@ -215,6 +284,10 @@ export function fidelityGuards(note, transcript, { refMeds = [], log = () => {} 
   run('headings', () => dropEmptyHeadings(note));
   run('plan', () => tidyPlanLines(note));
   run('screening', () => dropCoveredScreeningStatus(note));
+  run('medlist', () => dedupeMedList(note));
+  run('diet', () => dropDietRepeats(note));
+  run('numbers', () => numberFlags(note, transcript, missing));
+  run('mri', () => mriCheck(note, transcript));
   const n = (x) => (Array.isArray(x) ? x.length : 0);
   log(`[v2:fidelity] spellings ${n(r.spellings)} · social ${n(r.social)} · unheard drugs ${n(r.drugs)} · unheard tests ${n(r.tests)} · empty headings ${n(r.headings)} · plan tidy ${JSON.stringify(r.plan || {})} · screening lines ${n(r.screening)}`);
   return r;

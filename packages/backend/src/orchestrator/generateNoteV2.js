@@ -41,7 +41,7 @@ import { askSweep, applySweep } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjectiveFields } from './topicGroup.js';
-import { groundNote } from './groundingAgent.js';
+import { groundNote, missingNumbers } from './groundingAgent.js';
 import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 
@@ -755,7 +755,7 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:ref] skipped — ${e.message}`); }
     lap('ref', tr);
   }
-  if (!blank && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== '0' && cfg['stage.fidelityGuards'] !== false) { try { const fg = fidelityGuards(note, transcript, { refMeds, log }); if (opts.trace) opts.trace.fidelity = fg; } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); } }   // Style Spec v2.1: unheard drug/test names, social history nobody said, empty headings, duplicates
+  if (!blank && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== '0' && cfg['stage.fidelityGuards'] !== false) { try { const fg = fidelityGuards(note, transcript, { refMeds, log, missing: missingNumbers }); if (opts.trace) opts.trace.fidelity = fg; } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); } }   // Style Spec v2.1: unheard drug/test names, social history nobody said, empty headings, duplicates
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
 

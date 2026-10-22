@@ -43,6 +43,11 @@ export function keyWords(line) {
   const words = t.split(' ').filter((w) => w.length >= 4 && !/\d/.test(w) && !FILLER.has(w)).map(stem);
   return { nums, words };
 }
+/** Numbers in a line that the recording never says (spoken forms count: "four hundred" = 400, "one and a half" = 1.5). */
+export function missingNumbers(line, transcript) {
+  const T = spoken(transcript); const tokens = new Set(T.split(' ')); const joined = [...T.split(' ')].filter((w) => /^\d+$/.test(w)).join('');
+  return keyWords(line).nums.filter((n) => !tokens.has(n) && !joined.includes(n.replace('.', '')) && !(/\.5$/.test(n) && /\bhalf\b/i.test(transcript)));
+}
 /** Share of the line's key words (numbers count double) that occur in the transcript. 1 = all. */
 export function wordSupport(line, transcript) {
   const T = spoken(transcript); const TW = new Set(T.split(' ').map(stem)); const { nums, words } = keyWords(line);

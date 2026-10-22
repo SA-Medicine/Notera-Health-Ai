@@ -74,3 +74,32 @@ test('all guards together never throw and keep a clean note unchanged', () => {
   const before = JSON.stringify(clean); fidelityGuards(clean, 'Cough for three days. Take ibuprofen. Rest and fluids.'); assert.equal(JSON.stringify(clean), before);
   assert.doesNotThrow(() => fidelityGuards({}, 'x'));
 });
+
+import { dedupeMedList, dropDietRepeats, numberFlags, mriCheck } from '../src/orchestrator/fidelityGuards.js';
+import { missingNumbers } from '../src/orchestrator/groundingAgent.js';
+test('plan items that arrive on separate lines are tidied too (stool test once, vaccine out of investigations)', () => {
+  const n = { assessment_and_plan: [{ issue: 'Preventive care', investigations_planned: "Stool test (FIT kit) to be mailed\ntetanus shot\npoop test kit", treatment_planned: 'Tetanus vaccine administered' }] };
+  tidyPlanLines(n); assert.equal(n.assessment_and_plan[0].investigations_planned, 'Stool test (FIT kit) to be mailed'); assert.equal(n.assessment_and_plan[0].treatment_planned, 'Tetanus vaccine administered');
+});
+test('a referral already written in the investigations line is not repeated', () => {
+  const n = { assessment_and_plan: [{ issue: 'Sleep apnea', investigations_planned: 'Referral to anesthesiologist for follow-up', treatment_planned: '', referrals: 'Anesthesiologist' }] };
+  tidyPlanLines(n); assert.equal(n.assessment_and_plan[0].referrals, '');
+});
+test('a drug listed twice (brand with generic, then the generic) is listed once', () => {
+  const n = { past_medical_history: { other: 'Medications: ibuprofen 400 milligram, Crestor (rosuvastatin), rosuvastatin, candesartan' } };
+  dedupeMedList(n); assert.equal(n.past_medical_history.other, 'Medications: ibuprofen 400 milligram, Crestor (rosuvastatin), candesartan');
+});
+test('diet lines in Past Medical History that the story already tells are dropped; conditions stay', () => {
+  const n = { subjective: { reason_for_visit: 'Drinks 2 cups of coffee daily\nDenies soda or Gatorade' }, past_medical_history: { other: 'Drinks approximately 2 cups of coffee daily; denies soda or Gatorade\nHypertension on candesartan' } };
+  dropDietRepeats(n); assert.equal(n.past_medical_history.other, 'Hypertension on candesartan');
+});
+test('a dose or duration the recording never says is flagged, a spoken one is not', () => {
+  const n = { assessment_and_plan: [{ issue: 'Reflux', treatment_planned: 'PPI before breakfast for 3-4 weeks; ibuprofen 400 mg at night; physiotherapy twice weekly' }], metadata: {} };
+  const r = numberFlags(n, 'Take it before breakfast. I take four hundred milligram at night.', missingNumbers);
+  assert.equal(r.length, 1); assert.match(n.metadata.flags[0].message, /3-4/);
+});
+test('MRI compatibility wording is flagged when the recording is unclear, not when it is explicit', () => {
+  const n = { past_medical_history: { other: 'Implanted hardware may not be MRI compatible' }, metadata: {} };
+  assert.equal(mriCheck(n, 'a device that may not be MRI comfortable').length, 1); assert.ok(n.metadata.flags[0].message.includes('operative record'));
+  const m = { past_medical_history: { other: 'MRI compatible hardware' }, metadata: {} }; assert.equal(mriCheck(m, 'the hardware is MRI compatible').length, 0);
+});
