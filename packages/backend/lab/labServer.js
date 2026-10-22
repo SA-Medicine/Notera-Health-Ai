@@ -182,7 +182,7 @@ async function startJudge(aId, bId, limit = 30) {
       } catch (e) { job.items.push({ id, error: String(e.message).slice(0, 120) }); }
       job.progress.done = job.items.length; save();
     } };
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: Number(process.env.LAB_AUDIT_CONCURRENCY) || 2 }, worker));   // 2, not 3: the lab shares the Gemini quota with production
     job.summary = judgeSummary(job); job.status = 'done'; save();
   })().catch((e) => { job.status = 'error'; job.error = String(e.message); save(); });
   return job.id;
@@ -361,7 +361,7 @@ async function auditAdhoc({ transcript, note, gold = '' }) {
 async function auditMany(runId, ids, onProgress) {
   let next = 0, done = 0;
   const worker = async () => { while (next < ids.length) { const id = ids[next++]; try { await auditNote(runId, id); } catch { /* skip this one */ } onProgress?.(++done, ids.length); } };
-  await Promise.all(Array.from({ length: 3 }, worker));
+  await Promise.all(Array.from({ length: Number(process.env.LAB_AUDIT_CONCURRENCY) || 2 }, worker));   // 2, not 3: the lab shares the Gemini quota with production
 }
 
 // ── the clinic's gold-note template (from the software that writes the gold notes) ─────────────────────────────────────────

@@ -19,7 +19,7 @@ services:
       LAB_DATA_DIR: /lab-data
       NORMALIZE_DEID_DATES: "1"        # the gold corpus carries synthetic ISO date placeholders
       PIPELINE_MODE: v2
-      LAB_CONCURRENCY: "3"
+      LAB_CONCURRENCY: "2"
       # the multi-agent (v1) pipeline needs long calls; the production backend keeps its own shorter caps
       LLM_TIMEOUT_MS: "170000"
       EXTRACTOR_TIMEOUT_MS: "170000"
