@@ -12,6 +12,8 @@ import { createPortal } from 'react-dom';
 import { findLine, heardFix, insertLine, lineText, norm, removeQuote, replaceLine, replaceWord, shownAs, splitLine, swapSides, targets } from './noteFix';
 
 export type NoteFlag = { type: string; field?: string; message: string; severity?: string };
+// What the clinician did about a flag. The Scribe screen saves these with the note (kept for learning, never applied automatically).
+export type Correction = { at: string; flagType: string; flagMessage: string; label: string; action: 'kept' | 'edited' | 'removed' | 'side_swapped' | 'drug_changed' | 'added_back' | 'left_out' | 'undone'; before: string; after: string };
 
 type Kind = { label: string; help: string; tone: 'warn' | 'changed' };
 // label = the short chip shown on the line; help = one plain sentence when the model gave no reason
@@ -29,7 +31,7 @@ const KINDS: Record<string, Kind> = {
   removed_unsupported: { label: 'Removed', help: 'Taken out because the recording did not support it. Add it back if you did say it.', tone: 'changed' },
 };
 
-type Item = { id: number; kind: Kind; quote: string; text: string; why: string; raw: string };
+type Item = { id: number; type: string; kind: Kind; quote: string; text: string; why: string; raw: string };
 
 /** `"the line" - why` -> the line and the reason; any other message is shown whole. */
 function parse(f: NoteFlag, id: number): Item | null {
@@ -39,19 +41,20 @@ function parse(f: NoteFlag, id: number): Item | null {
   const k: Kind = kind || { label: 'Check', help: '', tone: 'warn' };
   const raw = String(f.message || '');
   const m = raw.match(/^"([^"]+)"(?:\s+-\s+([\s\S]*))?$/);
-  if (!m) return { id, kind: k, quote: '', text: raw.trim(), why: '', raw };
+  if (!m) return { id, type: f.type, kind: k, quote: '', text: raw.trim(), why: '', raw };
   let why = (m[2] || '').trim(); if (why.length >= 88 && !/[.!?'"]$/.test(why)) why += '…';   // the backend cuts long reasons
-  return { id, kind: k, quote: m[1].trim(), text: m[1].trim(), why, raw };
+  return { id, type: f.type, kind: k, quote: m[1].trim(), text: m[1].trim(), why, raw };
 }
 
 const Icon = {
   shield: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z" /><path d="M9 12l2 2 4-4" /></svg>,
 };
 
-type Apply = (next: string | null, label: string) => void;
+type Apply = (next: string | null, label: string, action: Correction['action'], after?: string) => void;
+type Keep = (action?: 'kept' | 'left_out') => void;
 
 /** The fixes for one line. Used in the popover under a marked line and in the checklist at the end of the note. */
-function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply; keep: () => void }) {
+function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply; keep: Keep }) {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [draft, setDraft] = useState('');
   const [where, setWhere] = useState(0);
@@ -63,14 +66,14 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
   const places = useMemo(() => targets(note), [note]);
 
   if (it.kind.tone === 'changed') {   // removed or changed by Notera: add it back where it belongs
-    if (!it.quote) return <div className="chk-actions"><button type="button" className="chk-btn ghost" onClick={keep}>Dismiss</button></div>;
+    if (!it.quote) return <div className="chk-actions"><button type="button" className="chk-btn ghost" onClick={() => keep('left_out')}>Dismiss</button></div>;
     return (
       <div className="chk-actions">
         <label className="chk-where">Add back to
           <select value={where} onChange={(e) => setWhere(Number(e.target.value))}>{places.map((p, i) => <option key={p.label + i} value={i}>{p.label}</option>)}</select>
         </label>
-        <button type="button" className="chk-btn" disabled={!places.length} onClick={() => apply(insertLine(note, places[where], it.quote), 'Line added back')}>Add back</button>
-        <button type="button" className="chk-btn ghost" onClick={keep}>Leave it out</button>
+        <button type="button" className="chk-btn" disabled={!places.length} onClick={() => apply(insertLine(note, places[where], it.quote), 'Line added back', 'added_back', it.quote)}>Add back</button>
+        <button type="button" className="chk-btn ghost" onClick={() => keep('left_out')}>Leave it out</button>
       </div>
     );
   }
@@ -79,7 +82,7 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
       <div className="chk-edit">
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} autoFocus aria-label="Edit the line" />
         <div className="chk-actions">
-          <button type="button" className="chk-btn" disabled={!draft.trim()} onClick={() => apply(replaceLine(note, it.quote, draft), 'Line edited')}>Save</button>
+          <button type="button" className="chk-btn" disabled={!draft.trim()} onClick={() => apply(replaceLine(note, it.quote, draft), 'Line edited', 'edited', draft.trim())}>Save</button>
           <button type="button" className="chk-btn ghost" onClick={() => setMode('view')}>Cancel</button>
         </div>
       </div>
@@ -87,7 +90,7 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
   }
   if (shown || heard) {   // a drug name: type it, or take the suggestion in one click
     const from = shown || heard!.from; const suggest = heard?.suggest || '';
-    const go = (v: string) => apply(replaceWord(note, from, v), 'Drug name changed');
+    const go = (v: string) => apply(replaceWord(note, from, v), 'Drug name changed', 'drug_changed', v.trim());
     return (
       <div className="chk-edit">
         <label className="chk-label">Drug name (replaces “{from}”)
@@ -96,17 +99,17 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
         <div className="chk-actions">
           <button type="button" className="chk-btn" disabled={!draft.trim()} onClick={() => go(draft)}>Use this drug</button>
           {suggest && <button type="button" className="chk-btn ghost" onClick={() => go(suggest)}>Use “{suggest}”</button>}
-          <button type="button" className="chk-btn ghost" onClick={keep}>Looks right</button>
+          <button type="button" className="chk-btn ghost" onClick={() => keep('kept')}>Looks right</button>
         </div>
       </div>
     );
   }
   return (
     <div className="chk-actions">
-      <button type="button" className="chk-btn ok" onClick={keep}>Looks right</button>
+      <button type="button" className="chk-btn ok" onClick={() => keep('kept')}>Looks right</button>
       {idx >= 0 && <button type="button" className="chk-btn ghost" onClick={() => { setDraft(lineText(note, it.quote) || ''); setMode('edit'); }}>Edit line</button>}
-      {canSwap && <button type="button" className="chk-btn ghost" onClick={() => apply(swapSides(note, it.quote), 'Side swapped')}>Swap left/right</button>}
-      {idx >= 0 && !isTitle && <button type="button" className="chk-btn danger" onClick={() => apply(removeQuote(note, it.quote), 'Line removed')}>Remove line</button>}
+      {canSwap && <button type="button" className="chk-btn ghost" onClick={() => apply(swapSides(note, it.quote), 'Side swapped', 'side_swapped')}>Swap left/right</button>}
+      {idx >= 0 && !isTitle && <button type="button" className="chk-btn danger" onClick={() => apply(removeQuote(note, it.quote), 'Line removed', 'removed')}>Remove line</button>}
       {idx < 0 && it.quote && <span className="chk-muted">This line is no longer in the note.</span>}
     </div>
   );
@@ -115,17 +118,19 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
 type Props = {
   flags: NoteFlag[]; bodyRef?: RefObject<HTMLElement | null>; note: string; onChange: (md: string) => void; editing?: boolean;
   full?: boolean; onToggleFull?: () => void; endEl?: HTMLElement | null;
+  onCorrection?: (e: Correction) => void; resolved?: string[];   // resolved = flag messages the clinician already dealt with (reopened note)
 };
 
-export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl }: Props) {
+export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl, onCorrection, resolved }: Props) {
   const items = useMemo(() => (flags || []).map(parse).filter((x): x is Item => !!x), [flags]);
   const [done, setDone] = useState<Set<number>>(new Set());
   const [reviewing, setReviewing] = useState(false);
   const [cur, setCur] = useState(0);
   const [pop, setPop] = useState<number | null>(null);
-  const [undo, setUndo] = useState<{ md: string; id: number; label: string } | null>(null);
+  const [undo, setUndo] = useState<{ md: string; id: number; label: string; it: Item } | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { setDone(new Set()); setReviewing(false); setCur(0); setUndo(null); }, [flags]);
+  const resolvedKey = (resolved || []).join('');
+  useEffect(() => { const r = new Set(resolved || []); setDone(new Set(items.filter((i) => r.has(i.raw)).map((i) => i.id))); setReviewing(false); setCur(0); setUndo(null); }, [flags, resolvedKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!undo) return; const t = setTimeout(() => setUndo(null), 9000); return () => clearTimeout(t); }, [undo]);
 
   const warn = items.filter((i) => i.kind.tone === 'warn' && !done.has(i.id));
@@ -181,9 +186,14 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
     return () => clearTimeout(t);
   }, [reviewing, item?.id, note, bodyRef]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const finish = (id: number) => { setDone((d) => new Set(d).add(id)); if (reviewing && warn.length <= 1) setReviewing(false); };
-  const applyFor = (it: Item): Apply => (next, label) => { if (next === null) return; setUndo({ md: note, id: it.id, label }); onChange(next); finish(it.id); };
-  const undoFix = () => { if (!undo) return; onChange(undo.md); setDone((d) => { const n = new Set(d); n.delete(undo.id); return n; }); setUndo(null); };
+  const report = (it: Item, action: Correction['action'], before: string, after = '') => onCorrection?.({ at: new Date().toISOString(), flagType: it.type, flagMessage: it.raw, label: it.kind.label, action, before, after });
+  const finish = (it: Item, action: 'kept' | 'left_out' = 'kept') => { report(it, action, it.quote || it.text); setDone((d) => new Set(d).add(it.id)); if (reviewing && warn.length <= 1) setReviewing(false); };
+  const applyFor = (it: Item): Apply => (next, label, action, after) => {
+    if (next === null) return;
+    report(it, action, (it.quote && lineText(note, it.quote)) || it.quote || it.text, after);
+    setUndo({ md: note, id: it.id, label, it }); onChange(next); setDone((d) => new Set(d).add(it.id)); if (reviewing && warn.length <= 1) setReviewing(false);
+  };
+  const undoFix = () => { if (!undo) return; report(undo.it, 'undone', undo.it.quote || undo.it.text); onChange(undo.md); setDone((d) => { const n = new Set(d); n.delete(undo.id); return n; }); setUndo(null); };
   const step = (d: number) => { if (warn.length) setCur((pos + d + warn.length) % warn.length); };
   const toEnd = () => { setReviewing(false); endEl?.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
 
@@ -194,7 +204,7 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
         <div className="chk-item" key={it.id}>
           <div className="chk-item-head"><span className="chk-chip">{it.kind.label}</span><span className="chk-item-text">{it.text}</span></div>
           <p className="chk-muted">{it.why || it.kind.help}</p>
-          {editing ? <p className="chk-muted">Press Done in the toolbar first, then use these fixes.</p> : <Fixes key={it.id + ':' + (it.quote ? findLine(note, it.quote) : -1)} it={it} note={note} apply={applyFor(it)} keep={() => finish(it.id)} />}
+          {editing ? <p className="chk-muted">Press Done in the toolbar first, then use these fixes.</p> : <Fixes key={it.id + ':' + (it.quote ? findLine(note, it.quote) : -1)} it={it} note={note} apply={applyFor(it)} keep={(a) => finish(it, a)} />}
         </div>
       ))}
       {changed.length > 0 && <h5>Notera removed or changed these on its own</h5>}
@@ -202,7 +212,7 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
         <div className="chk-item changed" key={it.id}>
           <div className="chk-item-head"><span className="chk-chip quiet">{it.kind.label}</span><span className="chk-item-text">{it.text}</span></div>
           <p className="chk-muted">{it.why || it.kind.help}</p>
-          {editing ? null : <Fixes it={it} note={note} apply={applyFor(it)} keep={() => finish(it.id)} />}
+          {editing ? null : <Fixes it={it} note={note} apply={applyFor(it)} keep={(a) => finish(it, a)} />}
         </div>
       ))}
     </section>
@@ -236,7 +246,7 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
             <button type="button" className="chk-icon" onClick={() => setReviewing(false)} aria-label="Close">✕</button>
           </div>
           <p className="chk-muted">{item.why || item.kind.help}</p>
-          <Fixes key={item.id + ':' + (item.quote ? findLine(note, item.quote) : -1)} it={item} note={note} apply={applyFor(item)} keep={() => finish(item.id)} />
+          <Fixes key={item.id + ':' + (item.quote ? findLine(note, item.quote) : -1)} it={item} note={note} apply={applyFor(item)} keep={(a) => finish(item, a)} />
         </div>
       )}
 

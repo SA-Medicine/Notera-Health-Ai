@@ -6,6 +6,7 @@
 //
 //   POST   /api/library/consults              save {transcript, note, title, specialty}
 //   GET    /api/library/consults              list the user's consults (history)
+//   PUT    /api/library/consults/:id/note     save the clinician's edited note + what they corrected (kept for learning, never auto-applied)
 //   GET    /api/library/consults/:id          fetch one (owner-only)
 //   DELETE /api/library/consults/:id          delete one (owner-only)
 //   POST   /api/library/consults/:id/audio    upload the recording (raw bytes) → GCS
@@ -17,6 +18,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { store } from '../firestore/store.js';
 import { query, one } from '../db/pool.js';
+import { cleanEvents, mergeFeedback, diffLines, resolvedMessages } from './corrections.js';
 
 const BUCKET = () => process.env.GCS_AUDIO_BUCKET || '';
 
@@ -48,17 +50,54 @@ export function mountLibrary(app, requireAuthMw) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // List the user's consults (most recent first).
+  // Save the clinician's version of a note (their edits and one-click fixes) and what they corrected. The corrections are stored for later
+  // learning only: they are never applied to the pipeline automatically (Style Spec rule: doctor suggestions become proposals).
+  //   finals   one row per consult ('f_<consultId>', status DRAFT: the clinician's latest version, not an approval - Studio only reads APPROVED)
+  //   feedback one row per consult ('fb_<consultId>'): edits = { events: [...every correction...], diff: { removed: [...], added: [...] }, updatedAt }
+  app.put('/api/library/consults/:id/note', requireAuthMw, express.json({ limit: '1mb' }), async (req, res) => {
+    try {
+      const id = req.params.id;
+      const owner = await one(`SELECT clinician_id FROM clinical.consults WHERE consult_id=$1`, [id]);
+      if (!owner) return res.status(404).json({ error: 'not found' });
+      if (owner.clinician_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+      const md = String(req.body?.renderedNote ?? '');
+      if (!md.trim() || md.length > 200000) return res.status(400).json({ error: 'renderedNote is required' });
+      const events = cleanEvents(req.body?.corrections);
+      const draft = await one(`SELECT draft_id, rendered_note FROM clinical.drafts WHERE consult_id=$1 AND rendered_note IS NOT NULL ORDER BY created_at ASC LIMIT 1`, [id]);   // the note as generated
+      const finalId = 'f_' + id; const fbId = 'fb_' + id;
+      await query(
+        `INSERT INTO clinical.finals (final_id, consult_id, draft_id, note, approved_by, approved_at, status, created_at)
+         VALUES ($1,$2,$3,$4::jsonb,$5,NULL,'DRAFT'::clinical.note_status, now())
+         ON CONFLICT (final_id) DO UPDATE SET note = EXCLUDED.note, draft_id = EXCLUDED.draft_id, created_at = now()`,
+        [finalId, id, draft?.draft_id || null, JSON.stringify({ rendered: md, editedByClinician: true }), req.user.id]);
+      const prev = await one(`SELECT edits FROM clinical.feedback WHERE feedback_id=$1`, [fbId]);
+      const merged = mergeFeedback(prev?.edits, events, diffLines(draft?.rendered_note || '', md));
+      await query(
+        `INSERT INTO clinical.feedback (feedback_id, consult_id, draft_id, final_id, clinician_id, edits, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb, now())
+         ON CONFLICT (feedback_id) DO UPDATE SET edits = EXCLUDED.edits, final_id = EXCLUDED.final_id, draft_id = EXCLUDED.draft_id`,
+        [fbId, id, draft?.draft_id || null, finalId, req.user.id, JSON.stringify(merged)]);
+      await query(`UPDATE clinical.consults SET updated_at=now() WHERE consult_id=$1`, [id]).catch(() => {});
+      res.json({ ok: true, saved: true, corrections: merged.events.length });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // List the user's consults (most recent first). `checks` = lines still to check: warning/critical flags of the note as generated, minus the ones the clinician already resolved.
   app.get('/api/library/consults', requireAuthMw, async (req, res) => {
     try {
       const rows = await query(
-        `SELECT c.consult_id, c.title, c.specialty, c.note_type, c.status, c.audio_uri, c.created_at,
-                (SELECT count(*)::int FROM jsonb_array_elements(COALESCE(fd.flags, '[]'::jsonb)) f WHERE f->>'severity' IN ('warning', 'critical')) AS checks
+        `SELECT c.consult_id, c.title, c.specialty, c.note_type, c.status, c.audio_uri, c.created_at, fd.flags AS flags_json, fb.edits AS edits_json
            FROM clinical.consults c
            LEFT JOIN LATERAL (SELECT d.flags FROM clinical.drafts d WHERE d.consult_id = c.consult_id AND jsonb_typeof(d.flags) = 'array' AND jsonb_array_length(d.flags) > 0 ORDER BY d.created_at DESC LIMIT 1) fd ON true
+           LEFT JOIN clinical.feedback fb ON fb.feedback_id = 'fb_' || c.consult_id
           WHERE c.clinician_id=$1 ORDER BY c.created_at DESC LIMIT 200`,
         [req.user.id]);
-      res.json({ consults: rows });
+      const consults = rows.map(({ flags_json, edits_json, ...c }) => {
+        const resolved = resolvedMessages(edits_json?.events);
+        const checks = (Array.isArray(flags_json) ? flags_json : []).filter((f) => ['warning', 'critical'].includes(f?.severity) && !resolved.has(String(f.message))).length;
+        return { ...c, checks };
+      });
+      res.json({ consults });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

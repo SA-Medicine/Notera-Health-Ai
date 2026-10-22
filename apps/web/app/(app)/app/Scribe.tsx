@@ -10,7 +10,7 @@ import { VoiceBeam } from 'voice-glow';
 import { useInvite, inviteSummary } from '../components/useInvite';
 import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './transcriptDensity';
 import { mdToHtml } from './noteRender';
-import NoteChecks, { type NoteFlag } from './NoteChecks';
+import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -83,6 +83,11 @@ export default function Scribe() {
   const [note, setNote] = useState('');
   const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');   // the clinician's version of the note is saved to history as they edit
+  const [resolvedFlags, setResolvedFlags] = useState<string[]>([]);   // flags already dealt with on a reopened note
+  const savedRef = useRef<string | null>(null);   // the note text last saved to history (null: not known yet)
+  const eventsRef = useRef<Correction[]>([]);     // corrections waiting to be saved with the note
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fullNote, setFullNote] = useState(false);   // the note fills the whole window
   const [checksEnd, setChecksEnd] = useState<HTMLElement | null>(null);   // where the "Before you sign" checklist is drawn: the end of the note
   const [specialty, setSpecialty] = useState('auto');
@@ -625,6 +630,7 @@ export default function Scribe() {
         // status 'pending' (or a transient network blip) → keep polling
       }
       const md = d.renderedNote || d.rawRenderedNote || '';
+      savedRef.current = md; eventsRef.current = []; setResolvedFlags([]); setSaveState('idle');
       setNote(md); setNoteFlags(Array.isArray(d.flags) ? d.flags : []); setConsultId(d.consultId || null); setPhase('done');
       flash('Note generated');
       refreshQuota();
@@ -652,7 +658,13 @@ export default function Scribe() {
       const r = await fetch(`${API}/api/library/consults/${id}`, { credentials: 'include' });
       const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
-      setNote(draft?.rendered_note || draft?.note?.rendered || '');
+      // the clinician's saved version (edits and fixes) wins over the note as generated
+      const fins = (c.finals || []).filter((x: { note?: { rendered?: string } }) => x?.note?.rendered);
+      const md0: string = fins.length ? fins[fins.length - 1].note.rendered : (draft?.rendered_note || draft?.note?.rendered || '');
+      setNote(md0); savedRef.current = md0; eventsRef.current = []; setSaveState('idle');
+      const rs = new Set<string>();
+      for (const f of (c.feedback || [])) for (const e of (f?.edits?.events || [])) { if (!e?.flagMessage) continue; if (e.action === 'undone') rs.delete(e.flagMessage); else rs.add(e.flagMessage); }
+      setResolvedFlags([...rs]);
       const flagged = [...(c.drafts || [])].reverse().find((x: { flags?: NoteFlag[]; note?: { metadata?: { flags?: NoteFlag[] } } }) => (Array.isArray(x?.flags) && x.flags.length) || (x?.note?.metadata?.flags || []).length);
       setNoteFlags((flagged?.flags && flagged.flags.length ? flagged.flags : flagged?.note?.metadata?.flags) || []);
       const savedTx: string = (c.transcript?.text) || '';
@@ -682,13 +694,42 @@ export default function Scribe() {
     emptySegs.current = 0; silenceAbort.current = false;
     fullChunks.current = []; fullBlob.current = null; setDensity(null);
     setPendingSegs(0); setFailedSegs(0);
-    setPhase('idle'); setLines([]); setTx(''); setNote(''); setNoteFlags([]); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
+    setPhase('idle'); setLines([]); setTx(''); setNote(''); savedRef.current = null; eventsRef.current = []; setResolvedFlags([]); setSaveState('idle'); setNoteFlags([]); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
 
   function toggleEdit() {
     if (editing && noteBodyRef.current) setNote(noteBodyRef.current.innerText);
     setEditing((v) => !v);
   }
+  // ── save the clinician's version to history ───────────────────────────────────────────────────────────────────
+  // Every edit and one-click fix is saved (about a second after the last change) with what was corrected. The corrections are kept for
+  // learning later and are never applied to the note pipeline automatically.
+  const noteRef = useRef(note); noteRef.current = note;
+  const consultIdRef = useRef<string | null>(consultId); consultIdRef.current = consultId;
+  async function persistNote(keepalive = false) {
+    const id = consultIdRef.current; const md = noteRef.current;
+    if (!id || !md.trim()) return;
+    const evs = eventsRef.current.splice(0);
+    if (md === savedRef.current && !evs.length) return;
+    setSaveState('saving');
+    try {
+      const r = await fetch(`${API}/api/library/consults/${id}/note`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ renderedNote: md, corrections: evs }), keepalive });
+      if (!r.ok) throw new Error(String(r.status));
+      savedRef.current = md; setSaveState('saved'); loadHistory();
+    } catch { eventsRef.current.unshift(...evs); setSaveState('error'); }
+  }
+  function scheduleSave() { if (saveTimer.current) clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => { void persistNote(); }, 900); }
+  function recordCorrection(e: Correction) { eventsRef.current.push(e); scheduleSave(); }
+  useEffect(() => {
+    if (!consultId || phase !== 'done' || editing || !note) return;
+    if (savedRef.current === null) { savedRef.current = note; return; }   // the first note of a consult is what was generated or loaded
+    if (note !== savedRef.current) scheduleSave();
+  }, [note, editing, consultId, phase]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const flush = () => { if (consultIdRef.current && (noteRef.current !== savedRef.current || eventsRef.current.length)) void persistNote(true); };
+    window.addEventListener('pagehide', flush); return () => window.removeEventListener('pagehide', flush);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const copy = (plain: boolean) => {
     const text = plain ? note.replace(/[#*_`>]/g, '').replace(/\n{3,}/g, '\n\n') : note;
     navigator.clipboard.writeText(text); flash(plain ? 'Copied for EMR' : 'Copied');
@@ -892,6 +933,9 @@ export default function Scribe() {
                 <button className="format-btn active">{I.bolt}SOAP</button>
               </div>
               <div className="editor-toolbar-right">
+                {note && saveState !== 'idle' && (saveState === 'error'
+                  ? <button className="save-ind error" onClick={() => void persistNote()}>Not saved - retry</button>
+                  : <span className={`save-ind ${saveState}`} role="status">{saveState === 'saving' ? 'Saving…' : 'Saved to history ✓'}</span>)}
                 {note && <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>}
                 <div className="copy-group">
                   <button className="copy-btn" onClick={() => copy(true)} disabled={!note}>Copy to EMR</button>
@@ -910,12 +954,9 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
-                  <div className="note-done-banner">
-                    ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult
-                  </div>
                 </div>
               ) : (
                 <div className="note-empty">

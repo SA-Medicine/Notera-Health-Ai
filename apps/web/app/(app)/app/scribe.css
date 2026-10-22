@@ -2719,3 +2719,8 @@ body.dark-mode .notera-shell .note-body .ap-fu > .ap-lbl { color: #f0b44a; }
   display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; line-height: 1.5; vertical-align: 1px;
   background: var(--chk-warn-bg); color: var(--chk-warn-ink); border: 1px solid var(--chk-warn-line); font-variant-numeric: tabular-nums;
 }
+
+/* "Saved to history" indicator in the note toolbar */
+.notera-shell .save-ind { font: inherit; font-size: 12px; color: var(--text-muted); margin-right: 8px; white-space: nowrap; background: none; border: 0; padding: 0; }
+.notera-shell .save-ind.saved { color: #15803d; }
+.notera-shell .save-ind.error { color: #b91c1c; font-weight: 650; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
