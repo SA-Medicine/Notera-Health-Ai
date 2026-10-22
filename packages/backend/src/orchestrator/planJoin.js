@@ -5,7 +5,7 @@
 // and no label, heading or order changes. Lives outside the locked files; Style Spec v1 hashes are unchanged.
 'use strict';
 
-const FIELDS = ['investigations_planned', 'treatment_planned', 'referrals'];
+const FIELDS = ['diagnosis', 'investigations_planned', 'treatment_planned', 'referrals'];   // diagnosis too: a merged problem can carry two Diagnosis lines
 
 /** Same split the renderer uses: lines, then sentence boundaries ("…ing. Next" but not "Dr. Smith"). */
 export function parts(val) {

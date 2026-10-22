@@ -25,3 +25,9 @@ test('rendered output shows each label once per problem', () => {
   assert.equal(after.repeatedLabels, 0); assert.match(md, /Treatment planned: Increase water intake; Antibiotic refill; RTC July/); assert.match(md, /Investigations planned: Renal ultrasound; Urine culture; PSA/);
   assert.equal(after.problems, 1);
 });
+
+test('two diagnoses under one problem are joined into one Diagnosis line', () => {
+  const dx = ['Iron deficiency anemia', 'Vitamin B12 deficiency'].join('\n');
+  const note = { subjective: {}, objective: {}, assessment_and_plan: [{ issue: 'Anemia and B12 deficiency', diagnosis: dx, assessment: '', investigations_planned: '', treatment_planned: 'Iron', referrals: '' }] };
+  assert.equal(joinPlanLines(note), 1); const md = noteToMarkdown(note); assert.match(md, /Diagnosis: Iron deficiency anemia; Vitamin B12 deficiency/); assert.equal(layout(md).repeatedLabels, 0);
+});

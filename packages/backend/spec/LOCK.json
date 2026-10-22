@@ -1,6 +1,6 @@
 {
   "specVersion": "2.0.0",
-  "lockedAt": "2026-10-22T12:55:55.557Z",
+  "lockedAt": "2026-10-22T13:17:38.906Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
@@ -8,7 +8,7 @@
     "src/orchestrator/renderMarkdown.js": "b42adcd6d5f1411974d508867f185112172126c97dadc0aae25b2c351771ac86",
     "src/orchestrator/refNames.js": "abd0818430235c0479070688462a0bf78045b467975ba3bdf7f6f420a594b3ef",
     "src/orchestrator/specLock.js": "fdb0bea4d12b6f7080d7d648d5e61aaca6245c3cf4dd6e6238fa126d7e8feb66",
-    "src/orchestrator/planJoin.js": "cf4130c90593354566360984494c2850edd10b737cc8c1efe24ef2d48993f3e1",
+    "src/orchestrator/planJoin.js": "c22a96d79cb8d984bdbc2072c6a3c078724a1e139ae409e720104fd5e3054f2f",
     "src/orchestrator/planSweep.js": "da01e63035f18e4b282690e1a400fa6caaf8ff81f337a39b117041053ad24103",
     "src/orchestrator/qualityGuards.js": "abbcd514246f037b4e1768cf1c7bde72439f680c83356e682ef18c88587186ba",
     "src/orchestrator/laterality.js": "31d732bc91137fdfbe64b656e7c0bdb60e8b7c7a674cf39f8cfcb3946c20a7dc",
