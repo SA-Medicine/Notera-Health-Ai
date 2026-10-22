@@ -45,7 +45,7 @@ export function layout(note) {
   const s = sections(note); const ps = problems(s.AP); const bullets = ps.flatMap((p) => p.bullets);
   let repeatedLabels = 0, echoDx = 0, genericTitles = 0;
   for (const p of ps) {
-    const seen = {}; for (const b of p.bullets) { const k = labelOf(b); if (k && k !== 'Counselling' && k !== 'Follow-up') seen[k] = (seen[k] || 0) + 1; }
+    const seen = {}; for (const b of p.bullets) { const k = /^[A-Za-z][A-Za-z /&()-]{2,40}:/.test(b) ? labelOf(b) : null; if (k && k !== 'Counselling' && k !== 'Follow-up') seen[k] = (seen[k] || 0) + 1; }   // only an explicit "Label:" counts; a sentence that happens to start with the word Referral is not a label
     repeatedLabels += Object.values(seen).filter((v) => v > 1).reduce((a, v) => a + v - 1, 0);
     if (p.bullets.some((b) => /^Diagnosis:/i.test(b) && overlap(b.replace(/^Diagnosis:/i, ''), p.title) >= 0.99 && toks(p.title).size === toks(b.replace(/^Diagnosis:/i, '')).size)) echoDx++;
     if (GENERIC_TITLE.test(p.title.replace(/[^A-Za-z ]/g, ''))) genericTitles++;

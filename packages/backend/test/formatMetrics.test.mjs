@@ -17,3 +17,9 @@ test('repeated labels, missing problems and missing advice/follow-up lines are f
 test('a note that matches the gold layout has no flags', () => { const r = formatReport(GOLD, GOLD); assert.deepEqual(r.flags, []); assert.equal(r.missing_gold_problems.length, 0); });
 test('spelling variants match (haemorrhoids = hemorrhoids, vitamin B12 = B12)', () => { assert.ok(overlap('Haemorrhoids', 'Hemorrhoids') >= 0.99); assert.ok(overlap('Low B12', 'Vitamin B12 deficiency') >= 0.5); });
 test('aggregate gives means and coverage', () => { const a = aggregate([formatReport(OURS, GOLD), formatReport(GOLD, GOLD)]); assert.equal(a.notes, 2); assert.equal(a.notes_with_repeated_labels, 1); assert.ok(a.gold_problem_coverage > 0 && a.gold_problem_coverage < 1); });
+
+test('a sentence that starts with a label word is not a repeated label', () => {
+  const md = ['### Assessment & Plan', '1. **Esophageal mass**', '   - Referral to the thoracic team is being arranged', '   - Referrals: Thoracic surgery', '   - Treatment planned: Continue PPI'].join('\n');
+  assert.equal(layout(md).repeatedLabels, 0);
+  const bad = ['### Assessment & Plan', '1. **X**', '   - Referrals: A', '   - Referrals: B'].join('\n'); assert.equal(layout(bad).repeatedLabels, 1);
+});
