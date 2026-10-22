@@ -108,7 +108,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
         <header className="hero">
           <div className="wrap">
             <h1 data-reveal>Your notes, done before<br /><span className="g">the coat is back on.</span></h1>
-            <p className="lead d2" data-reveal>Notera listens to the visit and writes a clean, structured SOAP note in about four seconds. No templates, no macros, no catching up at 9&nbsp;pm.</p>
+            <p className="lead d2" data-reveal>Notera listens to the visit and writes a clean, structured SOAP note in about half a minute. No templates, no macros, no catching up at 9&nbsp;pm.</p>
             <div className="hcta d3" data-reveal>
               <a className="btn btn-primary btn-lg" href={signupUrl}>Start free: 5 notes on us</a>
               <a className="btn btn-ghost btn-lg" href="#how">See how it works</a>
@@ -150,7 +150,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           </div>
           <div className="steps">
             <div className="step" data-reveal><div className="k">1</div><h3>Hit record and talk</h3><p>Have the visit exactly like you always do. Notera runs quietly in the background — it&apos;s fine with accents, interruptions, and the patient&apos;s own words.</p></div>
-            <div className="step d1" data-reveal><div className="k">2</div><h3>Read the draft</h3><p>Seconds after you stop, a structured SOAP note is waiting — subjective, objective, assessment and plan, in the order you&apos;d write it yourself.</p></div>
+            <div className="step d1" data-reveal><div className="k">2</div><h3>Read the draft</h3><p>About half a minute after you stop, a structured SOAP note is waiting — subjective, objective, assessment and plan, with the plan sorted by problem and its own advice and follow-up lines. Anything doubtful is flagged above the note.</p></div>
             <div className="step d2" data-reveal><div className="k">3</div><h3>Tweak &amp; sign off</h3><p>Skim it, fix a word if you want, and copy it straight into your EMR. Most notes need barely a touch.</p></div>
           </div>
         </div></section>
@@ -170,6 +170,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
               <p>Every sentence Notera writes is traceable back to something that was actually said in the room. If a value wasn&apos;t mentioned, it doesn&apos;t appear — no hallucinated potassium, no phantom medications.</p>
               <ul>
                 <li><Check />Line-by-line grounding to the transcript</li>
+                <li><Check />A flag box above every note shows what to check before you sign</li>
                 <li><Check />Drug names checked against a real drug database</li>
                 <li><Check />Flags anything it isn&apos;t sure it heard right</li>
               </ul>
@@ -307,7 +308,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           <div className="faq">
             <div className="qa" data-reveal><button className="q">Will it cope with my patients&apos; accents and the way people actually talk?<span className="pm">+</span></button><div className="a"><p>Yes — that&apos;s exactly what it&apos;s tuned for. Real visits are messy: people interrupt, trail off, and use their own words. Notera is built around real consultation audio, not clean studio dictation.</p></div></div>
             <div className="qa" data-reveal><button className="q">Is my patient data used to train the AI?<span className="pm">+</span></button><div className="a"><p>No. Your visits are never used to train models. Data is encrypted at rest and in transit, and every access is logged.</p></div></div>
-            <div className="qa" data-reveal><button className="q">What if it writes something the patient didn&apos;t say?<span className="pm">+</span></button><div className="a"><p>It&apos;s designed specifically not to. Every line is grounded to the transcript, drug names are checked against a real drug database, and anything uncertain is flagged for you rather than quietly written in.</p></div></div>
+            <div className="qa" data-reveal><button className="q">What if it writes something the patient didn&apos;t say?<span className="pm">+</span></button><div className="a"><p>It&apos;s built to catch exactly that. Each line is compared with the recording; lines it cannot support are removed or flagged for you, drug names are checked, and a side that does not match is flagged. No scribe is perfect, which is why every note stays a draft until you read and sign it.</p></div></div>
             <div className="qa" data-reveal><button className="q">Does it work with my EMR?<span className="pm">+</span></button><div className="a"><p>The finished note copies cleanly into any EMR today. Deeper write-back integrations are available on Enterprise — tell us which system you use and we&apos;ll walk you through it.</p></div></div>
             <div className="qa" data-reveal><button className="q">How long does setup take?<span className="pm">+</span></button><div className="a"><p>About three minutes. Create an account, allow your microphone, and record your first visit. No IT ticket required.</p></div></div>
           </div>

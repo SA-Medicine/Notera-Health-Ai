@@ -639,7 +639,7 @@ export async function generateNoteV2(input, opts = {}) {
       }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
-      if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1 (speed): the sweep only reads the draft's problem list, so it runs beside the editor and story; its answer is checked and merged against the FINAL note later
+      if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0' && cfg['stage.planSweep'] !== false) {   // F1 (speed): the sweep only reads the draft's problem list, so it runs beside the editor and story; its answer is checked and merged against the FINAL note later
         try {
           const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep';
           sweepAnswer = askSweep(sllm, buildNote(JSON.parse(JSON.stringify(out)), { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION }), transcript);
@@ -702,7 +702,7 @@ export async function generateNoteV2(input, opts = {}) {
   try { note = reconcileNote(note); } catch { /* */ }
   try { dedupeNote(note, { log }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
   let attrAnswer = null;   // plan attribution (Style Spec v2): asked beside the story agent, applied to the final note below
-  if (!blank && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0') {
+  if (!blank && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0' && cfg['stage.attribution'] !== false) {
     try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
   }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
@@ -731,13 +731,13 @@ export async function generateNoteV2(input, opts = {}) {
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   if (attrAnswer) { try { const at = applyAttribution(note, await attrAnswer, transcript, log); if (opts.trace) opts.trace.attribution = at; } catch (e) { log('[v2:attr] skipped — ' + e.message); } }
-  if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0')) { try { const q = qualityGuards(note, transcript, log, { conditions: opts.conditionGuard === true || process.env.CONDITION_GUARD === '1', thirdParty: opts.thirdParty !== false && process.env.THIRD_PARTY !== '0' }); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off). The condition guard (unsaid diseases out of PMH/titles) is OFF by default since the paired A/B of 2026-10-22 (CONDITION_GUARD=1 turns it on)
+  if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0' && cfg['stage.qualityGuards'] !== false)) { try { const q = qualityGuards(note, transcript, log, { conditions: opts.conditionGuard === true || cfg['stage.conditionGuard'] === true, thirdParty: opts.thirdParty !== false && process.env.THIRD_PARTY !== '0' }); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off). The condition guard (unsaid diseases out of PMH/titles) is OFF by default since the paired A/B of 2026-10-22 (CONDITION_GUARD=1 turns it on)
   if (sweepAnswer) {   // F1: one problem per issue — merge what the early sweep found (quote-checked, additions only) into the final note
     const ts = Date.now();
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
   }
-  if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0') {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
+  if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
     try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
     lap('ground', tg);
@@ -752,14 +752,15 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:ref] skipped — ${e.message}`); }
     lap('ref', tr);
   }
-  if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0') { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
-  const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0')) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
+  const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
 
   // 5) persist -------------------------------------------------------------------
+  const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {
     await store.updateConsult(consultId, { status: 'ready', specialty: specialtyResolved, transcript: { text: transcript }, entities: [] });
-    await store.addDraft(consultId, { draftId, modelVersion: PIPELINE_VERSION, schemaVersion: note.schema_version, note, renderedNote, rawRenderedNote: renderedNote, confidence: note.metadata.confidence || {}, status: gr.status, createdAt: new Date().toISOString() });
+    await store.addDraft(consultId, { draftId, modelVersion: PIPELINE_VERSION, schemaVersion: note.schema_version, note, renderedNote, rawRenderedNote: renderedNote, flags: allFlags, confidence: note.metadata.confidence || {}, status: gr.status, createdAt: new Date().toISOString() });
     await audit({ consultId, actor: 'system', action: 'draft.created', target: draftId, meta: { status: gr.status, flags: gr.flags.length, pipeline: 'v2' } });
   }
 
@@ -780,7 +781,6 @@ export async function generateNoteV2(input, opts = {}) {
   } catch { /* monitoring must never break generation */ }
 
   onProgress({ status: 'ready', consultId, draftId });
-  const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
   return { consultId, draftId, note, renderedNote, rawRenderedNote: renderedNote, status: gr.status, flags: allFlags, schemaErrors: gr.schemaErrors,
     entities: [], detectedSpecialty: detected, tokenUsage, qa: null, pipeline: 'v2', timings: { ...stage, total } };
 }

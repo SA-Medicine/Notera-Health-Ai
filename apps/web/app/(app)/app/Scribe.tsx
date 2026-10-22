@@ -41,7 +41,7 @@ const SPECIALTIES = [
 type Panel = 'context' | 'transcript' | 'note' | 'history' | 'paste';
 type Phase = 'idle' | 'recording' | 'transcribing' | 'generating' | 'done';
 type Line = { t: string; text: string };
-type HistItem = { consult_id: string; title: string | null; specialty: string | null; status: string; audio_uri: string | null; created_at: string };
+type HistItem = { consult_id: string; title: string | null; specialty: string | null; status: string; audio_uri: string | null; created_at: string; checks?: number };
 
 const mmss = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
@@ -645,7 +645,8 @@ export default function Scribe() {
       const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
-      setNoteFlags(draft?.note?.metadata?.flags || draft?.flags || []);
+      const flagged = [...(c.drafts || [])].reverse().find((x: { flags?: NoteFlag[]; note?: { metadata?: { flags?: NoteFlag[] } } }) => (Array.isArray(x?.flags) && x.flags.length) || (x?.note?.metadata?.flags || []).length);
+      setNoteFlags((flagged?.flags && flagged.flags.length ? flagged.flags : flagged?.note?.metadata?.flags) || []);
       const savedTx: string = (c.transcript?.text) || '';
       setTx(savedTx);
       // Render the saved transcript as timestamped rows, exactly like the live transcript.
@@ -930,7 +931,7 @@ export default function Scribe() {
               ) : history.map((h) => (
                 <div key={h.consult_id} className="h-item">
                   <div className="h-item-main" onClick={() => openConsult(h.consult_id)} style={{ cursor: 'pointer', flex: 1 }}>
-                    <div className="h-item-title">{h.title || 'Consult'}</div>
+                    <div className="h-item-title">{h.title || 'Consult'}{!!h.checks && <span className="h-checks" title={`${h.checks} line${h.checks === 1 ? '' : 's'} to check against the recording`}>{h.checks} to check</span>}</div>
                     <div className="h-item-meta">{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</div>
                   </div>
                   <div className="h-item-actions">

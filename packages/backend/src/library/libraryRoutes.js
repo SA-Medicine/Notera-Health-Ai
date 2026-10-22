@@ -52,8 +52,11 @@ export function mountLibrary(app, requireAuthMw) {
   app.get('/api/library/consults', requireAuthMw, async (req, res) => {
     try {
       const rows = await query(
-        `SELECT consult_id, title, specialty, note_type, status, audio_uri, created_at
-           FROM clinical.consults WHERE clinician_id=$1 ORDER BY created_at DESC LIMIT 200`,
+        `SELECT c.consult_id, c.title, c.specialty, c.note_type, c.status, c.audio_uri, c.created_at,
+                (SELECT count(*)::int FROM jsonb_array_elements(COALESCE(fd.flags, '[]'::jsonb)) f WHERE f->>'severity' IN ('warning', 'critical')) AS checks
+           FROM clinical.consults c
+           LEFT JOIN LATERAL (SELECT d.flags FROM clinical.drafts d WHERE d.consult_id = c.consult_id AND jsonb_typeof(d.flags) = 'array' AND jsonb_array_length(d.flags) > 0 ORDER BY d.created_at DESC LIMIT 1) fd ON true
+          WHERE c.clinician_id=$1 ORDER BY c.created_at DESC LIMIT 200`,
         [req.user.id]);
       res.json({ consults: rows });
     } catch (e) { res.status(500).json({ error: e.message }); }

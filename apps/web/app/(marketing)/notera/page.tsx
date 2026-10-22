@@ -45,7 +45,7 @@ export default function NoteraPage() {
         <h2>How the AI scribe works</h2>
         <div className="mkt-grid">
           <div className="mkt-card"><h3>1 · Record</h3><p>Hit record and talk to your patient normally. Notera handles accents, interruptions, and real-world speech.</p></div>
-          <div className="mkt-card"><h3>2 · Draft</h3><p>Seconds after you stop, a structured SOAP note is waiting — grounded to what was actually said.</p></div>
+          <div className="mkt-card"><h3>2 · Draft</h3><p>About half a minute after you stop, a structured SOAP note is waiting. Each line is checked against the recording, and anything doubtful is flagged above the note.</p></div>
           <div className="mkt-card"><h3>3 · Sign</h3><p>Skim, edit a word if you want, and copy to your EMR. You review and sign — always.</p></div>
         </div>
 
@@ -53,6 +53,7 @@ export default function NoteraPage() {
         <p>The hard part of an AI scribe isn&apos;t speed — it&apos;s accuracy. Notera is built to be <strong>grounded, not guessed</strong>: every line is traceable to the transcript, drug names are checked against a real drug database, and anything uncertain is flagged rather than invented. No hallucinated labs, no phantom medications.</p>
         <ul>
           <li><Check />Line-by-line grounding to the transcript</li>
+          <li><Check />Flags above every note show what to check before you sign</li>
           <li><Check />HIPAA-ready · encrypted in transit and at rest</li>
           <li><Check />Your visits are never used to train models</li>
         </ul>

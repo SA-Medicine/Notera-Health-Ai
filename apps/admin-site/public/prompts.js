@@ -20,7 +20,7 @@ export async function promptsView(ctx) {
   async function draw(keepDraft) {
     const keep = keepDraft ? draft : null; await load(); if (keep != null) draft = keep;
     const dirty = draft !== live.text;
-    $('#pr').className = ''; $('#pr').innerHTML = `${lockSt.locked ? '<div class="card" style="margin-bottom:16px;border-color:var(--accent)"><b>🔒 Style Spec v1 is locked.</b> The note format approved by the doctor cannot be changed here. Prompts and spec-shaping settings are read-only until the owner unlocks them; timeouts and limits stay editable.</div>' : ''}
+    $('#pr').className = ''; $('#pr').innerHTML = `${lockSt.locked ? '<div class="card" style="margin-bottom:16px;border-color:var(--accent)"><b>🔒 Style Spec v2 is locked.</b> The note format approved by the doctor cannot be changed here. Prompts and spec-shaping settings are read-only until the owner unlocks them; timeouts and limits stay editable.</div>' : ''}
     <div class="pr-grid">
       <aside class="pr-list" role="tablist" aria-label="Prompts">${reg.map((r) => `<button class="pr-item${r.name === SEL.name ? ' on' : ''}" data-p="${r.name}" role="tab"><b>${esc(r.label)}</b><span class="pill ${r.live === 'default' ? '' : 'acc'}">${esc(r.live)}</span><div class="hint">${esc(r.stage)} · ${r.live_chars.toLocaleString()} chars · ${r.versions} version${r.versions === 1 ? '' : 's'}</div></button>`).join('')}
         <div class="card hint" style="margin-top:10px"><b>How it reaches production</b><br>Saving creates an immutable version in the production database and makes it active. The pipeline reads the active version on every note (cached ≤60 s) and records the version it used inside each note.</div></aside>

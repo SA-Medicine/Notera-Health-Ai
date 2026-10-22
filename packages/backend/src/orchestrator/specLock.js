@@ -54,7 +54,7 @@ export async function isSpecLocked() { return (await specLockState()).locked; }
 /** Every prompt of the v2 pipeline is part of the approved spec. */
 export const isLockedPrompt = (name) => /^v2-/.test(String(name || ''));
 /** Operational limits (timeouts, hedging, output caps) may be tuned; everything that shapes a note is locked. */
-export const isLockedKey = (key) => !/(timeoutMs|hedgeMs|maxOutputTokens)$/i.test(String(key || ''));
+export const isLockedKey = (key) => !/(timeoutMs|hedgeMs|maxOutputTokens)$/i.test(String(key || '')) && !/^stage\./.test(String(key || ''));   // stage.* = emergency switches for the v2 stages: allowed while locked, audited
 
 export class SpecLockedError extends Error {
   constructor(what) { super(`Style Spec v${SPEC_VERSION} is LOCKED (doctor-approved): ${what} cannot be changed until the owner unlocks it.`); this.status = 423; this.code = 'SPEC_LOCKED'; }
