@@ -2613,7 +2613,7 @@ body.dark-mode .notera-shell {
 
 .notera-shell .note-checks { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
 .notera-shell .draft-bar {
-  display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 8px 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-height: 38px; padding: 8px 12px;
   background: var(--chk-bar-bg); border: 1px solid var(--chk-bar-line); border-radius: 10px;
   color: var(--chk-bar-ink); font-size: 13px; line-height: 1.4;
 }
@@ -2624,25 +2624,40 @@ body.dark-mode .notera-shell {
   flex: none; font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px;
   background: var(--chk-warn-bg); color: var(--chk-warn-ink); border: 1px solid var(--chk-warn-line); font-variant-numeric: tabular-nums;
 }
-.notera-shell .checks-list { display: flex; flex-direction: column; gap: 6px; }
-.notera-shell .checks-group { border: 1px solid var(--chk-quiet-line); border-radius: 10px; background: var(--chk-quiet-bg); color: var(--chk-quiet-ink); font-size: 13px; }
-.notera-shell .checks-group.tone-warn { background: var(--chk-warn-bg); border-color: var(--chk-warn-line); color: var(--chk-warn-ink); }
-.notera-shell .checks-group summary {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; font-weight: 600; border-radius: 10px;
+.notera-shell .draft-bar-ok { flex: none; font-size: 12px; font-weight: 650; color: #15803d; }
+.notera-shell .chk-btn {
+  flex: none; font: inherit; font-size: 12px; font-weight: 650; padding: 3px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--chk-warn-chip); background: var(--chk-warn-chip); color: #fff; transition: transform .12s cubic-bezier(0.23,1,0.32,1);
 }
-.notera-shell .checks-group summary::-webkit-details-marker { display: none; }
-.notera-shell .checks-group summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
-.notera-shell .checks-n {
-  font-size: 11.5px; font-weight: 650; min-width: 20px; text-align: center; padding: 1px 6px; border-radius: 999px;
-  background: rgba(0,0,0,0.07); font-variant-numeric: tabular-nums;
+.notera-shell .chk-btn.ghost { background: transparent; color: var(--chk-warn-ink); border-color: var(--chk-warn-line); }
+.notera-shell .chk-btn:active { transform: scale(0.97); }
+.notera-shell .chk-btn:focus-visible, .notera-shell .chk-text:focus-visible, .notera-shell .chk-done:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.notera-shell .chk-list { list-style: none; margin: 0; padding: 4px 0; display: flex; flex-direction: column; border: 1px solid var(--chk-warn-line); border-radius: 10px; background: var(--chk-warn-bg); max-height: 260px; overflow: auto; }
+.notera-shell .chk-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 13px; color: var(--chk-warn-ink); }
+.notera-shell .chk-row + .chk-row { border-top: 1px solid var(--chk-warn-line); }
+.notera-shell .chk-chip { flex: none; font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 999px; background: var(--chk-warn-chip); color: #fff; white-space: nowrap; }
+.notera-shell .chk-text { flex: 1; min-width: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notera-shell .chk-text:hover { text-decoration: underline; text-underline-offset: 2px; }
+.notera-shell .chk-done { flex: none; font: inherit; font-size: 12px; color: var(--chk-warn-ink); background: transparent; border: 1px solid var(--chk-warn-line); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
+.notera-shell .chk-done:hover { background: rgba(0,0,0,0.05); }
+.notera-shell .chk-changed { font-size: 12.5px; color: var(--chk-quiet-ink); background: var(--chk-quiet-bg); border: 1px solid var(--chk-quiet-line); border-radius: 10px; }
+.notera-shell .chk-changed summary { cursor: pointer; padding: 6px 12px; list-style: none; font-weight: 600; }
+.notera-shell .chk-changed summary::-webkit-details-marker { display: none; }
+.notera-shell .chk-changed ul { margin: 0; padding: 2px 12px 4px 28px; }
+.notera-shell .chk-changed li { margin: 3px 0; line-height: 1.45; }
+.notera-shell .chk-changed p { margin: 0; padding: 0 12px 8px; opacity: .85; }
+
+/* a line to check, marked inside the note (DOM-only: not copied, not saved) */
+.notera-shell .note-body .flagged-line {
+  background: var(--chk-warn-bg); box-shadow: -3px 0 0 var(--chk-warn-chip); border-radius: 4px; padding: 1px 4px; scroll-margin: 90px;
 }
-.notera-shell .tone-warn .checks-n { background: var(--chk-warn-chip); color: #fff; }
-.notera-shell .checks-chev { margin-left: auto; display: inline-flex; transition: transform .16s cubic-bezier(0.23,1,0.32,1); }
-.notera-shell .checks-group[open] .checks-chev { transform: rotate(180deg); }
-.notera-shell .checks-hint { margin: 0; padding: 0 12px 4px; font-size: 12.5px; opacity: .85; }
-.notera-shell .checks-group ul { margin: 0; padding: 2px 12px 10px 28px; }
-.notera-shell .checks-group li { margin: 3px 0; line-height: 1.45; text-wrap: pretty; }
-@media (prefers-reduced-motion: reduce) { .notera-shell .checks-chev { transition: none; } }
+.notera-shell .note-body .flagged-line::after {
+  content: attr(data-flag); margin-left: 8px; font-size: 10.5px; font-weight: 650; letter-spacing: .01em; padding: 0 7px; border-radius: 999px;
+  background: var(--chk-warn-chip); color: #fff; white-space: nowrap; vertical-align: 1px; user-select: none;
+}
+.notera-shell .note-body .flagged-line.flash { animation: chk-flash 1.1s cubic-bezier(0.23,1,0.32,1); }
+@keyframes chk-flash { 0% { box-shadow: -3px 0 0 var(--chk-warn-chip), 0 0 0 6px rgba(184,110,0,0.35); } 100% { box-shadow: -3px 0 0 var(--chk-warn-chip), 0 0 0 6px rgba(184,110,0,0); } }
+@media (prefers-reduced-motion: reduce) { .notera-shell .chk-btn, .notera-shell .note-body .flagged-line.flash { transition: none; animation: none; } }
 
 /* Note typography: sections read as sections, plan labels read as labels */
 .notera-shell .note-body h3 {

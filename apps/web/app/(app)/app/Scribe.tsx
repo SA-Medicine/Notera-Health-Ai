@@ -902,7 +902,7 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className="note-content"><NoteChecks flags={noteFlags} />
+                <div className="note-content"><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} noteKey={note} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div className="note-done-banner">
                     ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult

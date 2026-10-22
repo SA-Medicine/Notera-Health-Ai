@@ -1,4 +1,4 @@
-# Style Spec v2 — LOCKED (owner-approved 2026-10-22)
+# Style Spec v2.1 — LOCKED (v1 set 2026-10-20; v2 approved 2026-10-22; v2.1 fidelity guards 2026-10-22)
 
 **Hard rule: the note format below is final for now. Nothing may change it until the owner explicitly says to.** Unlocking needs the owner's instruction and the exact phrase `UNLOCK STYLE SPEC v1` (the phrase is kept from v1 on purpose).
 v2 = [Style Spec v1](STYLE_SPEC_V1_LOCKED.md) plus the changes below. Everything in v1 that is not mentioned here still applies. It was built from the doctor's Style Interview profile (confirmed), the format analysis of 410 newest-style gold notes (`docs/reports/FORMAT_ANALYSIS_2026-10-22.md`) and checked on 30 unseen transcripts (candidate v5f).
@@ -24,6 +24,15 @@ v2 = [Style Spec v1](STYLE_SPEC_V1_LOCKED.md) plus the changes below. Everything
 **Other people** — lines about a partner, ex-wife, friend or similar (age, surgery, therapy) are removed from Past Medical History; the patient's own social line ("Lives with partner") and family history stay (`THIRD_PARTY=0` switches off).
 **Safety** — a left/right side that the recording does not name for that body part is **flagged** for the doctor ("Please check the side"), never changed silently.
 **Robustness (no format change)** — a writer draft with no plan or a repetition loop is retried once on the same model, then once on the fallback model.
+
+## v2.1.0 — fidelity guards (owner unlocked 2026-10-22 after a reviewed note: invented smoking/living details, an unspoken drug, a "sleep study" nobody said, "Rovastatin" next to "Crestor (rosuvastatin)", an empty heading, a stool test written twice)
+Pure-code step `fidelityGuards.js` after the grounding agent and the reference names (switch `stage.fidelityGuards`, `FIDELITY_GUARDS=0`); no format or prompt change.
+* **Social history** (smoking, alcohol, drugs, living situation, marital status, work) stays only if the recording has the patient say it, or the clinician ask them. A clinician listing reflux triggers is advice, not history. Unsupported clauses are removed (flag "Removed from the note").
+* **Drug names the recording never says**: by ending (-prazole, -sartan, -statin, -tidine …) replaced by the class ("PPI") and flagged; any other medication name nothing in the recording resembles becomes "medication (name unclear)" and is flagged with the name (`drugGuard.js`). Ordinary English words are never taken as a drug "heard" ("Allegra" is not "allegedly"). A name the recognizer split in two ("zep bound") counts as said.
+* **One name per drug**: when a spoken brand has an exact generic (Crestor = rosuvastatin) and the recording also holds a near spelling ("rovastatin"), the generic is written everywhere; a drug is listed once in Medications.
+* **Tests nobody mentioned** (sleep study, ultrasound, biopsy …) are taken out of the plan with the words around them and flagged.
+* **Tidy**: empty headings dropped; a stool test (FIT, "poop kit" -> stool test kit) written once per problem; vaccines are treatment, not investigations; a referral already in the investigations line is not repeated; screening status and diet lines in Past Medical History that the plan or story already carries are dropped.
+* **Flags only (nothing changed)**: a dose or duration in the plan that the recording never says; wording about MRI compatibility of an implant when the recording is not clear ("confirm from the operative record").
 
 ## Open questions, kept as in v1 (owner decision 2026-10-22)
 Refills stay under the condition the drug treats (A5) · Past Medical History stays at about six bullets plus Medications (P1) · results of one panel stay on one line (O2) · bullets stay short clinical clauses.
