@@ -58,15 +58,17 @@ export function parseGround(raw) {
 }
 
 /** Decide, in code, what to do with each model verdict. Pure. */
+export const FLAG_BELOW = 0.75;
 export function decide(parts, verdicts, transcript) {
-  const out = { remove: [], flag: [], kept: 0 }; const T = norm(spoken(transcript));
+  const out = { remove: [], flag: [], doubtful: [], kept: 0 }; const T = norm(spoken(transcript));
   const byN = new Map(verdicts.map((v) => [Number(v.n), v]));
   parts.forEach((p, idx) => {
     const v = byN.get(idx + 1); if (!v) { out.kept++; return; }
     if (v.verdict === 'supported') { out.kept++; return; }
     const support = wordSupport(p.text, transcript);
     if (v.verdict === 'unsupported' && support < 0.5) out.remove.push({ idx, text: p.text, why: v.why || 'not in the transcript', support });
-    else out.flag.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });
+    else if (support < FLAG_BELOW) out.flag.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // some of its key words really are missing from the recording
+    else out.doubtful.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // the model doubts it but the words are all in the recording: trace only, no flag (tested: 35 of 57 such flags were noise)
   });
   void T; void quoted;
   return out;
@@ -99,5 +101,5 @@ export async function groundNote(llm, note, transcript, log = () => {}, { timeou
   if (d.flag.length) flags.push({ type: 'check_against_recording', field: 'note', message: `Please check against the recording: ${d.flag.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '" (' + String(r.why).slice(0, 60) + ')').join('; ')}`, severity: 'warning' });
   note.metadata = note.metadata || {}; note.metadata.flags = [...(note.metadata.flags || []), ...flags];
   log(`[v2:ground] checked ${parts.length} lines · removed ${removed}${d.remove.length ? ' (' + d.remove.map((r) => r.text.slice(0, 40)).join(' | ') + ')' : ''} · flagged ${d.flag.length}`);
-  return { checked: parts.length, removed: d.remove, flagged: d.flag, ms: Date.now() - t0 };
+  return { checked: parts.length, removed: d.remove, flagged: d.flag, doubtful: d.doubtful, ms: Date.now() - t0 };
 }

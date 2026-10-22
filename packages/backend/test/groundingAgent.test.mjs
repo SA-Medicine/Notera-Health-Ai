@@ -29,3 +29,9 @@ test('the stage writes flags, never throws on bad model output, and leaves the n
   const m = mk(); const before = JSON.stringify(m); const r2 = await groundNote({ generateContent: async () => 'oops' }, m, TX); assert.equal(JSON.stringify(m), before); assert.equal(r2.error, 'unparseable');
   assert.deepEqual(parseGround('{"lines":[{"n":1,"verdict":"supported"}]}').length, 1);
 });
+
+test('a doubtful line whose words are all in the recording is traced, not flagged', () => {
+  const n = mk(); n.assessment_and_plan[0].treatment_planned = 'Continue Cipralex 10 mg daily'; const parts = collectParts(n);
+  const d = decide(parts, parts.map((p, i) => ({ n: i + 1, verdict: /Cipralex/.test(p.text) ? 'unsupported' : 'supported', why: 'model doubt' })), TX);
+  assert.equal(d.flag.length, 0); assert.equal(d.doubtful.length, 1); assert.equal(d.remove.length, 0);
+});
