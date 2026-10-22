@@ -6,17 +6,17 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://aitoolsfordoctor.com'
 export const metadata: Metadata = {
   title: 'Notera — AI Medical Scribe & SOAP Note Generator',
   description:
-    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in seconds. Ambient AI documentation for physicians — HIPAA-ready, never trained on your data. Free for your first 5 notes.',
+    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in about half a minute. Ambient AI documentation for physicians — HIPAA-ready, never trained on your data. Free for your first 5 notes.',
   keywords: ['AI medical scribe', 'SOAP note generator', 'AI clinical documentation', 'ambient scribe', 'automated charting', 'medical dictation alternative'],
   alternates: { canonical: '/notera' },
-  openGraph: { title: 'Notera — AI Medical Scribe & SOAP Note Generator', description: 'Turn consultations into grounded SOAP notes in seconds. HIPAA-ready, physician-built.', url: `${SITE}/notera`, images: ['/og.png'] },
+  openGraph: { title: 'Notera — AI Medical Scribe & SOAP Note Generator', description: 'Turn consultations into grounded SOAP notes in about half a minute. HIPAA-ready, physician-built.', url: `${SITE}/notera`, images: ['/og.png'] },
 }
 
 const jsonLd = {
   '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Notera — AI Medical Scribe',
   applicationCategory: 'HealthApplication', operatingSystem: 'Web',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free for the first 5 notes' },
-  description: 'AI medical scribe that turns consultations into grounded, structured SOAP notes in seconds.',
+  description: 'AI medical scribe that turns consultations into grounded, structured SOAP notes in about half a minute.',
   url: `${SITE}/notera`,
 }
 
@@ -27,7 +27,7 @@ export default function NoteraPage() {
       <Shell>
         <span className="mkt-eyebrow">AI Medical Scribe</span>
         <h1>The <span className="g">AI medical scribe</span> that writes your SOAP note as you talk.</h1>
-        <p className="lede">Notera is an ambient AI scribe for clinicians. Have the visit exactly as you always do — Notera listens, then drafts a clean, structured SOAP note in seconds. No dictation, no templates, no charting after hours.</p>
+        <p className="lede">Notera is an ambient AI scribe for clinicians. Have the visit exactly as you always do — Notera listens, then drafts a clean, structured SOAP note in about half a minute. No dictation, no templates, no charting after hours.</p>
         <div className="mkt-cta-row">
           <a className="mkt-btn mkt-btn-primary mkt-btn-lg" href={LOGIN}>Start free — no card ↗</a>
           <a className="mkt-btn mkt-btn-ghost mkt-btn-lg" href="/pricing">See pricing</a>
@@ -36,7 +36,7 @@ export default function NoteraPage() {
         <h2>What Notera does</h2>
         <p>Notera is an <strong>AI medical scribe</strong> and <strong>SOAP note generator</strong> built for real consultations. It captures the conversation, extracts the clinical facts, and produces a documented note in the structure your specialty expects — Subjective, Objective, Assessment and Plan — ready for you to review and sign.</p>
         <ul>
-          <li><Check />Turns speech into a structured SOAP note in seconds</li>
+          <li><Check />Turns speech into a structured SOAP note in about half a minute</li>
           <li><Check />Auto-detects the encounter type and matches your specialty</li>
           <li><Check />Copies cleanly into any EMR</li>
           <li><Check />Keeps a searchable history of every visit</li>

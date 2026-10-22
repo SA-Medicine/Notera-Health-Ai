@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Notera — AI Medical Scribe',
     short_name: 'Notera',
-    description: 'Notera turns consultations into grounded, structured SOAP notes in seconds. HIPAA-ready, physician-built.',
+    description: 'Notera turns consultations into grounded, structured SOAP notes in about half a minute. HIPAA-ready, physician-built.',
     start_url: '/',
     display: 'standalone',
     background_color: '#06070f',

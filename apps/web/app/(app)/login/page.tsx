@@ -11,7 +11,7 @@ export default function LoginPage() {
           <div className="points">
             <div><span className="tick">✓</span> Grounded to the transcript — no invented labs or medications</div>
             <div><span className="tick">✓</span> HIPAA-ready · your visits are never used to train models</div>
-            <div><span className="tick">✓</span> Notes in your voice, ready in seconds</div>
+            <div><span className="tick">✓</span> Notes in your voice, ready in about half a minute</div>
           </div>
         </div>
         <div style={{ opacity: .7, fontSize: 13 }}>Notera drafts; a clinician signs. Not a medical device.</div>
