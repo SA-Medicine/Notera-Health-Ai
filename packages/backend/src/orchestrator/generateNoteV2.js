@@ -40,7 +40,7 @@ import { joinPlanLines } from './planJoin.js';
 import { askSweep, applySweep } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
-import { groupSubjective } from './topicGroup.js';
+import { groupSubjectiveFields } from './topicGroup.js';
 import { groundNote } from './groundingAgent.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
@@ -712,11 +712,11 @@ export async function generateNoteV2(input, opts = {}) {
       note.metadata.subjective_style = 'topics';
       if (!/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(note.subjective.reason_for_visit || '').split('\n')[0].trim())) note.subjective.reason_for_visit = ('Presenting Complaint:\n' + String(note.subjective.reason_for_visit || '')).trim();
     }
-    if (!sr.out && sr.why !== 'empty' && !/^error/.test(sr.why || '')) {   // fallback: group the existing Subjective lines under headings (nothing is reworded) when the rewrite was rejected every time
+    if (!sr.out && sr.why !== 'empty') {   // fallback: group the existing Subjective lines under headings (nothing is reworded) when the rewrite was rejected every time
       try {
-        const g = await groupSubjective(storyLlm, note.subjective, log);
+        const g = await groupSubjectiveFields(storyLlm, note.subjective, log);
         if (g) {
-          note.subjective.hpi_details = g; note.metadata.subjective_style = 'topics';
+          note.subjective.hpi_details = g.text; for (const k of g.moved) note.subjective[k] = ''; note.metadata.subjective_style = 'topics';
           if (!/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(note.subjective.reason_for_visit || '').split('\n')[0].trim())) note.subjective.reason_for_visit = ('Presenting Complaint:\n' + String(note.subjective.reason_for_visit || '')).trim();
           sr.why = 'grouped (fallback)'; sr.grouped = true;
         }

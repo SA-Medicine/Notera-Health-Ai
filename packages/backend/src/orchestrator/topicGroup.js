@@ -32,3 +32,21 @@ export async function groupSubjective(llm, subjective, log = () => {}) {
   log(`[v2:story] fallback: grouped ${hpi.length} Subjective lines under ${text.split('\n').filter(isHead).length} headings (no line reworded)`);
   return text;
 }
+
+const MOVABLE = ['hpi_details', 'symptom_progression', 'aggravating_relieving_factors', 'previous_episodes', 'functional_impact'];
+/**
+ * Same grouping, but over every Subjective field that the topic layout can take (not only hpi_details): when the draft kept its history in
+ * symptom_progression or functional_impact, hpi_details alone was too short and the note stayed without topic headings.
+ * Returns { text, moved } (moved = the other fields whose lines went into hpi_details, to be emptied by the caller) or null.
+ */
+export async function groupSubjectiveFields(llm, subjective, log = () => {}) {
+  const lines = []; const moved = [];
+  for (const k of MOVABLE) { const ls = String(subjective?.[k] || '').split('\n').map((l) => l.trim()).filter((l) => l && !isHead(l)); if (ls.length) { lines.push(...ls); if (k !== 'hpi_details') moved.push(k); } }
+  if (lines.length < 3) return null;
+  const numbered = lines.map((l, i) => `${i + 1}. ${l}`).join('\n');
+  const raw = await llm.generateContent(GROUP_SYS, numbered, null, { maxOutputTokens: 1500, timeoutMs: 20000, retries: 1, hedgeMs: 0, temperature: 0, thinkingBudget: 0, responseMimeType: 'application/json' });
+  let groups; try { groups = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim()).groups; } catch { return null; }
+  const text = buildGrouped(lines, groups); if (!text) return null;
+  log(`[v2:story] fallback: grouped ${lines.length} Subjective lines under ${text.split('\n').filter(isHead).length} headings (no line reworded)`);
+  return { text, moved };
+}

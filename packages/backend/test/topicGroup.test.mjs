@@ -25,3 +25,12 @@ test('the plan sweep ignores events from an earlier visit', () => {
   const r = acceptAdditions([{ title: 'Tetanus vaccination', treatment_planned: 'Tetanus shot given', evidence: 'we gave you the tetanus shot at the last visit' }], [], tx);
   assert.equal(r.keep.length, 0); assert.match(r.dropped[0].why, /earlier visit/);
 });
+
+import { groupSubjectiveFields } from '../src/orchestrator/topicGroup.js';
+test('the fallback also groups history that sits in the other Subjective fields', async () => {
+  const sub = { reason_for_visit: 'Eye redness', hpi_details: 'Left eye red since Monday', symptom_progression: 'Itching worse in the sun\nUsing Visine twice daily', functional_impact: 'Cannot wear contact lenses' };
+  const llm = { generateContent: async () => JSON.stringify({ groups: [{ heading: 'Eye Redness', lines: [1, 2, 3] }, { heading: 'Impact on Function', lines: [4] }] }) };
+  const g = await groupSubjectiveFields(llm, sub); assert.match(g.text, /^Eye Redness:\nLeft eye red since Monday\nItching worse in the sun\nUsing Visine twice daily\nImpact on Function:\nCannot wear contact lenses$/);
+  assert.deepEqual(g.moved.sort(), ['functional_impact', 'symptom_progression']);
+  assert.equal(await groupSubjectiveFields(llm, { hpi_details: 'one\ntwo' }), null);
+});
