@@ -30,11 +30,11 @@ test('one problem, bad model output, or a failed call never changes the note', a
   assert.equal(applyAttribution(note, await askAttribution({ generateContent: async () => { throw new Error('429'); } }, note, TX), TX).error, '429'); assert.equal(JSON.stringify(note), before);
   assert.deepEqual(parseMoves('{"moves":[]}'), []); assert.ok(ATTR_SYS.length > 100);
 });
-test('other people are removed from Past Medical History; the patient\'s own social line and family history stay', () => {
-  assert.equal(thirdPartyLine('partner is 52 years old and has hernia surgery scheduled'), true);
+test('other people are removed from Past Medical History; the patient\'s own clauses, social line and family history stay', () => {
+  assert.equal(thirdPartyLine('Boyfriend is 52, has hernia surgery coming up'), true);
   assert.equal(thirdPartyLine("Partner's ex-wife is moving to Toronto with her boyfriend and not seeing children regularly"), true);
-  assert.equal(thirdPartyLine('Patient in therapy for a long time; partner in therapy for 6 months for childhood trauma'), true);
+  assert.equal(thirdPartyLine('Lives with wife; participating in Geriatric Assessment Program; house flooded'), false, 'the patient\'s own social line stays');
   assert.equal(thirdPartyLine('Lives with partner'), false); assert.equal(thirdPartyLine('Married, works as a teacher'), false); assert.equal(thirdPartyLine('Cousin had cancer'), false); assert.equal(thirdPartyLine('Mother had breast cancer'), false);
-  const note = { past_medical_history: { social: ['Lives with partner', 'partner is 52 years old and has hernia surgery scheduled'].join('\n'), family: 'Cousin had cancer' } };
-  const r = dropThirdParty(note); assert.equal(r.length, 1); assert.equal(note.past_medical_history.social, 'Lives with partner'); assert.equal(note.past_medical_history.family, 'Cousin had cancer');
+  const note = { past_medical_history: { social: ['Lives with partner', 'Patient in therapy for a long time; partner in therapy for 6 months for childhood trauma', 'Boyfriend is 52'].join('\n'), family: 'Cousin had cancer' } };
+  const r = dropThirdParty(note); assert.equal(r.length, 2); assert.equal(note.past_medical_history.social, ['Lives with partner', 'Patient in therapy for a long time'].join('\n')); assert.equal(note.past_medical_history.family, 'Cousin had cancer');
 });

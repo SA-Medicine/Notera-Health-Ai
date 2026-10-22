@@ -31,15 +31,22 @@ export function cleanSpeech(text) {
 }
 
 // ── third parties: Style Spec v1 "document only the PATIENT" (a partner's age, surgery, therapy or ex-wife is not the patient's history) ──
-const THIRD = /\b(partner|boyfriend|girlfriend|husband|wife|ex[- ]?(wife|husband|partner|boyfriend|girlfriend)|fianc[eé]e?|friend|neighbou?r|colleague|co-?worker|boss|in-laws?|step-?(son|daughter|child|children))\b/i;
-const SOCIAL_OK = /\b(lives? with|living with|married|single|divorced|widow(ed)?|separated|common[- ]law|in a relationship|partnered)\b/i;
-export function thirdPartyLine(line) { const l = String(line || '').trim(); return !!l && THIRD.test(l) && !(SOCIAL_OK.test(l) && l.split(/\s+/).length <= 8); }
+const NOUN = String.raw`(?:partner|boyfriend|girlfriend|husband|wife|ex[- ]?(?:wife|husband|partner|boyfriend|girlfriend)|fianc[eé]e?|friend|neighbou?r|colleague|co-?worker|boss|in-laws?|step-?(?:son|daughter|child|children))`;
+// a clause ABOUT another person starts with that person ("Boyfriend is 52", "partner in therapy", "Partner's ex-wife is moving"); "Lives with wife" is the patient's own social line and stays
+const THIRD_SUBJECT = new RegExp(String.raw`^(?:the |her |his |their |patient's )?${NOUN}\b`, 'i');
+const clauses = (l) => String(l || '').split(/;\s*/);
+export function thirdPartyLine(line) { return clauses(line).some((c) => THIRD_SUBJECT.test(c.trim())); }
 export function dropThirdParty(note, log = () => {}) {
   const removed = [];
   for (const sec of ['past_medical_history']) for (const k of Object.keys(note?.[sec] || {})) {
     const v = note[sec][k]; if (typeof v !== 'string' || !v.trim()) continue;
-    const keep = []; for (const l of v.split('\n')) { if (thirdPartyLine(l)) removed.push(l.trim()); else keep.push(l); }
-    if (keep.length !== v.split('\n').length) note[sec][k] = keep.join('\n');
+    const keep = [];
+    for (const l of v.split('\n')) {
+      if (!thirdPartyLine(l)) { keep.push(l); continue; }
+      const kept = clauses(l).filter((c) => !THIRD_SUBJECT.test(c.trim())); removed.push(clauses(l).filter((c) => THIRD_SUBJECT.test(c.trim())).join('; '));
+      if (kept.length) keep.push(kept.join('; '));   // the patient's own clauses of the same line stay
+    }
+    note[sec][k] = keep.join('\n');
   }
   if (removed.length) log('[v2:quality] ' + removed.length + ' line(s) about other people removed from Past Medical History (' + removed.map((x) => x.slice(0, 50)).join(' | ') + ')');
   return removed;
