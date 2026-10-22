@@ -9,6 +9,8 @@ import { ThinkingOrb } from 'thinking-orbs';
 import { VoiceBeam } from 'voice-glow';
 import { useInvite, inviteSummary } from '../components/useInvite';
 import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './transcriptDensity';
+import { mdToHtml } from './noteRender';
+import NoteChecks, { type NoteFlag } from './NoteChecks';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -54,26 +56,6 @@ async function readJson(r: Response): Promise<any> {
   try { return JSON.parse(body); } catch { throw new Error('Backend returned an invalid response.'); }
 }
 
-// simple, safe markdown → HTML (headings, bold, lists, line breaks)
-function mdToHtml(md: string): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const lines = esc(md || '').split('\n'); const out: string[] = []; let inList = false;
-  for (const ln of lines) {
-    // Numbered A&P problem heading: "1. **Title**" → keep the number inside the bold
-    // so the whole "1. Title" stays on one line (the stylesheet block-displays a
-    // leading <strong>, which otherwise orphans the bare "1." on its own line).
-    const numHead = ln.match(/^\s*(\d+)\.\s+\*\*(.+?)\*\*\s*$/);
-    if (numHead) { if (inList) { out.push('</ul>'); inList = false; } out.push(`<p class="ap-head"><strong>${numHead[1]}. ${numHead[2]}</strong></p>`); continue; }
-    if (/^\s*[-*]\s+/.test(ln)) { if (!inList) { out.push('<ul>'); inList = true; } out.push('<li>' + ln.replace(/^\s*[-*]\s+/, '') + '</li>'); continue; }
-    if (inList) { out.push('</ul>'); inList = false; }
-    if (/^#{1,6}\s/.test(ln)) { const h = ln.match(/^#+/)![0].length; out.push(`<h${h}>` + ln.replace(/^#+\s/, '') + `</h${h}>`); continue; }
-    if (!ln.trim()) { out.push('<br/>'); continue; }
-    out.push('<p>' + ln + '</p>');
-  }
-  if (inList) out.push('</ul>');
-  return out.join('').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-}
-
 // tiny inline icons
 const I = {
   mic: <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2z" /></svg>,
@@ -99,6 +81,7 @@ export default function Scribe() {
   const [lines, setLines] = useState<Line[]>([]);
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
+  const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
   const [specialty, setSpecialty] = useState('auto');
   const [patient, setPatient] = useState('');
@@ -533,7 +516,7 @@ export default function Scribe() {
 
   async function toggleRecord() {
     if (phase === 'recording') { stopRecording(); return; }
-    setError(''); setNote(''); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
+    setError(''); setNote(''); setNoteFlags([]); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
     setPendingSegs(0); setFailedSegs(0);
     emptySegs.current = 0; silenceAbort.current = false; finishing.current = false;
     segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
@@ -634,7 +617,7 @@ export default function Scribe() {
         // status 'pending' (or a transient network blip) → keep polling
       }
       const md = d.renderedNote || d.rawRenderedNote || '';
-      setNote(md); setConsultId(d.consultId || null); setPhase('done');
+      setNote(md); setNoteFlags(Array.isArray(d.flags) ? d.flags : []); setConsultId(d.consultId || null); setPhase('done');
       flash('Note generated');
       refreshQuota();
       const cid = d.consultId;
@@ -662,6 +645,7 @@ export default function Scribe() {
       const d = await readJson(r); const c = d.consult; if (!c) return;
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       setNote(draft?.rendered_note || draft?.note?.rendered || '');
+      setNoteFlags(draft?.note?.metadata?.flags || draft?.flags || []);
       const savedTx: string = (c.transcript?.text) || '';
       setTx(savedTx);
       // Render the saved transcript as timestamped rows, exactly like the live transcript.
@@ -689,7 +673,7 @@ export default function Scribe() {
     emptySegs.current = 0; silenceAbort.current = false;
     fullChunks.current = []; fullBlob.current = null; setDensity(null);
     setPendingSegs(0); setFailedSegs(0);
-    setPhase('idle'); setLines([]); setTx(''); setNote(''); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
+    setPhase('idle'); setLines([]); setTx(''); setNote(''); setNoteFlags([]); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
 
   function toggleEdit() {
@@ -917,7 +901,7 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className="note-content">
+                <div className="note-content"><NoteChecks flags={noteFlags} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div className="note-done-banner">
                     ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult
