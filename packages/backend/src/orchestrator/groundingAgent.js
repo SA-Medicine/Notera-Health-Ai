@@ -1,23 +1,28 @@
 // Grounding agent ("no hallucination"): a last fact check of every line of the note against the transcript.
-// An independent model call reads the transcript and the numbered note lines and says, for each line, whether the transcript supports it,
-// and for supported lines quotes the transcript words. Code then decides, so the model never edits the note itself:
-//   * unsupported by the model AND its key words (numbers, drug names, body sites, rare words) are mostly missing from the transcript -> the line is REMOVED;
-//   * unsupported/unclear by the model but the words are in the transcript (a wrong meaning, a wrong place, an old event) -> the line stays and the
-//     note is FLAGGED for the doctor to check;
-//   * supported with a quote that really is in the transcript -> kept.
-// Removals and flags are written to note.metadata.flags and to the trace, so nothing disappears silently. Style Spec v2 stage (GROUNDING=0 switches off).
+//   1. FIRST LOOK (one call): a model reads the transcript and the numbered note lines and lists ONLY the lines it doubts ("unsupported" or "unclear").
+//      Lines it does not list count as supported, so the answer is short and fast.
+//   2. CODE decides what a doubt means. A line is a REMOVAL CANDIDATE only if the model says "unsupported" AND most of its key words (numbers, drug
+//      names, rare words) are missing from the transcript. Otherwise a doubted line stays, and is flagged only if some key words are missing.
+//   3. SECOND LOOK (one small call per candidate, in parallel): "find the exact transcript words that show this". If a quote is found and code
+//      confirms it is in the transcript, the line is KEPT (a true fact in different words, e.g. "freeze it" for cryotherapy). Only a line that fails
+//      both looks is removed.
+//   4. SAFETY CAP: if more than a fifth of the lines would be removed, nothing is removed; the lines are flagged instead (the checker is probably
+//      wrong, not the note).
+// The model never edits the note. Removals and flags go to note.metadata.flags and the trace. Style Spec v2 stage (GROUNDING=0 switches off).
 'use strict';
 
 import { quoted } from './planSweep.js';
 
 export const GROUND_SYS = `You are a strict fact checker for a clinic note. You receive the TRANSCRIPT (the only truth) and numbered NOTE LINES.
-For every line decide:
-- "supported": the transcript says it (paraphrase, medical wording, a spelling variant of a drug or term caused by speech recognition is fine when the same thing is clearly meant);
-- "unsupported": the line states a fact, drug, dose, number, body site or side, diagnosis, result, event or plan item that the transcript does not say, or that contradicts it, or that happened at an EARLIER visit but is written as done now;
+List ONLY the lines the transcript does not clearly support:
+- "unsupported": the line states a fact, drug, dose, number, body site or side, diagnosis, exam finding, result, event or plan item that the transcript does not say, or that contradicts it, or that happened at an EARLIER visit but is written as done now;
 - "unclear": the transcript is ambiguous about it.
-Be strict about: drug names and doses, numbers and units, left/right and body site, diagnoses, test results (normal vs abnormal), and what was done in THIS visit.
-For "supported" give "quote": the exact transcript words (6-25 words) that show it. For "unsupported" or "unclear" give a short "why".
-Return ONLY JSON: {"lines":[{"n":1,"verdict":"supported","quote":"","why":""}]} with one entry per line, in order.`;
+Supported = said by the clinician or the patient (paraphrase, medical wording, and a spelling variant of a drug or term caused by speech recognition are fine when the same thing is clearly meant). Do not list supported lines.
+Be strict about: drug names and doses, numbers and units, left/right and body site, diagnoses, exam findings (never invent an exam), test results (normal vs abnormal), and what was done in THIS visit.
+Return ONLY JSON: {"doubtful":[{"n":1,"verdict":"unsupported","why":"short reason"}]}. If every line is supported return {"doubtful":[]}.`;
+
+export const VERIFY_SYS = `You check ONE statement from a clinic note against a transcript. Find the exact words in the transcript that show the statement was said or done in THIS visit (the same thing in different words counts, for example "freeze it" for cryotherapy; "you gave me the shot" only counts if it was this visit).
+Return ONLY JSON: {"found":true,"quote":"exact transcript words, at most 25 words"} or {"found":false,"quote":""}.`;
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 const stem = (w) => w.replace(/ae/g, 'e').replace(/oe/g, 'e').replace(/(osis|itis|emia|ia|ing|ion|ed|es|s|y)$/, '').slice(0, 6);
@@ -25,6 +30,8 @@ const NUMW = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seve
 const spoken = (t) => norm(String(t || '').toLowerCase().replace(/(\d)\.(\d)/g, '$1dotx$2')).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/g, (w) => NUMW[w]).replace(/\b(\d+) point (\d+)\b/g, '$1dotx$2').replace(/(\d)dotx(\d)/g, '$1.$2');
 const SKIP = /^(medications?|allergies|preventive care|occupation|social|family)\s*:/i;
 const FILLER = new Set(['the', 'and', 'with', 'for', 'from', 'that', 'this', 'patient', 'planned', 'continue', 'provided', 'given', 'noted', 'reports', 'also', 'were', 'have', 'has', 'been']);
+export const FLAG_BELOW = 0.75;
+export const REMOVAL_CAP = 0.2;   // never remove more than this share of the lines
 
 /** Key words of a line: numbers and words of 4+ letters that are not filler. */
 export function keyWords(line) {
@@ -53,25 +60,42 @@ export function collectParts(note) {
   return parts;
 }
 
+/** Accepts the short format {"doubtful":[...]} and the old long format {"lines":[...]} (supported lines are then ignored). */
 export function parseGround(raw) {
-  try { const j = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim()); return Array.isArray(j?.lines) ? j.lines : []; } catch { return []; }
+  try {
+    const j = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim());
+    if (Array.isArray(j?.doubtful)) return j.doubtful;
+    if (Array.isArray(j?.lines)) return j.lines;
+  } catch { /* fall through */ }
+  return null;
 }
 
 /** Decide, in code, what to do with each model verdict. Pure. */
-export const FLAG_BELOW = 0.75;
 export function decide(parts, verdicts, transcript) {
-  const out = { remove: [], flag: [], doubtful: [], kept: 0 }; const T = norm(spoken(transcript));
-  const byN = new Map(verdicts.map((v) => [Number(v.n), v]));
+  const out = { remove: [], flag: [], doubtful: [], kept: 0 };
+  const byN = new Map((verdicts || []).map((v) => [Number(v.n), v]));
   parts.forEach((p, idx) => {
-    const v = byN.get(idx + 1); if (!v) { out.kept++; return; }
-    if (v.verdict === 'supported') { out.kept++; return; }
+    const v = byN.get(idx + 1); if (!v || v.verdict === 'supported') { out.kept++; return; }
     const support = wordSupport(p.text, transcript);
     if (v.verdict === 'unsupported' && support < 0.5) out.remove.push({ idx, text: p.text, why: v.why || 'not in the transcript', support });
     else if (support < FLAG_BELOW) out.flag.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // some of its key words really are missing from the recording
-    else out.doubtful.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // the model doubts it but the words are all in the recording: trace only, no flag (tested: 35 of 57 such flags were noise)
+    else out.doubtful.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // the model doubts it but its words are all in the recording: trace only
   });
-  void T; void quoted;
   return out;
+}
+
+/** Second look at each removal candidate (parallel). Returns { rescued, confirmed }. */
+export async function secondLook(llm, transcript, candidates, { timeoutMs = 20000 } = {}) {
+  const txNorm = norm(transcript); const rescued = [], confirmed = [];
+  await Promise.all(candidates.map(async (c) => {
+    try {
+      const raw = await llm.generateContent(VERIFY_SYS, `TRANSCRIPT:\n"""\n${String(transcript).slice(0, 60000)}\n"""\n\nSTATEMENT:\n${c.text}\n\nReturn ONLY the JSON.`, null,
+        { maxOutputTokens: 400, temperature: 0, timeoutMs, retries: 1, hedgeMs: 0, thinkingBudget: 512, responseMimeType: 'application/json' });
+      const j = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim());
+      if (j?.found === true && quoted(String(j.quote || ''), txNorm)) rescued.push({ ...c, quote: String(j.quote).slice(0, 160) }); else confirmed.push(c);
+    } catch { confirmed.push(c); }   // the second look failed: the first look stands
+  }));
+  return { rescued, confirmed };
 }
 
 /** Applies removals to the note (only whole parts of a field). Returns how many parts were removed. */
@@ -90,16 +114,22 @@ export function applyRemovals(parts, removals) {
 
 export async function groundNote(llm, note, transcript, log = () => {}, { timeoutMs = 45000 } = {}) {
   const t0 = Date.now(); const parts = collectParts(note);
-  if (parts.length < 3) return { checked: 0, removed: [], flagged: [], ms: 0 };
+  if (parts.length < 3) return { checked: 0, removed: [], flagged: [], doubtful: [], rescued: [], ms: 0 };
   const listing = parts.map((p, i) => `${i + 1}. ${p.text}`).join('\n');
   const raw = await llm.generateContent(GROUND_SYS, `TRANSCRIPT:\n"""\n${String(transcript).slice(0, 60000)}\n"""\n\nNOTE LINES:\n${listing}\n\nReturn ONLY the JSON.`, null,
-    { maxOutputTokens: 6000, temperature: 0, timeoutMs, retries: 1, hedgeMs: 0, thinkingBudget: 1024, responseMimeType: 'application/json' });
-  const verdicts = parseGround(raw); if (!verdicts.length) { log('[v2:ground] no usable answer — note unchanged'); return { checked: parts.length, removed: [], flagged: [], ms: Date.now() - t0, error: 'unparseable' }; }
-  const d = decide(parts, verdicts, transcript); const removed = applyRemovals(parts, d.remove);
+    { maxOutputTokens: 2500, temperature: 0, timeoutMs, retries: 2, hedgeMs: 0, thinkingBudget: 1024, responseMimeType: 'application/json' });
+  const verdicts = parseGround(raw); if (verdicts === null) { log('[v2:ground] no usable answer — note unchanged'); return { checked: parts.length, removed: [], flagged: [], doubtful: [], rescued: [], ms: Date.now() - t0, error: 'unparseable' }; }
+  const d = decide(parts, verdicts, transcript);
+  let removeNow = []; let rescued = []; let capped = false;
+  if (d.remove.length) {
+    const sl = await secondLook(llm, transcript, d.remove); rescued = sl.rescued; removeNow = sl.confirmed;
+    if (removeNow.length > Math.max(3, Math.ceil(parts.length * REMOVAL_CAP))) { capped = true; d.flag.push(...removeNow.map((r) => ({ ...r, verdict: 'unsupported' }))); removeNow = []; }
+  }
+  const removed = applyRemovals(parts, removeNow);
   const flags = [];
-  if (d.remove.length) flags.push({ type: 'removed_unsupported', field: 'note', message: `${d.remove.length} line(s) the recording does not support were removed: ${d.remove.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '"').join('; ')}`, severity: 'info' });
-  if (d.flag.length) flags.push({ type: 'check_against_recording', field: 'note', message: `Please check against the recording: ${d.flag.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '" (' + String(r.why).slice(0, 60) + ')').join('; ')}`, severity: 'warning' });
+  if (removeNow.length) flags.push({ type: 'removed_unsupported', field: 'note', message: `${removeNow.length} line(s) the recording does not support were removed: ${removeNow.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '"').join('; ')}`, severity: 'info' });
+  if (d.flag.length) flags.push({ type: 'check_against_recording', field: 'note', message: `Please check against the recording${capped ? ' (many lines looked doubtful, none were removed)' : ''}: ${d.flag.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '" (' + String(r.why).slice(0, 60) + ')').join('; ')}`, severity: 'warning' });
   note.metadata = note.metadata || {}; note.metadata.flags = [...(note.metadata.flags || []), ...flags];
-  log(`[v2:ground] checked ${parts.length} lines · removed ${removed}${d.remove.length ? ' (' + d.remove.map((r) => r.text.slice(0, 40)).join(' | ') + ')' : ''} · flagged ${d.flag.length}`);
-  return { checked: parts.length, removed: d.remove, flagged: d.flag, doubtful: d.doubtful, ms: Date.now() - t0 };
+  log(`[v2:ground] checked ${parts.length} lines · doubted ${verdicts.length} · kept after second look ${rescued.length} · removed ${removed}${removeNow.length ? ' (' + removeNow.map((r) => r.text.slice(0, 40)).join(' | ') + ')' : ''} · flagged ${d.flag.length}${capped ? ' · removal cap hit' : ''}`);
+  return { checked: parts.length, removed: removeNow, flagged: d.flag, doubtful: d.doubtful, rescued, capped, ms: Date.now() - t0 };
 }

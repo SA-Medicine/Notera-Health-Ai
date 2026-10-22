@@ -35,3 +35,20 @@ test('a doubtful line whose words are all in the recording is traced, not flagge
   const d = decide(parts, parts.map((p, i) => ({ n: i + 1, verdict: /Cipralex/.test(p.text) ? 'unsupported' : 'supported', why: 'model doubt' })), TX);
   assert.equal(d.flag.length, 0); assert.equal(d.doubtful.length, 1); assert.equal(d.remove.length, 0);
 });
+
+import { secondLook, VERIFY_SYS } from '../src/orchestrator/groundingAgent.js';
+test('the short answer format works and unlisted lines count as supported', () => {
+  assert.equal(parseGround('{"doubtful":[{"n":2,"verdict":"unsupported"}]}').length, 1); assert.equal(parseGround('{"doubtful":[]}').length, 0); assert.equal(parseGround('nope'), null);
+  const n = mk(); const parts = collectParts(n); const d = decide(parts, [{ n: 2, verdict: 'unsupported', why: 'x' }], TX); assert.equal(d.kept, parts.length - 1);
+});
+test('second look: a verified quote rescues the line, a missing or invented quote does not', async () => {
+  const tx = 'So you want me to freeze it? Yes please. We froze it today.'; const c = [{ idx: 0, text: 'Cryotherapy performed in clinic' }, { idx: 1, text: 'Biopsy taken' }];
+  const llm = { generateContent: async (_s, u) => JSON.stringify(/Cryotherapy/.test(u.split('STATEMENT:')[1]) ? { found: true, quote: 'So you want me to freeze it? Yes please.' } : { found: true, quote: 'a made up sentence that is nowhere in it' }) };
+  const r = await secondLook(llm, tx, c); assert.deepEqual(r.rescued.map((x) => x.text), ['Cryotherapy performed in clinic']); assert.deepEqual(r.confirmed.map((x) => x.text), ['Biopsy taken']);
+  const bad = await secondLook({ generateContent: async () => { throw new Error('429'); } }, tx, c); assert.equal(bad.confirmed.length, 2, 'if the second look fails the first look stands'); assert.ok(VERIFY_SYS.length > 50);
+});
+test('the removal cap: when too many lines would go, none are removed and they are flagged', async () => {
+  const n = { metadata: {}, subjective: { hpi_details: Array.from({ length: 10 }, (_, i) => `Invented symptom number ${i} xylophone`).join('\n') }, past_medical_history: {}, objective: {}, assessment_and_plan: [] };
+  const llm = { generateContent: async (sys) => (sys === VERIFY_SYS ? JSON.stringify({ found: false, quote: '' }) : JSON.stringify({ doubtful: Array.from({ length: 10 }, (_, i) => ({ n: i + 1, verdict: 'unsupported', why: 'no' })) })) };
+  const r = await groundNote(llm, n, 'The patient has a cough and fever.'); assert.equal(r.capped, true); assert.equal(r.removed.length, 0); assert.match(n.subjective.hpi_details, /Invented symptom number 3/); assert.equal(n.metadata.flags[0].type, 'check_against_recording');
+});

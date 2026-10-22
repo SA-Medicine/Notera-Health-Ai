@@ -65,16 +65,34 @@ export function acceptAdditions(additions, existing, transcript, note = null) {
   return { keep, dropped };
 }
 
-/** Runs the stage. `llm` must offer generateContent(system, user, schema, opts). Appends to note.assessment_and_plan; never throws into the pipeline. */
-export async function sweepPlan(llm, note, transcript, log = () => {}, { timeoutMs = 40000 } = {}) {
-  const t0 = Date.now(); const existing = note.assessment_and_plan || [];
-  const listing = existing.map((p, i) => `${i + 1}. ${p.issue || ''}\n${[p.diagnosis && `Diagnosis: ${p.diagnosis}`, p.assessment, p.investigations_planned && `Investigations: ${p.investigations_planned}`, p.treatment_planned && `Treatment: ${p.treatment_planned}`, p.referrals && `Referrals: ${p.referrals}`].filter(Boolean).join('\n')}`).join('\n\n') || '(no problems yet)';
-  const raw = await llm.generateContent(SWEEP_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nPROBLEMS ALREADY IN THE PLAN:\n${listing}\n\nReturn ONLY the JSON.`, null,
-    { maxOutputTokens: 4000, temperature: 0, timeoutMs, retries: 1, hedgeMs: 0, thinkingBudget: 1024, responseMimeType: 'application/json' });
-  const proposed = parseSweep(raw); const { keep, dropped } = acceptAdditions(proposed, existing, transcript, note);
+const listingOf = (existing) => existing.map((p, i) => `${i + 1}. ${p.issue || ''}\n${[p.diagnosis && `Diagnosis: ${p.diagnosis}`, p.assessment, p.investigations_planned && `Investigations: ${p.investigations_planned}`, p.treatment_planned && `Treatment: ${p.treatment_planned}`, p.referrals && `Referrals: ${p.referrals}`].filter(Boolean).join('\n')}`).join('\n\n') || '(no problems yet)';
+
+/**
+ * Step 1 of the stage: the model call. It only READS the note (the problem list) and can therefore start while the editor and the story agent are
+ * still working on the same note (speed). Returns the raw answer; never throws into the pipeline.
+ */
+export async function askSweep(llm, note, transcript, { timeoutMs = 40000 } = {}) {
+  const t0 = Date.now();
+  try {
+    const raw = await llm.generateContent(SWEEP_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nPROBLEMS ALREADY IN THE PLAN:\n${listingOf(note.assessment_and_plan || [])}\n\nReturn ONLY the JSON.`, null,
+      { maxOutputTokens: 4000, temperature: 0, timeoutMs, retries: 2, hedgeMs: 0, thinkingBudget: 1024, responseMimeType: 'application/json' });
+    return { raw, ms: Date.now() - t0 };
+  } catch (e) { return { raw: null, error: String(e.message || e), ms: Date.now() - t0 }; }
+}
+
+/** Step 2: the checks and the merge, against the FINAL note (so an issue the editor already covered is dropped as "already covered"). */
+export function applySweep(note, answer, transcript, log = () => {}) {
+  const existing = note.assessment_and_plan || [];
+  if (!answer || answer.raw == null) { if (answer?.error) log('[v2:sweep] skipped — ' + answer.error); return { added: [], dropped: [], proposed: 0, topics: [], ms: answer?.ms || 0, error: answer?.error }; }
+  const proposed = parseSweep(answer.raw); const { keep, dropped } = acceptAdditions(proposed, existing, transcript, note);
   for (const k of keep) { delete k._sweep; existing.push(k); }
   note.assessment_and_plan = existing;
   if (proposed.length) log(`[v2:sweep] ${keep.length} problem(s) added${keep.length ? ': ' + keep.map((k) => k.issue).join(' | ') : ''}${dropped.length ? ` · ${dropped.length} dropped (${dropped.map((d) => d.why).join(', ')})` : ''}`);
-  let topics = []; try { topics = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim()).topics || []; } catch { /* trace only */ }
-  return { added: keep.map((k) => k.issue), dropped, proposed: proposed.length, topics, ms: Date.now() - t0 };
+  let topics = []; try { topics = JSON.parse(String(answer.raw).replace(/^```json|```$/g, '').trim()).topics || []; } catch { /* trace only */ }
+  return { added: keep.map((k) => k.issue), dropped, proposed: proposed.length, topics, ms: answer.ms };
+}
+
+/** Both steps in a row (used by tests and by anything that does not need the overlap). */
+export async function sweepPlan(llm, note, transcript, log = () => {}, opts = {}) {
+  return applySweep(note, await askSweep(llm, note, transcript, opts), transcript, log);
 }

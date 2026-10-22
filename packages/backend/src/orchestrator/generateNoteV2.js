@@ -37,7 +37,7 @@ import { pickExemplars, exemplarBlock } from './exemplars.js';
 import { guardDrugNames } from './drugGuard.js';
 import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
 import { joinPlanLines } from './planJoin.js';
-import { sweepPlan } from './planSweep.js';
+import { askSweep, applySweep } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjective } from './topicGroup.js';
@@ -577,7 +577,7 @@ export async function generateNoteV2(input, opts = {}) {
   const verifyLlm = await createGeminiService(null, { model: auxModel });
   const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: auxModel }, prompts: {} };
 
-  let note; let checkForRef = null;
+  let note; let checkForRef = null; let sweepAnswer = null;   // sweepAnswer: the plan sweep asks its question while the editor and story agent work (speed)
   try {
     if (blank) {
       log('[upgrade:blank-encounter] nothing clinical in the transcript — emitting an empty note');
@@ -600,7 +600,7 @@ export async function generateNoteV2(input, opts = {}) {
       const writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
       const writerOpts = {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
-        retries: 1, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
+        retries: 3, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
       const writerP = writerLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, writerOpts);
@@ -638,6 +638,12 @@ export async function generateNoteV2(input, opts = {}) {
       }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
+      if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1 (speed): the sweep only reads the draft's problem list, so it runs beside the editor and story; its answer is checked and merged against the FINAL note later
+        try {
+          const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep';
+          sweepAnswer = askSweep(sllm, buildNote(JSON.parse(JSON.stringify(out)), { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION }), transcript);
+        } catch (e) { log('[v2:sweep] not started — ' + e.message); }
+      }
       let finalOut = out;
       const useEditor = opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled'];
       if (useEditor) {
@@ -720,9 +726,9 @@ export async function generateNoteV2(input, opts = {}) {
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0')) { try { const q = qualityGuards(note, transcript, log); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off)
-  if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1: one problem per issue — add an addressed issue that no problem covers (quote-checked, additions only)
+  if (sweepAnswer) {   // F1: one problem per issue — merge what the early sweep found (quote-checked, additions only) into the final note
     const ts = Date.now();
-    try { const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep'; const sw = await sweepPlan(sllm, note, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log(`[v2:sweep] skipped — ${e.message}`); }
+    try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
   }
   if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0') {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
