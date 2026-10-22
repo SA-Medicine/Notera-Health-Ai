@@ -14,7 +14,7 @@
 
 import { query, one } from '../db/pool.js';
 
-export const SPEC_VERSION = '2.0.0';
+export const SPEC_VERSION = '2.1.0';
 export const UNLOCK_PHRASE = 'UNLOCK STYLE SPEC v1';
 
 let _ready = null;

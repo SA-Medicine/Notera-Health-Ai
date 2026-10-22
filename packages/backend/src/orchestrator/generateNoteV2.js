@@ -42,6 +42,7 @@ import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjectiveFields } from './topicGroup.js';
 import { groundNote } from './groundingAgent.js';
+import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
@@ -743,15 +744,18 @@ export async function generateNoteV2(input, opts = {}) {
     lap('ground', tg);
   }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
+  let refMeds = [];
   if (!blank && cfg['ref.enabled']) {
     const tr = Date.now();
     try {
       const names = [...(checkForRef?.medications || []).map((m) => String(m?.name || '').trim())];
       const [meds, dx] = await Promise.all([describeMeds(note, names, { log, timeoutMs: cfg['ref.timeoutMs'] }), codeDiagnoses(note, { log, timeoutMs: cfg['ref.timeoutMs'] })]);
+      refMeds = meds || [];
       if (opts.trace) opts.trace.reference = { meds, dx, ms: Date.now() - tr };
     } catch (e) { log(`[v2:ref] skipped — ${e.message}`); }
     lap('ref', tr);
   }
+  if (!blank && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== '0' && cfg['stage.fidelityGuards'] !== false) { try { const fg = fidelityGuards(note, transcript, { refMeds, log }); if (opts.trace) opts.trace.fidelity = fg; } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); } }   // Style Spec v2.1: unheard drug/test names, social history nobody said, empty headings, duplicates
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
 

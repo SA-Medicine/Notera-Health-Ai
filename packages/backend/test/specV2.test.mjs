@@ -6,7 +6,7 @@ import { SPEC, conformance as checkNote } from '../studio/conformance.js';
 import { SPEC_VERSION } from '../src/orchestrator/specLock.js';
 
 test('Style Spec v2 is the locked version and the lock covers the v5 prompt and the v2 code', () => {
-  const lock = readLock(); assert.equal(lock.specVersion, '2.0.0'); assert.equal(SPEC_VERSION, '2.0.0'); assert.equal(SPEC.version, '2.0.0');
+  const lock = readLock(); assert.equal(lock.specVersion, '2.1.0'); assert.equal(SPEC_VERSION, '2.1.0'); assert.equal(SPEC.version, '2.1.0');
   for (const f of ['prompts/writer-v5.txt', 'src/orchestrator/planJoin.js', 'src/orchestrator/planSweep.js', 'src/orchestrator/qualityGuards.js', 'src/orchestrator/laterality.js', 'src/orchestrator/adviceLines.js', 'src/orchestrator/writerGuard.js', 'src/orchestrator/topicGroup.js', 'src/orchestrator/groundingAgent.js', 'src/orchestrator/conditionGuard.js', 'src/orchestrator/planAttribution.js']) assert.ok(lock.files[f], `${f} is fingerprinted`);
   assert.ok(!('prompts/writer-v4.txt' in lock.files), 'the archived v4 prompt is no longer the shipped one');
 });
