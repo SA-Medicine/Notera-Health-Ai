@@ -19,3 +19,20 @@ test('spoken words are removed from the plan and "your" becomes "the"', () => {
 });
 test('support score', () => { assert.ok(diagnosisSupport('Hypertension', new Set(['hyperten']) ) >= 0.6); assert.ok(diagnosisSupport('Vitamin B12 deficiency', new Set(['suppl'])) < 0.6); });
 test('a recommended supplement is a treatment, not advice', () => { assert.equal(classify('Recommended starting B12 supplements'), 'treat'); assert.equal(classify('Advised to rest'), 'advice'); });
+
+import { fixLaterality, sidesFor } from '../src/orchestrator/qualityGuards.js';
+test('a wrong side is corrected when the transcript names only one side for that part', () => {
+  const tx = "What other symptoms do you have in the left eye? Nothing? How often have you been using the Visine in that eye?";
+  const note = { subjective: { reason_for_visit: 'Right eye redness since last week\nRight eye: looks a little red' }, objective: {}, past_medical_history: {}, assessment_and_plan: [{ issue: 'Right eye redness and itchiness', treatment_planned: 'Stop Visine in the right eye' }] };
+  const fixes = fixLaterality(note, tx);
+  assert.equal(fixes.length, 4); assert.match(note.subjective.reason_for_visit, /^Left eye redness/); assert.equal(note.assessment_and_plan[0].issue, 'Left eye redness and itchiness'); assert.match(note.assessment_and_plan[0].treatment_planned, /left eye/);
+});
+test('both sides in the transcript, or a correct note, are left alone', () => {
+  const both = 'Pain in the left knee and some swelling in the right knee.';
+  const n1 = { subjective: { x: 'Right knee swelling' }, assessment_and_plan: [] }; assert.equal(fixLaterality(n1, both).length, 0); assert.equal(n1.subjective.x, 'Right knee swelling');
+  const n2 = { subjective: { x: 'Left eye redness' }, assessment_and_plan: [] }; assert.equal(fixLaterality(n2, 'left eye is red').length, 0);
+  assert.deepEqual([...sidesFor('my left eye and my right ear', 'eye')], ['left']);
+});
+test('qualifier words do not count against a diagnosis', () => {
+  const n = mk({ issue: 'Cataracts', diagnosis: 'Bilateral cataracts' }); qualityGuards(n, 'You have cataracts and surgery is planned.'); assert.equal(n.assessment_and_plan[0].diagnosis, 'Bilateral cataracts');
+});
