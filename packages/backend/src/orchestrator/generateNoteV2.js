@@ -40,6 +40,7 @@ import { joinPlanLines } from './planJoin.js';
 import { sweepPlan } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
+import { groupSubjective } from './topicGroup.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -703,6 +704,16 @@ export async function generateNoteV2(input, opts = {}) {
       for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim();
       note.metadata.subjective_style = 'topics';
       if (!/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(note.subjective.reason_for_visit || '').split('\n')[0].trim())) note.subjective.reason_for_visit = ('Presenting Complaint:\n' + String(note.subjective.reason_for_visit || '')).trim();
+    }
+    if (!sr.out && sr.why !== 'empty' && !/^error/.test(sr.why || '')) {   // fallback: group the existing Subjective lines under headings (nothing is reworded) when the rewrite was rejected every time
+      try {
+        const g = await groupSubjective(storyLlm, note.subjective, log);
+        if (g) {
+          note.subjective.hpi_details = g; note.metadata.subjective_style = 'topics';
+          if (!/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(note.subjective.reason_for_visit || '').split('\n')[0].trim())) note.subjective.reason_for_visit = ('Presenting Complaint:\n' + String(note.subjective.reason_for_visit || '')).trim();
+          sr.why = 'grouped (fallback)'; sr.grouped = true;
+        }
+      } catch (e) { log('[v2:story] fallback skipped — ' + e.message); }
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
