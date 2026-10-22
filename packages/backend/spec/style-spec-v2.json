@@ -160,6 +160,12 @@
       "section": "Note",
       "severity": "major",
       "text": "A left/right side that the recording does not name is flagged for the doctor to check, never changed silently."
+    },
+    {
+      "id": "G3",
+      "section": "Note",
+      "severity": "major",
+      "text": "No hallucination: a grounding agent checks every line against the transcript; a line the recording does not support is removed, a doubtful one is flagged for the doctor (\"Please check against the recording\")."
     }
   ],
   "supersedes": "1.0.0"

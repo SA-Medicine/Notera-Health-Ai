@@ -41,6 +41,7 @@ import { sweepPlan } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjective } from './topicGroup.js';
+import { groundNote } from './groundingAgent.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -723,6 +724,11 @@ export async function generateNoteV2(input, opts = {}) {
     const ts = Date.now();
     try { const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep'; const sw = await sweepPlan(sllm, note, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log(`[v2:sweep] skipped — ${e.message}`); }
     lap('sweep', ts);
+  }
+  if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0') {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
+    const tg = Date.now();
+    try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
+    lap('ground', tg);
   }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   if (!blank && cfg['ref.enabled']) {

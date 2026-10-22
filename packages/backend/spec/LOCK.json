@@ -1,6 +1,6 @@
 {
   "specVersion": "2.0.0",
-  "lockedAt": "2026-10-22T09:34:15.946Z",
+  "lockedAt": "2026-10-22T09:45:12.953Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
@@ -14,7 +14,8 @@
     "src/orchestrator/laterality.js": "31d732bc91137fdfbe64b656e7c0bdb60e8b7c7a674cf39f8cfcb3946c20a7dc",
     "src/orchestrator/adviceLines.js": "dd466d6a9e561f45059a467d8f7cdcd2b5b2f440884b92bebcaed0e3b3c8bedc",
     "src/orchestrator/writerGuard.js": "044611ae143d140c54b20b2d261daa82564fb4ec6562310d4bf9e97227c07000",
-    "src/orchestrator/topicGroup.js": "837283d0292d89e696da5e2110fb22a358828336d51740a803cb7d18de77567d"
+    "src/orchestrator/topicGroup.js": "837283d0292d89e696da5e2110fb22a358828336d51740a803cb7d18de77567d",
+    "src/orchestrator/groundingAgent.js": "49aa87f75541dfb8dc083a1d4b52e1a302e1c247f2257233ab2eb961afda520c"
   },
   "prompts": {
     "v2-writer": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",

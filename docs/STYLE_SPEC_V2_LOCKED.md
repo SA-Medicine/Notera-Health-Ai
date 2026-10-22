@@ -18,6 +18,7 @@ v2 = [Style Spec v1](STYLE_SPEC_V1_LOCKED.md) plus the changes below. Everything
 **Subjective** — recent ER or hospital visits, recent tests, what the patient already tried and medication adherence problems are included; if the story rewrite cannot be verified, the existing lines are grouped under topic headings (nothing reworded).
 **Objective** — imaging keeps the report's own wording of findings and impression.
 **Language** — Canadian spelling, metric units, numerals for numbers.
+**No hallucination (added 2026-10-22 on the owner's instruction)** — a *grounding agent* is the last model step: a separate call checks every line of the note against the transcript (drug names and doses, numbers, side and site, diagnoses, results, what was done in this visit). A line the model calls unsupported **and** whose key words are mostly missing from the transcript is removed; a doubtful line stays and the note is flagged "Please check against the recording". Every removal and flag is written to the note flags and the trace. `GROUNDING=0` switches it off.
 **Safety** — a left/right side that the recording does not name for that body part is **flagged** for the doctor ("Please check the side"), never changed silently.
 **Robustness (no format change)** — a writer draft with no plan or a repetition loop is retried once on the same model, then once on the fallback model.
 
@@ -25,11 +26,11 @@ v2 = [Style Spec v1](STYLE_SPEC_V1_LOCKED.md) plus the changes below. Everything
 Refills stay under the condition the drug treats (A5) · Past Medical History stays at about six bullets plus Medications (P1) · results of one panel stay on one line (O2) · bullets stay short clinical clauses.
 
 ## Pipeline in force
-writer (gemini-3.7-flash, prompt `prompts/writer-v5.txt`, 2 reference notes) ∥ checklist → (draft retry if no plan/loop) → merge → drug guard → chronic-in-PMH, template and placement guards, drug-plausibility flag → verifier → reviewer (editor) → story agent (topics; 3 tries, then grouping fallback) → repeated-fragment/result/plan tidy → address removal → investigation re-attach → assessment trimming → **quality guards (diagnosis, spoken words, side check)** → **plan sweep** → reference names → **labels joined** → render → **Advice / Follow-up lines**.
-Switches for emergencies only: `QUALITY_GUARDS=0`, `ADVICE_LINES=0`, `PLAN_SWEEP=0`, `PLAN_JOIN_LABELS=0`.
+writer (gemini-3.7-flash, prompt `prompts/writer-v5.txt`, 2 reference notes) ∥ checklist → (draft retry if no plan/loop) → merge → drug guard → chronic-in-PMH, template and placement guards, drug-plausibility flag → verifier → reviewer (editor) → story agent (topics; 3 tries, then grouping fallback) → repeated-fragment/result/plan tidy → address removal → investigation re-attach → assessment trimming → **quality guards (diagnosis, spoken words, side check)** → **plan sweep** → **grounding agent** → reference names → **labels joined** → render → **Advice / Follow-up lines**.
+Switches for emergencies only: `QUALITY_GUARDS=0`, `ADVICE_LINES=0`, `PLAN_SWEEP=0`, `PLAN_JOIN_LABELS=0`, `GROUNDING=0`.
 
 ## How the lock is enforced
-Same as v1: `ops.spec_lock` (database, fails closed), `specLock.js`, `spec/LOCK.json` + `test/specLock.test.mjs` (SHA-256 of the writer prompt `prompts/writer-v5.txt`, every prompt, shipped defaults of spec-shaping settings, the guards, the renderer, reference names **and the v2 code**: plan join, plan sweep, quality guards, laterality, advice lines, writer retry, topic grouping), `node scripts/spec-lock.mjs` (check; `write <version>` only with owner approval). Studio checks notes against `spec/style-spec-v2.json` (rules A8–A11, P5, G2 added).
+Same as v1: `ops.spec_lock` (database, fails closed), `specLock.js`, `spec/LOCK.json` + `test/specLock.test.mjs` (SHA-256 of the writer prompt `prompts/writer-v5.txt`, every prompt, shipped defaults of spec-shaping settings, the guards, the renderer, reference names **and the v2 code**: plan join, plan sweep, quality guards, laterality, advice lines, writer retry, topic grouping, grounding agent), `node scripts/spec-lock.mjs` (check; `write <version>` only with owner approval). Studio checks notes against `spec/style-spec-v2.json` (rules A8–A11, P5, G2, G3 added).
 
 ## Result on the 30 held-out transcripts (candidate v5f, lab)
 | | v1 pipeline | v2 |
