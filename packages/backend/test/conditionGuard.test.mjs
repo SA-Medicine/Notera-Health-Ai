@@ -35,3 +35,10 @@ test('only the inferred diseases are removed from PMH: an unsaid surgery or othe
   const r = conditionGuard(n, 'We talked about your back pain today.');
   assert.deepEqual(r.pmhRemoved, ['Hypertension', 'Borderline diabetes']); assert.equal(n.past_medical_history.medical_surgical, ['History of total abdominal hysterectomy', 'Sacroiliitis'].join('\n'));
 });
+
+test('whole-word title repair, cholesterol management counts as said, a condition line with a short note is still checked', () => {
+  const n = { metadata: {}, past_medical_history: { medical_surgical: 'Hypercholesterolemia - managed via Lifestyle Rx program' }, assessment_and_plan: [{ issue: 'Prediabetes' }] };
+  conditionGuard(n, 'The cholesterol management would be through the lifestyle program. Your sugar is okay.');
+  assert.equal(n.past_medical_history.medical_surgical, 'Hypercholesterolemia - managed via Lifestyle Rx program', 'cholesterol management was said'); assert.equal(n.assessment_and_plan[0].issue, 'Blood sugar');
+  const m = { metadata: {}, past_medical_history: { medical_surgical: 'Hypertension - on lifestyle program for now' }, assessment_and_plan: [] }; conditionGuard(m, 'We talked about your back.'); assert.equal(m.past_medical_history.medical_surgical, '');
+});

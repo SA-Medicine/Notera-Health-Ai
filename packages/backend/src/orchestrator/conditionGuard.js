@@ -11,15 +11,15 @@
 const ALIASES = [
   [/hypertens|\bblood pressure\b/i, /hypertens|high blood pressure|\b(candesartan|amlodipine|ramipril|perindopril|valsartan|losartan|metoprolol|bisoprolol|hydrochlorothiazide|lisinopril|irbesartan|telmisartan|olmesartan)\b/i],
   [/diabet|\bglyc/i, /diabet|\b(metformin|insulin|glipizide|gliclazide|jardiance|empagliflozin|ozempic|semaglutide|forxiga|dapagliflozin|januvia|sitagliptin)\b/i],
-  [/cholesterol|lipid/i, /(high|elevated|bad) cholesterol|hypercholesterol|hyperlipid|dyslipid|\b(statin|rosuvastatin|atorvastatin|simvastatin|crestor|lipitor|ezetimibe)\b/i],
+  [/cholesterol|lipid/i, /(high|elevated|bad) cholesterol|cholesterol (management|medication|treatment|problem|program)|hypercholesterol|hyperlipid|dyslipid|\b(statin|rosuvastatin|atorvastatin|simvastatin|crestor|lipitor|ezetimibe)\b/i],
   [/thyroid/i, /hypothyroid|hyperthyroid|underactive thyroid|overactive thyroid|\b(levothyroxine|synthroid|eltroxin)\b|thyroid (medication|pill|dose)/i],
   [/asthma|copd|emphysema/i, /asthma|copd|emphysema|\b(ventolin|salbutamol|symbicort|advair|flovent|puffer|inhaler)\b/i],
   [/depress|anxiety/i, /depress|anxiety|anxious|\b(cipralex|escitalopram|sertraline|zoloft|venlafaxine|effexor|fluoxetine|prozac|citalopram|lorazepam|ativan)\b/i],
 ];
 // when the disease is not said but its measurement is, the title names the measurement ("Diabetes" -> "Blood sugar" when sugars were discussed)
 const OBSERVABLE = [
-  [/diabet\w*/i, 'Blood sugar', /sugar|a1c|glucose/i],
-  [/hypertens\w*/i, 'Blood pressure', /blood pressure|\bbp\b/i],
+  [/\b\w*diabet\w*\b/i, 'Blood sugar', /sugar|a1c|glucose/i],
+  [/\b\w*hypertens\w*\b/i, 'Blood pressure', /blood pressure|\bbp\b/i],
   [/hypercholesterol\w*|hyperlipid\w*|dyslipid\w*/i, 'Cholesterol', /cholesterol|\bldl\b|lipid/i],
   [/hypothyroid\w*|hyperthyroid\w*/i, 'Thyroid', /thyroid|\btsh\b/i],
 ];
@@ -39,7 +39,7 @@ export function conditionSaid(text, transcript) {
   const have = new Set(WORDS(tx).map(STEM)); return ws.filter((w) => have.has(STEM(w))).length / ws.length >= 0.5;
 }
 
-const isConditionLine = (l) => { const s = String(l).trim(); return s.length >= 4 && s.split(/\s+/).length <= 6 && !/\d/.test(s) && !/^(medications?|allergies|preventive|occupation|social|family|lives|travel|no |never|denies)/i.test(s); };
+const isConditionLine = (l) => { const s = String(l).trim(); return s.length >= 4 && s.split(/\s+/).length <= 9 && !/\d/.test(s) && !/^(medications?|allergies|preventive|occupation|social|family|lives|travel|no |never|denies)/i.test(s); };
 
 export function conditionGuard(note, transcript, log = () => {}) {
   const out = { pmhRemoved: [], titlesChanged: [], titlesFlagged: [] };
