@@ -70,6 +70,21 @@ export function parseGround(raw) {
   return null;
 }
 
+/**
+ * A line may only be REMOVED when it carries a hard fact the recording does not contain: a number (dose, value, count) that is not in the
+ * transcript, a capitalised name (drug, place, person) that is not in the transcript, or an invented exam finding (an examination line whose
+ * key words are mostly absent). Soft lines (statuses such as "Improved", plain wording, a diagnosis word) are flagged at most, never removed.
+ */
+export function hardMissing(part, transcript) {
+  const T = spoken(transcript); const tokens = new Set(T.split(' ')); const TW = new Set(T.split(' ').map(stem));
+  const { nums } = keyWords(part.text);
+  if (nums.some((n) => !tokens.has(n))) return 'number';
+  const caps = (String(part.text).match(/(?<!^)(?<![.:]\s)\b[A-Z][a-z]{4,}\b/g) || []).filter((w) => !TW.has(stem(w.toLowerCase())));
+  if (caps.length) return 'name';
+  if (part.key === 'examination' && wordSupport(part.text, transcript) < 0.34) return 'exam';
+  return '';
+}
+
 /** Decide, in code, what to do with each model verdict. Pure. */
 export function decide(parts, verdicts, transcript) {
   const out = { remove: [], flag: [], doubtful: [], kept: 0 };
@@ -77,8 +92,9 @@ export function decide(parts, verdicts, transcript) {
   parts.forEach((p, idx) => {
     const v = byN.get(idx + 1); if (!v || v.verdict === 'supported') { out.kept++; return; }
     const support = wordSupport(p.text, transcript);
-    if (v.verdict === 'unsupported' && support < 0.5) out.remove.push({ idx, text: p.text, why: v.why || 'not in the transcript', support });
-    else if (support < FLAG_BELOW) out.flag.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // some of its key words really are missing from the recording
+    const hard = v.verdict === 'unsupported' && support < 0.5 && String(p.text).split(/\s+/).length >= 3 ? hardMissing(p, transcript) : '';
+    if (hard) out.remove.push({ idx, text: p.text, why: (v.why || 'not in the transcript') + ' [' + hard + ']', support, hard });
+    else if (v.verdict === 'unsupported' && support < 0.5) out.flag.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // some of its key words really are missing from the recording
     else out.doubtful.push({ idx, text: p.text, why: v.why || 'unclear', support, verdict: v.verdict });   // the model doubts it but its words are all in the recording: trace only
   });
   return out;

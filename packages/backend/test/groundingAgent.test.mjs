@@ -17,7 +17,9 @@ test('only unsupported lines whose words are missing are removed; doubtful ones 
   const n = mk(); const parts = collectParts(n);
   const verdicts = parts.map((p, i) => ({ n: i + 1, verdict: /Dexilant/.test(p.text) ? 'unsupported' : /tetanus/.test(p.text) ? 'unclear' : 'supported', why: 'not said' }));
   const d = decide(parts, verdicts, TX); assert.equal(d.remove.length, 2, 'both Dexilant lines'); assert.equal(d.flag.length, 0);
-  const d2 = decide(parts, parts.map((p, i) => ({ n: i + 1, verdict: 'unclear', why: 'ambiguous' })), TX); assert.ok(d2.flag.length > 0);
+  const d2 = decide(parts, parts.map((p, i) => ({ n: i + 1, verdict: 'unclear', why: 'ambiguous' })), TX); assert.equal(d2.remove.length, 0, 'unclear never removes'); assert.equal(d2.flag.length, 0, 'unclear is traced, not flagged');
+  const soft = [{ text: 'Improved', key: 'assessment', where: 'plan:x' }, { text: 'Hypothyroidism is present here', key: 'assessment', where: 'plan:x' }];
+  const d3 = decide(soft, soft.map((_, i) => ({ n: i + 1, verdict: 'unsupported', why: 'not said' })), TX); assert.equal(d3.remove.length, 0, 'a soft line (no number, no name, not an exam) is flagged at most'); assert.ok(d3.flag.length >= 1);
 });
 test('removal edits the note field by whole parts and keeps the rest', () => {
   const n = mk(); const parts = collectParts(n); const d = decide(parts, parts.map((p, i) => ({ n: i + 1, verdict: /Dexilant/.test(p.text) ? 'unsupported' : 'supported' })), TX);
@@ -51,4 +53,13 @@ test('the removal cap: when too many lines would go, none are removed and they a
   const n = { metadata: {}, subjective: { hpi_details: Array.from({ length: 10 }, (_, i) => `Invented symptom number ${i} xylophone`).join('\n') }, past_medical_history: {}, objective: {}, assessment_and_plan: [] };
   const llm = { generateContent: async (sys) => (sys === VERIFY_SYS ? JSON.stringify({ found: false, quote: '' }) : JSON.stringify({ doubtful: Array.from({ length: 10 }, (_, i) => ({ n: i + 1, verdict: 'unsupported', why: 'no' })) })) };
   const r = await groundNote(llm, n, 'The patient has a cough and fever.'); assert.equal(r.capped, true); assert.equal(r.removed.length, 0); assert.match(n.subjective.hpi_details, /Invented symptom number 3/); assert.equal(n.metadata.flags[0].type, 'check_against_recording');
+});
+
+import { hardMissing } from '../src/orchestrator/groundingAgent.js';
+test('hard facts: a number or a name that is not in the recording, or an invented exam finding', () => {
+  assert.equal(hardMissing({ text: 'Lyrica 75 mg once daily', key: 'treatment_planned' }, 'we talked about Lyrica and gabapentin'), 'number');
+  assert.equal(hardMissing({ text: 'Prescribed Horizant at night', key: 'treatment_planned' }, 'we talked about Lyrica'), 'name');
+  assert.equal(hardMissing({ text: 'Lungs clear to auscultation bilaterally', key: 'examination' }, 'let us talk about your cough'), 'exam');
+  assert.equal(hardMissing({ text: 'Improved', key: 'assessment' }, 'anything'), '');
+  assert.equal(hardMissing({ text: 'Continue Lyrica daily', key: 'treatment_planned' }, 'continue the Lyrica daily'), '');
 });
