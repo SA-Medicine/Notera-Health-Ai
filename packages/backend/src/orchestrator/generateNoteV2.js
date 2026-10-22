@@ -36,6 +36,7 @@ import { effectiveConfig } from './runtimeConfig.js';
 import { pickExemplars, exemplarBlock } from './exemplars.js';
 import { guardDrugNames } from './drugGuard.js';
 import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
+import { joinPlanLines } from './planJoin.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -705,6 +706,7 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:ref] skipped — ${e.message}`); }
     lap('ref', tr);
   }
+  if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0') { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedNote = noteToMarkdown(note);
 
   // 5) persist -------------------------------------------------------------------
