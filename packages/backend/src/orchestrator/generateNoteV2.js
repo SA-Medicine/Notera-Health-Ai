@@ -615,12 +615,20 @@ export async function generateNoteV2(input, opts = {}) {
         const issue = writerDraftIssue(out, transcript);
         if (issue) {
           log(`[v2:writer] unusable draft (${issue === 'loop' ? 'repetition loop' : 'no Assessment & Plan'}) — retrying once on the same model`);
-          let again = null; const tr = Date.now();
-          try { again = parseJson(await writerLlm.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: Math.max(0.4, Number(writerOpts.temperature) || 0), retries: 0, hedgeMs: 0 })); } catch (e) { log(`[v2:writer] draft retry failed — ${e.message}`); }
-          const pick = pickDraft(out, again, transcript); lap('writer-retry', tr);
-          log(`[v2:writer] draft retry: kept the ${pick.used} (${pick.before || 'ok'} -> ${pick.after || 'ok'})`);
-          if (opts.trace) opts.trace.writer_retry = { reason: issue, used: pick.used, after: pick.after || 'ok', first_draft: out };
-          out = pick.draft;
+          const tr = Date.now(); const first = out; let used = 'original', last = issue;
+          // attempt 1: same model, a little warmer and with a repetition penalty; attempt 2 (only if still unusable): the fallback model at temperature 0, as for unparseable JSON
+          const attempts = [
+            ['same model', () => writerLlm.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: Math.max(0.4, Number(writerOpts.temperature) || 0), frequencyPenalty: 0.4, timeoutMs: Math.min(45000, writerOpts.timeoutMs || 45000), retries: 0, hedgeMs: 0 })],
+            ['fallback model', async () => { const l = await createGeminiService(null, { model: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite' }); l._agent = 'v2-writer'; return l.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: 0, thinkingBudget: 0, fallbackModel: undefined, retries: 0, hedgeMs: 0, timeoutMs: 45000 }); }],
+          ];
+          for (const [name, run] of attempts) {
+            if (!last) break;
+            let again = null; try { again = parseJson(await run()); } catch (e) { log(`[v2:writer] draft retry (${name}) failed — ${e.message}`); }
+            const pick = pickDraft(out, again, transcript); log(`[v2:writer] draft retry (${name}): kept the ${pick.used} (${pick.before || 'ok'} -> ${pick.after || 'ok'})`);
+            if (pick.used === 'retry') { out = pick.draft; used = name; } last = writerDraftIssue(out, transcript);
+          }
+          lap('writer-retry', tr);
+          if (opts.trace) opts.trace.writer_retry = { reason: issue, used, after: last || 'ok', first_draft: first };
         }
       }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
