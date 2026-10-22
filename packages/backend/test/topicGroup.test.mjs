@@ -34,3 +34,8 @@ test('the fallback also groups history that sits in the other Subjective fields'
   assert.deepEqual(g.moved.sort(), ['functional_impact', 'symptom_progression']);
   assert.equal(await groupSubjectiveFields(llm, { hpi_details: 'one\ntwo' }), null);
 });
+
+test('a group called Presenting Complaint is renamed, never a second one', () => {
+  const t = buildGrouped(['Cough', 'Fever', 'Sore throat'], [{ heading: 'Presenting Complaint', lines: [1, 2] }, { heading: 'Throat', lines: [3] }]);
+  assert.ok(!/Presenting Complaint/i.test(t)); assert.match(t, /^History:\nCough\nFever\nThroat:\nSore throat$/);
+});

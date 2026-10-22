@@ -6,7 +6,7 @@
 const isHead = (l) => /^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(l).trim());
 export const GROUP_SYS = `You group the lines of a clinic note's Subjective section under topic headings. You do NOT rewrite anything.
 You receive numbered lines. Return ONLY JSON: {"groups":[{"heading":"","lines":[1,2]}]}.
-Rules: every line number appears in exactly one group; one group per symptom or problem (for example "Abdominal Pain", "Cough", "Heartburn", "Thyroid Symptoms", "Medication Review"), 2 to 6 groups, 1 to 4 words each, plain medical names, no colon; put the lines that say why the patient came or what was reviewed in the first group named "Presenting Complaint"; keep the original order of lines inside a group; order the groups by first appearance.`;
+Rules: every line number appears in exactly one group; one group per symptom or problem (for example "Abdominal Pain", "Cough", "Heartburn", "Thyroid Symptoms", "Medication Review"), 2 to 6 groups, 1 to 4 words each, plain medical names, no colon; do NOT make a group called "Presenting Complaint" (the reason for the visit is kept elsewhere); keep the original order of lines inside a group; order the groups by first appearance.`;
 
 export function buildGrouped(lines, groups) {
   const n = lines.length; const used = new Set(); const out = [];
@@ -18,6 +18,7 @@ export function buildGrouped(lines, groups) {
   if (!out.length) return null;
   const missing = lines.map((_, i) => i + 1).filter((i) => !used.has(i));
   if (missing.length) { const last = out[out.length - 1]; last.idx.push(...missing); last.idx.sort((a, b) => a - b); }   // never lose a line
+  for (const g of out) if (/^presenting complaints?$/i.test(g.heading)) g.heading = 'History';   // never a second Presenting Complaint
   return out.map((g) => `${g.heading}:\n${g.idx.map((i) => lines[i - 1]).join('\n')}`).join('\n');
 }
 

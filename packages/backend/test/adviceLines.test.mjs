@@ -21,3 +21,8 @@ test('a follow-up reason without a timeframe stays in treatment; advice loses it
   const o = splitAdviceLines(['### Assessment & Plan', '1. **A**', '   - Treatment planned: Advised to increase daily water intake; Follow-up for labs'].join('\n'));
   assert.match(o, /Advice: Increase daily water intake/); assert.match(o, /Treatment planned: Follow-up for labs/);
 });
+
+test('a follow-up with a month or a weekday is a follow-up', () => {
+  assert.equal(classify('Follow-up: July'), 'follow'); assert.equal(classify('Rtc: next Wednesday'), 'follow'); assert.equal(classify('Follow-up for labs'), 'treat');
+  const o = splitAdviceLines(['### Assessment & Plan', '1. **A**', '   - Treatment planned: Prescription for antibiotics; Follow-up: July'].join('\n')); assert.match(o, /Treatment planned: Prescription for antibiotics\n   - Follow-up: July/);
+});
