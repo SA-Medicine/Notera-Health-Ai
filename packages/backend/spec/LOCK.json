@@ -1,16 +1,23 @@
 {
-  "specVersion": "1.0.0",
-  "lockedAt": "2026-10-20T13:27:07.724Z",
-  "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V1_LOCKED.md",
+  "specVersion": "2.0.0",
+  "lockedAt": "2026-10-22T09:34:15.946Z",
+  "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
-    "prompts/writer-v4.txt": "8e32e0b6b02249654ccd221a66c01612fb6fa21c2622e4e62fa8f8fbb19a30d0",
+    "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
     "src/orchestrator/postGuards.js": "4b4b090b14631ac8378a2220e66901a74f90477b8e7a58e87fffb9ab911e8b4f",
     "src/orchestrator/renderMarkdown.js": "b42adcd6d5f1411974d508867f185112172126c97dadc0aae25b2c351771ac86",
     "src/orchestrator/refNames.js": "abd0818430235c0479070688462a0bf78045b467975ba3bdf7f6f420a594b3ef",
-    "src/orchestrator/specLock.js": "b4f57985115bdadc4b5ee19e7058d28771cc7c5166bec4cfff2da8febf29163d"
+    "src/orchestrator/specLock.js": "fdb0bea4d12b6f7080d7d648d5e61aaca6245c3cf4dd6e6238fa126d7e8feb66",
+    "src/orchestrator/planJoin.js": "cf4130c90593354566360984494c2850edd10b737cc8c1efe24ef2d48993f3e1",
+    "src/orchestrator/planSweep.js": "82fcec72283d9b5d63f9348f57ec2b38d08a3fde5dbe62a917985150e236440e",
+    "src/orchestrator/qualityGuards.js": "e7052f5aa6354b6c9e63b137633f5d93243d4a971b120ce01003023b25438aec",
+    "src/orchestrator/laterality.js": "31d732bc91137fdfbe64b656e7c0bdb60e8b7c7a674cf39f8cfcb3946c20a7dc",
+    "src/orchestrator/adviceLines.js": "dd466d6a9e561f45059a467d8f7cdcd2b5b2f440884b92bebcaed0e3b3c8bedc",
+    "src/orchestrator/writerGuard.js": "044611ae143d140c54b20b2d261daa82564fb4ec6562310d4bf9e97227c07000",
+    "src/orchestrator/topicGroup.js": "837283d0292d89e696da5e2110fb22a358828336d51740a803cb7d18de77567d"
   },
   "prompts": {
-    "v2-writer": "8e32e0b6b02249654ccd221a66c01612fb6fa21c2622e4e62fa8f8fbb19a30d0",
+    "v2-writer": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
     "v2-checklist": "2f260afc28d46b8fa0d36fc6e472957c82ecf0c0ef58ac74ae14824951db44b5",
     "v2-editor": "ba1dba004e23065ac67ec788bf0db22d9adda2c82c00a9a33505d2dd6b9654da",
     "v2-story": "c3240779c853479a0375c9b1679742040eb9b617f4b735f901e0b8c706b230a3",

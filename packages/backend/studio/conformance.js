@@ -1,11 +1,11 @@
-// Style Spec v1 conformance: deterministic checks of a RENDERED note (what the doctor reads) against the approved rules in
-// spec/style-spec-v1.json. Pure functions, no model call, no side effects — Studio uses them to score every note and to run the gate.
+// Style Spec v2 conformance: deterministic checks of a RENDERED note (what the doctor reads) against the approved rules in
+// spec/style-spec-v2.json. Pure functions, no model call, no side effects — Studio uses them to score every note and to run the gate.
 'use strict';
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const SPEC = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../spec/style-spec-v1.json', import.meta.url)), 'utf8'));
+export const SPEC = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../spec/style-spec-v2.json', import.meta.url)), 'utf8'));
 const RULE = Object.fromEntries(SPEC.rules.map((r) => [r.id, r]));
 
 const STOP = new Set('with that this from will have been were also after about their there which patient today planned your should would please'.split(' '));
@@ -89,6 +89,10 @@ export function conformance(rendered) {
     const ref = plan.find((p) => /^(medication\s+)?(refills?|renewals?)\b/i.test(p.title)); check('A5', !ref, ref ? `problem "${ref.title}"` : '');
     const fu = plan.find((p) => /^follow[\s-]?up\b/i.test(p.title)); check('A6', !fu, fu ? `problem "${fu.title}"` : '');
     const sym = plan.find((p) => { const d = p.items.find((i) => /^diagnosis$/i.test(i.label)); return d && SYMPTOM.test(d.text) && d.text.toLowerCase().includes(p.title.toLowerCase().slice(0, 12)); }); check('A7', !sym, sym ? `"${sym.title}"` : '');
+    const LAB = /^(investigations planned|treatment planned|referrals|advice|follow-?up)$/i;
+    const rep = plan.find((p) => { const c = {}; for (const i of p.items) if (LAB.test(i.label)) { const k = i.label.toLowerCase().replace('-', ''); c[k] = (c[k] || 0) + 1; } return Object.values(c).some((n) => n > 1); }); check('A8', !rep, rep ? `problem "${rep.title}" repeats a label` : '');
+    const adv = plan.flatMap((p) => p.items.filter((i) => /^treatment planned$/i.test(i.label) && /(^|;\s*)(advised|counsel+ed|return if)\b/i.test(i.text)).map((i) => i.text)); check('A9', adv.length === 0, adv[0] ? `"${adv[0].slice(0, 70)}"` : '');
+    const fup = plan.flatMap((p) => p.items.filter((i) => /^treatment planned$/i.test(i.label) && /(^|;\s*)(rtc|follow[\s-]?up|return (to clinic )?in)\b/i.test(i.text)).map((i) => i.text)); check('A10', fup.length === 0, fup[0] ? `"${fup[0].slice(0, 70)}"` : '');
   }
   const all = String(rendered || ''); check('G1', !NOT_MENTIONED.test(all), (all.match(NOT_MENTIONED) || [''])[0]);
 

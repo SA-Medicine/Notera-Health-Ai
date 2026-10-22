@@ -1,4 +1,4 @@
-# Style Spec v1 — LOCKED (doctor-approved)
+# Style Spec v1 — SUPERSEDED by [Style Spec v2](STYLE_SPEC_V2_LOCKED.md) on 2026-10-22 (kept as history; v2 includes everything here that it does not change)
 
 **Hard rule, set by the owner on 2026-10-20: the note format below is final for now. Nothing may change it until the owner explicitly says to.**
 It was built live with the training doctor's answers on a real consultation and validated on 100 unseen notes

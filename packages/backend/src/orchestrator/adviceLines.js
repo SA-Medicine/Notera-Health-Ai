@@ -1,8 +1,8 @@
-// F4 (candidate, OFF by default): show advice and follow-up as their own lines under a problem, as the gold notes and the doctor's
+// Style Spec v2: show advice and follow-up as their own lines under a problem, as the gold notes and the doctor's
 // profile ask ("safety-netting advice, patient refusals and return precautions in the plan under the relevant problem",
 // "follow-up with a timeframe"). Works on the rendered Markdown after the plan labels were joined: it only moves parts of the
 // "Treatment planned:" line into "Advice:" and "Follow-up:" lines; no wording is added or removed except the redundant
-// "Rtc:" / "Follow-up:" prefix. Enabled per call (opts.adviceLines) or with ADVICE_LINES=1. Part of the proposed Style Spec change, not yet approved.
+// "Rtc:" / "Follow-up:" prefix. Part of Style Spec v2 (approved by the owner 2026-10-22). On by default; opts.adviceLines=false or ADVICE_LINES=0 switches it off.
 'use strict';
 
 const FOLLOW = /^(rtc\b|follow[\s-]?up\b|return (to (the )?clinic )?in\b|recheck\b|review in\b|see (me|you)( again)? in\b|revisit\b|next visit\b)/i;

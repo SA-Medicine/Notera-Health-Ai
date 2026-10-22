@@ -1,9 +1,9 @@
-// Two deterministic checks on the Assessment & Plan, from the candidate-v5 review of 2026-10-22 (candidate, OFF by default):
+// Two deterministic checks on the Assessment & Plan, from the candidate-v5 review of 2026-10-22 (Style Spec v2):
 //  1. DIAGNOSIS MUST BE THE CLINICIAN'S: Style Spec v1 says "Diagnosis: only if the clinician named one". A "Diagnosis:" whose key words
 //     are mostly absent from the transcript (e.g. "Vitamin B12 deficiency" when the doctor said "your B12 is low") is cleared; the problem title stays.
 //  2. NO SPOKEN WORDS IN THE PLAN: lines copied from speech ("And you did that for seven days") are removed from the plan fields,
 //     and "your kidneys" becomes "the kidneys". Nothing else is reworded.
-// Enabled per call (opts.qualityGuards) or with QUALITY_GUARDS=1.
+// Part of Style Spec v2 (approved by the owner 2026-10-22). On by default; opts.qualityGuards=false or QUALITY_GUARDS=0 switches it off.
 'use strict';
 
 import { checkLaterality } from './laterality.js';

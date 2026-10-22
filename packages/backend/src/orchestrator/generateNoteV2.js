@@ -184,7 +184,7 @@ Completeness means no clinical fact is left out; it does not mean longer sentenc
 // the earlier hand-written prompt below is only the fallback if that file is missing.
 let _v3 = null;
 export function defaultWriterPrompt() {
-  if (_v3 === null) { try { _v3 = fs.readFileSync(new URL('../../prompts/writer-v4.txt', import.meta.url), 'utf8').replace(/\r/g, '').trim(); } catch { _v3 = ''; } }
+  if (_v3 === null) { try { _v3 = fs.readFileSync(new URL('../../prompts/writer-v5.txt', import.meta.url), 'utf8').replace(/\r/g, '').trim(); } catch { _v3 = ''; } }
   return _v3 || `${WRITER_SYS}\n\n${clinicRules()}\n\n${COMPLETENESS_RULES}`;
 }
 
@@ -718,7 +718,7 @@ export async function generateNoteV2(input, opts = {}) {
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
-  if (!blank && (opts.qualityGuards === true || process.env.QUALITY_GUARDS === '1')) { try { const q = qualityGuards(note, transcript, log); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // candidate: Diagnosis only if the clinician said it, no spoken words in the plan
+  if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0')) { try { const q = qualityGuards(note, transcript, log); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off)
   if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1: one problem per issue — add an addressed issue that no problem covers (quote-checked, additions only)
     const ts = Date.now();
     try { const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep'; const sw = await sweepPlan(sllm, note, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log(`[v2:sweep] skipped — ${e.message}`); }
@@ -735,7 +735,7 @@ export async function generateNoteV2(input, opts = {}) {
     lap('ref', tr);
   }
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0') { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
-  const renderedNote = (!blank && (opts.adviceLines === true || process.env.ADVICE_LINES === '1')) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // F4 candidate: advice and follow-up as their own lines (off by default, not yet approved)
+  const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0')) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
 
   // 5) persist -------------------------------------------------------------------
   const draftId = `DRAFT-${Date.now()}`;

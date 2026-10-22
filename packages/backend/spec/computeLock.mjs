@@ -12,11 +12,18 @@ export const LOCK_FILE = path.join(HERE, 'LOCK.json');
 const sha = (t) => crypto.createHash('sha256').update(String(t).replace(/\r\n/g, '\n')).digest('hex');
 
 export const LOCKED_FILES = [
-  'prompts/writer-v4.txt',
+  'prompts/writer-v5.txt',
   'src/orchestrator/postGuards.js',
   'src/orchestrator/renderMarkdown.js',
   'src/orchestrator/refNames.js',
   'src/orchestrator/specLock.js',
+  'src/orchestrator/planJoin.js',
+  'src/orchestrator/planSweep.js',
+  'src/orchestrator/qualityGuards.js',
+  'src/orchestrator/laterality.js',
+  'src/orchestrator/adviceLines.js',
+  'src/orchestrator/writerGuard.js',
+  'src/orchestrator/topicGroup.js',
 ];
 
 export async function computeFingerprint() {

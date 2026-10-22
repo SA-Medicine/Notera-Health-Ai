@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-// STYLE SPEC v1 — HARD LOCK.
+// STYLE SPEC v2 — HARD LOCK (v2 approved by the owner on 2026-10-22; v1 was approved 2026-10-20). The unlock phrase stays "UNLOCK STYLE SPEC v1".
 // The note format that the owner built together with the training doctor (topic-headed Subjective, compact PMH with a
 // Medications line, one problem per issue, plain titles, assessment only as the clinician's conclusion, refills under the
 // condition, grouped Objective, reference names, reviewer + story stages) is APPROVED and FROZEN.
@@ -14,7 +14,7 @@
 
 import { query, one } from '../db/pool.js';
 
-export const SPEC_VERSION = '1.0.0';
+export const SPEC_VERSION = '2.0.0';
 export const UNLOCK_PHRASE = 'UNLOCK STYLE SPEC v1';
 
 let _ready = null;
