@@ -7,12 +7,13 @@
 //   * its prompt lives in this file and is not part of the locked prompt registry. Off switch: PLAN_SWEEP=0.
 'use strict';
 
-export const MAX_ADDITIONS = 4;
+export const MAX_ADDITIONS = 2;
 
 export const SWEEP_SYS = `You check whether the Assessment & Plan of a clinic note leaves out an issue the clinician actually addressed. Be thorough: small issues are exactly what gets missed.
 You receive the TRANSCRIPT and the PROBLEMS ALREADY IN THE PLAN (title and lines).
 STEP 1 - go through the transcript from start to end and list every topic the CLINICIAN dealt with: a result or finding they commented on (even "that is fine" or "a little high"), a long-term condition they reviewed or whose medicine they refilled, a screening (mammogram, Pap, colon, PSA), a vaccine given or due, a request they handled (prescription, referral, therapy, brace, form, note), and any advice or plan they gave. For each topic say which existing problem covers it ("covered_by": the problem title) or "none".
 STEP 2 - for every topic with covered_by "none", write an addition. A topic is covered only if an existing problem's title or plan lines actually record it.
+An addition is an ISSUE the clinician DID something about (ordered, prescribed, refilled, advised, vaccinated, screened, referred, wrote a form). It is NOT: a lab or test name ("Hemoglobin", "Blood test results", "Complete Blood Count"), a drug name ("Zoloft"), a "review", "history", "allergies", "diet", or an exam finding. If the only thing said is that a result was normal, it is not an addition. Prefer fewer, surer additions: a normal day has 0-1.
 Rules for additions: you must be able to quote the transcript words that show it (copy them exactly, 6-25 words, from the clinician or the patient's confirmed request); do NOT add follow-up or return visits as their own problem, a symptom an existing problem already explains, anything not in the transcript, or a diagnosis the clinician did not name. Several small results in one panel may share one addition only if the clinician treated them as one issue.
 Each addition uses plain short lines, each fact once, only what the transcript supports:
  "title": the plain name of the issue (a condition, a result, a screening, a vaccine, a request), never "rule out", "suspected" or a list of causes; forms and permits go under the title "Administrative";
@@ -36,11 +37,13 @@ export function parseSweep(raw) {
   try { const j = JSON.parse(String(raw).replace(/^```json|```$/g, '').trim()); return Array.isArray(j?.additions) ? j.additions : []; } catch { return []; }
 }
 
+const NOT_AN_ISSUE = /\b(results?|review|panel|levels?|tests?|count|function|medications?|allerg\w*|history|diet|exam|examination|findings?|status|labs?|bloodwork|summary|egfr|ldl|hdl|hemoglobin|haemoglobin|cbc|bmp|cmp)\b/i;
+const isDrugOfNote = (title, note) => { const meds = norm((note?.past_medical_history || {}).medications || ''); const t = norm(title); return !!t && t.split(' ').length <= 2 && meds.includes(t); };
 const FIELDS = ['assessment', 'investigations_planned', 'treatment_planned', 'referrals'];
 const planText = (p) => [p.issue, p.diagnosis, p.assessment, p.investigations_planned, p.treatment_planned, p.referrals].filter(Boolean).join(' ');
 
 /** Which proposed additions survive the checks. Pure: returns the problems to append and the reasons for the rest. */
-export function acceptAdditions(additions, existing, transcript) {
+export function acceptAdditions(additions, existing, transcript, note = null) {
   const tx = norm(transcript); const keep = []; const dropped = [];
   for (const a of additions || []) {
     const title = String(a?.title || '').replace(/\*\*/g, '').trim();
@@ -49,11 +52,12 @@ export function acceptAdditions(additions, existing, transcript) {
     if (/^(follow.?up|return visit|rtc|next visit)\b/i.test(title)) { dropped.push({ title, why: 'follow-up is not a problem' }); continue; }
     if (/\b(rule out|suspected|query|vs\.?|versus|\?)/i.test(title)) { dropped.push({ title, why: 'title is a differential' }); continue; }
     if (!quoted(a.evidence, tx)) { dropped.push({ title, why: 'quote not found in the transcript' }); continue; }
+    if (NOT_AN_ISSUE.test(title) || isDrugOfNote(title, note)) { dropped.push({ title, why: 'a test, drug or review is not an issue' }); continue; }
     const covered = [...existing, ...keep].some((p) => overlap(p.issue || p.title || '', title) >= 0.6 || (overlap(planText(p), title) >= 0.5 && toks(title).size >= 2));
     if (covered) { dropped.push({ title, why: 'already covered' }); continue; }
     const item = { issue: title, diagnosis: '', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: '', referrals: '', _sweep: true };
     for (const f of FIELDS) item[f] = String(a[f] || '').replace(/\*\*/g, '').trim();
-    if (!FIELDS.some((f) => item[f])) { dropped.push({ title, why: 'nothing to record' }); continue; }
+    if (!['investigations_planned', 'treatment_planned', 'referrals'].some((f) => item[f])) { dropped.push({ title, why: 'no action taken' }); continue; }
     keep.push(item);
   }
   return { keep, dropped };
@@ -65,7 +69,7 @@ export async function sweepPlan(llm, note, transcript, log = () => {}, { timeout
   const listing = existing.map((p, i) => `${i + 1}. ${p.issue || ''}\n${[p.diagnosis && `Diagnosis: ${p.diagnosis}`, p.assessment, p.investigations_planned && `Investigations: ${p.investigations_planned}`, p.treatment_planned && `Treatment: ${p.treatment_planned}`, p.referrals && `Referrals: ${p.referrals}`].filter(Boolean).join('\n')}`).join('\n\n') || '(no problems yet)';
   const raw = await llm.generateContent(SWEEP_SYS, `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nPROBLEMS ALREADY IN THE PLAN:\n${listing}\n\nReturn ONLY the JSON.`, null,
     { maxOutputTokens: 4000, temperature: 0, timeoutMs, retries: 1, hedgeMs: 0, thinkingBudget: 1024, responseMimeType: 'application/json' });
-  const proposed = parseSweep(raw); const { keep, dropped } = acceptAdditions(proposed, existing, transcript);
+  const proposed = parseSweep(raw); const { keep, dropped } = acceptAdditions(proposed, existing, transcript, note);
   for (const k of keep) { delete k._sweep; existing.push(k); }
   note.assessment_and_plan = existing;
   if (proposed.length) log(`[v2:sweep] ${keep.length} problem(s) added${keep.length ? ': ' + keep.map((k) => k.issue).join(' | ') : ''}${dropped.length ? ` · ${dropped.length} dropped (${dropped.map((d) => d.why).join(', ')})` : ''}`);

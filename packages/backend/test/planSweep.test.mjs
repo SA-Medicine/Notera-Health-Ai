@@ -33,3 +33,14 @@ test('the stage appends to the plan, leaves existing problems untouched, and log
   assert.deepEqual(r.added, ['Mildly elevated cholesterol', 'Breast cancer screening']); assert.equal(note.assessment_and_plan.length, 3); assert.equal(JSON.stringify(note.assessment_and_plan[0]), before);
   assert.ok(logs[0].includes('[v2:sweep] 2 problem(s) added'));
 });
+
+test('tests, drugs, reviews and additions with no action are not issues', () => {
+  const tx = 'We refilled the Zoloft today. Your hemoglobin looks fine. You are due for a mammogram after October.';
+  const q = { evidence: 'You are due for a mammogram after October' };
+  const note = { past_medical_history: { medications: 'Zoloft 50 mg daily' } };
+  assert.equal(acceptAdditions([{ title: 'Hemoglobin', treatment_planned: 'x', ...q }], [], tx, note).keep.length, 0);
+  assert.equal(acceptAdditions([{ title: 'Blood test results', treatment_planned: 'x', ...q }], [], tx, note).keep.length, 0);
+  assert.equal(acceptAdditions([{ title: 'Zoloft', treatment_planned: 'refilled', ...q }], [], tx, note).keep.length, 0, 'a drug of the note is not an issue');
+  assert.equal(acceptAdditions([{ title: 'Breast cancer screening', assessment: 'Due', ...q }], [], tx, note).keep.length, 0, 'an assessment alone, with no action, is not added');
+  assert.equal(acceptAdditions([{ title: 'Breast cancer screening', investigations_planned: 'Mammogram after October', ...q }], [], tx, note).keep.length, 1);
+});
