@@ -30,6 +30,21 @@ export function cleanSpeech(text) {
   return { text: kept.join('; '), removed: parts.length - kept.length };
 }
 
+// ── third parties: Style Spec v1 "document only the PATIENT" (a partner's age, surgery, therapy or ex-wife is not the patient's history) ──
+const THIRD = /\b(partner|boyfriend|girlfriend|husband|wife|ex[- ]?(wife|husband|partner|boyfriend|girlfriend)|fianc[eé]e?|friend|neighbou?r|colleague|co-?worker|boss|in-laws?|step-?(son|daughter|child|children))\b/i;
+const SOCIAL_OK = /\b(lives? with|living with|married|single|divorced|widow(ed)?|separated|common[- ]law|in a relationship|partnered)\b/i;
+export function thirdPartyLine(line) { const l = String(line || '').trim(); return !!l && THIRD.test(l) && !(SOCIAL_OK.test(l) && l.split(/\s+/).length <= 8); }
+export function dropThirdParty(note, log = () => {}) {
+  const removed = [];
+  for (const sec of ['past_medical_history']) for (const k of Object.keys(note?.[sec] || {})) {
+    const v = note[sec][k]; if (typeof v !== 'string' || !v.trim()) continue;
+    const keep = []; for (const l of v.split('\n')) { if (thirdPartyLine(l)) removed.push(l.trim()); else keep.push(l); }
+    if (keep.length !== v.split('\n').length) note[sec][k] = keep.join('\n');
+  }
+  if (removed.length) log('[v2:quality] ' + removed.length + ' line(s) about other people removed from Past Medical History (' + removed.map((x) => x.slice(0, 50)).join(' | ') + ')');
+  return removed;
+}
+
 export function qualityGuards(note, transcript, log = () => {}, o = {}) {
   const T = new Set(content(spoken(transcript))); const out = { dxCleared: [], speechRemoved: 0 };
   for (const it of note?.assessment_and_plan || []) {
@@ -42,6 +57,7 @@ export function qualityGuards(note, transcript, log = () => {}, o = {}) {
       if (!it[f]) continue; const r = cleanSpeech(it[f]); if (r.removed || r.text !== it[f].split('\n').join('; ')) { out.speechRemoved += r.removed; it[f] = r.text; }
     }
   }
+  if (o.thirdParty !== false) out.thirdParty = dropThirdParty(note, log);
   if (o.conditions !== false) out.conditions = conditionGuard(note, transcript, log);   // o.conditions=false (opts.conditionGuard=false / CONDITION_GUARD=0) lets the lab compare with and without it
   out.laterality = checkLaterality(note, transcript);
   if (out.laterality.length) {

@@ -172,6 +172,18 @@
       "section": "Past Medical History",
       "severity": "major",
       "text": "(Built, off by default after the 2026-10-22 paired A/B.) A condition (and a problem title that names a disease) is only in the note if the recording says it, or says the drug that proves it. A result alone (\"sugars 6.1\") never makes a diagnosis; the title then names the measurement (\"Blood sugar\")."
+    },
+    {
+      "id": "A12",
+      "section": "Assessment & Plan",
+      "severity": "major",
+      "text": "Every investigation, treatment and referral sits under the problem it is for; an item is moved only when the transcript shows where it belongs (quoted), and its wording never changes."
+    },
+    {
+      "id": "P7",
+      "section": "Past Medical History",
+      "severity": "major",
+      "text": "Past Medical History describes the patient only: a partner's age, surgery or therapy, or an ex-wife, is not the patient's history (family history of the patient and the patient's own social line stay)."
     }
   ],
   "supersedes": "1.0.0"

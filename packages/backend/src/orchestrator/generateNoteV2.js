@@ -42,6 +42,7 @@ import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjectiveFields } from './topicGroup.js';
 import { groundNote } from './groundingAgent.js';
+import { askAttribution, applyAttribution } from './planAttribution.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -700,6 +701,10 @@ export async function generateNoteV2(input, opts = {}) {
   try { condenseNote(note, {}, log); } catch (e) { log(`[v2] condense skipped: ${e.message}`); }
   try { note = reconcileNote(note); } catch { /* */ }
   try { dedupeNote(note, { log }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
+  let attrAnswer = null;   // plan attribution (Style Spec v2): asked beside the story agent, applied to the final note below
+  if (!blank && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0') {
+    try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
+  }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
   if (!blank && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
@@ -725,7 +730,8 @@ export async function generateNoteV2(input, opts = {}) {
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
-  if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0')) { try { const q = qualityGuards(note, transcript, log, { conditions: opts.conditionGuard === true || process.env.CONDITION_GUARD === '1' }); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off). The condition guard (unsaid diseases out of PMH/titles) is OFF by default since the paired A/B of 2026-10-22 (CONDITION_GUARD=1 turns it on)
+  if (attrAnswer) { try { const at = applyAttribution(note, await attrAnswer, transcript, log); if (opts.trace) opts.trace.attribution = at; } catch (e) { log('[v2:attr] skipped — ' + e.message); } }
+  if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0')) { try { const q = qualityGuards(note, transcript, log, { conditions: opts.conditionGuard === true || process.env.CONDITION_GUARD === '1', thirdParty: opts.thirdParty !== false && process.env.THIRD_PARTY !== '0' }); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off). The condition guard (unsaid diseases out of PMH/titles) is OFF by default since the paired A/B of 2026-10-22 (CONDITION_GUARD=1 turns it on)
   if (sweepAnswer) {   // F1: one problem per issue — merge what the early sweep found (quote-checked, additions only) into the final note
     const ts = Date.now();
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
