@@ -148,8 +148,8 @@ export async function groundNote(llm, note, transcript, log = () => {}, { timeou
   }
   const removed = applyRemovals(parts, removeNow);
   const flags = [];
-  if (removeNow.length) flags.push({ type: 'removed_unsupported', field: 'note', message: `${removeNow.length} line(s) the recording does not support were removed: ${removeNow.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '"').join('; ')}`, severity: 'info' });
-  if (d.flag.length) flags.push({ type: 'check_against_recording', field: 'note', message: `Please check against the recording${capped ? ' (many lines looked doubtful, none were removed)' : ''}: ${d.flag.slice(0, 4).map((r) => '"' + r.text.slice(0, 60) + '" (' + String(r.why).slice(0, 60) + ')').join('; ')}`, severity: 'warning' });
+  for (const r of removeNow.slice(0, 8)) flags.push({ type: 'removed_unsupported', field: 'note', message: `"${r.text.slice(0, 120)}"`, severity: 'info' });
+  for (const r of d.flag.slice(0, 8)) flags.push({ type: 'check_against_recording', field: 'note', message: `"${r.text.slice(0, 120)}" - ${String(r.why).slice(0, 90)}${capped ? ' (many lines looked doubtful, none were removed)' : ''}`, severity: 'warning' });
   note.metadata = note.metadata || {}; note.metadata.flags = [...(note.metadata.flags || []), ...flags];
   log(`[v2:ground] checked ${parts.length} lines · doubted ${verdicts.length} · kept after second look ${rescued.length} · removed ${removed}${removeNow.length ? ' (' + removeNow.map((r) => r.text.slice(0, 40)).join(' | ') + ')' : ''} · flagged ${d.flag.length}${capped ? ' · removal cap hit' : ''}`);
   return { checked: parts.length, removed: removeNow, flagged: d.flag, doubtful: d.doubtful, rescued, capped, ms: Date.now() - t0 };

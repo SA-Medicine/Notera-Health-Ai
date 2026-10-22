@@ -780,6 +780,7 @@ export async function generateNoteV2(input, opts = {}) {
   } catch { /* monitoring must never break generation */ }
 
   onProgress({ status: 'ready', consultId, draftId });
-  return { consultId, draftId, note, renderedNote, rawRenderedNote: renderedNote, status: gr.status, flags: gr.flags, schemaErrors: gr.schemaErrors,
+  const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
+  return { consultId, draftId, note, renderedNote, rawRenderedNote: renderedNote, status: gr.status, flags: allFlags, schemaErrors: gr.schemaErrors,
     entities: [], detectedSpecialty: detected, tokenUsage, qa: null, pipeline: 'v2', timings: { ...stage, total } };
 }
