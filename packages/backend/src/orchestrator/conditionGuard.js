@@ -4,7 +4,10 @@
 //   * PMH: a line naming one of these diseases (blood pressure, diabetes, cholesterol, thyroid, asthma/COPD, depression/anxiety) that the recording does not support is removed. Surgeries and other history are not touched here.
 //   * Problem title: a disease part of the title the recording does not support is dropped ("Diabetes and cholesterol management" -> only the
 //     supported part). If nothing in the title is supported the title stays and the note is flagged for the doctor.
-// Style Spec v2 (part of the quality guards; QUALITY_GUARDS=0 switches it off).
+// STATUS: built and tested but OFF by default (CONDITION_GUARD=1 / opts.conditionGuard=true turns it on). A paired A/B on 30 transcripts x 3 pairs (2026-10-22)
+// scored notes with it 1.9 audit points lower on average (pairs: -3.5, +1.1, -3.3), because the auditor compares with the gold note and the gold keeps
+// the very conditions this guard removes (e.g. Hypertension in PMH when the doctor only said 'blood pressure'). It did cut the auditor's 'invention' count.
+// The owner asked to roll back anything really worse, so it is off until a flag-only variant is measured.
 'use strict';
 
 // disease word -> what in the recording counts as saying it (the name itself or a drug that is only given for it)
