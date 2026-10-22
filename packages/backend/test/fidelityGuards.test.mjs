@@ -103,3 +103,10 @@ test('MRI compatibility wording is flagged when the recording is unclear, not wh
   assert.equal(mriCheck(n, 'a device that may not be MRI comfortable').length, 1); assert.ok(n.metadata.flags[0].message.includes('operative record'));
   const m = { past_medical_history: { other: 'MRI compatible hardware' }, metadata: {} }; assert.equal(mriCheck(m, 'the hardware is MRI compatible').length, 0);
 });
+test('"lives alone" stays out when the recording only has the word "live" in noise; a dangling fragment is dropped with its test', () => {
+  const n = { past_medical_history: { other: 'Lives alone\nHypertension' }, assessment_and_plan: [{ issue: 'Sleep apnea', investigations_planned: 'Consider sending for sleep study', treatment_planned: 'Refill Fexofenadine' }], objective: { examination: 'Left knee hardware, may not be MRI compatible' }, metadata: {} };
+  socialGuard(n, 'Once you live. Oh, that is my house.'); assert.equal(n.past_medical_history.other, 'Hypertension');
+  unheardTests(n, 'Maybe I should see the anesthesiologist.'); assert.equal(n.assessment_and_plan[0].investigations_planned, '');
+  const d = unheardDrugs(n, 'Less than flexible. It helps.'); assert.equal(d[0].shown, 'antihistamine');
+  assert.equal(mriCheck(n, 'may not be MRI comfortable').length, 1);
+});

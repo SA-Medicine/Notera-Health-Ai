@@ -28,6 +28,7 @@ const PLAN = ['assessment', 'investigations_planned', 'treatment_planned', 'refe
 function fields(note) {
   const out = [];
   for (const k of SUBJ) if (typeof note?.subjective?.[k] === 'string') out.push({ obj: note.subjective, key: k, where: 'subjective', plan: false });
+  for (const k of ['vital_signs', 'examination', 'completed_investigations']) if (typeof note?.objective?.[k] === 'string') out.push({ obj: note.objective, key: k, where: 'objective', plan: false });
   for (const k of PMH) if (typeof note?.past_medical_history?.[k] === 'string') out.push({ obj: note.past_medical_history, key: k, where: 'pmh', plan: false });
   (note?.assessment_and_plan || []).forEach((p, i) => { for (const k of PLAN) if (typeof p?.[k] === 'string') out.push({ obj: p, key: k, where: 'plan', plan: true, item: i }); });
   return out;
@@ -46,7 +47,7 @@ const SOCIAL = [
     own: /\b(?:do|did|have|are|how much|how many|how often)\b[^.?!]{0,30}\b(?:alcohol|wine|beer)\b|\b(?:do|did) you (?:\w+ )?drink\b(?! (?:water|coffee|tea|enough|any water))|\bi\b[^.?!]{0,25}\b(?:wine|beer|alcohol)\b|\bi (?:don'?t |do not |never |rarely |occasionally )?drink (?:alcohol|wine|beer|socially)|\b(?:glass(?:es)? of (?:wine|beer)|socially|teetotal)\b/i },
   { name: 'drugs', claim: /\b(cannabis|marijuana|weed|recreational drugs?|illicit drugs?|street drugs?)\b/i,
     own: /\b(?:cannabis|marijuana|weed|recreational|street drugs?)\b[^.?!]{0,40}\b(?:i|you|use|smoke|take)\b|\b(?:do|did|have) you\b[^.?!]{0,30}\b(?:drugs|cannabis|marijuana)\b/i },
-  { name: 'living', claim: /\b(?:lives? (?:alone|with [a-z ]+?)|living (?:alone|with [a-z ]+?)|lives at home)\b/i, own: /\b(?:live|lives|living)\b|\balone\b/i },
+  { name: 'living', claim: /\b(?:lives? (?:alone|with [a-z ]+?)|living (?:alone|with [a-z ]+?)|lives at home)\b/i, own: /\b(?:do you|where do you|who do you|i|we) live\b|\blives? (?:alone|with|at home|in (?:a|an|the))\b|\bliving (?:alone|with|at home)\b|\bby myself\b|\bon my own\b/i },
   { name: 'marital', claim: /^\s*(?:single|married|widowed|divorced|separated)\s*$|\b(?:is|are)\s+(?:single|married|widowed|divorced|separated)\b/i, own: /\b(?:husband|wife|married|single|widow\w*|divorc\w*|separated|partner|spouse|boyfriend|girlfriend|fianc\w+)\b/i },
   { name: 'work', claim: /\b(?:works? (?:as|in|at|for)|retired|occupation|employed|unemployed)\b/i, own: /\b(?:work|works|working|job|retired|occupation|career|employed|unemployed)\b/i },
 ];
@@ -81,7 +82,7 @@ export function socialGuard(note, transcript) {
 const CLASS_BY_ENDING = [
   ['prazole', 'PPI'], ['tidine', 'H2 blocker'], ['sartan', 'ARB'], ['pril', 'ACE inhibitor'], ['olol', 'beta blocker'], ['dipine', 'calcium channel blocker'],
   ['statin', 'statin'], ['cillin', 'antibiotic'], ['mycin', 'antibiotic'], ['floxacin', 'antibiotic'], ['cycline', 'antibiotic'], ['zepam', 'benzodiazepine'], ['zolam', 'benzodiazepine'],
-  ['oxetine', 'antidepressant'], ['setron', 'antiemetic'], ['thiazide', 'diuretic'], ['semide', 'diuretic'], ['xaban', 'anticoagulant'], ['gatran', 'anticoagulant'], ['gliptin', 'diabetes medication'],
+  ['oxetine', 'antidepressant'], ['setron', 'antiemetic'], ['thiazide', 'diuretic'], ['semide', 'diuretic'], ['xaban', 'anticoagulant'], ['gatran', 'anticoagulant'], ['gliptin', 'diabetes medication'], ['fenadine', 'antihistamine'], ['tadine', 'antihistamine'], ['rizine', 'antihistamine'],
   ['gliflozin', 'diabetes medication'], ['glutide', 'diabetes medication'], ['formin', 'diabetes medication'], ['triptan', 'migraine medication'], ['coxib', 'NSAID'], ['azole', 'medication'], ['lukast', 'medication'],
 ];
 const DRUGISH = new RegExp(String.raw`\b[A-Za-z]{3,}(?:${CLASS_BY_ENDING.map((x) => x[0]).join('|')})\b`, 'g');
@@ -138,13 +139,13 @@ export function unheardTests(note, transcript) {
     const next = pieces(f).map((clause) => {
       let c = clause; let hit = null;
       for (const t of gone) {
-        const rx = new RegExp(String.raw`(?:\b(?:referral|refer(?:red)?|consider|arrange|order)\s+(?:for|to)\s+)?(?:a\s+|an\s+)?\b${t.replace(/[-\s]/g, '[- ]?')}\b(?:\s+(?:or|and)\s+)?`, 'i');
+        const rx = new RegExp(String.raw`(?:\b(?:referral|refer(?:red)?|consider(?:ing)?|send(?:ing)?|sent|arrange|order|schedule|book)\s+(?:(?:him|her|them|patient)\s+)?(?:for|to)\s+)?(?:a\s+|an\s+)?\b${t.replace(/[-\s]/g, '[- ]?')}\b(?:\s+(?:or|and)\s+)?`, 'i');
         if (rx.test(c)) { hit = t; c = c.replace(rx, '').replace(/\s{2,}/g, ' ').replace(/^[\s,;:-]+|[\s,;:-]+$/g, ''); }
       }
       if (!hit) return clause;
       removed.push({ test: hit, clause });
       const label = (clause.match(/^\s*([A-Z][A-Za-z ]{2,30}:)\s*/) || [])[1];
-      return c && c.length > (label || '').length + 3 ? cap(c) : null;
+      return c && c.length > (label || '').length + 3 && !/\b(?:for|to|with|a|an|the|or|and|of|referral|consider|considering|sending)$/i.test(c) ? cap(c) : null;   // nothing left, or only a dangling fragment: drop the clause
     });
     if (removed.length && next.some((x, i) => x !== pieces(f)[i])) setPieces(f, next);
   }

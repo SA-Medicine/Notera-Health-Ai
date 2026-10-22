@@ -45,7 +45,7 @@ export function guardDrugNames(note, transcript, check, log = () => {}) {
     let best = null, bs = 0;
     const prefix = (w) => { let i = 0; while (i < w.length && i < key.length && w[i] === key[i]) i++; return i; };
     for (const w of tWords) { if (w[0] !== key[0]) continue; const s = sim(w, key) + 0.04 * Math.min(prefix(w), 5); if (s > bs) { bs = s; best = w; } }
-    if (best && (bs >= 0.55 || (prefix(best) >= 3 && bs >= 0.5))) {   // as heard: shares the start of the word, or is a close spelling
+    if (best && !/(?:ly|ing|ment|ness|tion|ful|less)$/.test(best) && (bs >= 0.55 || (prefix(best) >= 3 && bs >= 0.5))) {   // "as heard" is never an ordinary English word: "Allegra" is not "allegedly"   // as heard: shares the start of the word, or is a close spelling
       const spoken = best[0].toUpperCase() + best.slice(1);
       const rx = new RegExp('\\b' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'); let n = 0;
       const fix = (v) => (typeof v === 'string' ? v.replace(rx, () => { n++; return spoken; }) : v);

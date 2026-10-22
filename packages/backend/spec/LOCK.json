@@ -1,6 +1,6 @@
 {
   "specVersion": "2.1.0",
-  "lockedAt": "2026-10-22T17:18:31.800Z",
+  "lockedAt": "2026-10-22T17:21:42.110Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
@@ -18,7 +18,7 @@
     "src/orchestrator/groundingAgent.js": "504fbe84e4329bc66a1e78be14f3c897af28116bab5bac3fef2ffb8fa0eaf0a0",
     "src/orchestrator/conditionGuard.js": "78a6a20cc21ff1f87d8689eb9e4bf70dd4038fc161c259dcc19d4969c0ca729a",
     "src/orchestrator/planAttribution.js": "25ff83b5ceb8e32982731ede22091e2f3558f6c957b97efa2a894895656985e7",
-    "src/orchestrator/fidelityGuards.js": "5caad1147508222a0ff49d1a1417dbc20ace1adf58d2c8f1bc33e81cbbe69ed1"
+    "src/orchestrator/fidelityGuards.js": "3f5febcf34e7c8e0de41ca31faf6a67ce3897f40614c81109ac6fcd5aa921dca"
   },
   "prompts": {
     "v2-writer": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
