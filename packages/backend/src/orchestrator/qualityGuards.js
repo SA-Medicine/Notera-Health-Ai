@@ -6,8 +6,8 @@
 // Enabled per call (opts.qualityGuards) or with QUALITY_GUARDS=1.
 'use strict';
 
-import { fixLaterality } from './laterality.js';
-export { fixLaterality, sidesFor } from './laterality.js';
+import { checkLaterality } from './laterality.js';
+export { checkLaterality, sidesFor } from './laterality.js';
 
 const NUMWORD = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -41,7 +41,12 @@ export function qualityGuards(note, transcript, log = () => {}) {
       if (!it[f]) continue; const r = cleanSpeech(it[f]); if (r.removed || r.text !== it[f].split('\n').join('; ')) { out.speechRemoved += r.removed; it[f] = r.text; }
     }
   }
-  out.lateralityFixed = fixLaterality(note, transcript, log);
+  out.laterality = checkLaterality(note, transcript);
+  if (out.laterality.length) {
+    const seen = new Set(); const msg = out.laterality.filter((x) => !seen.has(x.part + x.noteSide) && seen.add(x.part + x.noteSide)).map((x) => 'the note says ' + x.noteSide + ' ' + x.part + ', the recording names the ' + x.transcriptSide + ' ' + x.part).join('; ');
+    note.metadata = note.metadata || {}; note.metadata.flags = [...(note.metadata.flags || []), { type: 'laterality_check', field: 'note', message: 'Please check the side: ' + msg + '.', severity: 'warning' }];
+    log('[v2:quality] side flagged for review: ' + msg);
+  }
   if (out.dxCleared.length || out.speechRemoved) log(`[v2:quality] ${out.dxCleared.length} unsupported diagnosis line(s) cleared${out.dxCleared.length ? ' (' + out.dxCleared.join(' | ') + ')' : ''}; ${out.speechRemoved} spoken fragment(s) removed from the plan`);
   return out;
 }
