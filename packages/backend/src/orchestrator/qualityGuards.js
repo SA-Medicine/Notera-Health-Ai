@@ -7,6 +7,7 @@
 'use strict';
 
 import { checkLaterality } from './laterality.js';
+import { conditionGuard } from './conditionGuard.js';
 export { checkLaterality, sidesFor } from './laterality.js';
 
 const NUMWORD = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
@@ -41,6 +42,7 @@ export function qualityGuards(note, transcript, log = () => {}) {
       if (!it[f]) continue; const r = cleanSpeech(it[f]); if (r.removed || r.text !== it[f].split('\n').join('; ')) { out.speechRemoved += r.removed; it[f] = r.text; }
     }
   }
+  out.conditions = conditionGuard(note, transcript, log);
   out.laterality = checkLaterality(note, transcript);
   if (out.laterality.length) {
     const seen = new Set(); const msg = out.laterality.filter((x) => !seen.has(x.part + x.noteSide) && seen.add(x.part + x.noteSide)).map((x) => 'the note says ' + x.noteSide + ' ' + x.part + ', the recording names the ' + x.transcriptSide + ' ' + x.part).join('; ');

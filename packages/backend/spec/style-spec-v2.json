@@ -166,6 +166,12 @@
       "section": "Note",
       "severity": "major",
       "text": "No hallucination: a grounding agent checks every line against the transcript; a line the recording does not support is removed, a doubtful one is flagged for the doctor (\"Please check against the recording\")."
+    },
+    {
+      "id": "P6",
+      "section": "Past Medical History",
+      "severity": "major",
+      "text": "A condition (and a problem title that names a disease) is only in the note if the recording says it, or says the drug that proves it. A result alone (\"sugars 6.1\") never makes a diagnosis; the title then names the measurement (\"Blood sugar\")."
     }
   ],
   "supersedes": "1.0.0"

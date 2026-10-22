@@ -25,6 +25,7 @@ export const LOCKED_FILES = [
   'src/orchestrator/writerGuard.js',
   'src/orchestrator/topicGroup.js',
   'src/orchestrator/groundingAgent.js',
+  'src/orchestrator/conditionGuard.js',
 ];
 
 export async function computeFingerprint() {
