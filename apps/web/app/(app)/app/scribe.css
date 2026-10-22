@@ -2626,37 +2626,71 @@ body.dark-mode .notera-shell {
 }
 .notera-shell .draft-bar-ok { flex: none; font-size: 12px; font-weight: 650; color: #15803d; }
 .notera-shell .chk-btn {
-  flex: none; font: inherit; font-size: 12px; font-weight: 650; padding: 3px 11px; border-radius: 999px; cursor: pointer;
+  flex: none; font: inherit; font-size: 12.5px; font-weight: 650; padding: 4px 12px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--chk-warn-chip); background: var(--chk-warn-chip); color: #fff; transition: transform .12s cubic-bezier(0.23,1,0.32,1);
 }
 .notera-shell .chk-btn.ghost { background: transparent; color: var(--chk-warn-ink); border-color: var(--chk-warn-line); }
-.notera-shell .chk-btn:active { transform: scale(0.97); }
-.notera-shell .chk-btn:focus-visible, .notera-shell .chk-text:focus-visible, .notera-shell .chk-done:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
-.notera-shell .chk-list { list-style: none; margin: 0; padding: 4px 0; display: flex; flex-direction: column; border: 1px solid var(--chk-warn-line); border-radius: 10px; background: var(--chk-warn-bg); max-height: 260px; overflow: auto; }
-.notera-shell .chk-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 13px; color: var(--chk-warn-ink); }
-.notera-shell .chk-row + .chk-row { border-top: 1px solid var(--chk-warn-line); }
+.notera-shell .chk-btn.ok { background: #15803d; border-color: #15803d; }
+.notera-shell .chk-btn.danger { background: transparent; color: #b91c1c; border-color: rgba(185,28,28,0.35); }
+.notera-shell .chk-btn:disabled { opacity: .45; cursor: not-allowed; }
+.notera-shell .chk-btn:active:not(:disabled) { transform: scale(0.97); }
+.notera-shell .chk-btn:focus-visible, .notera-shell .chk-icon:focus-visible, .notera-shell .chk-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.notera-shell .chk-link { font: inherit; font-weight: 650; color: var(--blue); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .notera-shell .chk-chip { flex: none; font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 999px; background: var(--chk-warn-chip); color: #fff; white-space: nowrap; }
-.notera-shell .chk-text { flex: 1; min-width: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notera-shell .chk-text:hover { text-decoration: underline; text-underline-offset: 2px; }
-.notera-shell .chk-done { flex: none; font: inherit; font-size: 12px; color: var(--chk-warn-ink); background: transparent; border: 1px solid var(--chk-warn-line); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
-.notera-shell .chk-done:hover { background: rgba(0,0,0,0.05); }
-.notera-shell .chk-changed { font-size: 12.5px; color: var(--chk-quiet-ink); background: var(--chk-quiet-bg); border: 1px solid var(--chk-quiet-line); border-radius: 10px; }
-.notera-shell .chk-changed summary { cursor: pointer; padding: 6px 12px; list-style: none; font-weight: 600; }
-.notera-shell .chk-changed summary::-webkit-details-marker { display: none; }
-.notera-shell .chk-changed ul { margin: 0; padding: 2px 12px 4px 28px; }
-.notera-shell .chk-changed li { margin: 3px 0; line-height: 1.45; }
-.notera-shell .chk-changed p { margin: 0; padding: 0 12px 8px; opacity: .85; }
+.notera-shell .chk-chip.quiet { background: #6b7280; }
+.notera-shell .chk-muted { margin: 2px 0 0; font-size: 12.5px; color: var(--chk-quiet-ink); line-height: 1.45; }
+.notera-shell .chk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.notera-shell .chk-edit textarea, .notera-shell .chk-edit input, .notera-shell .chk-where select {
+  font: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--chk-warn-line); background: #fff; color: var(--text-primary);
+}
+.notera-shell .chk-where select { width: auto; max-width: 240px; padding: 4px 8px; }
+.notera-shell .chk-label { display: block; margin-top: 6px; font-size: 12.5px; color: var(--chk-quiet-ink); }
+.notera-shell .chk-label input { margin-top: 4px; }
+.notera-shell .chk-where { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--chk-quiet-ink); }
+
+/* the popover under a marked line (it lives inside the scrolling note, so it moves with it) */
+.notera-shell .note-content { position: relative; }
+.notera-shell .chk-pop {
+  position: absolute; left: 16px; right: 16px; max-width: 620px; z-index: 30; padding: 10px 12px 12px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--chk-warn-line); box-shadow: 0 10px 32px -8px rgba(15,23,42,0.28), 0 0 0 3px rgba(184,110,0,0.10);
+}
+.notera-shell .chk-pop-top { display: flex; align-items: center; gap: 8px; }
+.notera-shell .chk-pos { font-size: 12px; color: var(--chk-quiet-ink); font-variant-numeric: tabular-nums; }
+.notera-shell .chk-spacer { flex: 1; }
+.notera-shell .chk-icon { font: inherit; font-size: 16px; line-height: 1; width: 26px; height: 26px; border-radius: 8px; cursor: pointer; border: 1px solid var(--chk-quiet-line); background: transparent; color: var(--chk-quiet-ink); }
+.notera-shell .chk-icon:hover { background: rgba(0,0,0,0.05); }
+
+/* "Before you sign": the checklist at the END of the note, after you have read it */
+.notera-shell .chk-end { margin: 14px 0 4px; padding: 14px 16px 16px; border: 1px solid var(--chk-warn-line); border-radius: 14px; background: var(--chk-warn-bg); color: var(--chk-warn-ink); }
+.notera-shell .chk-end h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 650; }
+.notera-shell .chk-end h5 { margin: 18px 0 2px; font-size: 12.5px; font-weight: 650; text-transform: none; color: var(--chk-quiet-ink); }
+.notera-shell .chk-end-n { font-size: 12px; font-weight: 650; padding: 1px 9px; border-radius: 999px; background: var(--chk-warn-chip); color: #fff; }
+.notera-shell .chk-end-ok { font-size: 12.5px; font-weight: 650; color: #15803d; }
+.notera-shell .chk-item { padding: 10px 0; border-top: 1px solid var(--chk-warn-line); }
+.notera-shell .chk-item:first-of-type { border-top: 0; }
+.notera-shell .chk-item.changed { color: var(--chk-quiet-ink); }
+.notera-shell .chk-item-head { display: flex; align-items: baseline; gap: 10px; }
+.notera-shell .chk-item-text { font-size: 14px; font-weight: 600; line-height: 1.4; text-wrap: pretty; }
 
 /* a line to check, marked inside the note (DOM-only: not copied, not saved) */
 .notera-shell .note-body .flagged-line {
-  background: var(--chk-warn-bg); box-shadow: -3px 0 0 var(--chk-warn-chip); border-radius: 4px; padding: 1px 4px; scroll-margin: 90px;
+  background: var(--chk-warn-bg); box-shadow: -3px 0 0 var(--chk-warn-chip); border-radius: 4px; padding: 1px 4px; scroll-margin: 90px; cursor: pointer;
 }
 .notera-shell .note-body .flagged-line::after {
   content: attr(data-flag); margin-left: 8px; font-size: 10.5px; font-weight: 650; letter-spacing: .01em; padding: 0 7px; border-radius: 999px;
   background: var(--chk-warn-chip); color: #fff; white-space: nowrap; vertical-align: 1px; user-select: none;
 }
+.notera-shell .note-body .flagged-line.current { outline: 2px solid var(--chk-warn-chip); outline-offset: 1px; }
 .notera-shell .note-body .flagged-line.flash { animation: chk-flash 1.1s cubic-bezier(0.23,1,0.32,1); }
 @keyframes chk-flash { 0% { box-shadow: -3px 0 0 var(--chk-warn-chip), 0 0 0 6px rgba(184,110,0,0.35); } 100% { box-shadow: -3px 0 0 var(--chk-warn-chip), 0 0 0 6px rgba(184,110,0,0); } }
+
+/* the note gets the whole screen height: the page scrolls as one, the slim bar stays on top, the checklist comes last */
+.notera-shell .note-content { overflow-y: auto; }
+.notera-shell .note-content .note-body { flex: none; overflow: visible; }
+.notera-shell .note-checks { position: sticky; top: 0; z-index: 25; margin: 0 0 10px; padding-top: 2px; background: linear-gradient(var(--bg-page, #fff) 80%, transparent); }
+.notera-shell .note-content.full { position: fixed; inset: 0; z-index: 90; max-width: none; margin: 0; padding: 12px clamp(12px, 6vw, 140px) 40px; background: var(--bg-page, #f7f8fa); border-radius: 0; box-shadow: none; animation: none; }
+body.dark-mode .notera-shell .note-content.full { background: #17171a; }
+body.dark-mode .notera-shell .chk-pop, body.dark-mode .notera-shell .chk-edit textarea, body.dark-mode .notera-shell .chk-edit input, body.dark-mode .notera-shell .chk-where select { background: #232326; color: #eee; }
 @media (prefers-reduced-motion: reduce) { .notera-shell .chk-btn, .notera-shell .note-body .flagged-line.flash { transition: none; animation: none; } }
 
 /* Note typography: sections read as sections, plan labels read as labels */

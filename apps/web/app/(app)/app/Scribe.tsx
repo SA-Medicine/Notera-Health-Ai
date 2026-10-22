@@ -83,6 +83,8 @@ export default function Scribe() {
   const [note, setNote] = useState('');
   const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
+  const [fullNote, setFullNote] = useState(false);   // the note fills the whole window
+  const [checksEnd, setChecksEnd] = useState<HTMLElement | null>(null);   // where the "Before you sign" checklist is drawn: the end of the note
   const [specialty, setSpecialty] = useState('auto');
   const [patient, setPatient] = useState('');
   const [error, setError] = useState('');
@@ -143,6 +145,12 @@ export default function Scribe() {
     document.body.classList.toggle('dark-mode', dark);
     return () => document.body.classList.remove('dark-mode');
   }, [dark]);
+
+  useEffect(() => {
+    if (!fullNote) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullNote(false); };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, [fullNote]);
 
   // render note into the contenteditable body when not editing
   useEffect(() => {
@@ -902,8 +910,9 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className="note-content"><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} noteKey={note} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
+                  <div ref={setChecksEnd} className="chk-end-slot" />
                   <div className="note-done-banner">
                     ✓ Note saved to history — click <strong>New session</strong> in the sidebar to start another consult
                   </div>
