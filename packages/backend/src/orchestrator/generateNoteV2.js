@@ -38,6 +38,7 @@ import { guardDrugNames } from './drugGuard.js';
 import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
 import { joinPlanLines } from './planJoin.js';
 import { sweepPlan } from './planSweep.js';
+import { splitAdviceLines } from './adviceLines.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -721,7 +722,7 @@ export async function generateNoteV2(input, opts = {}) {
     lap('ref', tr);
   }
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0') { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
-  const renderedNote = noteToMarkdown(note);
+  const renderedNote = (!blank && (opts.adviceLines === true || process.env.ADVICE_LINES === '1')) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // F4 candidate: advice and follow-up as their own lines (off by default, not yet approved)
 
   // 5) persist -------------------------------------------------------------------
   const draftId = `DRAFT-${Date.now()}`;
