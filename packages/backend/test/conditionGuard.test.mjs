@@ -28,3 +28,10 @@ test('everyday wording for the same thing counts: arthritis = osteoarthritis, ki
   assert.equal(conditionSaid('History of lymphadenopathy, now resolved', 'the lymph nodes in your neck went down'), true);
   assert.equal(conditionSaid('Borderline diabetes mellitus', 'your sugar is okay'), false);
 });
+
+test('only the inferred diseases are removed from PMH: an unsaid surgery or other history stays for the grounding agent', () => {
+  const lines = ['Hypertension', 'History of total abdominal hysterectomy', 'Sacroiliitis', 'Borderline diabetes'];
+  const n = { metadata: {}, past_medical_history: { medical_surgical: lines.join('\n') }, assessment_and_plan: [] };
+  const r = conditionGuard(n, 'We talked about your back pain today.');
+  assert.deepEqual(r.pmhRemoved, ['Hypertension', 'Borderline diabetes']); assert.equal(n.past_medical_history.medical_surgical, ['History of total abdominal hysterectomy', 'Sacroiliitis'].join('\n'));
+});

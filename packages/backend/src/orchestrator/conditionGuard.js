@@ -1,7 +1,7 @@
 // Conditions nobody said: a disease name may only be in Past Medical History or in a problem title if the recording says it
 // (or says what proves it, such as the drug that treats it). "Your sugars are 6.1" does not make "Diabetes"; "your LDL is 1.4" does not make
 // "Hypercholesterolemia". Found on newer test notes (2026-10-22): a condition inferred from a result appeared in PMH and as a plan problem.
-//   * PMH: a condition line the recording does not support is removed.
+//   * PMH: a line naming one of these diseases (blood pressure, diabetes, cholesterol, thyroid, asthma/COPD, depression/anxiety) that the recording does not support is removed. Surgeries and other history are not touched here.
 //   * Problem title: a disease part of the title the recording does not support is dropped ("Diabetes and cholesterol management" -> only the
 //     supported part). If nothing in the title is supported the title stays and the note is flagged for the doctor.
 // Style Spec v2 (part of the quality guards; QUALITY_GUARDS=0 switches it off).
@@ -46,7 +46,7 @@ export function conditionGuard(note, transcript, log = () => {}) {
   const pmh = note?.past_medical_history; const f = 'medical_surgical';
   if (pmh && typeof pmh[f] === 'string') {
     const keep = [];
-    for (const l of pmh[f].split('\n')) { if (l.trim() && isConditionLine(l) && !conditionSaid(l, transcript)) out.pmhRemoved.push(l.trim()); else keep.push(l); }
+    for (const l of pmh[f].split('\n')) { if (l.trim() && isConditionLine(l) && ALIASES.some(([name]) => name.test(l)) && !conditionSaid(l, transcript)) out.pmhRemoved.push(l.trim()); else keep.push(l); }
     if (out.pmhRemoved.length) pmh[f] = keep.join('\n');
   }
   for (const it of note?.assessment_and_plan || []) {
