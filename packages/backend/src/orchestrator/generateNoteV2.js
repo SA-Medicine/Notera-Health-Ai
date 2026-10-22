@@ -39,6 +39,7 @@ import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
 import { joinPlanLines } from './planJoin.js';
 import { sweepPlan } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
+import { qualityGuards } from './qualityGuards.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -253,7 +254,7 @@ export function cleanNote(note) {
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 const words = (s) => norm(s).split(' ').filter((w) => w.length > 3);
 const NUMWORD = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
-const numWordsToDigits = (s) => String(s || '').replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/gi, (w) => String(NUMWORD[w.toLowerCase()]));
+const numWordsToDigits = (s) => String(s || '').replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/gi, (w) => String(NUMWORD[w.toLowerCase()])).replace(/\b(\d+) point (\d+)\b/gi, '$1.$2');   // "two point one" = 2.1
 const numsOf = (s) => String(s || '').match(/\d+(?:\.\d+)?/g) || [];
 
 function parseJson(raw) {
@@ -502,10 +503,10 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs 
   let why = 'error'; let rejected = null;
   try {
     llm._agent = 'v2-story';
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {   // 3rd try only after two rejections (30% of newer test notes lost their topic headings after two)
       const feedback = attempt ? `\n\nYour previous rewrite was REJECTED by the fact checker: ${why}. Rewrite again, staying closer to the wording and facts of the NOTE JSON: do not add interpretive words (such as typically, chronic, requiring), do not change any number, and keep every fact.` : '';
       const raw = await llm.generateContent(prompt || STORY_SYS, user + feedback, null,
-        { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: attempt ? 0 : 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
+        { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: attempt === 1 ? 0 : attempt === 2 ? 0.3 : 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
       const out = parseJson(raw);
       if (!out || typeof out.subjective !== 'object') { why = 'unparseable or incomplete JSON'; log(`[v2:story] attempt ${attempt + 1} rejected — ${why}`); continue; }
       // the model sometimes returns a field as a list of lines instead of one string: always one string, one line per item
@@ -706,6 +707,7 @@ export async function generateNoteV2(input, opts = {}) {
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
+  if (!blank && (opts.qualityGuards === true || process.env.QUALITY_GUARDS === '1')) { try { const q = qualityGuards(note, transcript, log); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // candidate: Diagnosis only if the clinician said it, no spoken words in the plan
   if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1: one problem per issue — add an addressed issue that no problem covers (quote-checked, additions only)
     const ts = Date.now();
     try { const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep'; const sw = await sweepPlan(sllm, note, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log(`[v2:sweep] skipped — ${e.message}`); }

@@ -6,7 +6,7 @@
 'use strict';
 
 const FOLLOW = /^(rtc\b|follow[\s-]?up\b|return (to (the )?clinic )?in\b|recheck\b|review in\b|see (me|you)( again)? in\b|revisit\b|next visit\b)/i;
-const ADVICE = /^(advis\w*|counsel+ed|counsel+ing|discuss\w*|warned|explained|educat\w*|avoid\b|monitor\b|return if\b|return (to (the )?clinic )?(if|sooner)\b|go to (the )?(er|emergency)|call (if|us)|seek\b|safety|red flag|reassur\w*|encouraged|recommend\w*|declined|refused|patient declines|patient declined)/i;
+const ADVICE = /^(advis\w*|counsel+ed|counsel+ing|discuss\w*|warned|explained|educat\w*|avoid\b|monitor\b|return if\b|return (to (the )?clinic )?(if|sooner)\b|go to (the )?(er|emergency)|call (if|us)|seek\b|safety|red flag|reassur\w*|declined|refused|patient declines|patient declined)/i;
 
 const TIMEFRAME = /(\d|\b(one|two|three|four|five|six|week|weeks|month|months|day|days|year|tomorrow|next|after|before|end of|soon|prn)\b)/i;   // "Follow-up for lab results" is a reason, not a return date
 export function classify(part) { const p = String(part).trim(); if (FOLLOW.test(p) && TIMEFRAME.test(p.replace(FOLLOW, ''))) return 'follow'; if (ADVICE.test(p)) return 'advice'; return 'treat'; }
