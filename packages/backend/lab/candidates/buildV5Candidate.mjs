@@ -24,6 +24,8 @@ swap('treatment_planned: medication decisions (continue/start/stop/change with d
   'treatment_planned: medication decisions (continue/start/stop/change with drug, dose, route, frequency, duration, quantity and refills when stated, and what it is for), then each piece of advice or monitoring as its own item starting "Advised …" (return precautions as "Return if …", patient refusals as "Declined …"), then the follow-up as the LAST item ("Rtc: <timeframe>" or "Follow-up: <timeframe> with <tests>"). Each label appears once per problem: join the items with "; ".');
 // 7. referral detail (profile: "specialist's name, service and reason")
 swap('referrals: referral target and service ("Foot surgeon").', 'referrals: referral target, service and reason, with the specialist\'s name when stated ("Foot surgeon for bunion assessment").');
+// 7b. a declined referral is a plan decision, not a referral made (profile: patient refusals in the plan under the problem)
+swap('Name referrals and who they are to, including offered or declined ones.', 'Name referrals made or recommended and who they are to; a declined or deferred referral goes in treatment_planned as "Declined <referral> - <reason>", not in referrals.');
 // 8. language (profile: Canadian spelling, metric units, numerals)
 swap('Clinical third-person wording,', 'Canadian spelling (colour, centre, counselling, anemia), metric units, numerals for all numbers. Clinical third-person wording,');
 

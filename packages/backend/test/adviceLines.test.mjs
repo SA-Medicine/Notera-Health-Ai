@@ -7,10 +7,17 @@ const MD = `### Subjective\n- x\n\n### Assessment & Plan\n1. **Anxiety**\n   - D
 test('classification', () => { assert.equal(classify('Rtc: 4 weeks'), 'follow'); assert.equal(classify('Return to clinic in 1 month'), 'follow'); assert.equal(classify('Return if worse'), 'advice'); assert.equal(classify('Advised to rest'), 'advice'); assert.equal(classify('Continue Cipralex 10mg'), 'treat'); assert.equal(classify('Discontinue ashwagandha'), 'treat'); });
 test('advice and follow-up move to their own lines; treatment and other problems are untouched', () => {
   const o = splitAdviceLines(MD);
-  assert.match(o, /Treatment planned: Continue Cipralex 10mg daily\n/); assert.match(o, /Referrals: Psychiatry\n   - Advice: Advised to increase water intake; Return if symptoms worsen\n   - Follow-up: 4 weeks\n2\. /);
+  assert.match(o, /Treatment planned: Continue Cipralex 10mg daily\n/); assert.match(o, /Referrals: Psychiatry\n   - Advice: Increase water intake; Return if symptoms worsen\n   - Follow-up: 4 weeks\n2\. /);
   assert.match(o, /2\. \*\*Hypertension\*\*\n   - Treatment planned: Continue candesartan\n3\./);
   assert.match(o, /3\. \*\*Back pain\*\*\n   - Advice: Counselled on lifting\n   - Follow-up: 2 weeks with imaging$/, 'a problem with only advice and follow-up loses its empty Treatment line');
   assert.equal(o.split('Treatment planned:').length - 1, 2); assert.ok(o.startsWith('### Subjective\n- x'));
 });
 test('nothing to move means the text is returned unchanged', () => { const plain = '### Assessment & Plan\n1. **A**\n   - Treatment planned: Start X; Stop Y'; assert.equal(splitAdviceLines(plain), plain); });
 test('the format metrics see the new lines', () => { const l = layout(splitAdviceLines(MD)); assert.equal(l.counsellingLines, 2); assert.equal(l.followUpLines, 2); });
+
+test('a follow-up reason without a timeframe stays in treatment; advice loses its lead-in', () => {
+  assert.equal(classify('Follow-up for anxiety and recent bloodwork'), 'treat');
+  assert.equal(classify('Follow-up: 2 weeks with imaging'), 'follow');
+  const o = splitAdviceLines(['### Assessment & Plan', '1. **A**', '   - Treatment planned: Advised to increase daily water intake; Follow-up for labs'].join('\n'));
+  assert.match(o, /Advice: Increase daily water intake/); assert.match(o, /Treatment planned: Follow-up for labs/);
+});
