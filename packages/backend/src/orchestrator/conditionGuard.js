@@ -24,7 +24,10 @@ const OBSERVABLE = [
   [/hypothyroid\w*|hyperthyroid\w*/i, 'Thyroid', /thyroid|\btsh\b/i],
 ];
 const STEM = (w) => w.replace(/ae/g, 'e').replace(/oe/g, 'e').replace(/(osis|itis|emia|ia|ing|ion|ed|es|s|y)$/, '').slice(0, 6);
-const WORDS = (s) => String(s || '').toLowerCase().replace(/[^a-z ]+/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !['history', 'status', 'post', 'chronic', 'acute', 'type', 'with', 'and', 'management', 'care', 'follow', 'review', 'resolved', 'stable'].includes(w));
+// everyday wording for the same thing, applied to both sides before the words are compared
+const SAME = [[/nephrolithiasis|urolithiasis|renal (stones?|calcul\w+)|kidney stones?/g, 'kidney stone'], [/lymphadenopathy|lymph nodes?|lymphnodes?/g, 'lymph node'], [/osteoarthritis|degenerative joint disease/g, 'arthritis'], [/haemorrhoids?|hemorrhoids?|piles/g, 'hemorrhoid'], [/gastro-?oesophageal reflux( disease)?|gerd|acid reflux|heartburn/g, 'reflux'], [/folliculitis|infected hair follicles?/g, 'folliculitis']];
+const same = (s) => SAME.reduce((t, [re, to]) => t.replace(re, to), String(s || '').toLowerCase());
+const WORDS = (s) => same(s).replace(/[^a-z ]+/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !['history', 'status', 'post', 'chronic', 'acute', 'type', 'with', 'and', 'management', 'care', 'follow', 'review', 'resolved', 'stable', 'bilateral', 'left', 'right', 'mild', 'moderate', 'severe', 'borderline', 'inactive', 'procedure', 'recurrent', 'chronic'].includes(w));
 
 /** Does the recording say this condition? Disease words use the alias table; other words need most of their stems in the recording. */
 export function conditionSaid(text, transcript) {

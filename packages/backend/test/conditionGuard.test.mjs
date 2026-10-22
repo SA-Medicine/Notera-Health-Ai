@@ -21,3 +21,10 @@ test('a problem title keeps only the supported part; nothing supported keeps the
   const m = mk(); const r2 = conditionGuard(m, 'The weather is nice today and you look well.'); assert.equal(m.assessment_and_plan[0].issue, 'Diabetes and cholesterol management'); assert.deepEqual(r2.titlesFlagged, ['Diabetes and cholesterol management', 'Hypertension']); assert.equal(m.metadata.flags[0].type, 'condition_not_said');
   assert.equal(m.assessment_and_plan[1].issue, 'Hematuria'); assert.equal(m.assessment_and_plan[2].issue, 'Hypertension');
 });
+
+test('everyday wording for the same thing counts: arthritis = osteoarthritis, kidney stones = nephrolithiasis, lymph nodes = lymphadenopathy', () => {
+  assert.equal(conditionSaid('Bilateral knee osteoarthritis', 'your knees, the arthritis in both knees is mild'), true);
+  assert.equal(conditionSaid('Nephrolithiasis - resolved/inactive', 'you had kidney stones years ago'), true);
+  assert.equal(conditionSaid('History of lymphadenopathy, now resolved', 'the lymph nodes in your neck went down'), true);
+  assert.equal(conditionSaid('Borderline diabetes mellitus', 'your sugar is okay'), false);
+});
