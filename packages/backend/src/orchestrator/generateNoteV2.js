@@ -37,6 +37,7 @@ import { pickExemplars, exemplarBlock } from './exemplars.js';
 import { guardDrugNames } from './drugGuard.js';
 import { writerDraftIssue, pickDraft, RETRY_NOTE } from './writerGuard.js';
 import { joinPlanLines } from './planJoin.js';
+import { sweepPlan } from './planSweep.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -704,6 +705,11 @@ export async function generateNoteV2(input, opts = {}) {
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
+  if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0') {   // F1: one problem per issue — add an addressed issue that no problem covers (quote-checked, additions only)
+    const ts = Date.now();
+    try { const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep'; const sw = await sweepPlan(sllm, note, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log(`[v2:sweep] skipped — ${e.message}`); }
+    lap('sweep', ts);
+  }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   if (!blank && cfg['ref.enabled']) {
     const tr = Date.now();
