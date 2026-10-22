@@ -63,3 +63,9 @@ test('hard facts: a number or a name that is not in the recording, or an invente
   assert.equal(hardMissing({ text: 'Improved', key: 'assessment' }, 'anything'), '');
   assert.equal(hardMissing({ text: 'Continue Lyrica daily', key: 'treatment_planned' }, 'continue the Lyrica daily'), '');
 });
+
+test('spoken numbers: decimals, teens and tens, hundreds and digits that run together are not "missing"', () => {
+  const TX2 = 'Potassium fifteen hundred milligrams. Your TSH is one point four four. Pressure one ten over sixty. Sodium one forty. Amylase forty nine.';
+  for (const l of ['potassium 1500 mg', 'normal TSH at 1.44', 'BP 110/60', 'amylase 49']) assert.equal(hardMissing({ text: l, key: 'x' }, TX2), '', l);
+  assert.equal(hardMissing({ text: 'Lyrica 75 mg', key: 'x' }, TX2), 'number');
+});

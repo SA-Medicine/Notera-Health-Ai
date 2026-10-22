@@ -26,8 +26,12 @@ Return ONLY JSON: {"found":true,"quote":"exact transcript words, at most 25 word
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 const stem = (w) => w.replace(/ae/g, 'e').replace(/oe/g, 'e').replace(/(osis|itis|emia|ia|ing|ion|ed|es|s|y)$/, '').slice(0, 6);
-const NUMW = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
-const spoken = (t) => norm(String(t || '').toLowerCase().replace(/(\d)\.(\d)/g, '$1dotx$2')).replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/g, (w) => NUMW[w]).replace(/\b(\d+) point (\d+)\b/g, '$1dotx$2').replace(/(\d)dotx(\d)/g, '$1.$2');
+const NUMW = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const NUMRE = new RegExp(String.raw`\b(${Object.keys(NUMW).join('|')})\b`, 'g');
+const spoken = (t) => norm(String(t || '').toLowerCase().replace(/(\d)\.(\d)/g, '$1dotx$2')).replace(NUMRE, (w) => NUMW[w])
+  .replace(/\b([2-9]0) ([1-9])\b/g, (m, a, b) => String(Number(a) + Number(b)))
+  .replace(/\b(\d+) hundred(?: (\d+))?\b/g, (m, a, b) => String(Number(a) * 100 + (b ? Number(b) : 0)))                // fifteen hundred -> 1500                                   // sixty four -> 64
+  .replace(/\b(\d+) point (\d(?: \d)*)\b/g, (m, a, b) => a + 'dotx' + b.replace(/ /g, '')).replace(/(\d)dotx(\d)/g, '$1.$2');   // one point four four -> 1.44
 const SKIP = /^(medications?|allergies|preventive care|occupation|social|family)\s*:/i;
 const FILLER = new Set(['the', 'and', 'with', 'for', 'from', 'that', 'this', 'patient', 'planned', 'continue', 'provided', 'given', 'noted', 'reports', 'also', 'were', 'have', 'has', 'been']);
 export const FLAG_BELOW = 0.75;
@@ -78,7 +82,8 @@ export function parseGround(raw) {
 export function hardMissing(part, transcript) {
   const T = spoken(transcript); const tokens = new Set(T.split(' ')); const TW = new Set(T.split(' ').map(stem));
   const { nums } = keyWords(part.text);
-  if (nums.some((n) => !tokens.has(n))) return 'number';
+  const joined = [...T.split(' ')].filter((w) => /^\d+$/.test(w)).join('');   // spoken digits that run together: "one ten over sixty"
+  if (nums.some((n) => !tokens.has(n) && !joined.includes(n.replace('.', '')))) return 'number';
   const caps = (String(part.text).match(/(?<!^)(?<![.:]\s)\b[A-Z][a-z]{4,}\b/g) || []).filter((w) => !TW.has(stem(w.toLowerCase())));
   if (caps.length) return 'name';
   if (part.key === 'examination' && wordSupport(part.text, transcript) < 0.34) return 'exam';
