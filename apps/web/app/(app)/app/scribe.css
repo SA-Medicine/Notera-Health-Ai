@@ -2724,3 +2724,18 @@ body.dark-mode .notera-shell .note-body .ap-fu > .ap-lbl { color: #f0b44a; }
 .notera-shell .save-ind { font: inherit; font-size: 12px; color: var(--text-muted); margin-right: 8px; white-space: nowrap; background: none; border: 0; padding: 0; }
 .notera-shell .save-ind.saved { color: #15803d; }
 .notera-shell .save-ind.error { color: #b91c1c; font-weight: 650; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Section titles (Subjective, Past Medical History, Objective, Assessment & Plan): bold, black, a step above the 15px sub-titles.
+   Higher specificity on purpose: polish.css styles these small, grey and uppercase. */
+.notera-shell .note-content .note-body h1,
+.notera-shell .note-content .note-body h2,
+.notera-shell .note-content .note-body h3 {
+  font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: #0a0a0a;
+  margin: 28px 0 8px; padding-bottom: 6px; border-bottom: 1.5px solid rgba(10, 10, 10, 0.14);
+}
+.notera-shell .note-content .note-body h1:first-child,
+.notera-shell .note-content .note-body h2:first-child,
+.notera-shell .note-content .note-body h3:first-child { margin-top: 2px; }
+body.dark-mode .notera-shell .note-content .note-body h1,
+body.dark-mode .notera-shell .note-content .note-body h2,
+body.dark-mode .notera-shell .note-content .note-body h3 { color: #f5f5f7; border-bottom-color: rgba(255, 255, 255, 0.16); }
