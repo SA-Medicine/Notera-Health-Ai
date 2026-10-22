@@ -664,7 +664,7 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 2) deterministic merge of anything the writer dropped ----------------------
       mergeChecklist(note, check, transcript, log);
-      if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
+      if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log, { rewriteUnclear: opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== "0" && cfg["stage.fidelityGuards"] !== false }); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
       // 2a) guardrails built from the diagnosis reports (each has its own switch in Settings)
       if (gOn('guards.template', opts.guardTemplate)) { try { const r = enforceTemplate(note, log); if (opts.trace) opts.trace.template = r; } catch (e) { log(`[v2:template] skipped — ${e.message}`); } }
       if (gOn('guards.template', opts.guardTemplate)) { try { ensureChronicInPMH(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }

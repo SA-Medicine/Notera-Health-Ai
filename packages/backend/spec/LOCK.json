@@ -1,6 +1,6 @@
 {
   "specVersion": "2.1.0",
-  "lockedAt": "2026-10-22T17:21:42.110Z",
+  "lockedAt": "2026-10-22T17:23:03.990Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
