@@ -30,7 +30,7 @@ export function cleanSpeech(text) {
   return { text: kept.join('; '), removed: parts.length - kept.length };
 }
 
-export function qualityGuards(note, transcript, log = () => {}) {
+export function qualityGuards(note, transcript, log = () => {}, o = {}) {
   const T = new Set(content(spoken(transcript))); const out = { dxCleared: [], speechRemoved: 0 };
   for (const it of note?.assessment_and_plan || []) {
     if (!it || typeof it !== 'object') continue;
@@ -42,7 +42,7 @@ export function qualityGuards(note, transcript, log = () => {}) {
       if (!it[f]) continue; const r = cleanSpeech(it[f]); if (r.removed || r.text !== it[f].split('\n').join('; ')) { out.speechRemoved += r.removed; it[f] = r.text; }
     }
   }
-  out.conditions = conditionGuard(note, transcript, log);
+  if (o.conditions !== false) out.conditions = conditionGuard(note, transcript, log);   // o.conditions=false (opts.conditionGuard=false / CONDITION_GUARD=0) lets the lab compare with and without it
   out.laterality = checkLaterality(note, transcript);
   if (out.laterality.length) {
     const seen = new Set(); const msg = out.laterality.filter((x) => !seen.has(x.part + x.noteSide) && seen.add(x.part + x.noteSide)).map((x) => 'the note says ' + x.noteSide + ' ' + x.part + ', the recording names the ' + x.transcriptSide + ' ' + x.part).join('; ');

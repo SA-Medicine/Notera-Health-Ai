@@ -42,3 +42,10 @@ test('whole-word title repair, cholesterol management counts as said, a conditio
   assert.equal(n.past_medical_history.medical_surgical, 'Hypercholesterolemia - managed via Lifestyle Rx program', 'cholesterol management was said'); assert.equal(n.assessment_and_plan[0].issue, 'Blood sugar');
   const m = { metadata: {}, past_medical_history: { medical_surgical: 'Hypertension - on lifestyle program for now' }, assessment_and_plan: [] }; conditionGuard(m, 'We talked about your back.'); assert.equal(m.past_medical_history.medical_surgical, '');
 });
+
+import { qualityGuards } from '../src/orchestrator/qualityGuards.js';
+test('the condition guard can be switched off for a fair comparison, the other quality guards keep running', () => {
+  const mkNote = () => ({ metadata: {}, past_medical_history: { medical_surgical: 'Diabetes' }, assessment_and_plan: [{ issue: 'Diabetes', diagnosis: '', investigations_planned: '', treatment_planned: 'Review', referrals: '' }] });
+  const on = mkNote(); qualityGuards(on, 'We talked about your back.', () => {}); assert.equal(on.past_medical_history.medical_surgical, '');
+  const off = mkNote(); qualityGuards(off, 'We talked about your back.', () => {}, { conditions: false }); assert.equal(off.past_medical_history.medical_surgical, 'Diabetes');
+});
