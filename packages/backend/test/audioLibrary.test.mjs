@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { audioFlags, meanLevel, measureAudio, wordsPerMinute, countWords } from '../src/admin/audioStats.js';
+import { audioFlags, meanLevel, measureAudio, wordsPerMinute, countWords, repairWebm } from '../src/admin/audioStats.js';
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://fake';
 process.env.GCS_AUDIO_BUCKET = 'test-bucket';
@@ -97,4 +97,14 @@ test('a recording that starts with a later data block is called damaged, not jus
   assert.deepEqual(audioFlags({ durationS: null, damaged: true, ownerRole: 'clinician' }), ['damaged file (no audio header)']);
   assert.deepEqual(audioFlags({ durationS: null, damaged: false, ownerRole: 'clinician' }), ['cannot be decoded']);
   assert.equal(missingWebmHeader(Buffer.from('43b67501aabbcc', 'hex')), true); assert.equal(missingWebmHeader(Buffer.from('1a45dfa3aabbcc', 'hex')), false); assert.equal(missingWebmHeader(Buffer.from('OggSxxxx')), false);
+});
+
+test('a recording with a stray piece in front of its header is cut at the header; a good one is untouched; one with no header is reported', () => {
+  const hdr = Buffer.from('1a45dfa3', 'hex'); const body = Buffer.alloc(100, 7); const good = Buffer.concat([hdr, body]);
+  const stray = Buffer.alloc(16439, 0x55); stray[0] = 0x43; stray[1] = 0xb6; stray[2] = 0x75; stray[16438] = 0x1f;
+  const fixed = repairWebm(Buffer.concat([stray, good]));
+  assert.deepEqual([fixed.ok, fixed.trimmed, fixed.buf.length], [true, 16439, good.length]); assert.ok(fixed.buf.subarray(0, 4).equals(hdr));
+  assert.deepEqual([repairWebm(good).ok, repairWebm(good).trimmed], [true, 0]);
+  assert.equal(repairWebm(Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from('ftyp'), body])).ok, true, 'an MP4 recording is fine');
+  assert.equal(repairWebm(Buffer.alloc(600, 9)).ok, false); assert.equal(repairWebm(Buffer.alloc(3)).ok, false);
 });

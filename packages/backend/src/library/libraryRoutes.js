@@ -20,6 +20,7 @@ import { store } from '../firestore/store.js';
 import { query, one } from '../db/pool.js';
 import { cleanEvents, mergeFeedback, diffLines, resolvedMessages } from './corrections.js';
 import { analyseBatch } from '../admin/audioLibrary.js';
+import { repairWebm } from '../admin/audioStats.js';
 
 const BUCKET = () => process.env.GCS_AUDIO_BUCKET || '';
 
@@ -136,7 +137,9 @@ export function mountLibrary(app, requireAuthMw) {
       const ct = String(req.headers['content-type'] || 'audio/webm');
       const ext = /ogg/i.test(ct) ? 'ogg' : /mp4/i.test(ct) ? 'mp4' : /wav/i.test(ct) ? 'wav' : 'webm';
       const objectName = `audio/${req.user.id}/${req.params.id}.${ext}`;
-      await (await gcsBucket()).file(objectName).save(req.body, { contentType: ct, resumable: false });
+      const fixed = repairWebm(req.body);   // a recording with stray bytes in front of its header is cut at the header; the browser does this too, this is the second line of defence
+      if (fixed.trimmed) console.warn(`[audio] ${req.params.id}: cut ${fixed.trimmed} stray bytes in front of the header`);
+      await (await gcsBucket()).file(objectName).save(fixed.buf, { contentType: ct, resumable: false });
       const uri = `gs://${BUCKET()}/${objectName}`;
       await query(`UPDATE clinical.consults SET audio_uri=$2, updated_at=now() WHERE consult_id=$1`, [req.params.id, uri]);
       analyseBatch({ limit: 2 }).catch(() => {});   // measure the new recording for the admin audio library (length, loudness, flags); never blocks the upload

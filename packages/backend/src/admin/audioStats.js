@@ -39,6 +39,18 @@ export async function decodeFile(buf, { timeoutMs = 120000 } = {}) {
 /** A WebM/Matroska recording must start with the EBML header (1A 45 DF A3). One that starts with a later data block can never be played. */
 export const missingWebmHeader = (buf) => !!buf && buf.length > 4 && buf.subarray(0, 4).toString('hex') !== '1a45dfa3' && buf.subarray(0, 4).toString('latin1') !== 'OggS' && buf.subarray(0, 4).toString('latin1') !== 'RIFF';
 
+/**
+ * The six recordings that could not be played all had ONE stray one-second piece (16 439 bytes) in front of an otherwise good file. This cuts
+ * anything in front of the first container header (looked for in the first 512 KB). { buf, trimmed, ok }: ok=false means no known header at all.
+ */
+export function repairWebm(buf) {
+  if (!buf || buf.length < 8) return { buf, trimmed: 0, ok: false };
+  const four = buf.subarray(0, 4).toString('latin1');
+  if (buf.subarray(0, 4).toString('hex') === '1a45dfa3' || buf.subarray(4, 8).toString('latin1') === 'ftyp' || four === 'OggS' || four === 'RIFF') return { buf, trimmed: 0, ok: true };
+  const i = buf.subarray(0, 512 * 1024).indexOf(Buffer.from('1a45dfa3', 'hex'));
+  return i > 0 ? { buf: buf.subarray(i), trimmed: i, ok: true } : { buf, trimmed: 0, ok: false };
+}
+
 /** { durationS, level } for an audio file's bytes (any format ffmpeg reads), or null when it cannot be decoded. `transcode` = bytes -> 16 kHz mono PCM. */
 export async function measureAudio(buf, transcode) {
   const pcm = await transcode(buf);

@@ -14,6 +14,7 @@ import { VoiceBeam } from 'voice-glow';
 import { useInvite, inviteSummary } from '../components/useInvite';
 import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './transcriptDensity';
 import { mdToHtml } from './noteRender';
+import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
@@ -133,6 +134,8 @@ export default function Scribe() {
   const fullRecRef = useRef<MediaRecorder | null>(null);
   const fullChunks = useRef<Blob[]>([]);
   const fullBlob = useRef<Blob | null>(null);
+  const fullStopped = useRef<Promise<void>>(Promise.resolve());   // resolves when the whole-visit recorder has delivered its last piece
+  const starting = useRef(false);                                 // a click on Record is being handled (microphone permission pending)
   const fullMime = useRef('audio/webm');
   const segMime = useRef('audio/webm');
   const segments = useRef<Map<number, Segment>>(new Map());   // index → segment (ordered transcript)
@@ -377,7 +380,12 @@ export default function Scribe() {
     if (segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0) return;
     if (captureLive.current) return;                  // the final segment is still closing
     finishing.current = true;
-    if (fullChunks.current.length) fullBlob.current = new Blob(fullChunks.current, { type: fullMime.current });
+    await Promise.race([fullStopped.current, new Promise<void>((r) => setTimeout(r, 2000))]);   // the recorder hands over its last piece just after stop()
+    if (fullChunks.current.length) {
+      const sealed = await sealRecording(fullChunks.current, fullMime.current);   // a playable file or nothing: cut anything in front of the header, never keep a file without one
+      fullBlob.current = sealed.ok ? sealed.blob : null;
+      if (sealed.trimmed || !sealed.ok) fetch(`${API}/api/ops/audio-event`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultId, reason: sealed.ok ? 'recording_repaired' : 'recording_invalid', meta: { trimmedBytes: sealed.trimmed } }) }).catch(() => {});
+    }
     await recoverFailedSegments();
     // Completeness check: is the transcript far too short for the length of the recording? (free: two numbers, no request)
     try {   // never let the check get in the way of finishing a recording
@@ -539,6 +547,8 @@ export default function Scribe() {
 
   async function toggleRecord() {
     if (phase === 'recording') { stopRecording(); return; }
+    if (starting.current) return;                  // a second click while the microphone prompt is open used to start a second, never-stopped recorder
+    starting.current = true;
     setError(''); setNote(''); setNoteFlags([]); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
     setPendingSegs(0); setFailedSegs(0);
     emptySegs.current = 0; silenceAbort.current = false; finishing.current = false;
@@ -551,8 +561,10 @@ export default function Scribe() {
       fullChunks.current = []; fullBlob.current = null; setDensity(null);
       try {
         const fr = new MediaRecorder(stream); fullRecRef.current = fr;
+        const mine: Blob[] = []; fullChunks.current = mine;   // this recorder's own pieces: a late piece from an earlier recorder can no longer land in front of the file header
+        fullStopped.current = new Promise<void>((res) => { fr.onstop = () => res(); });
         fullMime.current = fr.mimeType || 'audio/webm';
-        fr.ondataavailable = (e) => { if (e.data.size) fullChunks.current.push(e.data); };
+        fr.ondataavailable = (e) => { if (e.data.size) mine.push(e.data); };
         fr.start(1000);
       } catch { fullRecRef.current = null; }
       setPhase('recording');
@@ -569,6 +581,7 @@ export default function Scribe() {
         }
       }, SEGMENT_MS);
     } catch { setError('Microphone unavailable — paste a transcript below instead.'); }
+    finally { starting.current = false; }
   }
 
   function loadPastedTranscript() {
