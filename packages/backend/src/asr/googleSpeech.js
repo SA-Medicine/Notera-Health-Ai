@@ -208,7 +208,8 @@ export async function transcribePcm(pcm, opts = {}) {
 // A cut between two windows can drop or clip the words that straddle it (and a phrase said during crosstalk right at the cut is easily lost).
 // Each window therefore also hears `overlap` seconds of its neighbours, and every word is kept by the window whose own span contains the
 // word's START time, so each word is written exactly once and none sits on a cut. Needs word time offsets; without them the overlap is merged by text.
-const overlapSeconds = (win) => Math.max(0, Math.min(num(process.env.ASR_OVERLAP_SECONDS, 3), (58 - win) / 2));
+// OFF by default: measured on 6 recordings it was worse than plain windows (7.7 -> 8.4 % WER and similar). ASR_OVERLAP_SECONDS switches it on.
+const overlapSeconds = (win) => Math.max(0, Math.min(num(process.env.ASR_OVERLAP_SECONDS, 0), (58 - win) / 2));
 
 /** Widens each window by overlap seconds on both sides (never past the audio) and remembers its own span. */
 export function overlapWindows(windows, pcmBytes, overlap) {

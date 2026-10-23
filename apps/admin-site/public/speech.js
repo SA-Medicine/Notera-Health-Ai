@@ -22,6 +22,7 @@ export async function speechView(ctx) {
           <label class="lbl">Give up on an engine after (seconds)<input class="input" id="a-t" type="number" min="5" max="180" value="${Math.round(S.timeoutMs / 1000)}"></label>
           <label class="lbl">Open the breaker after N failures in a row<input class="input" id="a-b" type="number" min="1" max="20" value="${S.breakerFailures}"></label></div>
         <label class="switch" style="margin:6px 0"><input id="a-s" type="checkbox" ${S.speechCheck ? 'checked' : ''}><span></span>Treat “no text for clear speech” as a failure and try the next engine</label>
+        <label class="switch" style="margin:6px 0"><input id="a-x" type="checkbox" ${S.crossCheck ? 'checked' : ''}><span></span>Second opinion: a different engine hears the same audio at the same time; a medical word it heard better (calf, not class) replaces the look-alike, and a sentence the first engine dropped is added (about $0.002 a minute; if it fails the first transcript is used as it is)</label>
         <div class="tools" style="margin-top:10px"><button class="btn primary" id="a-save">Save</button><button class="btn" id="a-reset">Reset to the built-in default</button>
           <span class="hint">${d.meta ? `Saved by ${esc(d.meta.updated_by || '')} ${ago(d.meta.updated_at)}` : `Built-in default: ${esc(E[d.defaults.primary].label)}${d.defaults.fallbacks.length ? ' → ' + d.defaults.fallbacks.map((f) => esc(E[f].label)).join(' → ') : ''}`}</span></div></div>
 
@@ -37,7 +38,7 @@ export async function speechView(ctx) {
 
     $('#a-save').onclick = async () => {
       const fallbacks = ['a-f0', 'a-f1', 'a-f2'].map((i) => $('#' + i).value).filter(Boolean);
-      try { await api('/api/console/asr/settings', { method: 'PUT', json: { primary: $('#a-p').value, fallbacks, timeoutMs: Number($('#a-t').value) * 1000, breakerFailures: Number($('#a-b').value), speechCheck: $('#a-s').checked } }); toast('Saved — the next recording uses it'); draw(); } catch (e) { toast(e.message, true); }
+      try { await api('/api/console/asr/settings', { method: 'PUT', json: { primary: $('#a-p').value, fallbacks, timeoutMs: Number($('#a-t').value) * 1000, breakerFailures: Number($('#a-b').value), speechCheck: $('#a-s').checked, crossCheck: $('#a-x').checked } }); toast('Saved — the next recording uses it'); draw(); } catch (e) { toast(e.message, true); }
     };
     $('#a-reset').onclick = async () => { if (!confirm('Go back to the built-in default engine chain?')) return; try { await api('/api/console/asr/settings', { method: 'DELETE' }); toast('Back to the default'); draw(); } catch (e) { toast(e.message, true); } };
     $('#a-hr').onclick = async () => { try { await api('/api/console/asr/health/reset', { method: 'POST', json: {} }); toast('Counters cleared'); draw(); } catch (e) { toast(e.message, true); } };

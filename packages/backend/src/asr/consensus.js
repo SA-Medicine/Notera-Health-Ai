@@ -44,19 +44,34 @@ export function shouldSwap(a, b, terms = MEDICAL_TERMS) {
   return b.length >= 4 && a.length >= 3 && terms.has(b) && !terms.has(a) && !STOP.has(a) && similarity(a, b) >= 0.3;
 }
 
-/** → { text, swaps: [{ from, to }], fills: [number of words] } */
-export function reconcile(primary, second, { terms = MEDICAL_TERMS, minFill = 6, maxCells = 25_000_000 } = {}) {
+/**
+ * → { text, swaps: [{ from, to }], fills: [number of words] }
+ * A fill is only made between two stretches both engines agree on (at least 2 matching words on each side), so a passage that the primary
+ * garbled instead of dropping is never patched into a jumble: it is left as the primary heard it.
+ */
+export function reconcile(primary, second, { terms = MEDICAL_TERMS, minFill = 6, anchor = 2, maxCells = 25_000_000 } = {}) {
   const P = String(primary || '').split(/\s+/).filter(Boolean); const Q = String(second || '').split(/\s+/).filter(Boolean);
   if (!P.length || !Q.length || P.length * Q.length > maxCells) return { text: String(primary || ''), swaps: [], fills: [] };
   const A = P.map(core), B = Q.map(core); const ops = alignTokens(A, B);
-  const out = []; const swaps = []; const fills = []; let run = [];
-  const flush = () => { if (run.length >= minFill) { out.push(...run); fills.push(run.length); } run = []; };
-  for (const [t, i, j] of ops) {
-    if (t !== 'i') flush();
+  const matched = (k, dir) => { for (let c = 1; c <= anchor; c++) { const o = ops[k + dir * c]; if (!o || o[0] !== 'm') return false; } return true; };
+  const out = []; const swaps = []; const fills = [];
+  for (let k = 0; k < ops.length; k++) {
+    const [t, i, j] = ops[k];
     if (t === 'm' || t === 'd') out.push(P[i]);
-    else if (t === 's') { if (shouldSwap(A[i], B[j], terms)) { out.push(carry(P[i], Q[j])); swaps.push({ from: A[i], to: B[j] }); } else out.push(P[i]); }
-    else run.push(Q[j]);
+    else if (t === 's') {
+      if (shouldSwap(A[i], B[j], terms)) {
+        // "light headache" heard as one word elsewhere ("lightheadedness"): the word before is absorbed instead of repeated
+        const prevCore = out.length ? core(out[out.length - 1]) : '';
+        const carried = carry(P[i], Q[j]);
+        if (prevCore.length >= 3 && B[j].startsWith(prevCore) && prevCore !== B[j]) { const lead = out.pop(); out.push(carry(lead, Q[j])); } else out.push(carried);
+        swaps.push({ from: A[i], to: B[j] });
+      } else out.push(P[i]);
+    } else {
+      let l = k; while (l < ops.length && ops[l][0] === 'i') l++;
+      const edgeOk = (k === 0 || matched(k, -1)) && (l === ops.length || matched(l - 1, 1));
+      if (l - k >= minFill && edgeOk) { for (let c = k; c < l; c++) out.push(Q[ops[c][2]]); fills.push(l - k); }
+      k = l - 1;
+    }
   }
-  flush();
   return { text: out.join(' '), swaps, fills };
 }

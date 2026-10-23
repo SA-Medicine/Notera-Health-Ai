@@ -10,7 +10,7 @@ const S = (o = {}) => validateSettings({ primary: 'chirp_2', fallbacks: ['latest
 const runners = (m) => ({ v2: m.v2 || ok('v2 text'), v1: m.v1 || ok('v1 text'), gemini: m.gemini || ok('gemini text') });
 
 test('the default chain: ASR_MODEL first, then Gemini 2.5 Flash, then the cheapest Google model', () => {
-  assert.deepEqual(defaultSettings({ ASR_MODEL: 'chirp_2' }), { primary: 'chirp_2', fallbacks: ['gemini-2.5-flash', 'latest_long'], timeoutMs: 60000, breakerFailures: 3, breakerCooldownMs: 300000, speechCheck: true });
+  assert.deepEqual(defaultSettings({ ASR_MODEL: 'chirp_2' }), { primary: 'chirp_2', fallbacks: ['gemini-2.5-flash', 'latest_long'], timeoutMs: 60000, breakerFailures: 3, breakerCooldownMs: 300000, speechCheck: true, crossCheck: true, crossCheckTimeoutMs: 45000 });
   assert.deepEqual(defaultSettings({ ASR_MODEL: 'gemini-2.5-flash' }).fallbacks, ['latest_long']);
   assert.deepEqual(defaultSettings({ ASR_MODEL: 'latest_long' }).fallbacks, []); assert.equal(defaultSettings({}).primary, 'latest_long'); assert.equal(defaultSettings({ ASR_MODEL: 'medical_conversation' }).primary, 'latest_long', 'a premium or unknown name never becomes the primary');
 });
@@ -67,4 +67,34 @@ import { rerunSettings } from '../src/asr/engines.js';
 test('the re-transcribe pass uses Gemini 2.5 Flash first, Chirp 2 only as its fallback, and fits the proxy time limit', () => {
   const r = rerunSettings(defaultSettings({ ASR_MODEL: 'chirp_2' })); assert.equal(r.primary, 'gemini-2.5-flash'); assert.deepEqual(r.fallbacks, ['chirp_2']); assert.ok(r.timeoutMs <= 90000); assert.equal(r.speechCheck, true);
   const g = rerunSettings(validateSettings({ primary: 'chirp_3', fallbacks: ['latest_long'] })); assert.equal(g.primary, 'gemini-2.5-flash', 'whatever the owner chose as primary, the re-run is always Gemini');
+});
+
+test('cross-check: a medical word and a missing sentence from the second engine are used; the primary is kept when the second fails or is off', async () => {
+  resetHealth();
+  const chirp = ok('If you have class tenderness that is the bad sign. Why do you not continue and if still concerned come see me');
+  const gem = ok('If you have calf tenderness that is the bad sign. Why do you not continue and any signs of concern that I should be watching for and if still concerned come see me');
+  const on = await transcribeWithChain(SPEECH, { settings: S({ crossCheck: true }), runners: runners({ v2: chirp, gemini: gem }) });
+  assert.match(on.text, /calf tenderness/); assert.match(on.text, /signs of concern that I should be watching for/);
+  assert.equal(on.consensus.swaps, 1); assert.equal(on.consensus.fills, 1); assert.equal(on.engine, 'chirp_2');
+  const off = await transcribeWithChain(SPEECH, { settings: S({ crossCheck: false }), runners: runners({ v2: chirp, gemini: gem }) });
+  assert.match(off.text, /class tenderness/); assert.equal(off.consensus, undefined);
+  resetHealth();
+  const failed = await transcribeWithChain(SPEECH, { settings: S({ crossCheck: true }), runners: runners({ v2: chirp, gemini: boom('429 quota') }) });
+  assert.match(failed.text, /class tenderness/); assert.equal(failed.consensus, undefined, 'a failed second opinion never fails or changes the transcript');
+  resetHealth();
+  const loop = await transcribeWithChain(SPEECH, { settings: S({ crossCheck: true }), runners: runners({ v2: chirp, gemini: ok('word '.repeat(600)) }) });
+  assert.match(loop.text, /class tenderness/, 'an impossible second transcript (a loop) is ignored');
+});
+test('with Gemini as the primary, Chirp 2 is the second opinion; and a slow second engine is abandoned at its time limit', async () => {
+  resetHealth(); let gemCalls = 0; let v2Calls = 0;
+  const g = await transcribeWithChain(SPEECH, { settings: validateSettings({ primary: 'gemini-2.5-flash', fallbacks: ['latest_long'], crossCheck: true }), runners: runners({
+    gemini: async () => { gemCalls++; return { text: 'The pain in the class gets worse when I walk upstairs' }; },
+    v2: async () => { v2Calls++; return { text: 'The pain in the calf gets worse when I walk upstairs' }; } }) });
+  assert.equal(gemCalls, 1); assert.equal(v2Calls, 1); assert.equal(g.engine, 'gemini-2.5-flash'); assert.match(g.text, /in the calf gets worse/); assert.equal(g.consensus.engine, 'chirp_2');
+  resetHealth();
+  const fb = await transcribeWithChain(SPEECH, { settings: validateSettings({ primary: 'chirp_2', fallbacks: ['gemini-2.5-flash', 'latest_long'], crossCheck: true }), runners: runners({ v2: boom(), gemini: ok('gemini served this') }) });   // primary failed, Gemini is both the fallback and the checker
+  assert.equal(fb.text, 'gemini served this'); assert.equal(fb.consensus, undefined);
+  resetHealth();
+  const slow = await transcribeWithChain(SPEECH, { settings: S({ crossCheck: true, crossCheckTimeoutMs: 5000 }), runners: runners({ v2: ok('primary text stays'), gemini: () => new Promise((r) => setTimeout(() => r({ text: 'late' }), 6500)) }) });
+  assert.equal(slow.text, 'primary text stays');
 });

@@ -64,3 +64,10 @@ test('window texts join on the longest phrase both heard; ragged edges and repea
   assert.equal(mergeOverlapText('yeah okay so yeah okay', 'yeah okay so um go on'), 'yeah okay so yeah okay yeah okay so um go on');   // only filler in common: no join point, nothing dropped
   assert.equal(mergeOverlapText('', 'only this'), 'only this'); assert.equal(mergeOverlapText('only that', ''), 'only that');
 });
+
+test('a split word is absorbed ("light headache" -> "lightheadedness") and a passage next to garbled text is not patched in', () => {
+  assert.match(reconcile('then you know light headache then yeah okay', 'then you know lightheadedness then yeah okay').text, /you know lightheadedness then yeah/);
+  const primary = 'okay so it is fine you will just as far as little I am just like swelling right';
+  const second = 'okay so it is fine any signs of concern that I should be watching for as far as like I am just like swelling right';
+  assert.deepEqual(reconcile(primary, second).fills, [], 'garbled on one side, not dropped: left as the primary heard it');
+});

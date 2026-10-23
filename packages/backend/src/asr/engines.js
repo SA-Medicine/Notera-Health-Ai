@@ -14,6 +14,7 @@
 'use strict';
 
 import { query, one } from '../db/pool.js';
+import { reconcile } from './consensus.js';
 import { transcribeChirpPcm, transcribePcm, planWindows, pcmDurationSeconds, _BYTES_PER_SECOND } from './googleSpeech.js';
 
 export const ENGINES = {
@@ -30,7 +31,7 @@ export function defaultSettings(env = process.env) {
   const asr = String(env.ASR_MODEL || 'latest_long');
   const primary = isEngine(asr) ? asr : 'latest_long';
   const fallbacks = primary === 'latest_long' ? [] : primary.startsWith('gemini') ? ['latest_long'] : ['gemini-2.5-flash', 'latest_long'];
-  return { primary, fallbacks, timeoutMs: 60000, breakerFailures: 3, breakerCooldownMs: 300000, speechCheck: true };
+  return { primary, fallbacks, timeoutMs: 60000, breakerFailures: 3, breakerCooldownMs: 300000, speechCheck: true, crossCheck: env.ASR_CROSSCHECK !== '0', crossCheckTimeoutMs: 45000 };
 }
 export function validateSettings(raw, base = defaultSettings()) {
   const s = { ...base, ...(raw || {}) };
@@ -40,7 +41,7 @@ export function validateSettings(raw, base = defaultSettings()) {
   if (s.fallbacks.length > 3) throw new Error('at most three fallbacks');
   const num = (v, lo, hi, k) => { const n = Number(v); if (!Number.isFinite(n) || n < lo || n > hi) throw new Error(`${k} must be between ${lo} and ${hi}`); return n; };
   s.timeoutMs = num(s.timeoutMs, 5000, 180000, 'timeoutMs'); s.breakerFailures = num(s.breakerFailures, 1, 20, 'breakerFailures'); s.breakerCooldownMs = num(s.breakerCooldownMs, 10000, 3600000, 'breakerCooldownMs');
-  s.speechCheck = !!s.speechCheck;
+  s.speechCheck = !!s.speechCheck; s.crossCheck = !!s.crossCheck; s.crossCheckTimeoutMs = num(s.crossCheckTimeoutMs ?? 45000, 5000, 120000, 'crossCheckTimeoutMs');
   return s;
 }
 
@@ -137,6 +138,15 @@ const withTimeout = (p, ms, label) => new Promise((resolve, reject) => { const t
 export async function transcribeWithChain(pcm, { log = () => {}, runners = defaultRunners, settings = null, now = Date.now } = {}) {
   const s = settings || await getSettings();
   const order = [s.primary, ...s.fallbacks]; const tried = []; let emptyResult = null; let lastErr = null;
+  // the second opinion is always the OTHER kind of engine: Gemini checks a Google speech engine, Chirp 2 (with the medical vocabulary) checks Gemini
+  const CROSS = ENGINES[s.primary].kind === 'gemini' ? 'chirp_2' : 'gemini-2.5-flash'; const crossRun = runners[ENGINES[CROSS].kind];
+  // Second opinion: a different kind of engine hears the same audio at the same time (about $0.002 a minute). It can only swap in a medical word the
+  // primary mis-heard or add a sentence the primary dropped (consensus.js); if it fails or is slow the primary transcript is used unchanged.
+  let crossP = null;
+  if (s.crossCheck && crossRun && !breakerOpen(CROSS, now())) {
+    const t0c = now();
+    crossP = withTimeout(Promise.resolve(crossRun(pcm, CROSS, log)), s.crossCheckTimeoutMs || 45000, 'cross-check').then((r) => { note(CROSS, 'ok', { ms: now() - t0c }); return String(r?.text || '').trim(); }, (e) => { note(CROSS, 'fail', { error: e.message, s, now: now() }); log(`asr: cross-check skipped (${String(e.message).slice(0, 100)})`); return ''; });
+  }
   const usable = order.filter((e) => !breakerOpen(e, now()));
   const attempts = usable.length ? usable : order.slice(0, 1);          // everything tripped: still try the primary rather than fail outright
   if (usable.length < order.length) log(`asr: skipping ${order.filter((e) => !usable.includes(e)).join(', ')} (circuit breaker open)`);
@@ -150,7 +160,14 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
         note(engine, 'empty'); tried.push({ engine, ok: false, empty: true, ms }); emptyResult = { ...r, engine }; log(`asr: ${engine} returned nothing for audio that contains speech — trying ${attempts[i + 1]}`); continue;
       }
       note(engine, 'ok', { ms }); tried.push({ engine, ok: true, ms }); if (i > 0) H(engine).fallbackServed += 1;
-      return { ...r, text, engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried };
+      let final = text; let consensus = null;
+      if (crossP && text && engine !== CROSS) {
+        try {
+          const other = await crossP;
+          if (other && !implausible(other, pcmDurationSeconds(pcm.length))) { const c = reconcile(text, other); final = c.text || text; consensus = { engine: CROSS, swaps: c.swaps.length, fills: c.fills.length, fillWords: c.fills.reduce((a, b) => a + b, 0), words: other.split(/\s+/).length }; log(`asr: cross-check with ${CROSS}: ${c.swaps.length} medical word(s) swapped, ${c.fills.length} missing passage(s) added`); }
+        } catch { /* never fail a transcription because of the second opinion */ }
+      }
+      return { ...r, text: final, engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}) };
     } catch (e) {
       lastErr = e; note(engine, 'fail', { error: e.message, s, now: now() }); tried.push({ engine, ok: false, ms: now() - t0, error: String(e.message).slice(0, 160) });
       log(`asr: ${engine} failed (${String(e.message).slice(0, 140)})${i < attempts.length - 1 ? ` — falling back to ${attempts[i + 1]}` : ''}`);
