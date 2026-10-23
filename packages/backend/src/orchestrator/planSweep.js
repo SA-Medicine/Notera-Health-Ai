@@ -7,7 +7,7 @@
 //   * its prompt lives in this file and is not part of the locked prompt registry. Off switch: PLAN_SWEEP=0.
 'use strict';
 
-export const MAX_ADDITIONS = 2;
+export const MAX_ADDITIONS = 4;
 
 export const SWEEP_SYS = `You check whether the Assessment & Plan of a clinic note leaves out an issue the clinician actually addressed. Be thorough: small issues are exactly what gets missed.
 You receive the TRANSCRIPT and the PROBLEMS ALREADY IN THE PLAN (title and lines).

@@ -126,7 +126,7 @@ export function sweepEmptyStatements(note, log = () => {}) {
 const cw = (t) => new Set(String(t).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !/^(patient|today|planned|with|that|this|from|will|have|following|after|your|their|should|would|please)$/.test(w)));
 const similar = (a, b, th = 0.75) => { const A = cw(a), B = cw(b); if (!A.size || !B.size) return false; const sh = [...A].filter((w) => B.has(w)).length; return sh / Math.min(A.size, B.size) >= th; };
 /** The plan states every item once: a bare "Rtc", and an investigation/treatment item that repeats an earlier one (in the same or another problem), are dropped; the Medications line has no repeated drug. */
-export function tidyPlan(note, log = () => {}) {
+export function tidyPlan(note, log = () => {}, { exact = false } = {}) {   // exact (free flow): a plan item is dropped only when identical to an earlier one
   let dropped = 0; const seen = [];
   const items = (v) => String(v || '').split(/\n|;/).map((x) => x.trim()).filter(Boolean);
   for (const p of note.assessment_and_plan || []) {
@@ -135,7 +135,8 @@ export function tidyPlan(note, log = () => {}) {
       for (const it of items(p[f])) {
         if (/^(rtc|rtc:|follow[- ]?up:?)$/i.test(it)) { dropped++; continue; }
         const th = f === 'investigations_planned' ? 0.6 : 0.75;
-        if (seen.some((x) => x.f === f && similar(x.t, it, th)) || keep.some((k) => similar(k, it, th))) { dropped++; continue; }
+        const same = exact ? (a, b) => a.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : (a, b) => similar(a, b, th);
+        if (seen.some((x) => x.f === f && same(x.t, it)) || keep.some((k) => same(k, it))) { dropped++; continue; }
         keep.push(it); seen.push({ f, t: it });
       }
       if (keep.length !== items(p[f]).length) p[f] = keep.join(f === 'treatment_planned' ? '; ' : '\n');

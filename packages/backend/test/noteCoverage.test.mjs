@@ -43,3 +43,14 @@ test('coverNote asks once, shows the model the note and the numbered plan, and n
   assert.equal(asked.length, 1); assert.match(asked[0], /NOTE:\n### Subjective/); assert.match(asked[0], /1\. Left hip pain/); assert.equal(r.added, 1);
   const bad = await coverNote({ generateContent: async () => { throw new Error('quota'); } }, note(), TX); assert.equal(bad.added, 0); assert.match(bad.error, /quota/);
 });
+
+test('an issue the plan has no problem for becomes a new problem; one an existing problem covers goes to that problem', () => {
+  const n = note(); const log = [];
+  applyCoverage(n, { raw: JSON.stringify({ items: [
+    { section: 'plan', n: 0, topic: 'Smoking cessation', field: 'treatment', text: 'Start Champix 0.5 mg daily', evidence: 'Take the Lyrica with the Tylenol, that is fine' },
+    { section: 'plan', n: 0, topic: 'Left hip pain', field: 'advice', text: 'Lyrica can be taken with Tylenol', evidence: 'Take the Lyrica with the Tylenol, that is fine' },
+    { section: 'plan', n: 0, topic: 'Rule out cancer', field: 'treatment', text: 'Biopsy', evidence: 'Take the Lyrica with the Tylenol, that is fine' },
+  ] }) }, TX, (l) => log.push(l));
+  assert.deepEqual(n.assessment_and_plan.map((p) => p.issue), ['Left hip pain', 'Smoking cessation']);
+  assert.match(n.assessment_and_plan[1].treatment_planned, /Start Champix 0\.5 mg daily/); assert.match(n.assessment_and_plan[0].treatment_planned, /Lyrica can be taken with tylenol/i);
+});

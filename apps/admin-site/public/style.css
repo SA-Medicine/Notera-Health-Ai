@@ -327,3 +327,5 @@ th .mtip .mpop, .stat .l .mtip .mpop { left: auto; } th:last-child .mtip .mpop {
 tr.click { cursor: pointer; } tr.click:hover td { background: var(--surface-2); }
 @media (prefers-reduced-motion: reduce) { .sr-spin, .sr-shim, .sr-card.open, .sr-txfull { animation: none; } .sr-card, .sr-bar i, .sr-ring .fg { transition: none; } }
 .who-btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.sr-pl.sub { margin-left: 18px; }
+.sr-pl.sub em { width: 110px; }

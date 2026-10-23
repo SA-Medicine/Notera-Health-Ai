@@ -120,7 +120,7 @@ export function condenseNote(note, opts = {}, log = () => {}) {
           const w = wordsOf(s);
           if (w.length < 4) { kept.push(s); continue; }   // keep short crisp points as-is
           const dup = above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
-          if (dup) { removed++; log(`[upgrade:condense] dropped redundant A&P sentence (already detailed above): "${s.slice(0, 90)}"`); continue; }
+          if (dup && !opts.freeFlow) { removed++; log(`[upgrade:condense] dropped redundant A&P sentence (already detailed above): "${s.slice(0, 90)}"`); continue; }
           kept.push(s);
         }
       }
@@ -157,7 +157,7 @@ export function condenseNote(note, opts = {}, log = () => {}) {
         const isDupe = w.length >= 4
           && above.some((a) => jaccard(w, a) >= simThreshold || containment(w, a) >= containThreshold);
         const isNarrative = subjectiveHasContent && isBledHistory(line);
-        if (isDupe || isNarrative) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
+        if ((isDupe || isNarrative) && !opts.freeFlow) { removed++; log(`[upgrade:condense] dropped subjective-narrative bleed from A&P ${fld}: "${line.slice(0, 90)}"`); continue; }
         kept.push(line);
       }
       p[fld] = kept.join('\n');

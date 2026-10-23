@@ -11,6 +11,8 @@ const LABELS: Record<string, string> = {
   'referrals': 'ref',
   'advice': 'adv',
   'follow-up': 'fu',
+  // the sub-points under Treatment planned
+  'started': 'sta', 'changed': 'chg', 'stopped': 'stp', 'continued': 'con', 'given today': 'giv', 'other': 'oth',
 };
 
 export function mdToHtml(md: string): string {
@@ -31,7 +33,8 @@ export function mdToHtml(md: string): string {
       const body = ln.replace(/^\s*[-*]\s+/, '');
       const lab = body.match(/^([A-Za-z][A-Za-z -]{2,26}):\s*(.*)$/);
       const kind = lab ? LABELS[lab[1].trim().toLowerCase()] : undefined;
-      out.push(kind ? `<li class="ap-line ap-${kind}"><span class="ap-lbl">${lab![1]}:</span> ${lab![2]}</li>` : '<li>' + body + '</li>');
+      const sub = /^\s{5,}[-*]\s/.test(ln) && !!kind;   // a sub-point under "Treatment planned:"
+      out.push(kind ? `<li class="ap-line ap-${kind}${sub ? ' ap-sub' : ''}"><span class="ap-lbl">${lab![1]}:</span> ${lab![2]}</li>` : '<li>' + body + '</li>');
       continue;
     }
     if (inList) { out.push('</ul>'); inList = false; }

@@ -73,18 +73,16 @@ export function noteToMarkdown(note) {
   ]);
 
   // ── Objective ───────────────────────────────────────────────────────────────
-  // Terse: vitals labelled (compact + clinically important), then a single DISSOLVED
-  // findings list (examination + completed_investigations) — there is NO separate
-  // "Exam Findings"/"Key Findings" sub-section. condenseNote de-dups exam vs labs first.
+  // v2.2 (owner, 2026-10-24): up to three labelled groups (Vital Signs, Examination, Investigations), each shown only when it has lines. When nothing
+  // was measured, examined or reviewed in the visit the section says "Deferred" instead of disappearing (a short visit, a phone or video visit).
   const o = note.objective || {};
-  const vitals = bullets(o.vital_signs);
-  const findings = [...bullets(o.examination), ...bullets(o.completed_investigations)];
-  if (vitals.length || findings.length) {
+  const vitals = bullets(o.vital_signs); const exam = bullets(o.examination); const invs = bullets(o.completed_investigations);
+  const apAny = (note.assessment_and_plan || []).some((it) => it && (String(it.issue || '').trim() || String(it.diagnosis || '').trim() || String(it.assessment || '').trim() || String(it.treatment_planned || '').trim()));
+  if (vitals.length || exam.length || invs.length) {
     L.push('### Objective');
-    if (vitals.length) { L.push('**Vital Signs**'); for (const b of vitals) L.push(`- ${b}`); }
-    if (findings.length) { if (vitals.length) L.push(''); for (const b of findings) L.push(`- ${b}`); }
+    [['Vital Signs', vitals], ['Examination', exam], ['Investigations', invs]].filter(([, g]) => g.length).forEach(([name, g], i) => { if (i) L.push(''); L.push('**' + name + '**'); for (const x of g) L.push('- ' + x); });
     L.push('');
-  }
+  } else if (L.length || apAny) { L.push('### Objective'); L.push('- Deferred'); L.push(''); }
 
   const ap = note.assessment_and_plan || [];
   const apItems = ap.filter((it) => it && (String(it.issue || '').trim() || String(it.diagnosis || '').trim() || String(it.assessment || '').trim() || String(it.treatment_planned || '').trim()));

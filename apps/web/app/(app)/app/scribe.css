@@ -2739,3 +2739,10 @@ body.dark-mode .notera-shell .note-body .ap-fu > .ap-lbl { color: #f0b44a; }
 body.dark-mode .notera-shell .note-content .note-body h1,
 body.dark-mode .notera-shell .note-content .note-body h2,
 body.dark-mode .notera-shell .note-content .note-body h3 { color: #f5f5f7; border-bottom-color: rgba(255, 255, 255, 0.16); }
+.notera-shell .note-body li.ap-sub { margin-left: 18px; list-style: none; }
+.notera-shell .note-body .ap-sta > .ap-lbl { color: #0f766e; }
+.notera-shell .note-body .ap-chg > .ap-lbl { color: #b45309; }
+.notera-shell .note-body .ap-stp > .ap-lbl { color: #b3261e; }
+.notera-shell .note-body .ap-con > .ap-lbl { color: #4B1A44; }
+.notera-shell .note-body .ap-giv > .ap-lbl { color: #475569; }
+.notera-shell .note-body .ap-oth > .ap-lbl { color: var(--text-muted); }

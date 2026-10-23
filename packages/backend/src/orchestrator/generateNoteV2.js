@@ -46,6 +46,8 @@ import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 import { completePlan } from './planComplete.js';
 import { coverNote } from './noteCoverage.js';
+import { structureTreatment } from './treatmentStructure.js';
+import { fixPlacementV2 } from './placementRules.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -671,6 +673,7 @@ export async function generateNoteV2(input, opts = {}) {
       if (gOn('guards.template', opts.guardTemplate)) { try { const r = enforceTemplate(note, log); if (opts.trace) opts.trace.template = r; } catch (e) { log(`[v2:template] skipped — ${e.message}`); } }
       if (gOn('guards.template', opts.guardTemplate)) { try { ensureChronicInPMH(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
       if (gOn('guards.placement', opts.guardPlacement)) { try { const r = fixMisplacement(note, log); if (opts.trace) opts.trace.placement = r; } catch (e) { log(`[v2:place] skipped — ${e.message}`); } }
+      if (gOn('guards.placement', opts.guardPlacement) && opts.placementRules !== false && process.env.PLACEMENT_RULES !== '0') { try { fixPlacementV2(note, log); } catch (e) { log(`[v2:place2] skipped — ${e.message}`); } }   // Style Spec v2.2: a vital sign in the plan, a vaccine given in the visit written as an exam finding, history text under Referrals
       if (gOn('guards.drugPlausibility', opts.guardPlausibility)) { try { const r = drugPlausibility(note, transcript, log); if (opts.trace) opts.trace.plausibility = r; } catch (e) { log(`[v2:plausible] skipped — ${e.message}`); } }
       if (!inputChk.ok) note.metadata.flags = [...(note.metadata.flags || []), { type: 'input_not_consultation', field: 'transcript', message: inputChk.message + ' Please check the recording or text.', severity: 'warning' }];
       note.metadata.medications_mentioned = [...new Set([...(collectMeds(note)), ...((check?.medications || []).map((m) => m?.name).filter(Boolean))])];
@@ -701,9 +704,10 @@ export async function generateNoteV2(input, opts = {}) {
   }
   const gr = runGuardrails(note, [], { confidenceThreshold: opts.confidenceThreshold });
   note = gr.note;
-  try { condenseNote(note, {}, log); } catch (e) { log(`[v2] condense skipped: ${e.message}`); }
+  const freeFlow = opts.freeFlow !== undefined ? !!opts.freeFlow : process.env.FREE_FLOW !== '0';   // Style Spec v2.2 (owner 2026-10-24): while on, the fuzzy 'already stated' removals are off and only identical lines are dropped (FREE_FLOW=0 restores the earlier behaviour)
+  try { condenseNote(note, { freeFlow }, log); } catch (e) { log(`[v2] condense skipped: ${e.message}`); }
   try { note = reconcileNote(note); } catch { /* */ }
-  try { dedupeNote(note, { log }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
+  try { dedupeNote(note, { log, freeFlow }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
   let attrAnswer = null;   // plan attribution (Style Spec v2): asked beside the story agent, applied to the final note below
   if (!blank && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0' && cfg['stage.attribution'] !== false) {
     try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
@@ -732,7 +736,7 @@ export async function generateNoteV2(input, opts = {}) {
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
   }
-  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics') dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
+  if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics' && !freeFlow) dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log, { exact: freeFlow }); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   if (attrAnswer) { try { const at = applyAttribution(note, await attrAnswer, transcript, log); if (opts.trace) opts.trace.attribution = at; } catch (e) { log('[v2:attr] skipped — ' + e.message); } }
   if (!blank && (opts.qualityGuards !== false && process.env.QUALITY_GUARDS !== '0' && cfg['stage.qualityGuards'] !== false)) { try { const q = qualityGuards(note, transcript, log, { conditions: opts.conditionGuard === true || cfg['stage.conditionGuard'] === true, thirdParty: opts.thirdParty !== false && process.env.THIRD_PARTY !== '0' }); if (opts.trace) opts.trace.quality = q; } catch (e) { log(`[v2:quality] skipped — ${e.message}`); } }   // Style Spec v2: Diagnosis only if the clinician said it, no spoken words in the plan, side check (QUALITY_GUARDS=0 switches off). The condition guard (unsaid diseases out of PMH/titles) is OFF by default since the paired A/B of 2026-10-22 (CONDITION_GUARD=1 turns it on)
   if (sweepAnswer) {   // F1: one problem per issue — merge what the early sweep found (quote-checked, additions only) into the final note
@@ -748,7 +752,7 @@ export async function generateNoteV2(input, opts = {}) {
   }
   if (coverageOn) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
     const tv = Date.now();
-    try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
+    try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
     lap('coverage', tv);
   }
   if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
@@ -770,7 +774,8 @@ export async function generateNoteV2(input, opts = {}) {
   }
   if (!blank && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== '0' && cfg['stage.fidelityGuards'] !== false) { try { const fg = fidelityGuards(note, transcript, { refMeds, log, missing: missingNumbers }); if (opts.trace) opts.trace.fidelity = fg; } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); } }   // Style Spec v2.1: unheard drug/test names, social history nobody said, empty headings, duplicates
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
-  const renderedNote = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
+  const renderedNote = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
 
   // 5) persist -------------------------------------------------------------------
   const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note

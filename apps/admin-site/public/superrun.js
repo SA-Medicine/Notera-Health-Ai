@@ -104,7 +104,7 @@ export async function superRunView(ctx) {
       if (!sec) continue;
       if (/^Assessment/i.test(sec.title)) {
         if ((m = line.match(/^\s*\d+\.\s+\*\*(.+?)\*\*/))) { prob = { title: m[1], lines: [] }; sec.problems.push(prob); continue; }
-        if (prob && (m = line.match(/^\s*[-•*]\s+(.*)$/))) { const l = m[1].match(/^(Diagnosis|Differential diagnoses|Investigations planned|Treatment planned|Referrals|Advice|Follow-up):\s*(.*)$/); prob.lines.push(l ? { label: l[1], text: l[2] } : { label: '', text: m[1] }); }
+        if (prob && (m = line.match(/^\s*[-•*]\s+(.*)$/))) { const l = m[1].match(/^(Diagnosis|Differential diagnoses|Investigations planned|Treatment planned|Referrals|Advice|Follow-up|Started|Changed|Stopped|Continued|Given today|Other):\s*(.*)$/); prob.lines.push(l ? { label: l[1], text: l[2], sub: /^\s{5,}/.test(line) } : { label: '', text: m[1] }); }
       } else {
         if ((m = line.match(/^\*\*(.+?)\*\*\s*$/))) { group = { title: m[1].replace(/:$/, ''), items: [] }; sec.groups.push(group); continue; }
         if ((m = line.match(/^\s*[-•*]\s+(.*)$/))) { if (!group) { group = { title: '', items: [] }; sec.groups.push(group); } group.items.push(m[1]); }
@@ -113,7 +113,7 @@ export async function superRunView(ctx) {
     return sections;
   }
   const noteSection = (s) => (s.problems.length
-    ? `<section class="sr-sec ap"><h4>${esc(s.title)}</h4>${s.problems.map((p, i) => `<div class="sr-prob"><div class="sr-ptitle"><span>${i + 1}</span>${esc(p.title)}</div>${p.lines.map((l) => `<div class="sr-pl">${l.label ? `<em>${esc(l.label)}</em>` : '<em class="plain"></em>'}<span>${esc(l.text)}</span></div>`).join('')}</div>`).join('')}</section>`
+    ? `<section class="sr-sec ap"><h4>${esc(s.title)}</h4>${s.problems.map((p, i) => `<div class="sr-prob"><div class="sr-ptitle"><span>${i + 1}</span>${esc(p.title)}</div>${p.lines.map((l) => `<div class="sr-pl${l.sub ? ' sub' : ''}">${l.label ? `<em>${esc(l.label)}</em>` : '<em class="plain"></em>'}<span>${esc(l.text)}</span></div>`).join('')}</div>`).join('')}</section>`
     : `<section class="sr-sec"><h4>${esc(s.title)}</h4>${s.groups.map((g) => `<div class="sr-grp">${g.title ? `<div class="sr-gt">${esc(g.title)}</div>` : ''}<ul>${g.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</section>`);
 
   const STAGES = { 'writer+checklist': 'Writer and checklist', 'writer-retry': 'Writer retry (the first draft looped)', editor: 'Editor', verifier: 'Verifier', story: 'Subjective topics', sweep: 'Problem sweep', complete: 'Plan completeness', coverage: 'Coverage check (what is missing)', ground: 'Grounding check', ref: 'Reference names' };

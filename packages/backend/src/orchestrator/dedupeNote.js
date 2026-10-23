@@ -227,6 +227,17 @@ function dedupeSection(section, label, log) {
   return removed;
 }
 
+/** Free flow (owner, 2026-10-24): inside a section only a line that is IDENTICAL to an earlier one is removed; a paraphrase is kept (real facts were lost as "already stated"). */
+function dedupeSectionExact(section, label, log) {
+  if (!section) return 0;
+  let removed = 0; const seen = new Set(); const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const key of Object.keys(section)) {
+    if (typeof section[key] !== 'string') continue;
+    section[key] = toUnits(section[key]).filter((u) => { const k = norm(u); if (!k) return false; if (seen.has(k)) { removed += 1; log(`[dedupe] dropped identical ${label} line: "${String(u).slice(0, 90)}"`); return false; } seen.add(k); return true; }).join('\n');
+  }
+  return removed;
+}
+
 /**
  * Remove every duplicate from an assembled note, in place.
  * @param {object} note  schema v2 note (mutated)
@@ -248,11 +259,12 @@ export function dedupeNote(note, opts = {}) {
   }));
 
   let removed = 0;
-  removed += dedupeSection(note.subjective, 'Subjective', log);
-  removed += dedupeSection(note.past_medical_history, 'PMH', log);
-  removed += dedupeSection(note.objective, 'Objective', log);
+  const sectionDedupe = opts.freeFlow ? dedupeSectionExact : dedupeSection;
+  removed += sectionDedupe(note.subjective, 'Subjective', log);
+  removed += sectionDedupe(note.past_medical_history, 'PMH', log);
+  removed += sectionDedupe(note.objective, 'Objective', log);
   removed += dedupeAssessmentAndPlan(note, log);
-  removed += dropRetoldHistory(note, log);
+  if (!opts.freeFlow) removed += dropRetoldHistory(note, log);
 
   let restored = 0;
   for (const snap of before) {
