@@ -21,6 +21,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
+import { medicalPhrases } from './medicalVocab.js';
+
 const SAMPLE_RATE = 16000;
 const BYTES_PER_SAMPLE = 2;          // 16-bit signed little-endian
 const BYTES_PER_SECOND = SAMPLE_RATE * BYTES_PER_SAMPLE;
@@ -202,6 +204,48 @@ export async function transcribePcm(pcm, opts = {}) {
   return { text, windows: windows.length, durationSeconds, failedWindows };
 }
 
+// ── overlap-safe windows ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// A cut between two windows can drop or clip the words that straddle it (and a phrase said during crosstalk right at the cut is easily lost).
+// Each window therefore also hears `overlap` seconds of its neighbours, and every word is kept by the window whose own span contains the
+// word's START time, so each word is written exactly once and none sits on a cut. Needs word time offsets; without them the overlap is merged by text.
+const overlapSeconds = (win) => Math.max(0, Math.min(num(process.env.ASR_OVERLAP_SECONDS, 3), (58 - win) / 2));
+
+/** Widens each window by overlap seconds on both sides (never past the audio) and remembers its own span. */
+export function overlapWindows(windows, pcmBytes, overlap) {
+  const o = Math.floor(overlap * BYTES_PER_SECOND / 2) * 2;
+  if (!o || windows.length < 2) return windows.map((w) => ({ ...w, keepFrom: w.start, keepTo: w.end }));
+  return windows.map((w, i) => ({ start: i === 0 ? w.start : Math.max(0, w.start - o), end: i === windows.length - 1 ? w.end : Math.min(pcmBytes, w.end + o), keepFrom: w.start, keepTo: w.end }));
+}
+
+/** Duration as a number of seconds: V2 sends { seconds, nanos }, some clients a string like "1.2s". */
+export function offsetSeconds(d) {
+  if (d == null) return NaN;
+  if (typeof d === 'string') return parseFloat(d);
+  return Number(d.seconds || 0) + Number(d.nanos || 0) / 1e9;
+}
+
+/** The words of one window's results that start inside [keepFrom, keepTo) (absolute seconds). { text, hadWords } */
+export function keepWordsByTime(results, { winStartSec, keepFromSec, keepToSec }) {
+  const kept = []; let hadWords = false;
+  for (const r of results || []) {
+    const alt = r?.alternatives?.[0]; const words = alt?.words;
+    if (Array.isArray(words) && words.length) {
+      hadWords = true;
+      for (const w of words) { const t = winStartSec + offsetSeconds(w.startOffset); if (Number.isFinite(t) ? (t >= keepFromSec && t < keepToSec) : true) kept.push(w.word); }
+    } else if (alt?.transcript) kept.push(alt.transcript);   // no word times for this result: keep its text whole
+  }
+  return { text: kept.join(' ').replace(/\s+/g, ' ').trim(), hadWords };
+}
+
+/** Joins two neighbouring window texts that heard the same overlap: drops the longest run of words (3 or more) that ends one and starts the other. */
+export function mergeOverlapText(prev, cur) {
+  const a = String(prev || '').split(/\s+/).filter(Boolean); const b = String(cur || '').split(/\s+/).filter(Boolean);
+  const n = (w) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
+  const maxK = Math.min(40, a.length, b.length);
+  for (let k = maxK; k >= 3; k--) { let ok = true; for (let i = 0; i < k; i++) if (n(a[a.length - k + i]) !== n(b[i])) { ok = false; break; } if (ok) return [...a, ...b.slice(k)].join(' '); }
+  return [...a, ...b].join(' ');
+}
+
 /**
  * Same windowing, but through Chirp on Speech-to-Text V2. Chirp shares V1's ~60s
  * synchronous limit, so without windowing a long recording would silently fall back to
@@ -214,6 +258,9 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
   const log = opts.log || (() => {});
   const durationSeconds = pcmDurationSeconds(pcm.length);
   const location = opts.location || process.env.ASR_V2_LOCATION || 'us-central1';
+  const hintsOn = opts.hints === undefined ? process.env.ASR_HINTS !== '0' : !!opts.hints;
+  const phrases = hintsOn ? (Array.isArray(opts.hints) ? opts.hints : medicalPhrases({ boost: opts.hintBoost || (Number(process.env.ASR_HINT_BOOST) || undefined) })) : [];
+  const overlap = opts.overlapSeconds !== undefined ? Math.max(0, opts.overlapSeconds) : overlapSeconds(opts.windowSeconds || windowSeconds());
   let client = opts.client;
   let projectId = opts.projectId;
   if (!client) {
@@ -229,14 +276,17 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     // falls back to chirp_2, which is standard-priced like latest_long.
     model: /^chirp/i.test(String(opts.model || '')) ? opts.model : 'chirp_2',
     languageCodes: [opts.languageCode || process.env.ASR_LANGUAGE || 'en-US'],
-    features: { enableAutomaticPunctuation: true },
+    features: { enableAutomaticPunctuation: true, enableWordTimeOffsets: overlap > 0 },
     explicitDecodingConfig: { encoding: 'LINEAR16', sampleRateHertz: SAMPLE_RATE, audioChannelCount: 1 },
+    // medical vocabulary: drug names, Canadian brands and clinical words are boosted so they win over everyday look-alikes (calf / class)
+    ...(phrases.length ? { adaptation: { phraseSets: [{ inlinePhraseSet: { phrases } }] } } : {}),
   };
 
-  const windows = planWindows(pcm, opts);
-  log(`chirp v2: ${durationSeconds.toFixed(1)}s audio → ${windows.length} window(s), model=${config.model} loc=${location}`);
+  const base = planWindows(pcm, opts);
+  const windows = overlapWindows(base, pcm.length, overlap);
+  log(`chirp v2: ${durationSeconds.toFixed(1)}s audio → ${windows.length} window(s), model=${config.model} loc=${location}, hints=${phrases.length}, overlap=${overlap}s`);
 
-  let failedWindows = 0;
+  let failedWindows = 0; let needTextMerge = false;
   const parts = await mapLimit(windows, concurrency(), async (w, i) => {
     const label = `chirp window ${i + 1}/${windows.length}`;
     const content = pcm.subarray(w.start, w.end);
@@ -244,6 +294,11 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     for (let attempt = 0; attempt <= maxRetries(); attempt++) {
       try {
         const [r] = await client.recognize({ recognizer, config, content });
+        if (overlap > 0) {
+          const k = keepWordsByTime(r.results, { winStartSec: w.start / BYTES_PER_SECOND, keepFromSec: i === 0 ? -1 : w.keepFrom / BYTES_PER_SECOND, keepToSec: i === windows.length - 1 ? Infinity : w.keepTo / BYTES_PER_SECOND });
+          if (!k.hadWords && (r.results || []).length) needTextMerge = true;   // no word times came back: merge this window's overlap by text instead
+          return k.text;
+        }
         return (r.results || []).map((x) => x.alternatives?.[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
       } catch (e) {
         lastErr = e;
@@ -257,7 +312,7 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     return '';
   });
 
-  const text = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const text = (needTextMerge ? parts.filter(Boolean).reduce((acc, p) => (acc ? mergeOverlapText(acc, p) : p), '') : parts.filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
   if (!text && failedWindows === windows.length) {
     throw new Error(`Chirp recognition failed for all ${windows.length} window(s)`);
   }
