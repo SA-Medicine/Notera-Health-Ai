@@ -21,6 +21,7 @@ import { getActivePrompt } from '../src/orchestrator/promptStore.js';
 import { effectiveConfig } from '../src/orchestrator/runtimeConfig.js';
 import { createGeminiService, runWithModel } from '../src/services/LLMService.js';
 import { formatReport, aggregate as aggregateFormat } from './formatMetrics.js';
+import { mountSuperRun } from './superRun.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -590,6 +591,8 @@ app.get('/runs/:id/export.csv', wrap(async (req, res) => {
 }));
 app.get('/candidates', wrap(async (_req, res) => res.json({ candidates: fs.readdirSync(path.join(DATA, 'candidates')).map((f) => readJson(path.join(DATA, 'candidates', f))).filter(Boolean).map(({ text, ...c }) => c).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 40) })));
 app.get('/candidates/:id', wrap(async (req, res) => { const c = readJson(path.join(DATA, 'candidates', req.params.id + '.json')); c ? res.json(c) : res.status(404).json({ error: 'not found' }); }));
+
+mountSuperRun(app, { wrap, auditAdhoc, dataDir: DATA });   // admin console: Super run (recording -> two speech models -> reviewer -> note -> audit)
 
 const port = Number(process.env.PORT) || 8080;
 app.listen(port, () => console.log(`[lab] notera-lab on :${port} · gold=${GOLD} · data=${DATA} · writer=${process.env.V2_WRITER_MODEL || 'gemini-2.5-flash'} · key=${KEY ? 'set' : 'MISSING'}`));

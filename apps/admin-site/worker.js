@@ -55,7 +55,7 @@ export default {
       // The lab key is only ever attached after the caller proves, to the API itself, that they hold an ADMIN session.
       const me = await fetch((env.API_ORIGIN || API_ORIGIN) + '/api/auth/me', { headers: { Cookie: req.headers.get('Cookie') || '' } }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
       if (me?.user?.role !== 'admin') return withHeaders(new Response(JSON.stringify({ error: 'admin session required' }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
-      return proxy(req, env.LAB_ORIGIN, url.pathname, { 'X-Lab-Key': env.LAB_KEY });   // Caddy strips the /lab prefix
+      return proxy(req, env.LAB_ORIGIN, url.pathname, { 'X-Lab-Key': env.LAB_KEY, 'X-Admin-Id': String(me.user.id || ''), 'X-Admin-Email': String(me.user.email || '') });   /* who is acting: the lab writes it to the audit log */   // Caddy strips the /lab prefix
     }
     const res = await env.ASSETS.fetch(req);
     return withHeaders(res, { 'Cache-Control': url.pathname.match(/\.(js|css)$/) ? 'public, max-age=300' : 'no-cache' });
