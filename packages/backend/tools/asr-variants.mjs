@@ -24,6 +24,15 @@ const readText = (f) => { const b = fs.readFileSync(f); return (b.filter((x) => 
 const chirp = (pcm, o) => transcribeChirpPcm(pcm, { model: 'chirp_2', location: 'us-central1', log: () => {}, ...o }).then((r) => r.text);
 const gem = (pcm) => defaultRunners.gemini(pcm, 'gemini-2.5-flash', () => {}).then((r) => r.text);
 
+// The live recording sends the browser's 20-second chunks to the server one by one, so this is the path doctors actually use:
+// each 20 s chunk is transcribed on its own (3 at a time, as the client does) and the texts are joined.
+const CHUNK = 20 * 32000;
+async function chunked(pcm, run) {
+  const parts = []; let next = 0; const n = Math.ceil(pcm.length / CHUNK);
+  await Promise.all(Array.from({ length: 3 }, async () => { while (next < n) { const i = next++; const sub = pcm.subarray(i * CHUNK, Math.min(pcm.length, (i + 1) * CHUNK)); if (sub.length < 32000) { parts[i] = ''; continue; } try { parts[i] = await run(sub); } catch { parts[i] = ''; } } }));
+  return parts.filter(Boolean).join(' ');
+}
+
 export async function runAll(pcm, wanted) {
   const need = new Set(wanted.flatMap((v) => v.split('+')));
   const t = {}; const ms = {};
@@ -35,6 +44,8 @@ export async function runAll(pcm, wanted) {
   if (need.has('overlap_t')) jobs.push(run('overlap_t', () => chirp(pcm, { hints: false, overlapSeconds: 3, overlapMode: 'time' })));
   if (need.has('both')) jobs.push(run('both', () => chirp(pcm, { hints: true, overlapSeconds: 3 })));
   if (need.has('gem')) jobs.push(run('gem', () => gem(pcm)));
+  if (need.has('chirp20')) jobs.push(run('chirp20', () => chunked(pcm, (sub) => chirp(sub, { hints: true, overlapSeconds: 0 }))));
+  if (need.has('gem20')) jobs.push(run('gem20', () => chunked(pcm, (sub) => gem(sub))));
   await Promise.all(jobs);
   for (const v of wanted) if (v.includes('+')) { const [a, b] = v.split('+'); if (t[a] && t[b]) { const r = reconcile(t[a], t[b]); t[v] = r.text; t[v + ':swaps'] = r.swaps; t[v + ':fills'] = r.fills; } else t[v] = null; }
   return { t, ms };
