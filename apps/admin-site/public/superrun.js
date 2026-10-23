@@ -51,7 +51,7 @@ export async function superRunView(ctx) {
       ${e.status === 'running' ? `<div class="sr-wait">${spin} Listening… ${elapsed(run.asr.startedAt)} s</div><div class="sr-shim"></div>` : e.status === 'waiting' ? '<div class="sr-wait">Waiting to start</div>'
       : e.status === 'error' ? `<div class="sr-err">${esc(e.error)}</div>`
       : `<div class="sr-chips"><span>${m.words} words</span><span>${m.wpm ?? '—'} a minute</span><span>${m.seconds} s</span><span>${m.speedX ?? '—'}× real time</span><span>${usd(m.costUsd)}</span><span>${m.medicalTerms} medical terms</span></div>
-         <div class="sr-tx${full ? ' full' : ''}">${esc(tx)}</div><button class="btn sm" data-full="${key}">${full ? 'Show less' : 'Show all'}</button>`}</div>`;
+         ${e.note ? `<p class="hint" style="color:var(--warn)">Note: ${esc(e.note)}</p>` : ''}<div class="sr-tx${full ? ' full' : ''}">${esc(tx)}</div><button class="btn sm" data-full="${key}">${full ? 'Show less' : 'Show all'}</button>`}</div>`;
   }
 
   function card1() {

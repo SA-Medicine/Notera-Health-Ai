@@ -101,13 +101,14 @@ function pcmToWav(pcm) {
   const h = Buffer.alloc(44); h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
   h.writeUInt32LE(16000, 24); h.writeUInt32LE(32000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40); return Buffer.concat([h, pcm]);
 }
+import { collapseLoops } from './loops.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
 async function geminiRunner(pcm, model, log) {
   const { createGeminiService } = await import('../services/LLMService.js');
   const svc = await createGeminiService(null, { model }); const url = svc._endpoint(false, model); const durationSeconds = pcmDurationSeconds(pcm.length);
   const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = new Array(windows.length).fill(''); let failed = 0; let next = 0;
-  const one = async (i) => {
-    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(windows[i].start, windows[i].end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature: 0, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
+  const ask = async (i, temperature) => {
+    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(windows[i].start, windows[i].end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
     for (let attempt = 0; attempt < 3; attempt++) {
       const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(80000) }); const j = await r.json();
       if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 3000 * (attempt + 1))); continue; }   // quota: wait and retry
@@ -116,12 +117,19 @@ async function geminiRunner(pcm, model, log) {
     }
     return '';
   };
+  // The model can fall into a loop (the same word written thousands of times). Ask that window once more, a little less strictly; if it loops again, keep two copies of the loop.
+  let loops = 0;
+  const one = async (i) => {
+    let text = await ask(i, 0); let c = collapseLoops(text);
+    if (c.collapsed.length) { log(`gemini-asr window ${i + 1}/${windows.length} looped (${c.collapsed.map((x) => `"${x.unit.slice(0, 30)}" x${x.reps}`).join(', ')}) - asking again`); text = await ask(i, 0.3); c = collapseLoops(text); if (c.collapsed.length) loops++; }
+    return c.text;
+  };
   await Promise.all(Array.from({ length: Math.min(3, windows.length) }, async () => {
     while (next < windows.length) { const i = next++; try { parts[i] = await one(i); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
   }));
   const text = parts.filter(Boolean).join(' ').trim();
   if (!text && failed === windows.length) throw new Error(`Gemini transcription failed for all ${windows.length} window(s)`);
-  return { text, windows: windows.length, durationSeconds, failedWindows: failed };
+  return { text, windows: windows.length, durationSeconds, failedWindows: failed, loopedWindows: loops };
 }
 export const defaultRunners = {
   v2: (pcm, engine, log) => transcribeChirpPcm(pcm, { model: engine, location: engine === 'chirp_3' ? (process.env.ASR_V3_LOCATION || 'us') : (process.env.ASR_V2_LOCATION || 'us-central1'), log }),

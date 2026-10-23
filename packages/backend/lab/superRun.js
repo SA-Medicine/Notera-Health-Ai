@@ -88,14 +88,16 @@ At most 12 disagreements and 8 items in every other list.`;
 
 async function compareWithAudio({ mp3, textA, textB, facts }) {
   const svc = await createGeminiService(null, { model: JUDGE }); const url = svc._endpoint(false, JUDGE);
-  const user = `MEASURED FACTS (computed by code, do not contradict): ${JSON.stringify(facts)}\n\n=== TRANSCRIPT A (${ENGINE_INFO.chirp.label}) ===\n${String(textA).slice(0, 45000)}\n\n=== TRANSCRIPT B (${ENGINE_INFO.gemini.label}) ===\n${String(textB).slice(0, 45000)}\n\n${mp3 ? 'The recording is attached.' : 'NO RECORDING IS ATTACHED.'} Return ONLY the JSON.`;
+  const cut = (s) => String(s).slice(0, 30000);
+  const user = `MEASURED FACTS (computed by code, do not contradict): ${JSON.stringify(facts)}\n\n=== TRANSCRIPT A (${ENGINE_INFO.chirp.label}) ===\n${cut(textA)}\n\n=== TRANSCRIPT B (${ENGINE_INFO.gemini.label}) ===\n${cut(textB)}\n\n${mp3 ? 'The recording is attached.' : 'NO RECORDING IS ATTACHED.'} Return ONLY the JSON.`;
   const parts = [...(mp3 ? [{ inlineData: { mimeType: 'audio/mp3', data: mp3.toString('base64') } }] : []), { text: user }];
-  const body = { systemInstruction: { parts: [{ text: COMPARE_SYS }] }, contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, maxOutputTokens: 9000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 2048 } } };
+  const body = { systemInstruction: { parts: [{ text: COMPARE_SYS }] }, contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, maxOutputTokens: 16000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 1024 } } };
   for (let attempt = 0; attempt < 3; attempt++) {
     const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(170000) }); const j = await r.json();
     if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 5000 * (attempt + 1))); continue; }
     if (!r.ok) throw new Error(`reviewer model ${r.status}: ${JSON.stringify(j).slice(0, 160)}`);
-    return parseJson((j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(''));
+    try { return parseJson((j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('')); }
+    catch (e) { if (attempt >= 1) throw new Error('The reviewer answered, but its answer was cut off. Try again.'); body.contents[0].parts[body.contents[0].parts.length - 1].text += ' Keep it SHORT: at most 6 disagreements, at most 4 items in every other list, one short sentence each.'; }
   }
   throw new Error('reviewer model is busy, try again');
 }
@@ -121,7 +123,7 @@ export const realSteps = {
   async decode(buf) { return decodeFile(buf); },
   async mp3(buf) { const m = await toMp3(buf); return m && m.length < 14_000_000 ? m : null; },
   async chirp(pcm) { return (await transcribeChirpPcm(pcm, { model: 'chirp_2', location: process.env.ASR_V2_LOCATION || 'us-central1', hints: true, overlapSeconds: 0, log: () => {} })).text; },
-  async gemini(pcm) { return (await defaultRunners.gemini(pcm, 'gemini-2.5-flash', () => {})).text; },
+  async gemini(pcm) { const r = await defaultRunners.gemini(pcm, 'gemini-2.5-flash', () => {}); return { text: r.text, note: r.loopedWindows ? `The model looped in ${r.loopedWindows} part(s) of the recording; the repeated text was cut back to two copies.` : '' }; },
   compare: compareWithAudio,
   async note(transcript, onLog) {
     const trace = {};
@@ -207,7 +209,7 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
     touch(run, 'asr', { stage: 'Both models are listening' });
     const one = async (key, fn) => {
       const t = Date.now(); run.asr.engines[key].status = 'running'; save(run);
-      try { const text = String(await fn(pcm) || '').trim(); run.asr.engines[key] = { ...run.asr.engines[key], status: 'done', text, metrics: engineMetrics(text, run.durationS, Date.now() - t, ENGINE_INFO[key].price) }; }
+      try { const out = await fn(pcm); const text = String(typeof out === 'string' ? out : out?.text || '').trim(); run.asr.engines[key] = { ...run.asr.engines[key], status: 'done', text, note: typeof out === 'string' ? '' : out?.note || '', metrics: engineMetrics(text, run.durationS, Date.now() - t, ENGINE_INFO[key].price) }; }
       catch (e) { run.asr.engines[key] = { ...run.asr.engines[key], status: 'error', error: String(e.message).slice(0, 200), text: '' }; }
       save(run);
     };
@@ -227,7 +229,7 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
       const t0 = Date.now(); touch(run, 'compare', { status: 'running', stage: 'Preparing the recording for the reviewer', startedAt: new Date().toISOString() });
       const c = await steps.consult(run.consultId); const buf = await steps.audioBytes(c.audio_uri); const mp3 = await steps.mp3(buf);
       touch(run, 'compare', { stage: mp3 ? 'The reviewer is listening and checking both transcripts' : 'The reviewer is checking both transcripts (no audio)' });
-      const e = run.asr.engines; const facts = { audioSeconds: run.durationS, A: e.chirp.metrics, B: e.gemini.metrics, agreement: { sharedPct: run.asr.agreement.sharedPct, differences: run.asr.agreement.differences, medicalDifferences: run.asr.agreement.medicalDifferences }, topDifferences: run.asr.agreement.spans.slice(0, 10) };
+      const e = run.asr.engines; const facts = { audioSeconds: run.durationS, A: e.chirp.metrics, B: e.gemini.metrics, agreement: { sharedPct: run.asr.agreement.sharedPct, differences: run.asr.agreement.differences, medicalDifferences: run.asr.agreement.medicalDifferences }, topDifferences: run.asr.agreement.spans.slice(0, 10), engineNotes: [e.chirp.note, e.gemini.note].filter(Boolean) };
       const result = await steps.compare({ mp3, textA: e.chirp.text, textB: e.gemini.text, facts });
       touch(run, 'compare', { status: 'done', stage: '', result, audioAttached: !!mp3, model: JUDGE, finishedAt: new Date().toISOString(), ms: Date.now() - t0 });
     })().catch((e) => touch(run, 'compare', { status: 'error', error: String(e.message).slice(0, 300), finishedAt: new Date().toISOString() }));
