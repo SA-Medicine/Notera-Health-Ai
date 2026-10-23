@@ -255,7 +255,7 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
       const n = await steps.note(text, (l) => { if (log.length < 60) log.push(String(l).slice(0, 160)); });
       if (!String(n.rendered || '').trim()) throw new Error('the pipeline returned an empty note');
       const warn = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f?.severity)).length;
-      touch(run, 'note', { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), pipeline: n.trace || null, finishedAt: new Date().toISOString() });
+      touch(run, 'note', { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), pipeline: n.trace || null, pipelineLog: log.filter((l) => /writer|retry|loop|rejected|failed|fallback|timed out|coverage|complete/i.test(l) && !/tokens]/.test(l)).slice(0, 14), finishedAt: new Date().toISOString() });
       const t1 = Date.now(); touch(run, 'audit', { status: 'running', stage: 'The auditor is checking the note against the transcript', startedAt: new Date().toISOString() });
       try { const result = await auditAdhoc({ transcript: text, note: n.rendered }); touch(run, 'audit', { status: 'done', stage: '', result, model: JUDGE, finishedAt: new Date().toISOString(), ms: Date.now() - t1 }); }
       catch (e2) { touch(run, 'audit', { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }); }

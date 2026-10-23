@@ -116,6 +116,13 @@ export async function superRunView(ctx) {
     ? `<section class="sr-sec ap"><h4>${esc(s.title)}</h4>${s.problems.map((p, i) => `<div class="sr-prob"><div class="sr-ptitle"><span>${i + 1}</span>${esc(p.title)}</div>${p.lines.map((l) => `<div class="sr-pl">${l.label ? `<em>${esc(l.label)}</em>` : '<em class="plain"></em>'}<span>${esc(l.text)}</span></div>`).join('')}</div>`).join('')}</section>`
     : `<section class="sr-sec"><h4>${esc(s.title)}</h4>${s.groups.map((g) => `<div class="sr-grp">${g.title ? `<div class="sr-gt">${esc(g.title)}</div>` : ''}<ul>${g.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</section>`);
 
+  const STAGES = { 'writer+checklist': 'Writer and checklist', 'writer-retry': 'Writer retry (the first draft looped)', editor: 'Editor', verifier: 'Verifier', story: 'Subjective topics', sweep: 'Problem sweep', complete: 'Plan completeness', coverage: 'Coverage check (what is missing)', ground: 'Grounding check', ref: 'Reference names' };
+  function timingHtml(n) {
+    const tm = n.pipeline?.timings; if (!tm) return '';
+    const rows = Object.entries(tm).filter(([k, v]) => STAGES[k] && v > 0).sort((a, b) => b[1] - a[1]);
+    const log = n.pipelineLog || [];
+    return `<details class="sr-flags" style="margin-top:10px"><summary style="color:var(--ink-2)">Where the time went, ${n.seconds} s in all</summary><div class="tbl-wrap"><table><tbody>${rows.map(([k, v]) => `<tr><td>${STAGES[k]}</td><td style="text-align:right">${(v / 1000).toFixed(1)} s</td></tr>`).join('')}</tbody></table></div>${log.length ? `<ul>${log.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</details>`;
+  }
   const ring = (score) => { const r = 34; const c = 2 * Math.PI * r; const v = Math.max(0, Math.min(100, score || 0)); return `<svg class="sr-ring" viewBox="0 0 80 80" width="84" height="84" role="img" aria-label="Score ${v} of 100"><circle cx="40" cy="40" r="${r}" class="bg"/><circle cx="40" cy="40" r="${r}" class="fg ${v >= 80 ? 'ok' : v >= 60 ? 'warn' : 'bad'}" stroke-dasharray="${(c * v) / 100} ${c}" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle">${v}</text></svg>`; };
   function auditHtml() {
     const au = run.audit; const a = au.result;
@@ -153,6 +160,7 @@ export async function superRunView(ctx) {
     const flags = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f.severity));
     return `<div class="sr-body">${top}<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}</div>
       <div class="sr-note">${parseNote(n.rendered).map(noteSection).join('')}</div>
+      ${timingHtml(n)}
       ${flags.length ? `<details class="sr-flags"><summary>${flags.length} line${flags.length === 1 ? '' : 's'} the pipeline wants checked</summary><ul>${flags.slice(0, 12).map((f) => `<li>${esc(String(f.message || '').slice(0, 220))}</li>`).join('')}</ul></details>` : ''}
       ${auditHtml()}${summaryHtml()}</div>`;
   }

@@ -22,7 +22,7 @@ List every clinically relevant thing that the patient or the clinician said in t
  - "subjective": a symptom, its duration, severity, timing, what makes it better or worse, what the patient already tried (with doses and how often), associated symptoms, important negatives, how it affects daily life, what the patient asked for. "topic" = the exact heading it belongs under (a heading already in the Subjective), or a short new heading if none fits.
  - "history": past conditions, operations, earlier tests and their results, allergies, vaccines received, family or social history that matters, the patient's medicines.
  - "objective": an examination the clinician did and what they found ("field":"examination"), or a result or measurement that was given ("field":"results").
- - "plan": a medicine started, changed, stopped or told to continue, advice, a follow-up, a test ordered, a referral, a prescription or requisition. "n" = the number of the problem it belongs to; "field" = treatment | advice | follow_up | investigations | referrals.
+ - "plan": a medicine started, changed, stopped or told to continue, advice, a follow-up, a test ordered, a referral, a prescription or requisition. "n" = the number of the problem it belongs to; "field" = treatment | advice | follow_up | investigations | referrals, or assessment (ONLY for a problem shown with "(no lines)": the clinician's own conclusion in a short phrase). Never leave a plan problem without lines if the clinician said anything about it.
 Rules:
  - Every item needs "evidence": 6-25 words copied exactly from the transcript. No quote, no item.
  - Only things about THIS patient. Not greetings, small talk, scheduling chat, thanks, or words about other people.
@@ -85,12 +85,12 @@ export async function askCoverage(llm, note, transcript, { timeoutMs = 45000 } =
 }
 
 export function applyCoverage(note, answer, transcript, log = () => {}) {
-  if (!answer || answer.raw == null) { if (answer?.error) log('[v2:coverage] skipped — ' + answer.error); return { added: 0, dropped: [], ms: answer?.ms || 0, error: answer?.error }; }
+  if (!answer || answer.raw == null) { if (answer?.error) log('[v2:coverage] skipped — ' + answer.error); applyComplete(note, answer, transcript, log); return { added: 0, dropped: [], ms: answer?.ms || 0, error: answer?.error }; }   // model not reachable: the bare-heading check still runs (flags them for the clinician)
   const a = acceptCoverage(parseCoverage(answer.raw), note, transcript);
   for (const x of a.subj) addSubjective(note, x.topic, x.text);
   if (a.hist.length) { const p = (note.past_medical_history ||= {}); p.medical_surgical = [String(p.medical_surgical || '').trim(), ...a.hist.map((x) => x.text.replace(/^./, (c) => c.toUpperCase()))].filter(Boolean).join('\n'); }
   for (const x of a.obj) { const o = (note.objective ||= {}); o[x.field] = [String(o[x.field] || '').trim(), x.text.replace(/^./, (c) => c.toUpperCase())].filter(Boolean).join('\n'); }
-  let plan = { added: [] }; if (a.plan.length) plan = applyComplete(note, { raw: JSON.stringify({ items: a.plan }), ms: 0 }, transcript, () => {});
+  const plan = applyComplete(note, { raw: JSON.stringify({ items: a.plan }), ms: 0 }, transcript, log);   // always: also takes out a plan heading that is still bare
   const added = a.subj.length + a.hist.length + a.obj.length + plan.added.length;
   log(`[v2:coverage] ${added} missing item(s) added${added ? `: ${[...a.subj.map((x) => x.text), ...a.hist.map((x) => x.text), ...a.obj.map((x) => x.text), ...plan.added.map((x) => x.part)].join(' | ').slice(0, 400)}` : ''}${a.dropped.length ? ` · ${a.dropped.length} dropped (${a.dropped.map((d) => d.why).join(', ')})` : ''}`);
   return { added, subjective: a.subj.length, history: a.hist.length, objective: a.obj.length, plan: plan.added.length, dropped: a.dropped, ms: answer.ms };

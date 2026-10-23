@@ -1,6 +1,6 @@
 {
   "specVersion": "2.1.2",
-  "lockedAt": "2026-10-23T14:59:36.004Z",
+  "lockedAt": "2026-10-23T15:06:32.099Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",
@@ -20,7 +20,7 @@
     "src/orchestrator/planAttribution.js": "25ff83b5ceb8e32982731ede22091e2f3558f6c957b97efa2a894895656985e7",
     "src/orchestrator/fidelityGuards.js": "3f5febcf34e7c8e0de41ca31faf6a67ce3897f40614c81109ac6fcd5aa921dca",
     "src/orchestrator/planComplete.js": "503ba47a744eb974aed1e0565d00ee8a5a3170f07ddd610a6625a3770175662f",
-    "src/orchestrator/noteCoverage.js": "6d8fb3f590f0b72fc93ec05cdeb87ec2900fa23183febe5e5635698ef22ea6b9"
+    "src/orchestrator/noteCoverage.js": "5723ce9622cc0a933fd31174ae5df4fc9bee730254004c2a151d62b368cc19c6"
   },
   "prompts": {
     "v2-writer": "f77a8561a315f06871c91dd05d8449bff4093cd5e586cf92945d32675ca4a68b",

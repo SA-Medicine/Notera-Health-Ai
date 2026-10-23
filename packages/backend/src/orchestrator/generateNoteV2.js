@@ -740,12 +740,13 @@ export async function generateNoteV2(input, opts = {}) {
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
   }
-  if (!blank && opts.planComplete !== false && process.env.PLAN_COMPLETE !== '0' && cfg['stage.planComplete'] !== false && (note.assessment_and_plan || []).length) {   // Style Spec v2.1.1: a problem left as a bare heading is filled from the transcript (quote-checked) or removed; advice / follow-up / orders the plan left out are added (PLAN_COMPLETE=0 switches off)
+  const coverageOn = !blank && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false;   // the coverage check also covers the plan (one call instead of two), so the separate plan pass runs only when coverage is off
+  if (!blank && !coverageOn && opts.planComplete !== false && process.env.PLAN_COMPLETE !== '0' && cfg['stage.planComplete'] !== false && (note.assessment_and_plan || []).length) {   // Style Spec v2.1.1: a problem left as a bare heading is filled from the transcript (quote-checked) or removed; advice / follow-up / orders the plan left out are added (PLAN_COMPLETE=0 switches off)
     const tc = Date.now();
     try { const cllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); cllm._agent = 'v2-complete'; const pc = await completePlan(cllm, note, transcript, log); if (opts.trace) opts.trace.complete = pc; } catch (e) { log(`[v2:complete] skipped — ${e.message}`); }
     lap('complete', tc);
   }
-  if (!blank && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
+  if (coverageOn) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
     const tv = Date.now();
     try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
     lap('coverage', tv);
