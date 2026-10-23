@@ -76,3 +76,24 @@ The auditor varies from run to run; differences of a few points are noise. The c
 ## 6. Results
 
 Filled in after the run (see the end of this file).
+
+### Results (2026-10-23 evening, same auditor, today's 8 consults of the clinician account)
+
+A/B with 2 repeats per consult, stored transcripts, the earlier pipeline (2.1.2: old writer prompt, old Objective layout, no placement rules, no treatment sub-points) against v2.2.0:
+
+| Measure | Earlier (n=15) | v2.2.0 (n=16) |
+|---|---|---|
+| Audit score (mean; median) | 62.0; 65 | 64.1; 65 |
+| Wrong lines per note | 5.67 | 4.94 |
+| "Misplaced" wrong lines | 21 of 85 | 14 of 79 |
+| Repeated-label plan gaps | 25 | 12 |
+| Missing facts per note | 4.73 | 5.19 |
+| Missing: critical | 9 | 14 |
+| Plan gaps: missing line / missing problem / merged problems | 9 / 19 / 9 | 20 / 22 / 13 |
+| Presentation flow / readability / organisation | 51 / 44 / 38 | 54 / 48 / 40 |
+| Treatment sub-points per note | 4.8 | 5.7 |
+| Note time (mean) | 58 s | 53 s |
+
+Read: structure and placement are better (fewer wrong and misplaced lines, half the repeated labels, presentation up), score is level within the auditor's noise (it scored the same note between 45 and 85), and completeness is NOT better (missing facts and missing plan lines are slightly higher). A first run of v2.2.0 with the "free flow" rules relaxed scored worse (66.9 vs 72.5 for the notes as saved; junk "Referrals: <problem>" lines and fragment spam), so free flow is OFF by default (`FREE_FLOW=1` turns it on); only 5 of 34 audit-missing facts could be traced to a guard removal, so the guards are not the main cause of missing facts. The plan-drug check fell from 100% to 89%: the one miss was an ASR error ("a cand" for a drug name) that the unheard-drug guard correctly replaced by its class ("ARB").
+
+Open: completeness (missing facts) needs a different approach than rules: better ASR vocabulary for drug names, and a larger sample (77 consults) once signed notes exist.
