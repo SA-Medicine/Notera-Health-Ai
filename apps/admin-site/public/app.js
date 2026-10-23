@@ -24,6 +24,7 @@ import { labView, labStop } from './lab.js';
 import { systemView, systemStop } from './system.js';
 import { settingsView } from './settings.js';
 import { speechView } from './speech.js';
+import { audioView } from './audio.js';
 import { promptsView } from './prompts.js';
 import { compareView } from './compare.js';
 import { optimizeView } from './optimize.js';
@@ -89,7 +90,7 @@ function shell() {
 function go(v) {
   labStop(); systemStop(); if (!NAVKEYS.includes(v)) v = 'guide'; S.view = v; history.replaceState(null, '', '#' + v);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  const fn = { overview, users, consults: () => consults(), audio: () => consults(true), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), speech: () => speechView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
+  const fn = { overview, users, consults: () => consults(), audio: () => audioView(CTX), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), speech: () => speechView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
