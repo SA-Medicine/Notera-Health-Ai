@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // Re-writes the notes of one clinician's real consults with the CURRENT pipeline (nothing is saved), measures each note with code, audits each with the
 // same auditor the Super run uses, and prints the means. Run it before and after a pipeline change and compare the two files it writes.
-//   docker exec -w /app/packages/backend notera-lab node tools/note-eval.mjs <clinician-uuid> <label> [limit] [concurrency]
+//   docker exec -w /app/packages/backend notera-lab node tools/note-eval.mjs <clinician-uuid> <label> [limit] [concurrency] [--since=2026-10-23] [--mode=text|stored|asr]
 // Output: /lab-data/note-eval/<label>.json (per consult) and a summary on screen. Costs about $0.05 and 60 s per consult; audio is never touched.
 import fs from 'node:fs';
 import { query } from '../src/db/pool.js';
 import { generateNote } from '../src/orchestrator/generateNote.js';
+import { decodeFile } from '../src/admin/audioStats.js';
+import { transcribeWithChain } from '../src/asr/engines.js';
 
-const [uid, label = 'run', limitArg = '0', concArg = '4'] = process.argv.slice(2);
+const pos = process.argv.slice(2).filter((a) => !a.startsWith('--')); const flag = (n, d) => ((process.argv.find((a) => a.startsWith('--' + n + '=')) || '').split('=')[1]) || d;
+const [uid, label = 'run', limitArg = '0', concArg = '4'] = pos; const SINCE = flag('since', '2000-01-01'); const REPEAT = Number(flag('repeat', '1')); const PROMPT = flag('prompt', ''); for (const kv of String(flag('env', '')).split(',').filter(Boolean)) { const i = kv.indexOf('='); process.env[kv.slice(0, i)] = kv.slice(i + 1); }   // --env=FREE_FLOW=1,NOTE_COVERAGE=0 sets switches for this run; --prompt=<file> uses another writer prompt; --repeat=N runs every consult N times const MODE = flag('mode', 'text');   // text = stored transcript; stored = audit the note as it was saved; asr = transcribe the audio again with the current chain
 if (!uid) { console.error('usage: note-eval.mjs <clinician-uuid> <label> [limit] [concurrency]'); process.exit(2); }
 const OUT = '/lab-data/note-eval'; fs.mkdirSync(OUT, { recursive: true });
 const LAB = process.env.LAB_URL || 'http://127.0.0.1:8080'; const KEY = process.env.LAB_KEY || '';
@@ -31,18 +34,23 @@ export function noteMetrics(md, { meds = [] } = {}) {
   };
 }
 
-const rows = await query(`select consult_id, title, transcript->>'text' as tx from clinical.consults where clinician_id = $1 and length(coalesce(transcript->>'text','')) > 0 order by created_at`, [uid]);
-const list = Number(limitArg) > 0 ? rows.slice(0, Number(limitArg)) : rows; const results = []; let next = 0;
+const rows = await query(`select c.consult_id, c.title, c.audio_uri, c.transcript->>'text' as tx, (select rendered_note from clinical.drafts d where d.consult_id = c.consult_id order by d.created_at desc limit 1) as stored from clinical.consults c where c.clinician_id = $1 and length(coalesce(c.transcript->>'text','')) > 0 and c.created_at >= $2::timestamptz order by c.created_at`, [uid, SINCE]);
+async function transcriptOf(c) {
+  if (MODE !== 'asr' || !c.audio_uri) return c.tx;
+  const { Storage } = await import('@google-cloud/storage'); const bucket = process.env.GCS_AUDIO_BUCKET; const [buf] = await new Storage().bucket(bucket).file(c.audio_uri.replace(`gs://${bucket}/`, '')).download();
+  const pcm = await decodeFile(buf); if (!pcm) return c.tx; return (await transcribeWithChain(pcm, { log: () => {} })).text || c.tx;
+}
+const base = Number(limitArg) > 0 ? rows.slice(0, Number(limitArg)) : rows; const list = Array.from({ length: REPEAT }, () => base).flat(); const results = []; let next = 0;
 const worker = async () => {
   while (next < list.length) {
     const c = list[next++]; const t0 = Date.now(); const trace = {}; const logs = [];
     try {
-      const r = await generateNote({ transcript: c.tx.slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'note-eval' }, { persist: false, mode: 'v2', trace, onLog: (m) => { const s = String(m); if (/dropped|removed|rejected|cleared|✂|folded|moved|replaced|unsupported|unheard/i.test(s) && !/tokens\]|Timing/.test(s)) logs.push(s.slice(0, 400)); } });
+      const tx = await transcriptOf(c); const r = MODE === 'stored' ? { renderedNote: c.stored || '' } : await generateNote({ transcript: tx.slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'note-eval' }, { persist: false, mode: 'v2', trace, ...(PROMPT ? { writerPrompt: fs.readFileSync(PROMPT, 'utf8') } : {}), onLog: (m) => { const s = String(m); if (/dropped|removed|rejected|cleared|✂|folded|moved|replaced|unsupported|unheard/i.test(s) && !/tokens\]|Timing/.test(s)) logs.push(s.slice(0, 400)); } });
       const md = r.renderedNote || ''; const seconds = Math.round((Date.now() - t0) / 1000);
       const meds = (trace.checklist?.medications || []).filter((m) => ['new', 'changed', 'stopped'].includes(m.status)).map((m) => m.name).filter(Boolean);
       let audit = null;
-      try { const a = await fetch(`${LAB}/audit-adhoc`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lab-Key': KEY }, body: JSON.stringify({ transcript: c.tx.slice(0, 100000), note: md }) }); audit = await a.json(); } catch (e) { audit = { error: String(e.message) }; }
-      results.push({ id: c.consult_id, title: c.title, words: c.tx.split(/\s+/).length, seconds, metrics: noteMetrics(md, { meds }), audit, note: md, timings: trace.timings, removals: logs });
+      try { const a = await fetch(`${LAB}/audit-adhoc`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lab-Key': KEY }, body: JSON.stringify({ transcript: tx.slice(0, 100000), note: md }) }); audit = await a.json(); } catch (e) { audit = { error: String(e.message) }; }
+      results.push({ id: c.consult_id, title: c.title, words: tx.split(/\s+/).length, seconds, metrics: noteMetrics(md, { meds }), audit, note: md, timings: trace.timings, removals: logs });
     } catch (e) { results.push({ id: c.consult_id, error: String(e.message).slice(0, 200) }); }
     process.stderr.write(`\r${results.length}/${list.length}`);
   }

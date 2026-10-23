@@ -19,4 +19,10 @@ test('a long history text under Referrals that names no referral is cut; a real 
   const n = { assessment_and_plan: [prob({ referrals: 'The right shoulder pain has improved and is less severe compared to the last visit; she still cannot lift the arm above shoulder height and wakes at night with it. '.repeat(2) }), prob({ issue: 'Bunion', referrals: 'Foot surgeon for bunion assessment' })] };
   const r = fixPlacementV2(n); assert.equal(r.referralsCut, 1); assert.equal(n.assessment_and_plan[0].referrals, ''); assert.equal(n.assessment_and_plan[1].referrals, 'Foot surgeon for bunion assessment');
 });
-test('an empty or partial note is safe', () => { assert.deepEqual(fixPlacementV2({}), { vitals: 0, given: 0, referralsCut: 0 }); });
+test('an empty or partial note is safe', () => { assert.deepEqual(fixPlacementV2({}), { vitals: 0, given: 0, referralsCut: 0, referralsMoved: 0, echoes: 0 }); });
+
+test('Referrals that are not referrals: a refill goes to Treatment, a repeat of the problem or a symptom is removed, a real referral stays', () => {
+  const n = { subjective: { hpi_details: 'Hair thinning noticed lately\nTiredness\nNeck pain' }, assessment_and_plan: [prob({ issue: 'Hair thinning', referrals: 'Hair thinning' }), prob({ issue: 'Cold sores', referrals: 'Refill cold sore medication' }), prob({ issue: 'Depression', referrals: 'Neck pain; Therapist referral discussion' })] };
+  const r = fixPlacementV2(n); assert.equal(n.assessment_and_plan[0].referrals, ''); assert.match(n.assessment_and_plan[1].treatment_planned, /Refill cold sore medication/); assert.equal(n.assessment_and_plan[1].referrals, '');
+  assert.equal(n.assessment_and_plan[2].referrals, 'Therapist referral discussion'); assert.ok(r.echoes >= 2 && r.referralsMoved === 1);
+});

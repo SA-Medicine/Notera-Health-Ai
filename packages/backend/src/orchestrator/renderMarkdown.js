@@ -78,7 +78,9 @@ export function noteToMarkdown(note) {
   const o = note.objective || {};
   const vitals = bullets(o.vital_signs); const exam = bullets(o.examination); const invs = bullets(o.completed_investigations);
   const apAny = (note.assessment_and_plan || []).some((it) => it && (String(it.issue || '').trim() || String(it.diagnosis || '').trim() || String(it.assessment || '').trim() || String(it.treatment_planned || '').trim()));
-  if (vitals.length || exam.length || invs.length) {
+  if ((vitals.length || exam.length || invs.length) && process.env.OBJECTIVE_GROUPS === '0') {   // the earlier layout, for comparisons only
+    L.push('### Objective'); if (vitals.length) { L.push('**Vital Signs**'); for (const x of vitals) L.push('- ' + x); if (exam.length || invs.length) L.push(''); } for (const x of [...exam, ...invs]) L.push('- ' + x); L.push('');
+  } else if (vitals.length || exam.length || invs.length) {
     L.push('### Objective');
     [['Vital Signs', vitals], ['Examination', exam], ['Investigations', invs]].filter(([, g]) => g.length).forEach(([name, g], i) => { if (i) L.push(''); L.push('**' + name + '**'); for (const x of g) L.push('- ' + x); });
     L.push('');

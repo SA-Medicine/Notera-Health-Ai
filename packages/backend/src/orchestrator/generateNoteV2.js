@@ -704,7 +704,7 @@ export async function generateNoteV2(input, opts = {}) {
   }
   const gr = runGuardrails(note, [], { confidenceThreshold: opts.confidenceThreshold });
   note = gr.note;
-  const freeFlow = opts.freeFlow !== undefined ? !!opts.freeFlow : process.env.FREE_FLOW !== '0';   // Style Spec v2.2 (owner 2026-10-24): while on, the fuzzy 'already stated' removals are off and only identical lines are dropped (FREE_FLOW=0 restores the earlier behaviour)
+  const freeFlow = opts.freeFlow !== undefined ? !!opts.freeFlow : process.env.FREE_FLOW === '1';   // Style Spec v2.2 (owner 2026-10-24): while on, the fuzzy 'already stated' removals are off and only identical lines are dropped (FREE_FLOW=0 restores the earlier behaviour)
   try { condenseNote(note, { freeFlow }, log); } catch (e) { log(`[v2] condense skipped: ${e.message}`); }
   try { note = reconcileNote(note); } catch { /* */ }
   try { dedupeNote(note, { log, freeFlow }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
