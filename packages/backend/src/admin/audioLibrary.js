@@ -10,8 +10,7 @@
 
 import express from 'express';
 import { query, one } from '../db/pool.js';
-import { transcodePcm16k } from '../asr/audio.js';
-import { measureAudio, audioFlags, countWords, wordsPerMinute } from './audioStats.js';
+import { measureAudio, audioFlags, countWords, wordsPerMinute, decodeFile, missingWebmHeader } from './audioStats.js';
 
 export const STATUSES = ['unreviewed', 'real', 'not_real'];
 const ID_RX = /^[A-Za-z0-9_-]{3,80}$/;
@@ -72,15 +71,15 @@ export const resetAudioTableCache = () => { _ready = null; };
 const defaultBucket = async () => { const { Storage } = await import('@google-cloud/storage'); return new Storage().bucket(BUCKET()); };
 
 /** Measures up to `limit` recordings that have no measurements yet. A file that cannot be read is recorded as such, so it is not retried forever. */
-export async function analyseBatch({ limit = 8, bucket = defaultBucket, transcode = transcodePcm16k, log = () => {} } = {}) {
+export async function analyseBatch({ limit = 8, bucket = defaultBucket, transcode = decodeFile, log = () => {} } = {}) {
   await ensureAudioTable();
   const rows = await query(SQL.pending, [Math.min(Math.max(1, Number(limit) || 8), 25)]);
   const b = rows.length ? await bucket() : null; let done = 0;
   for (const row of rows) {
-    let bytes = null; let m = null;
-    try { const [buf] = await b.file(nameOf(row.audio_uri)).download(); bytes = buf.length; m = await measureAudio(buf, transcode); } catch (e) { log(`audio ${row.consult_id}: ${String(e.message).slice(0, 100)}`); }
+    let bytes = null; let m = null; let damaged = false;
+    try { const [buf] = await b.file(nameOf(row.audio_uri)).download(); bytes = buf.length; m = await measureAudio(buf, transcode); damaged = !m && missingWebmHeader(buf); } catch (e) { log(`audio ${row.consult_id}: ${String(e.message).slice(0, 100)}`); }
     const words = countWords(row.transcript);
-    const flags = audioFlags({ durationS: m?.durationS ?? null, level: m?.level ?? null, words, ownerRole: row.owner_role, bytes });
+    const flags = audioFlags({ durationS: m?.durationS ?? null, level: m?.level ?? null, words, ownerRole: row.owner_role, bytes, damaged });
     await query(SQL.upsertStats, [row.consult_id, bytes, m?.durationS ?? null, m?.level ?? null, words, m ? wordsPerMinute(words, m.durationS) : null, flags]);
     done++;
   }

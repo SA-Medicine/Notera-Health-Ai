@@ -89,5 +89,12 @@ test('analysing measures what is pending and reports what is left; an unreadable
   const out = await analyseBatch({ limit: 5, bucket: fakeBucket, transcode: async () => (++n === 1 ? pcm : null) });
   assert.deepEqual(out, { done: 2, remaining: 3 });
   const ups = calls.filter((c) => c.sql.startsWith('INSERT INTO ops.audio_review (consult_id, bytes')); assert.equal(ups.length, 2);
-  assert.equal(ups[1].params[0], 'c_2'); assert.deepEqual(ups[1].params[6], ['cannot be decoded']);
+  assert.equal(ups[1].params[0], 'c_2'); assert.deepEqual(ups[1].params[6], ['damaged file (no audio header)', 'admin account (test upload?)']);
+});
+
+import { missingWebmHeader } from '../src/admin/audioStats.js';
+test('a recording that starts with a later data block is called damaged, not just undecodable', () => {
+  assert.deepEqual(audioFlags({ durationS: null, damaged: true, ownerRole: 'clinician' }), ['damaged file (no audio header)']);
+  assert.deepEqual(audioFlags({ durationS: null, damaged: false, ownerRole: 'clinician' }), ['cannot be decoded']);
+  assert.equal(missingWebmHeader(Buffer.from('43b67501aabbcc', 'hex')), true); assert.equal(missingWebmHeader(Buffer.from('1a45dfa3aabbcc', 'hex')), false); assert.equal(missingWebmHeader(Buffer.from('OggSxxxx')), false);
 });
