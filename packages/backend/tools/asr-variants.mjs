@@ -17,7 +17,7 @@ import { normalise, align, keyTokens, recall } from './asr-benchmark.mjs';
 
 const AUDIO = process.env.AUDIO_DIR || '/lab-data/audio';
 const OUT = process.env.OUT_DIR || '/lab-data/asr-variants';
-const ALL = ['base', 'hints', 'overlap', 'both', 'gem', 'base+gem', 'both+gem'];
+const ALL = ['base', 'hints', 'overlap', 'both', 'gem', 'base+gem', 'both+gem'];   // also: overlap_t (overlap by word start times)
 const VARIANTS = (process.env.VARIANTS ? process.env.VARIANTS.split(',') : ALL).map((x) => x.trim());
 const readText = (f) => { const b = fs.readFileSync(f); return (b.filter((x) => x === 0).length / b.length > 0.3 ? b.toString('latin1').replace(/[\u0000ÿþ]/g, '') : b.toString('utf8')); };
 
@@ -32,6 +32,7 @@ export async function runAll(pcm, wanted) {
   if (need.has('base')) jobs.push(run('base', () => chirp(pcm, { hints: false, overlapSeconds: 0 })));
   if (need.has('hints')) jobs.push(run('hints', () => chirp(pcm, { hints: true, overlapSeconds: 0 })));
   if (need.has('overlap')) jobs.push(run('overlap', () => chirp(pcm, { hints: false, overlapSeconds: 3 })));
+  if (need.has('overlap_t')) jobs.push(run('overlap_t', () => chirp(pcm, { hints: false, overlapSeconds: 3, overlapMode: 'time' })));
   if (need.has('both')) jobs.push(run('both', () => chirp(pcm, { hints: true, overlapSeconds: 3 })));
   if (need.has('gem')) jobs.push(run('gem', () => gem(pcm)));
   await Promise.all(jobs);

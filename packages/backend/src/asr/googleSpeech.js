@@ -237,13 +237,30 @@ export function keepWordsByTime(results, { winStartSec, keepFromSec, keepToSec }
   return { text: kept.join(' ').replace(/\s+/g, ' ').trim(), hadWords };
 }
 
-/** Joins two neighbouring window texts that heard the same overlap: drops the longest run of words (3 or more) that ends one and starts the other. */
+const MERGE_STOP = new Set('a an and are as at be but by can did do for from had has have he her him his i if in is it its me my no not of on or our she so that the their them then there they this to was we were what when with would you your yes yeah okay mm uh um oh well just like'.split(' '));
+/**
+ * Joins two neighbouring window texts that both heard the overlap. The join is the longest run of words (3 or more, at least one of them a real
+ * content word) that appears in the last 45 words of the first and the first 45 of the second: the text continues with the first window up to
+ * that run and with the second window after it. No run found: a plain join (nothing is dropped).
+ */
 export function mergeOverlapText(prev, cur) {
   const a = String(prev || '').split(/\s+/).filter(Boolean); const b = String(cur || '').split(/\s+/).filter(Boolean);
+  if (!a.length) return b.join(' '); if (!b.length) return a.join(' ');
   const n = (w) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
-  const maxK = Math.min(40, a.length, b.length);
-  for (let k = maxK; k >= 3; k--) { let ok = true; for (let i = 0; i < k; i++) if (n(a[a.length - k + i]) !== n(b[i])) { ok = false; break; } if (ok) return [...a, ...b.slice(k)].join(' '); }
-  return [...a, ...b].join(' ');
+  const tail = Math.min(45, a.length), head = Math.min(45, b.length), a0 = a.length - tail;
+  let best = { len: 0, ai: -1, bj: -1 }; let prevRow = new Array(head + 1).fill(0);
+  for (let i = 1; i <= tail; i++) {
+    const row = new Array(head + 1).fill(0);
+    for (let j = 1; j <= head; j++) {
+      if (n(a[a0 + i - 1]) && n(a[a0 + i - 1]) === n(b[j - 1])) {
+        row[j] = prevRow[j - 1] + 1;
+        if (row[j] >= 3 && row[j] > best.len) { let content = false; for (let k = 0; k < row[j]; k++) { const w = n(b[j - 1 - k]); if (w.length >= 4 && !MERGE_STOP.has(w)) content = true; } if (content) best = { len: row[j], ai: i - 1, bj: j - 1 }; }
+      }
+    }
+    prevRow = row;
+  }
+  if (!best.len) return [...a, ...b].join(' ');
+  return [...a.slice(0, a0 + best.ai + 1), ...b.slice(best.bj + 1)].join(' ');
 }
 
 /**
@@ -261,6 +278,7 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
   const hintsOn = opts.hints === undefined ? process.env.ASR_HINTS !== '0' : !!opts.hints;
   const phrases = hintsOn ? (Array.isArray(opts.hints) ? opts.hints : medicalPhrases({ boost: opts.hintBoost || (Number(process.env.ASR_HINT_BOOST) || undefined) })) : [];
   const overlap = opts.overlapSeconds !== undefined ? Math.max(0, opts.overlapSeconds) : overlapSeconds(opts.windowSeconds || windowSeconds());
+  const timeMode = overlap > 0 && opts.overlapMode === 'time';   // 'time': keep each word by its start time (measured: moves and repeats words at the cuts); default: merge by the phrase both windows heard
   let client = opts.client;
   let projectId = opts.projectId;
   if (!client) {
@@ -276,7 +294,7 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     // falls back to chirp_2, which is standard-priced like latest_long.
     model: /^chirp/i.test(String(opts.model || '')) ? opts.model : 'chirp_2',
     languageCodes: [opts.languageCode || process.env.ASR_LANGUAGE || 'en-US'],
-    features: { enableAutomaticPunctuation: true, enableWordTimeOffsets: overlap > 0 },
+    features: { enableAutomaticPunctuation: true, enableWordTimeOffsets: timeMode },
     explicitDecodingConfig: { encoding: 'LINEAR16', sampleRateHertz: SAMPLE_RATE, audioChannelCount: 1 },
     // medical vocabulary: drug names, Canadian brands and clinical words are boosted so they win over everyday look-alikes (calf / class)
     ...(phrases.length ? { adaptation: { phraseSets: [{ inlinePhraseSet: { phrases } }] } } : {}),
@@ -294,7 +312,7 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     for (let attempt = 0; attempt <= maxRetries(); attempt++) {
       try {
         const [r] = await client.recognize({ recognizer, config, content });
-        if (overlap > 0) {
+        if (timeMode) {
           const k = keepWordsByTime(r.results, { winStartSec: w.start / BYTES_PER_SECOND, keepFromSec: i === 0 ? -1 : w.keepFrom / BYTES_PER_SECOND, keepToSec: i === windows.length - 1 ? Infinity : w.keepTo / BYTES_PER_SECOND });
           if (!k.hadWords && (r.results || []).length) needTextMerge = true;   // no word times came back: merge this window's overlap by text instead
           return k.text;
@@ -312,7 +330,7 @@ export async function transcribeChirpPcm(pcm, opts = {}) {
     return '';
   });
 
-  const text = (needTextMerge ? parts.filter(Boolean).reduce((acc, p) => (acc ? mergeOverlapText(acc, p) : p), '') : parts.filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
+  const text = (needTextMerge || (overlap > 0 && !timeMode) ? parts.filter(Boolean).reduce((acc, p) => (acc ? mergeOverlapText(acc, p) : p), '') : parts.filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
   if (!text && failedWindows === windows.length) {
     throw new Error(`Chirp recognition failed for all ${windows.length} window(s)`);
   }

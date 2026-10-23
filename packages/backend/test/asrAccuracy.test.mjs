@@ -56,3 +56,11 @@ test('windows still tile the audio with no overlap in the plan itself (the overl
   const pcm = Buffer.alloc(130 * BPS); const plan = planWindows(pcm, {});
   assert.equal(plan[0].start, 0); assert.equal(plan.at(-1).end, pcm.length); for (let i = 1; i < plan.length; i++) assert.equal(plan[i].start, plan[i - 1].end);
 });
+
+test('window texts join on the longest phrase both heard; ragged edges and repeated filler do not confuse it', () => {
+  const prev = 'so the swelling in my hands got worse and then I noticed my ankles swell so';
+  const cur = 'then i noticed my ankles swell sometimes and I do not know if it is water';
+  assert.equal(mergeOverlapText(prev, cur), 'so the swelling in my hands got worse and then I noticed my ankles swell sometimes and I do not know if it is water');
+  assert.equal(mergeOverlapText('yeah okay so yeah okay', 'yeah okay so um go on'), 'yeah okay so yeah okay yeah okay so um go on');   // only filler in common: no join point, nothing dropped
+  assert.equal(mergeOverlapText('', 'only this'), 'only this'); assert.equal(mergeOverlapText('only that', ''), 'only that');
+});
