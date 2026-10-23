@@ -68,3 +68,16 @@ Triggered by a real comparison where the speech text had "class tenderness" for 
 Overlap windows: worse on 5 of 6 recordings measured (for example 7.7 % to 8.4 %), so off. Word-time overlap was worse still.
 
 **Reading it honestly:** the differences are small (0.2 to 0.6 points) and the recordings are not real doctor calls. Hints never made a recording worse in meaning (one file lost an exact match because Chirp wrote "acetaminophen" for "Tylenol"). Gemini 2.5 Flash was at least as accurate as Chirp 2 and misses fewer words; the best measured setup is **Gemini as the primary engine with Chirp 2 as the second opinion**. Production still has Chirp 2 as primary (proven in daily use); the owner can switch the primary in the admin console. Gemini answers 429 under heavy parallel load, which the fallback chain handles.
+
+## 7. Cost review (2026-10-23): Gemini 2.5 Flash becomes the primary engine
+Data: 12 held-out recordings the earlier tests never saw (public simulated interviews, git-ignored copy in `audio_data/`; not real clinic calls), plus the live recording path (20-second chunks, 6 recordings).
+| Setup | Word errors | Medical-term recall | Key-token recall | Speech cost per audio minute (estimate) |
+|---|---|---|---|---|
+| Chirp 2 + hints + Gemini second opinion (was production) | 6.34 % | 97.9 % | 98.0 % | $0.018 |
+| Chirp 2 + hints | 6.36 % | 97.9 % | 98.0 % | $0.016 |
+| **Gemini 2.5 Flash alone (now production)** | **5.92 %** | **99.5 %** | **98.1 %** | **about $0.002** |
+| Gemini primary + Chirp 2 second opinion | 5.95 % | 99.5 % | 98.1 % | $0.018 |
+Live path, 20-second chunks: Chirp 2 + hints 6.95 % / 99.0 % / 97.1 %, **Gemini 2.5 Flash 6.84 % / 100 % / 98.5 %**; the second opinion changed nothing in either direction.
+**Change made** with `tools/asr-set.mjs` (same store as the admin console, `updated_by` records why): primary `gemini-2.5-flash`, fallbacks `chirp_2` (with the medical vocabulary) then `latest_long`, second opinion **off** (it added cost, no accuracy). About 89 % less speech-to-text spend: a 12-minute visit costs about $0.02 instead of $0.18. A 20-second chunk answered in 1.4 s on the live check.
+**Revert** in the admin console, Speech to text: pick Chirp 2 as the primary (the second-opinion switch is there too). If Gemini answers 429 under load, the chain already falls back to Chirp 2 and a breaker skips Gemini for 5 minutes after 3 failures in a row.
+**Cost levers still open:** note generation makes several Gemini calls per note (writer, checklist, verifier, editor, story, attribution, sweep, grounding); its cost per note has not been measured yet. Trimming silence before transcription and skipping the second look at doubtful lines when none are flagged are the next candidates, each to be A/B tested.
