@@ -107,8 +107,8 @@ async function geminiRunner(pcm, model, log) {
   const { createGeminiService } = await import('../services/LLMService.js');
   const svc = await createGeminiService(null, { model }); const url = svc._endpoint(false, model); const durationSeconds = pcmDurationSeconds(pcm.length);
   const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = new Array(windows.length).fill(''); let failed = 0; let next = 0;
-  const ask = async (i, temperature) => {
-    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(windows[i].start, windows[i].end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
+  const ask = async (range, temperature) => {
+    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(range.start, range.end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
     for (let attempt = 0; attempt < 3; attempt++) {
       const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(80000) }); const j = await r.json();
       if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 3000 * (attempt + 1))); continue; }   // quota: wait and retry
@@ -120,9 +120,15 @@ async function geminiRunner(pcm, model, log) {
   // The model can fall into a loop (the same word written thousands of times). Ask that window once more, a little less strictly; if it loops again, keep two copies of the loop.
   let loops = 0;
   const one = async (i) => {
-    let text = await ask(i, 0); let c = collapseLoops(text);
-    if (c.collapsed.length) { log(`gemini-asr window ${i + 1}/${windows.length} looped (${c.collapsed.map((x) => `"${x.unit.slice(0, 30)}" x${x.reps}`).join(', ')}) - asking again`); text = await ask(i, 0.3); c = collapseLoops(text); if (c.collapsed.length) loops++; }
-    return c.text;
+    const w = windows[i]; let text = await ask(w, 0); let c = collapseLoops(text);
+    if (!c.collapsed.length) return text;
+    log(`gemini-asr window ${i + 1}/${windows.length} looped (${c.collapsed.map((x) => `"${x.unit.slice(0, 30)}" x${x.reps}`).join(', ')}) - asking again`);
+    text = await ask(w, 0.3); c = collapseLoops(text); if (!c.collapsed.length) return text;
+    // still looping: ask for the same stretch in short pieces (the loop usually starts in one quiet or noisy spot), each piece checked the same way
+    const step = 30 * 32000; const pieces = []; let again = false;
+    for (let s0 = w.start; s0 < w.end; s0 += step) { const r = { start: s0, end: Math.min(w.end, s0 + step) }; if (r.end - r.start < 32000) continue; const pc = collapseLoops(await ask(r, 0)); if (pc.collapsed.length) again = true; pieces.push(pc.text); }
+    if (again) loops++;
+    return pieces.join(' ');
   };
   await Promise.all(Array.from({ length: Math.min(3, windows.length) }, async () => {
     while (next < windows.length) { const i = next++; try { parts[i] = await one(i); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
