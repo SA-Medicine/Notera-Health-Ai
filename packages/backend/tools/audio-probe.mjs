@@ -13,7 +13,15 @@ for (const r of rows) {
   const err = String(p.stderr || '').split('\n').filter(Boolean);
   const dur = err.find((l) => /Duration:/.test(l)); const time = [...err].reverse().find((l) => /time=\d/.test(l));
   const head = buf.subarray(0, 4).toString('hex'); const headers = (buf.toString('latin1').match(/\x1a\x45\xdf\xa3/g) || []).length;
-  console.log(JSON.stringify({ id: r.consult_id, kb: Math.round(buf.length / 1024), analysedDuration: r.duration_s, ffmpegExit: p.status, signal: p.signal, ms: Date.now() - t0, startsWith: head, webmHeaders: headers, duration: dur?.trim().slice(0, 60), decoded: time?.trim().slice(0, 70), lastLines: err.slice(-3).map((l) => l.slice(0, 120)) }));
+  // is it only junk in front of a good recording? cut at the EBML header and decode that
+  const hdr = buf.indexOf(Buffer.from('1a45dfa3', 'hex')); let fromHeader = null;
+  if (hdr > 0) {
+    const g = `/tmp/probe-cut-${r.consult_id}.webm`; fs.writeFileSync(g, buf.subarray(hdr));
+    const q = spawnSync('ffmpeg', ['-hide_banner', '-nostats', '-i', g, '-map', '0:a:0', '-f', 'null', '-'], { encoding: 'utf8', timeout: 120000 });
+    const e2 = String(q.stderr || '').split('\n').filter(Boolean); fromHeader = { exit: q.status, decoded: [...e2].reverse().find((l) => /time=\d/.test(l))?.trim().slice(0, 70) }; fs.unlinkSync(g);
+  }
+  const clusters = (b) => (b.toString('latin1').match(/\x1f\x43\xb6\x75/g) || []).length;
+  console.log(JSON.stringify({ id: r.consult_id, headerAt: hdr, clustersBefore: hdr > 0 ? clusters(buf.subarray(0, hdr)) : 0, clustersAfter: clusters(buf.subarray(Math.max(hdr, 0))), fromHeader, kb: Math.round(buf.length / 1024), analysedDuration: r.duration_s, ffmpegExit: p.status, signal: p.signal, ms: Date.now() - t0, startsWith: head, webmHeaders: headers, duration: dur?.trim().slice(0, 60), decoded: time?.trim().slice(0, 70), lastLines: err.slice(-3).map((l) => l.slice(0, 120)) }));
   fs.unlinkSync(f);
 }
 process.exit(0);

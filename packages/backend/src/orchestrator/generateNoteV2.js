@@ -44,6 +44,7 @@ import { groupSubjectiveFields } from './topicGroup.js';
 import { groundNote, missingNumbers } from './groundingAgent.js';
 import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
+import { completePlan } from './planComplete.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -737,6 +738,11 @@ export async function generateNoteV2(input, opts = {}) {
     const ts = Date.now();
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
+  }
+  if (!blank && opts.planComplete !== false && process.env.PLAN_COMPLETE !== '0' && cfg['stage.planComplete'] !== false && (note.assessment_and_plan || []).length) {   // Style Spec v2.1.1: a problem left as a bare heading is filled from the transcript (quote-checked) or removed; advice / follow-up / orders the plan left out are added (PLAN_COMPLETE=0 switches off)
+    const tc = Date.now();
+    try { const cllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); cllm._agent = 'v2-complete'; const pc = await completePlan(cllm, note, transcript, log); if (opts.trace) opts.trace.complete = pc; } catch (e) { log(`[v2:complete] skipped — ${e.message}`); }
+    lap('complete', tc);
   }
   if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();

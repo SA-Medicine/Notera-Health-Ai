@@ -28,6 +28,7 @@ export const LOCKED_FILES = [
   'src/orchestrator/conditionGuard.js',
   'src/orchestrator/planAttribution.js',
   'src/orchestrator/fidelityGuards.js',
+  'src/orchestrator/planComplete.js',
 ];
 
 export async function computeFingerprint() {
