@@ -39,3 +39,8 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 10px
 .rank{margin:6px 0;padding-left:22px}.rank li{display:flex;align-items:center;gap:6px;padding:4px 0}.rank li span{flex:1}.q.miss{border-color:var(--bad);background:var(--badbg)}
 .stmt{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}.stmt .stars button{width:auto;padding:0 12px}.fix{margin:4px 0 8px}
 .hbar{display:grid;grid-template-columns:minmax(120px,38%) 1fr 28px;gap:8px;align-items:center;margin:3px 0;font-size:13px}.hbar i{display:block;height:10px;background:var(--acc);border-radius:5px;min-width:3px}.hbar em{color:var(--ink3);font-style:normal}
+/* Notera theme: deep aubergine #3A0F34 + silver #DDE3E8 */
+:root{--bg:#f0f3f6;--ink:#1c0b19;--ink2:#4a3a47;--ink3:#7d707b;--line:rgba(58,15,52,.14);--acc:#4b1a44;--acc2:#3a0f34;--accbg:#ede3eb;accent-color:#4b1a44}
+@media (prefers-color-scheme:dark){:root{--bg:#150b13;--card:#211320;--ink:#f1f3f5;--ink2:#c3cbd2;--ink3:#98a3ae;--line:rgba(221,227,232,.14);--acc:#bfa3bb;--acc2:#e3d4e0;--accbg:#2e1a2c}.btn.primary{color:#2a0a25}}
+::selection{background:rgba(106,45,97,.24)}
+.top{background:#3a0f34;border-bottom:0}.top .brand{color:#dde3e8}.top .nav a{color:rgba(221,227,232,.78)}.top .nav a:hover{background:rgba(221,227,232,.12);color:#fff}.top .nav a.on{background:rgba(221,227,232,.18);color:#fff}

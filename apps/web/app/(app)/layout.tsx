@@ -1,4 +1,5 @@
 import './globals.css'
+import './app/theme.css'
 import { AuthProvider } from './components/AuthProvider'
 import TopBar from './components/TopBar'
 import InterviewInvite from './components/InterviewInvite'

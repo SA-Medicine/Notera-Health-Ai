@@ -8,13 +8,13 @@
 /* ── a soft aurora behind the main area so glass has something to refract ── */
 .notera-shell .main-content {
   background-image:
-    radial-gradient(600px 320px at 85% -8%, rgba(37, 99, 235, 0.07), transparent 70%),
-    radial-gradient(520px 300px at 8% 108%, rgba(124, 58, 237, 0.06), transparent 70%);
+    radial-gradient(600px 320px at 85% -8%, rgba(58,15,52, 0.07), transparent 70%),
+    radial-gradient(520px 300px at 8% 108%, rgba(106,45,97, 0.06), transparent 70%);
   background-repeat: no-repeat;
 }
 body.dark-mode .notera-shell .main-content {
   background-image:
-    radial-gradient(600px 320px at 85% -8%, rgba(59, 130, 246, 0.14), transparent 70%),
+    radial-gradient(600px 320px at 85% -8%, rgba(106,45,97, 0.14), transparent 70%),
     radial-gradient(520px 300px at 8% 108%, rgba(139, 92, 246, 0.12), transparent 70%);
 }
 
@@ -40,11 +40,11 @@ body.dark-mode .notera-shell .main-content {
 
 /* primary (Create SOAP): blue glass */
 .notera-shell .top-create-btn.glass {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.96), rgba(37, 99, 235, 0.82));
+  background: linear-gradient(180deg, rgba(106,45,97, 0.96), rgba(58,15,52, 0.82));
   border-color: rgba(255, 255, 255, 0.35); color: #fff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.45) inset, 0 -1px 0 rgba(0, 0, 40, 0.25) inset, 0 10px 24px -8px rgba(37, 99, 235, 0.65);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.45) inset, 0 -1px 0 rgba(0, 0, 40, 0.25) inset, 0 10px 24px -8px rgba(58,15,52, 0.65);
 }
-.notera-shell .top-create-btn.glass:hover:not(:disabled) { background: linear-gradient(180deg, rgba(79, 145, 255, 0.98), rgba(37, 99, 235, 0.9)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 14px 30px -8px rgba(37, 99, 235, 0.75); }
+.notera-shell .top-create-btn.glass:hover:not(:disabled) { background: linear-gradient(180deg, rgba(122,62,112, 0.98), rgba(58,15,52, 0.9)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 14px 30px -8px rgba(58,15,52, 0.75); }
 .notera-shell .top-create-btn.glass::before { background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.45) 50%, transparent 68%); }
 
 /* record: neutral glass → red glass with a living glow while recording */
@@ -73,7 +73,7 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
   transition: transform 0.14s var(--ease-out), background 0.2s, box-shadow 0.25s var(--ease-out), color 0.2s, border-color 0.2s;
 }
 .notera-shell .copy-btn:active:not(:disabled), .notera-shell .format-btn:active:not(:disabled), .notera-shell .top-icon-btn:active, .notera-shell .start-hint-btn:active, .notera-shell .transcript-proceed-btn:active:not(:disabled) { transform: scale(0.96); }
-.notera-shell .start-hint-btn:hover, .notera-shell .transcript-proceed-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -10px rgba(37, 99, 235, 0.55); }
+.notera-shell .start-hint-btn:hover, .notera-shell .transcript-proceed-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -10px rgba(58,15,52, 0.55); }
 
 /* ── sidebar: smooth nav, sliding feel ── */
 .notera-shell .nav-item { transition: background 0.2s var(--ease-out), color 0.2s, transform 0.15s var(--ease-out), padding-left 0.2s var(--ease-out); }
@@ -115,7 +115,7 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 .notera-shell .gen-step.now .gd { border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-pale); animation: pl-pulse 1.4s ease-in-out infinite; }
 .notera-shell .gen-step.done { color: var(--text-secondary); }
 .notera-shell .gen-step.done .gd { background: var(--green); border-color: var(--green); animation: pl-pop 0.35s var(--ease-out) both; }
-@keyframes pl-pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--blue-pale); } 50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); } }
+@keyframes pl-pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--blue-pale); } 50% { box-shadow: 0 0 0 8px rgba(58,15,52, 0); } }
 @keyframes pl-pop { from { transform: scale(0.4); } to { transform: none; } }
 
 /* ── recording cues ── */
@@ -130,7 +130,7 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 
 /* ── full-screen loading state (replaces the half-screen "Loading…" card on reload) ── */
 .app-splash { position: fixed; inset: 0; z-index: 80; display: flex; background: #f4f4f6; font-family: var(--font-inter), system-ui, sans-serif; animation: pl-splash-in 0.25s ease both; }
-.app-splash aside { width: 210px; flex: none; background: #1c1c1e; padding: 18px 14px; display: flex; flex-direction: column; gap: 12px; }
+.app-splash aside { width: 210px; flex: none; background: #2E0B29; padding: 18px 14px; display: flex; flex-direction: column; gap: 12px; }
 .app-splash main { flex: 1; padding: 22px 26px; display: flex; flex-direction: column; gap: 22px; }
 .app-splash .sp-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .app-splash .sp-brand i { width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, #4f7cff, #7c5cff); }
@@ -143,7 +143,7 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 .app-splash .w1 { width: 100%; height: 34px; border-radius: 10px; } .app-splash .w2 { width: 80%; } .app-splash .w3 { width: 64%; }
 .app-splash .w4 { width: 220px; height: 16px; } .app-splash .w5 { width: 40%; } .app-splash .w6 { width: 85%; } .app-splash .w7 { width: 70%; }
 .app-splash .sp-center { position: absolute; left: calc(50% + 105px); top: 50%; transform: translate(-50%, -50%); }
-.app-splash .sp-ring { display: block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(37, 99, 235, 0.18); border-top-color: #2563eb; animation: pl-rot 0.8s linear infinite; }
+.app-splash .sp-ring { display: block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(58,15,52, 0.18); border-top-color: #4B1A44; animation: pl-rot 0.8s linear infinite; }
 @keyframes pl-shimmer { to { background-position: -200% 0; } }
 @keyframes pl-rot { to { transform: rotate(360deg); } }
 @keyframes pl-splash-in { from { opacity: 0; } to { opacity: 1; } }
@@ -156,13 +156,13 @@ body.dark-mode .notera-shell .glass:not(.top-create-btn):not(.new-session-btn):n
 /* Style Interview invitation (invited accounts only) */
 .notera-shell .invite-banner { display: flex; align-items: center; gap: 14px; margin: 12px 18px 0; padding: 10px 14px; background: #eef4ff; border: 1px solid #d6e4ff; border-radius: 12px; font-size: 14px; color: #0f1b2d; }
 .notera-shell .invite-banner .invite-text { flex: 1; line-height: 1.4; }
-.notera-shell .invite-banner .invite-btn { background: #1f6feb; color: #fff; border-radius: 9px; padding: 7px 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.notera-shell .invite-banner .invite-btn { background: #4B1A44; color: #fff; border-radius: 9px; padding: 7px 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .notera-shell .invite-banner .invite-btn:hover { background: #1a5fcf; }
 .notera-shell .invite-banner .invite-x { border: 0; background: transparent; font-size: 20px; line-height: 1; color: #8a97ab; cursor: pointer; padding: 2px 6px; }
 .notera-shell.dark-mode .invite-banner { background: #14233b; border-color: #243a5e; color: #e6eefc; }
-.notera-shell .invite-dot { width: 8px; height: 8px; border-radius: 50%; background: #1f6feb; margin-left: auto; }
+.notera-shell .invite-dot { width: 8px; height: 8px; border-radius: 50%; background: #4B1A44; margin-left: auto; }
 @media (max-width: 720px) { .notera-shell .invite-banner { flex-wrap: wrap; margin: 8px 10px 0; } }
-.notera-shell .nav-item .invite-dot { flex: 0 0 8px !important; width: 8px !important; height: 8px !important; min-width: 8px; padding: 0 !important; margin-left: auto; border-radius: 50%; background: #1f6feb; display: inline-block; }
+.notera-shell .nav-item .invite-dot { flex: 0 0 8px !important; width: 8px !important; height: 8px !important; min-width: 8px; padding: 0 !important; margin-left: auto; border-radius: 50%; background: #4B1A44; display: inline-block; }
 
 /* Completeness check banner */
 .notera-shell .density-banner { display: flex; align-items: center; gap: 14px; margin: 12px 18px 0; padding: 10px 14px; background: #fff6e5; border: 1px solid #f3d9a4; border-radius: 12px; font-size: 14px; color: #3d2a05; }

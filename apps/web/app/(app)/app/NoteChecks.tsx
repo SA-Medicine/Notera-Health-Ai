@@ -118,10 +118,10 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
 type Props = {
   flags: NoteFlag[]; bodyRef?: RefObject<HTMLElement | null>; note: string; onChange: (md: string) => void; editing?: boolean;
   full?: boolean; onToggleFull?: () => void; endEl?: HTMLElement | null;
-  onCorrection?: (e: Correction) => void; resolved?: string[];   // resolved = flag messages the clinician already dealt with (reopened note)
+  onCorrection?: (e: Correction) => void; resolved?: string[]; onStats?: (s: { toCheck: number }) => void;   // resolved = flag messages the clinician already dealt with (reopened note)
 };
 
-export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl, onCorrection, resolved }: Props) {
+export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl, onCorrection, resolved, onStats }: Props) {
   const items = useMemo(() => (flags || []).map(parse).filter((x): x is Item => !!x), [flags]);
   const [done, setDone] = useState<Set<number>>(new Set());
   const [reviewing, setReviewing] = useState(false);
@@ -138,6 +138,11 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
   const pos = Math.min(cur, Math.max(warn.length - 1, 0));
   const item = warn[pos];
   const live = useRef({ warn, editing }); live.current = { warn, editing };
+  useEffect(() => { onStats?.({ toCheck: warn.length }); }, [warn.length]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {   // the side panel's "Review now" button
+    const go = () => { if (!live.current.editing && live.current.warn.length) setReviewing(true); };
+    window.addEventListener('notera:review', go); return () => window.removeEventListener('notera:review', go);
+  }, []);
 
   // mark the lines in the note. Runs after the note body has been (re)written, hence the timeout (a parent effect rewrites innerHTML after child effects).
   useEffect(() => {

@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   Notera theme: deep aubergine #3A0F34 + silver #DDE3E8.
+   One accent (aubergine), one neutral family (silver, tinted toward the aubergine), one radius scale, one elevation recipe.
+   Every colour in the app comes from these tokens (the older stylesheets use the legacy names mapped below).
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* aubergine ramp (brand = 800) */
+  --aub-950: #240820; --aub-900: #2E0B29; --aub-800: #3A0F34; --aub-700: #4B1A44; --aub-600: #6A2D61; --aub-500: #8E5A86; --aub-300: #BFA3BB; --aub-100: #EDE3EB;
+  /* silver ramp (brand = 300) */
+  --sil-50: #F8FAFB; --sil-100: #F0F3F6; --sil-200: #E6EBEF; --sil-300: #DDE3E8; --sil-400: #C3CBD2; --sil-500: #98A3AE; --sil-600: #6F7B87;
+  --ink: #1C0B19;   /* text on silver and white: aubergine-black, never pure black */
+
+  /* surfaces */
+  --canvas: var(--sil-100); --card: #FFFFFF; --card-2: var(--sil-50);
+  --line: rgba(58, 15, 52, 0.10); --line-strong: rgba(58, 15, 52, 0.18);
+
+  /* radius scale: inputs 10, cards 16, docks 20, pills round */
+  --rad-input: 10px; --rad-card: 16px; --rad-dock: 20px; --rad-pill: 999px;
+  /* elevation: one tinted recipe (ambient + direct) */
+  --elev-1: 0 1px 2px rgba(58, 15, 52, 0.06), 0 8px 20px -12px rgba(58, 15, 52, 0.18);
+  --elev-2: 0 1px 2px rgba(58, 15, 52, 0.07), 0 18px 40px -16px rgba(58, 15, 52, 0.30);
+  /* motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --dur-press: 120ms; --dur-hover: 160ms; --dur-pop: 220ms;
+
+  /* ── legacy names used by scribe.css / polish.css / globals.css, mapped onto the tokens ── */
+  --sidebar-bg: var(--aub-800); --sidebar-border: rgba(221, 227, 232, 0.10); --sidebar-text: var(--sil-300); --sidebar-text-muted: rgba(221, 227, 232, 0.64);
+  --sidebar-active-bg: rgba(221, 227, 232, 0.14); --sidebar-hover-bg: rgba(221, 227, 232, 0.08); --sidebar-width: 252px;
+  --main-bg: var(--canvas); --topbar-bg: rgba(248, 250, 251, 0.88); --topbar-border: var(--line);
+  --blue: var(--aub-700); --blue-lt: var(--aub-600); --blue-pale: rgba(58, 15, 52, 0.07); --blue-md: rgba(58, 15, 52, 0.14); --blue-glow: rgba(58, 15, 52, 0.22);
+  --accent-purple: var(--aub-600); --purple: var(--aub-600);
+  --text-primary: var(--ink); --text-secondary: #3D2A3A; --text-muted: #695967; --text-faint: #7D707B;
+  --border-light: var(--line); --border-mid: var(--line-strong);
+  --shadow-sm: var(--elev-1); --shadow-md: var(--elev-2);
+  --r-sm: 8px; --r-md: 10px; --r-lg: 16px; --r-pill: 999px;
+  --cmd-bg: #FFFFFF; --focus: var(--aub-500);
+}
+body.dark-mode {
+  --canvas: #150B13; --card: #211320; --card-2: #1B0F1A;
+  --line: rgba(221, 227, 232, 0.10); --line-strong: rgba(221, 227, 232, 0.18);
+  --sidebar-bg: #2B0A26; --main-bg: var(--canvas); --topbar-bg: rgba(27, 15, 25, 0.9);
+  --text-primary: #F1F3F5; --text-secondary: #D8DDE2; --text-muted: #B2A9B0; --text-faint: #8C8189;
+  --blue: var(--aub-300); --blue-lt: var(--aub-300); --blue-pale: rgba(191, 163, 187, 0.12); --blue-md: rgba(191, 163, 187, 0.22); --blue-glow: rgba(191, 163, 187, 0.30);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 24px -14px rgba(0, 0, 0, 0.7); --elev-2: 0 1px 2px rgba(0, 0, 0, 0.5), 0 20px 44px -18px rgba(0, 0, 0, 0.8);
+  --cmd-bg: #211320; --focus: var(--aub-300);
+}
+
+/* ── the parts browsers ship by default, themed ── */
+html { color-scheme: light; accent-color: var(--aub-700); }
+body.dark-mode { color-scheme: dark; accent-color: var(--aub-300); }
+::selection { background: rgba(106, 45, 97, 0.24); color: inherit; }
+input, textarea, [contenteditable="true"] { caret-color: var(--aub-600); }
+* { scrollbar-width: thin; scrollbar-color: rgba(58, 15, 52, 0.28) transparent; }
+body.dark-mode * { scrollbar-color: rgba(221, 227, 232, 0.28) transparent; }
+::-webkit-scrollbar-thumb { background: rgba(58, 15, 52, 0.26); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(58, 15, 52, 0.42); }
+.notera-shell a { text-underline-offset: 3px; }
+.notera-shell :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.notera-shell .sidebar :focus-visible { outline-color: var(--sil-300); }
+
+/* press feedback on every button-like control (120 ms, transform only) */
+.notera-shell button:not(:disabled):active, .notera-shell .nav-item:active, .notera-shell .main-tab:active { transform: scale(0.97); transition: transform var(--dur-press) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .notera-shell *, .notera-shell *::before, .notera-shell *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
+/* names used by globals.css (login, top bar, consults, monitor) */
+:root {
+  --bg: var(--canvas); --panel: var(--card); --ink-soft: #695967; --ink-faint: #7D707B; --line-soft: rgba(58, 15, 52, 0.06);
+  --brand: var(--aub-700); --brand-ink: var(--aub-800); --brand-tint: var(--aub-100); --radius: 16px; --shadow: var(--elev-1);
+}

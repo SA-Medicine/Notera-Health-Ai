@@ -6,7 +6,7 @@
 /* ── Design Tokens ── */
 :root {
   /* Sidebar */
-  --sidebar-bg:          #1c1c1e;
+  --sidebar-bg:          #2E0B29;
   --sidebar-border:      rgba(255,255,255,0.07);
   --sidebar-text:        #ffffff;
   --sidebar-text-muted:  #8a8a8e;
@@ -20,14 +20,14 @@
   --topbar-border:       rgba(0,0,0,0.08);
 
   /* Accent Colors */
-  --blue:                #2563eb;
-  --blue-lt:             #3b82f6;
-  --blue-pale:           rgba(37,99,235,0.07);
-  --blue-md:             rgba(37,99,235,0.14);
-  --blue-glow:           rgba(37,99,235,0.25);
-  --purple:              #7c3aed;
-  --purple-pale:         rgba(124,58,237,0.09);
-  --accent-purple:       #6B5CE7;
+  --blue:                #4B1A44;
+  --blue-lt:             #6A2D61;
+  --blue-pale:           rgba(58,15,52,0.07);
+  --blue-md:             rgba(58,15,52,0.14);
+  --blue-glow:           rgba(58,15,52,0.25);
+  --purple:              #6A2D61;
+  --purple-pale:         rgba(106,45,97,0.09);
+  --accent-purple:       #7A3E70;
   --red:                 #E24B4A;
   --red-pale:            rgba(226,75,74,0.09);
   --red-glow:            rgba(226,75,74,0.25);
@@ -74,7 +74,7 @@ body.dark-mode {
   --border-light:        rgba(255,255,255,0.08);
   --border-mid:          rgba(255,255,255,0.14);
 
-  --cmd-bg:              #1c1c1e;
+  --cmd-bg:              #2E0B29;
   --cmd-shadow:          0 -2px 20px rgba(0,0,0,0.5);
 }
 
@@ -192,7 +192,7 @@ input  { font-family: inherit; }
 
 .brand-icon {
   width: 30px; height: 30px;
-  background: linear-gradient(135deg, var(--blue), #6B5CE7);
+  background: linear-gradient(135deg, var(--blue), #7A3E70);
   border-radius: var(--r-md);
   display: flex; align-items: center; justify-content: center;
   color: #fff;
@@ -481,8 +481,8 @@ input  { font-family: inherit; }
 }
 
 .trial-pill {
-  background: linear-gradient(135deg, rgba(107,92,231,0.12), rgba(37,99,235,0.12));
-  border-color: rgba(107,92,231,0.25);
+  background: linear-gradient(135deg, rgba(106,45,97,0.12), rgba(58,15,52,0.12));
+  border-color: rgba(106,45,97,0.25);
   color: var(--accent-purple);
   font-weight: 600;
 }
@@ -1348,18 +1348,18 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
   align-items: center;
   gap: 6px;
   padding: 8px 20px;
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  background: linear-gradient(135deg, #4B1A44, #6A2D61);
   border: none;
   border-radius: var(--r-md);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   transition: all 0.2s;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.28);
+  box-shadow: 0 2px 12px rgba(58,15,52,0.28);
 }
 .btn-generate:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1e40af, #2563eb);
-  box-shadow: 0 4px 18px rgba(37,99,235,0.38);
+  background: linear-gradient(135deg, #3A0F34, #4B1A44);
+  box-shadow: 0 4px 18px rgba(58,15,52,0.38);
   transform: translateY(-1px);
 }
 .btn-generate:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -1557,7 +1557,7 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
   transition: all 0.15s;
   white-space: nowrap;
 }
-.ai-chip:hover { background: rgba(124,58,237,0.16); }
+.ai-chip:hover { background: rgba(106,45,97,0.16); }
 
 .ai-messages {
   overflow-y: auto;
@@ -1857,8 +1857,8 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
 .env-upload-icon {
   width: 42px; height: 42px;
   border-radius: var(--r-md);
-  background: rgba(37,99,235,0.08);
-  border: 1px solid rgba(37,99,235,0.15);
+  background: rgba(58,15,52,0.08);
+  border: 1px solid rgba(58,15,52,0.15);
   display: flex; align-items: center; justify-content: center;
   color: var(--blue);
   flex-shrink: 0;
@@ -1917,16 +1917,16 @@ body.dark-mode .t-empty-icon { background: rgba(255,255,255,0.06); }
 .btn-save-settings {
   flex: 1;
   padding: 10px;
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  background: linear-gradient(135deg, #4B1A44, #6A2D61);
   border: none;
   border-radius: var(--r-md);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   transition: all 0.2s;
-  box-shadow: 0 2px 12px rgba(37,99,235,0.3);
+  box-shadow: 0 2px 12px rgba(58,15,52,0.3);
 }
-.btn-save-settings:hover { background: linear-gradient(135deg, #1e40af, #2563eb); }
+.btn-save-settings:hover { background: linear-gradient(135deg, #3A0F34, #4B1A44); }
 .btn-cancel-settings {
   padding: 10px 18px;
   background: none;
@@ -2450,7 +2450,7 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
    ══════════════════════════════════════════════════════════════════════════ */
 .notera-shell{
   font-family:var(--font-inter), 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  --focus:#2563eb;
+  --focus:#4B1A44;
 }
 
 /* Visible keyboard focus on every interactive control (WCAG 2.4.7) */
@@ -2506,12 +2506,12 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 /* ── Paste transcript: link on the empty state + its own dedicated screen ──── */
 .notera-shell .paste-link-btn{
   display:inline-flex; align-items:center; gap:8px; margin-top:18px;
-  background:#fff; color:var(--blue,#2563eb); border:1px solid var(--border-mid,#dbe2ef);
+  background:#fff; color:var(--blue,#4B1A44); border:1px solid var(--border-mid,#dbe2ef);
   font:600 13.5px/1 var(--font-inter), 'Inter',sans-serif; padding:10px 16px; border-radius:10px; cursor:pointer;
   transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, background .2s;
 }
 .notera-shell .paste-link-btn svg{ width:15px; height:15px; }
-.notera-shell .paste-link-btn:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(37,99,235,.16); background:#f6f9ff; }
+.notera-shell .paste-link-btn:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(58,15,52,.16); background:#f6f9ff; }
 .notera-shell .paste-link-btn:active{ transform:scale(.975); }
 
 .notera-shell .paste-screen{ max-width:720px; margin:0 auto; padding:34px 24px 48px; width:100%; animation:notera-note-in .3s cubic-bezier(.22,1,.36,1) both; }
@@ -2529,22 +2529,22 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .nto-modal{ width:100%; max-width:470px; background:#fff; border-radius:18px; padding:30px 30px 26px;
   box-shadow:0 30px 80px rgba(8,12,28,.5); animation:nto-pop .35s cubic-bezier(.22,1,.36,1) both; }
 @keyframes nto-pop{ from{opacity:0; transform:translateY(14px) scale(.98)} to{opacity:1; transform:none} }
-.nto-modal-mark{ width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#6d5efc,#3ba7ff);
-  color:#fff; font-weight:800; font-size:20px; display:grid; place-items:center; box-shadow:0 8px 22px rgba(109,94,252,.45); margin-bottom:16px; }
+.nto-modal-mark{ width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#6A2D61,#8E5A86);
+  color:#fff; font-weight:800; font-size:20px; display:grid; place-items:center; box-shadow:0 8px 22px rgba(58,15,52,.45); margin-bottom:16px; }
 .nto-modal-title{ font-size:23px; font-weight:800; letter-spacing:-.02em; color:#0f1836; margin:0 0 6px; }
 .nto-modal-sub{ font-size:14.5px; color:#5a6a82; margin:0 0 16px; }
 .nto-terms{ background:#f6f8fc; border:1px solid #e7ecf5; border-radius:12px; padding:14px 16px; max-height:220px; overflow:auto; margin-bottom:16px; }
 .nto-terms p{ font-size:13.5px; line-height:1.6; color:#3a3f5c; margin:0 0 10px; }
 .nto-terms p:last-child{ margin-bottom:0; }
 .nto-check{ display:flex; gap:10px; align-items:flex-start; font-size:13.5px; color:#3a3f5c; cursor:pointer; margin-bottom:20px; }
-.nto-check input{ width:18px; height:18px; margin-top:1px; accent-color:#6d5efc; flex:none; cursor:pointer; }
+.nto-check input{ width:18px; height:18px; margin-top:1px; accent-color:#6A2D61; flex:none; cursor:pointer; }
 .nto-modal-actions{ display:flex; justify-content:flex-end; }
 
 .nto-btn{ font:600 14px/1 var(--font-inter), 'Inter',sans-serif; border:none; border-radius:10px; padding:11px 20px; cursor:pointer;
   transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .2s, opacity .2s; }
-.nto-btn:focus-visible{ outline:2px solid #3ba7ff; outline-offset:2px; }
-.nto-btn-primary{ color:#fff; background:linear-gradient(135deg,#6d5efc,#3ba7ff); box-shadow:0 8px 22px -6px rgba(109,94,252,.5); }
-.nto-btn-primary:not(:disabled):hover{ transform:translateY(-1px); box-shadow:0 14px 30px -8px rgba(109,94,252,.6); }
+.nto-btn:focus-visible{ outline:2px solid #8E5A86; outline-offset:2px; }
+.nto-btn-primary{ color:#fff; background:linear-gradient(135deg,#6A2D61,#8E5A86); box-shadow:0 8px 22px -6px rgba(58,15,52,.5); }
+.nto-btn-primary:not(:disabled):hover{ transform:translateY(-1px); box-shadow:0 14px 30px -8px rgba(58,15,52,.6); }
 .nto-btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
 .nto-btn-ghost{ color:#3a3f5c; background:#eef1f7; }
 .nto-btn-ghost:hover{ background:#e3e8f2; }
@@ -2552,8 +2552,8 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 /* coach-marks */
 .nto-tour{ position:fixed; inset:0; z-index:9998; pointer-events:none; }
 .nto-scrim{ position:fixed; inset:0; background:rgba(8,12,28,.55); }
-.nto-spot{ position:fixed; border-radius:12px; border:2px solid #6d5efc;
-  box-shadow:0 0 0 9999px rgba(8,12,28,.55), 0 0 0 4px rgba(109,94,252,.35);
+.nto-spot{ position:fixed; border-radius:12px; border:2px solid #6A2D61;
+  box-shadow:0 0 0 9999px rgba(8,12,28,.55), 0 0 0 4px rgba(58,15,52,.35);
   transition:top .3s cubic-bezier(.22,1,.36,1), left .3s cubic-bezier(.22,1,.36,1), width .3s, height .3s; }
 .nto-tip{ position:fixed; width:320px; background:#fff; border-radius:14px; padding:18px 18px 14px;
   box-shadow:0 22px 55px rgba(8,12,28,.45); pointer-events:auto; animation:nto-pop .3s cubic-bezier(.22,1,.36,1) both; }
@@ -2603,7 +2603,7 @@ body.dark-mode .pw-card { background: #1f1f22; }
 .notera-shell {
   --chk-warn-bg: #fff8ea; --chk-warn-line: #efd29a; --chk-warn-ink: #6f4300; --chk-warn-chip: #b86e00;
   --chk-quiet-bg: #f5f6f8; --chk-quiet-line: rgba(0,0,0,0.09); --chk-quiet-ink: #4b5563;
-  --chk-bar-bg: #f4f7fd; --chk-bar-line: rgba(37,99,235,0.18); --chk-bar-ink: #1e3a8a;
+  --chk-bar-bg: #f4f7fd; --chk-bar-line: rgba(58,15,52,0.18); --chk-bar-ink: #1e3a8a;
 }
 body.dark-mode .notera-shell {
   --chk-warn-bg: #2a2214; --chk-warn-line: rgba(239,210,154,0.28); --chk-warn-ink: #f3d9a4; --chk-warn-chip: #f0b44a;
@@ -2687,8 +2687,8 @@ body.dark-mode .notera-shell {
 /* the note gets the whole screen height: the page scrolls as one, the slim bar stays on top, the checklist comes last */
 .notera-shell .note-content { overflow-y: auto; }
 .notera-shell .note-content .note-body { flex: none; overflow: visible; }
-.notera-shell .note-checks { position: sticky; top: 0; z-index: 25; margin: 0 0 10px; padding-top: 2px; background: linear-gradient(var(--bg-page, #fff) 80%, transparent); }
-.notera-shell .note-content.full { position: fixed; inset: 0; z-index: 90; max-width: none; margin: 0; padding: 12px clamp(12px, 6vw, 140px) 40px; background: var(--bg-page, #f7f8fa); border-radius: 0; box-shadow: none; animation: none; }
+.notera-shell .note-checks { position: sticky; top: 0; z-index: 25; margin: 0 0 10px; padding-top: 2px; background: linear-gradient(var(--canvas) 80%, transparent); }
+.notera-shell .note-content.full { position: fixed; inset: 0; z-index: 90; max-width: none; margin: 0; padding: 12px clamp(12px, 6vw, 140px) 40px; background: var(--canvas); border-radius: 0; box-shadow: none; animation: none; }
 body.dark-mode .notera-shell .note-content.full { background: #17171a; }
 body.dark-mode .notera-shell .chk-pop, body.dark-mode .notera-shell .chk-edit textarea, body.dark-mode .notera-shell .chk-edit input, body.dark-mode .notera-shell .chk-where select { background: #232326; color: #eee; }
 @media (prefers-reduced-motion: reduce) { .notera-shell .chk-btn, .notera-shell .note-body .flagged-line.flash { transition: none; animation: none; } }
@@ -2702,7 +2702,7 @@ body.dark-mode .notera-shell .chk-pop, body.dark-mode .notera-shell .chk-edit te
 .notera-shell .note-body .ap-head strong { font-size: 14.5px; }
 .notera-shell .note-body li.ap-line { list-style: none; margin-left: -4px; }
 .notera-shell .note-body .ap-lbl { display: inline-block; min-width: 0; margin-right: 4px; font-size: 12.5px; font-weight: 650; color: var(--text-muted); }
-.notera-shell .note-body .ap-tx > .ap-lbl { color: #1d4ed8; }
+.notera-shell .note-body .ap-tx > .ap-lbl { color: #4B1A44; }
 .notera-shell .note-body .ap-inv > .ap-lbl { color: #475569; }
 .notera-shell .note-body .ap-ref > .ap-lbl { color: #6d28d9; }
 .notera-shell .note-body .ap-adv > .ap-lbl { color: #0f766e; }

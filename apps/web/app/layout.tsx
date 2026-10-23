@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  themeColor: '#6d5efc',
+  themeColor: '#3A0F34',
 }
 
 // Organization + WebSite structured data (helps Google understand the brand + enables sitelinks search).

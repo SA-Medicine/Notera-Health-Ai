@@ -134,7 +134,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
             <p>Notera takes the note off your plate. You talk to your patient like a person; it does the writing.</p>
           </div>
           <div className="statcard d1" data-reveal>
-            <div className="s"><div className="n">~4s</div><div className="l">from stop to a finished note</div></div>
+            <div className="s"><div className="n">~30s</div><div className="l">from stop to a finished note</div></div>
             <div className="s"><div className="n" data-count="5">0</div><div className="l">free notes, no card</div></div>
             <div className="s"><div className="n">1 tap</div><div className="l">to copy into your EMR</div></div>
             <div className="s"><div className="n">0</div><div className="l">visits used to train models</div></div>

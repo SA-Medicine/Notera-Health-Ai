@@ -237,3 +237,28 @@ th .mtip .mpop, .stat .l .mtip .mpop { left: auto; } th:last-child .mtip .mpop {
 .audlist { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
 .audrow { display: grid; grid-template-columns: 200px minmax(220px, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .audrow audio { width: 100%; height: 36px; } @media (max-width: 1000px) { .audrow { grid-template-columns: 1fr; } }
+
+/* ── Notera theme: deep aubergine #3A0F34 + silver #DDE3E8 (same palette as the app) ── */
+:root {
+  --bg: #F0F3F6; --surface: #fff; --surface-2: #F6F8FA; --ink: #1C0B19; --ink-2: #4A3A47; --ink-3: #7D707B; --line: rgba(58, 15, 52, .10);
+  --accent: #4B1A44; --accent-soft: rgba(58, 15, 52, .09);
+  --shadow: 0 1px 2px rgba(58, 15, 52, .06), 0 12px 32px -16px rgba(58, 15, 52, .22);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #150B13; --surface: #211320; --surface-2: #2A182A; --ink: #F1F3F5; --ink-2: #C3CBD2; --ink-3: #98A3AE; --line: rgba(221, 227, 232, .12);
+    --accent: #BFA3BB; --accent-soft: rgba(191, 163, 187, .16); --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 32px -16px rgba(0, 0, 0, .7); }
+}
+::selection { background: rgba(106, 45, 97, .24); }
+:root { accent-color: #4B1A44; }
+* { scrollbar-width: thin; scrollbar-color: rgba(58, 15, 52, .28) transparent; }
+.side { background: #3A0F34; border-right: 0; color: #DDE3E8; }
+.side .brand { color: #DDE3E8; }
+.brand i { background: #DDE3E8; color: #3A0F34; }
+.brand small { color: rgba(221, 227, 232, .6); }
+.nav { color: rgba(221, 227, 232, .74); transition: background .16s cubic-bezier(.23, 1, .32, 1), color .16s cubic-bezier(.23, 1, .32, 1); }
+.nav:hover { background: rgba(221, 227, 232, .10); color: #fff; }
+.nav.on { background: rgba(221, 227, 232, .16); color: #fff; }
+.who { color: rgba(221, 227, 232, .62); border-top-color: rgba(221, 227, 232, .14); }
+.who b { color: #fff; }
+.side :focus-visible { outline-color: #DDE3E8; }
+@media (prefers-color-scheme: dark) { .btn.primary { color: #2A0A25; } .nav.on, .side .nav.on { color: #fff; } }

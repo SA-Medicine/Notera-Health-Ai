@@ -1,0 +1,256 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   App shell: aubergine frame, silver canvas, two docks that can move, resize, collapse and swap sides.
+   Design read: Operate · clinicians · record, review and sign a note quickly · V3 / M3 / D6.
+   Radius scale: inputs 10 · cards 16 · docks 22 · pills round.  Elevation: one tinted recipe (--elev-1/2).  Motion: transform and opacity, ease-out, < 300 ms.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+.notera-shell { padding: 8px; gap: 8px; background: var(--aub-800); height: 100dvh; }
+body.dark-mode .notera-shell { background: var(--aub-950); }
+body.dock-resizing { cursor: col-resize; user-select: none; }
+body.dock-resizing .dock { transition: none !important; }
+
+/* ── docks ── */
+.notera-shell .dock { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; flex: none; transition: width var(--dur-pop) var(--ease-out), min-width var(--dur-pop) var(--ease-out); }
+.notera-shell .sidebar.dock { height: 100%; border: 0; background: transparent; overflow: visible; z-index: 2; }
+.notera-shell .main-content { flex: 1 1 0; order: 0; border-radius: 22px; background: var(--canvas); box-shadow: var(--elev-2); }
+.notera-shell .dock-details { background: var(--canvas); border-radius: 22px; box-shadow: var(--elev-2); overflow: hidden; }
+.notera-shell .dock-details[data-open="false"] { display: none; }
+
+.notera-shell .dock-resizer { position: absolute; top: 14px; bottom: 14px; width: 12px; z-index: 5; cursor: col-resize; touch-action: none; border-radius: 6px; }
+.notera-shell .dock-resizer.r-left { right: -10px; }
+.notera-shell .dock-resizer.r-right { left: -10px; }
+.notera-shell .dock-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 2px; background: var(--aub-300); opacity: 0; transition: opacity var(--dur-hover) var(--ease-out); }
+.notera-shell .dock-resizer:hover::after, .notera-shell .dock-resizer:focus-visible::after, body.dock-resizing .dock-resizer::after { opacity: 0.9; }
+
+/* ── dock chrome: brand header, controls ── */
+.notera-shell .dock-sidebar .sidebar-header { padding: 10px 8px 8px 10px; gap: 8px; }
+.notera-shell .brand-icon { background: var(--sil-300); color: var(--aub-800); border-radius: 12px; }
+.notera-shell .brand-name { color: var(--sil-300); font-weight: 750; letter-spacing: -0.02em; font-size: 17px; }
+.notera-shell .sh-iconbtn { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; border: 0; background: transparent; color: var(--sidebar-text-muted); transition: background var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out); }
+.notera-shell .sh-iconbtn:hover { background: var(--sidebar-hover-bg); color: var(--sil-300); }
+.notera-shell .dock-details .sh-iconbtn { color: var(--text-muted); }
+.notera-shell .dock-details .sh-iconbtn:hover { background: var(--blue-pale); color: var(--aub-800); }
+.notera-shell .dock-bar { display: flex; align-items: center; gap: 4px; padding: 12px 12px 4px 16px; }
+.notera-shell .dock-bar-title { flex: 1; font-size: 13px; font-weight: 650; color: var(--text-primary); letter-spacing: -0.005em; }
+
+.notera-shell .dock-sidebar .sidebar-section { padding: 4px 8px 10px; }
+.notera-shell .new-session-btn { background: var(--sil-300); color: var(--aub-800); border: 0; border-radius: 14px; padding: 10px 14px; font-weight: 700; font-size: 13px; box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.5); transition: transform var(--dur-hover) var(--ease-out), background var(--dur-hover) var(--ease-out), box-shadow var(--dur-hover) var(--ease-out); }
+.notera-shell .new-session-btn:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.55); }
+.notera-shell .new-session-btn svg { stroke: var(--aub-800); }
+
+/* ── panels (cards) ── */
+.notera-shell .dock-cards { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 8px; }
+.notera-shell .dock-details .dock-cards { padding: 4px 12px 12px; gap: 10px; }
+.notera-shell .dcard { border-radius: 16px; flex: none; transition: opacity var(--dur-hover) var(--ease-out), box-shadow var(--dur-hover) var(--ease-out); }
+.notera-shell .dock-sidebar .dcard { background: rgba(221, 227, 232, 0.06); border: 1px solid rgba(221, 227, 232, 0.08); color: var(--sidebar-text); }
+.notera-shell .dock-sidebar .dcard.card-sessions { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; }
+.notera-shell .dock-sidebar .dcard.card-sessions .dcard-body { overflow-y: auto; flex: 1; min-height: 0; }
+.notera-shell .dock-details .dcard { background: var(--card); border: 1px solid var(--line); box-shadow: var(--elev-1); color: var(--text-primary); }
+.notera-shell .dcard.is-dragging { opacity: 0.4; }
+.notera-shell .dcard-h { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 6px; min-height: 38px; }
+.notera-shell .dcard-title { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 650; letter-spacing: -0.005em; color: inherit; }
+.notera-shell .dock-sidebar .dcard-title { color: var(--sidebar-text-muted); }
+.notera-shell .dcard-title svg { flex: none; opacity: 0.85; }
+.notera-shell .dcard-grip, .notera-shell .dcard-toggle { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 0; background: transparent; border-radius: 8px; color: inherit; opacity: 0.55; transition: opacity var(--dur-hover) var(--ease-out), background var(--dur-hover) var(--ease-out), transform var(--dur-pop) var(--ease-out); }
+.notera-shell .dcard-grip { cursor: grab; opacity: 0; }
+.notera-shell .dcard:hover .dcard-grip, .notera-shell .dcard-grip:focus-visible, .notera-shell .dock-cards.is-dragging-any .dcard-grip { opacity: 0.7; }
+.notera-shell .dcard-grip:active { cursor: grabbing; }
+.notera-shell .dcard-grip:hover, .notera-shell .dcard-toggle:hover { opacity: 1; background: rgba(127, 90, 120, 0.16); }
+.notera-shell .dcard-toggle svg { transition: transform var(--dur-pop) var(--ease-out); }
+.notera-shell .dcard.is-collapsed .dcard-toggle svg { transform: rotate(-90deg); }
+.notera-shell .dcard-body { padding: 2px 10px 12px; }
+.notera-shell .dock-sidebar .card-modules .dcard-body { padding: 0 6px 8px; }
+.notera-shell .dock-sidebar .card-sessions .dcard-body { padding: 0 6px 8px; }
+.notera-shell .dcard-count { font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 999px; background: rgba(221, 227, 232, 0.14); color: var(--sidebar-text); font-variant-numeric: tabular-nums; }
+.notera-shell .drop-line { height: 3px; border-radius: 3px; background: var(--aub-500); box-shadow: 0 0 0 3px rgba(142, 90, 134, 0.22); margin: -2px 4px; flex: none; animation: sh-line var(--dur-pop) var(--ease-out); }
+@keyframes sh-line { from { opacity: 0; transform: scaleX(0.6); } to { opacity: 1; transform: scaleX(1); } }
+.notera-shell .dock-empty { border: 1.5px dashed rgba(127, 90, 120, 0.5); border-radius: 16px; padding: 22px 14px; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+.notera-shell .dock-sidebar .dock-empty { color: var(--sidebar-text-muted); border-color: rgba(221, 227, 232, 0.3); }
+
+/* ── workspace navigation (aubergine) ── */
+.notera-shell .sh-navlist { display: flex; flex-direction: column; gap: 2px; }
+.notera-shell .sh-nav { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--sidebar-text); font-size: 13px; font-weight: 550; text-align: left; transition: background var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.notera-shell .sh-nav svg { flex: none; opacity: 0.8; }
+.notera-shell .sh-nav:hover { background: var(--sidebar-hover-bg); }
+.notera-shell .sh-nav.is-active { background: var(--sidebar-active-bg); color: #fff; font-weight: 650; }
+.notera-shell .sh-nav.is-active svg { opacity: 1; }
+.notera-shell .sidebar-nav-lower { padding: 0 8px 6px; }
+.notera-shell .sidebar-nav-lower .nav-item { border-radius: 12px; height: 36px; color: var(--sidebar-text); transition: background var(--dur-hover) var(--ease-out); }
+.notera-shell .sidebar-nav-lower .nav-item:hover { background: var(--sidebar-hover-bg); }
+.notera-shell .user-profile { margin: 0 8px 4px; border: 0; border-radius: 14px; background: rgba(221, 227, 232, 0.06); padding: 8px 10px; }
+.notera-shell .user-profile:hover { background: var(--sidebar-hover-bg); }
+.notera-shell .user-avatar { background: var(--sil-300); color: var(--aub-800); }
+.notera-shell .user-name { color: var(--sil-300); }
+
+/* ── sessions list ── */
+.notera-shell .sh-sessions { display: flex; flex-direction: column; gap: 10px; }
+.notera-shell .sh-sgroup-h { font-size: 11.5px; font-weight: 650; color: var(--sidebar-text-muted); padding: 6px 8px 4px; }
+.notera-shell .sh-session { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--sidebar-text); text-align: left; transition: background var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.notera-shell .sh-session:hover { background: var(--sidebar-hover-bg); }
+.notera-shell .sh-session.is-active { background: var(--sidebar-active-bg); }
+.notera-shell .sh-session-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.notera-shell .sh-session-title { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notera-shell .sh-session-sub { font-size: 11.5px; color: var(--sidebar-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.notera-shell .sh-check-pill { flex: none; min-width: 20px; text-align: center; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #F2C46E; color: #4A2F00; font-variant-numeric: tabular-nums; }
+.notera-shell .dock-details .sh-check-pill { background: var(--chk-warn-chip, #b86e00); color: #fff; }
+.notera-shell .sh-empty { margin: 4px 6px 6px; font-size: 12.5px; line-height: 1.5; color: var(--sidebar-text-muted); }
+.notera-shell .dock-details .sh-empty { color: var(--text-muted); }
+
+/* ── details panels (white cards on silver) ── */
+.notera-shell .sh-fields { display: flex; flex-direction: column; gap: 10px; }
+.notera-shell .sh-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.notera-shell .sh-field input, .notera-shell .sh-field select { height: 36px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--card-2); color: var(--text-primary); font-size: 13.5px; font-weight: 500; transition: border-color var(--dur-hover) var(--ease-out), box-shadow var(--dur-hover) var(--ease-out), background var(--dur-hover) var(--ease-out); }
+.notera-shell .sh-field input { text-transform: none; }
+.notera-shell .sh-field input:hover, .notera-shell .sh-field select:hover { border-color: var(--line-strong); }
+.notera-shell .sh-field input:focus, .notera-shell .sh-field select:focus { outline: none; border-color: var(--aub-600); box-shadow: 0 0 0 3px rgba(106, 45, 97, 0.16); background: var(--card); }
+.notera-shell .sh-facts { margin: 2px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.notera-shell .sh-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 30px; border-top: 1px solid var(--line); font-size: 13px; }
+.notera-shell .sh-facts > div:first-child { border-top: 0; }
+.notera-shell .sh-facts dt { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.notera-shell .sh-facts dd { margin: 0; font-weight: 600; color: var(--text-primary); }
+.notera-shell .tnum { font-variant-numeric: tabular-nums; }
+.notera-shell .sh-state { font-size: 11.5px; font-weight: 650; color: var(--text-muted); padding: 2px 9px; border-radius: 999px; background: var(--blue-pale); }
+.notera-shell .sh-state.is-live { color: #fff; background: #C23B3B; animation: sh-live 1.6s ease-in-out infinite; }
+@keyframes sh-live { 50% { opacity: 0.72; } }
+.notera-shell .sh-note, .notera-shell .sh-checks { display: flex; flex-direction: column; gap: 8px; }
+.notera-shell .sh-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; min-height: 26px; }
+.notera-shell .sh-k { color: var(--text-muted); }
+.notera-shell .sh-v { font-weight: 600; text-align: right; }
+.notera-shell .sh-save.is-saved { color: #1B7A46; }
+.notera-shell .sh-save.is-error { color: #B42318; }
+.notera-shell .sh-link { border: 0; background: none; padding: 0; font: inherit; font-weight: 650; color: var(--aub-600); text-decoration: underline; text-underline-offset: 3px; }
+.notera-shell .sh-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.notera-shell .sh-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--card); color: var(--text-primary); font-size: 12.5px; font-weight: 600; transition: background var(--dur-hover) var(--ease-out), border-color var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out), box-shadow var(--dur-hover) var(--ease-out); }
+.notera-shell .sh-btn:hover:not(:disabled) { background: var(--blue-pale); border-color: var(--aub-500); }
+.notera-shell .sh-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.notera-shell .sh-btn.is-primary { background: var(--aub-800); border-color: var(--aub-800); color: var(--sil-300); }
+.notera-shell .sh-btn.is-primary:hover:not(:disabled) { background: var(--aub-700); box-shadow: 0 8px 18px -10px rgba(58, 15, 52, 0.7); }
+.notera-shell .sh-checks p, .notera-shell .sh-ok { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.notera-shell .sh-ok { color: #1B7A46; font-weight: 600; }
+.notera-shell .sh-tools { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.notera-shell .sh-tool { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 550; text-align: left; text-decoration: none; transition: background var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.notera-shell .sh-tool:hover:not(:disabled) { background: var(--blue-pale); text-decoration: none; }
+.notera-shell .sh-tool:disabled { opacity: 0.5; }
+.notera-shell .sh-tool svg { flex: none; color: var(--aub-600); }
+.notera-shell .sh-tool.is-rec { background: rgba(194, 59, 59, 0.1); color: #9E2B2B; }
+.notera-shell .sh-tool.is-rec svg { color: #C23B3B; }
+
+/* ── workspace header and tabs ── */
+.notera-shell .top-bar { background: transparent; border-bottom: 0; padding: 12px 18px 4px; }
+.notera-shell .session-title-input { font-weight: 700; letter-spacing: -0.01em; }
+.notera-shell .top-create-btn.glass { background: var(--aub-800); border: 1px solid var(--aub-800); color: var(--sil-300); box-shadow: var(--elev-1); border-radius: 999px; backdrop-filter: none; }
+.notera-shell .top-create-btn.glass:hover:not(:disabled) { background: var(--aub-700); box-shadow: 0 10px 22px -12px rgba(58, 15, 52, 0.8); transform: translateY(-1px); }
+.notera-shell .top-create-btn.glass svg { stroke: currentColor; }
+.notera-shell .top-resume-btn.glass { background: var(--card); border: 1px solid var(--line-strong); color: var(--text-primary); box-shadow: none; border-radius: 999px; backdrop-filter: none; }
+.notera-shell .top-resume-btn.glass:hover:not(:disabled) { background: var(--blue-pale); border-color: var(--aub-500); }
+.notera-shell .top-resume-btn.glass.recording { background: #C23B3B; color: #fff; border-color: #C23B3B; }
+.notera-shell .tab-bar { background: transparent; border-bottom: 0; padding: 4px 14px 0; gap: 2px; }
+.notera-shell .main-tab { border-radius: 10px 10px 0 0; transition: color var(--dur-hover) var(--ease-out), background var(--dur-hover) var(--ease-out); }
+.notera-shell .main-tab:hover { background: var(--blue-pale); color: var(--text-primary); }
+.notera-shell .main-tab.active { color: var(--aub-800); }
+.notera-shell .main-tab.active::after { background: var(--aub-700); height: 2.5px; border-radius: 2px; }
+body.dark-mode .notera-shell .main-tab.active { color: var(--sil-300); }
+.notera-shell .panels-container { background: transparent; }
+.notera-shell .sh-drawer-btn { display: none; }
+
+/* ── responsive: details becomes a drawer, the sidebar a slim rail, then a drawer on phones ── */
+@media (max-width: 1180px) {
+  .notera-shell .dock-details { position: fixed; top: 8px; bottom: 8px; right: 8px; width: min(92vw, 360px) !important; min-width: 0 !important; z-index: 90; transform: translateX(calc(100% + 24px)); transition: transform var(--dur-pop) var(--ease-out); box-shadow: var(--elev-2), 0 0 0 100vmax rgba(36, 8, 32, 0); }
+  .notera-shell.drawer-open .dock-details { transform: none; box-shadow: var(--elev-2), 0 0 0 100vmax rgba(36, 8, 32, 0.45); }
+  .notera-shell .dock-details[data-open="false"] { display: flex; }
+  .notera-shell .dock-details .dock-resizer { display: none; }
+  .notera-shell .sh-drawer-btn { display: inline-grid; }
+}
+@media (max-width: 880px) {
+  .notera-shell .dock-sidebar { width: 68px !important; min-width: 68px !important; }
+  .notera-shell .dock-sidebar .brand-name, .notera-shell .dock-sidebar .new-session-btn span, .notera-shell .dock-sidebar .sh-nav span, .notera-shell .dock-sidebar .dcard-title span, .notera-shell .dock-sidebar .nav-item span, .notera-shell .dock-sidebar .user-info, .notera-shell .dock-sidebar .dcard-grip, .notera-shell .dock-sidebar .dcard-toggle, .notera-shell .dock-sidebar .dcard-count, .notera-shell .dock-sidebar .sh-iconbtn, .notera-shell .dock-sidebar .dock-resizer { display: none !important; }
+  .notera-shell .dock-sidebar .card-sessions { display: none; }
+  .notera-shell .dock-sidebar .sh-nav, .notera-shell .dock-sidebar .nav-item, .notera-shell .dock-sidebar .new-session-btn { justify-content: center; padding: 0; }
+  .notera-shell .dock-sidebar .sidebar-header { justify-content: center; padding: 10px 0 6px; }
+}
+@media (max-width: 560px) {
+  .notera-shell { padding: 0; gap: 0; }
+  .notera-shell .main-content, .notera-shell .dock-details { border-radius: 0; }
+  .notera-shell .dock-sidebar { width: 56px !important; min-width: 56px !important; }
+  .notera-shell .top-bar { flex-wrap: wrap; gap: 6px; padding: 8px 10px 2px; }
+}
+@media (prefers-reduced-motion: reduce) { .notera-shell .dock, .notera-shell .dock-details { transition: none !important; } .notera-shell .sh-state.is-live { animation: none; } }
+
+/* rail mode (sidebar collapsed): icons only */
+.notera-shell .dock-sidebar.is-rail .brand-name, .notera-shell .dock-sidebar.is-rail .new-session-btn span, .notera-shell .dock-sidebar.is-rail .sh-nav span, .notera-shell .dock-sidebar.is-rail .nav-item span, .notera-shell .dock-sidebar.is-rail .user-info, .notera-shell .dock-sidebar.is-rail .dcard-h, .notera-shell .dock-sidebar.is-rail .card-sessions { display: none !important; }
+.notera-shell .dock-sidebar.is-rail .sh-nav, .notera-shell .dock-sidebar.is-rail .nav-item, .notera-shell .dock-sidebar.is-rail .new-session-btn { justify-content: center; padding: 0; }
+.notera-shell .dock-sidebar.is-rail .sidebar-header { flex-direction: column; padding: 10px 0 6px; gap: 6px; }
+.notera-shell .dock-sidebar.is-rail .sidebar-header .brand { justify-content: center; }
+.notera-shell .dock-sidebar.is-rail .dcard { background: transparent; border: 0; }
+.notera-shell .dock-sidebar.is-rail .dcard-body { padding: 0; }
+.notera-shell .dock-sidebar.is-rail .user-profile { justify-content: center; padding: 8px 0; }
+.notera-shell .sh-scrim { position: fixed; inset: 0; z-index: 85; background: transparent; }
+@media (min-width: 1181px) { .notera-shell .sh-scrim { display: none; } }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* a panel adapts to the dock it sits in: silver text on the aubergine dock, ink text on the silver dock (panels can be dragged either way) */
+.notera-shell .dock-sidebar { --sh-strong: #fff; --text-primary: #F1F3F5; --text-secondary: #DDE3E8; --text-muted: rgba(221, 227, 232, 0.68); --line: rgba(221, 227, 232, 0.12); --line-strong: rgba(221, 227, 232, 0.24); --card: rgba(221, 227, 232, 0.08); --card-2: rgba(221, 227, 232, 0.05); --blue-pale: rgba(221, 227, 232, 0.10); }
+.notera-shell .dock-details { --sh-strong: var(--ink); --sidebar-text: var(--text-primary); --sidebar-text-muted: var(--text-muted); --sidebar-hover-bg: rgba(58, 15, 52, 0.06); --sidebar-active-bg: rgba(58, 15, 52, 0.11); }
+body.dark-mode .notera-shell .dock-details { --sh-strong: #fff; --sidebar-hover-bg: rgba(221, 227, 232, 0.08); --sidebar-active-bg: rgba(221, 227, 232, 0.14); }
+.notera-shell .sh-session-title, .notera-shell .sh-nav.is-active { color: var(--sh-strong); }
+.notera-shell .dock-details .dcard-count { background: var(--blue-pale); color: var(--text-primary); }
+.notera-shell .dock-details .dcard-title { color: var(--text-primary); }
+.notera-shell .dock-sidebar .sh-btn { color: var(--sil-300); background: rgba(221, 227, 232, 0.08); }
+.notera-shell .dock-sidebar .sh-btn:hover:not(:disabled) { background: rgba(221, 227, 232, 0.16); border-color: var(--sil-400); }
+.notera-shell .dock-sidebar .sh-btn.is-primary { background: var(--sil-300); border-color: var(--sil-300); color: var(--aub-800); }
+.notera-shell .dock-sidebar .sh-btn.is-primary:hover:not(:disabled) { background: #fff; box-shadow: none; }
+.notera-shell .dock-sidebar .sh-tool svg { color: var(--sil-300); }
+.notera-shell .dock-sidebar .sh-tool.is-rec { background: rgba(255, 120, 120, 0.16); color: #FFC7C7; }
+.notera-shell .dock-sidebar .sh-tool.is-rec svg { color: #FF9C9C; }
+.notera-shell .dock-sidebar .sh-link { color: var(--sil-300); }
+.notera-shell .dock-sidebar .sh-ok, .notera-shell .dock-sidebar .sh-save.is-saved { color: #8FE0B0; }
+.notera-shell .dock-sidebar .sh-save.is-error { color: #FFB4A8; }
+.notera-shell .dock-sidebar .sh-field input, .notera-shell .dock-sidebar .sh-field select { color: #F1F3F5; background: rgba(221, 227, 232, 0.07); color-scheme: dark; }
+.notera-shell .dock-sidebar .sh-field input:focus, .notera-shell .dock-sidebar .sh-field select:focus { border-color: var(--sil-300); box-shadow: 0 0 0 3px rgba(221, 227, 232, 0.18); background: rgba(221, 227, 232, 0.1); }
+.notera-shell .dock-sidebar .sh-state { background: rgba(221, 227, 232, 0.12); color: var(--sil-300); }
+.notera-shell .dock-sidebar .sh-state.is-live { background: #C23B3B; color: #fff; }
+.notera-shell .dock-sidebar .dcard-grip:hover, .notera-shell .dock-sidebar .dcard-toggle:hover { background: rgba(221, 227, 232, 0.14); }
+.notera-shell .dock-sidebar .dcard-body { padding-bottom: 10px; }
+
+/* rail mode, finished: only the icon-friendly panels stay (workspace, tools); forms and lists do not fit a rail */
+.notera-shell .dock-sidebar.is-rail .dcard { display: none; }
+.notera-shell .dock-sidebar.is-rail .card-modules, .notera-shell .dock-sidebar.is-rail .card-tools { display: block; }
+.notera-shell .dock-sidebar.is-rail .sh-tool span, .notera-shell .dock-sidebar.is-rail .sh-btn { display: none; }
+.notera-shell .dock-sidebar.is-rail .sh-tool, .notera-shell .dock-sidebar.is-rail .sh-nav { justify-content: center; padding: 0; }
+.notera-shell .dock-sidebar.is-rail .new-session-btn, .notera-shell .dock-sidebar .sidebar-section .new-session-btn { min-height: 40px; }
+@media (max-width: 880px) {
+  .notera-shell .dock-sidebar .dcard { display: none; }
+  .notera-shell .dock-sidebar .card-modules, .notera-shell .dock-sidebar .card-tools { display: block; }
+  .notera-shell .dock-sidebar .dcard-h { display: none; }
+  .notera-shell .dock-sidebar .sh-tool span { display: none; }
+  .notera-shell .dock-sidebar .sh-tool { justify-content: center; padding: 0; }
+  .notera-shell .dock-sidebar .dcard { background: transparent; border: 0; }
+  .notera-shell .dock-sidebar .dcard-body { padding: 0; }
+}
+
+/* narrow screens: the sessions list never shows in a rail, and the header wraps instead of overlapping */
+.notera-shell .dock-sidebar.is-rail .dcard.card-sessions { display: none !important; }
+@media (max-width: 880px) { .notera-shell .dock-sidebar .dcard.card-sessions { display: none !important; } }
+@media (max-width: 1100px) {
+  .notera-shell .top-bar { flex-wrap: wrap; row-gap: 8px; }
+  .notera-shell .top-bar-left { flex: 1 1 220px; min-width: 0; }
+  .notera-shell .session-title-input { min-width: 0; width: 100%; }
+  .notera-shell .top-bar-right { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; row-gap: 6px; }
+}
+
+@media (max-width: 560px) {
+  .notera-shell .tab-bar { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-inline: 8px; }
+  .notera-shell .tab-bar::-webkit-scrollbar { display: none; }
+  .notera-shell .main-tab { flex: none; padding-inline: 10px; }
+  .notera-shell .timer-block, .notera-shell .top-icon-btn[title="Toggle theme"] { display: none; }
+  .notera-shell .top-bar-right { width: 100%; justify-content: flex-start; margin-left: 0; gap: 6px; }
+  .notera-shell .top-bar-left { flex-basis: 100%; }
+  .notera-shell .panels-container { min-width: 0; }
+}
+
+/* dark mode details */
+body.dark-mode .notera-shell .copy-group { background: transparent; }
+body.dark-mode .notera-shell .copy-btn { background: var(--card); color: var(--text-primary); border-color: var(--line-strong); }
+body.dark-mode .notera-shell .copy-btn:hover:not(:disabled) { background: rgba(221, 227, 232, 0.12); }
+body.dark-mode .notera-shell .copy-btn:disabled { opacity: 0.4; }
+body.dark-mode .notera-shell .editor-toolbar, body.dark-mode .notera-shell .tab-bar { background: transparent; }
+body.dark-mode .notera-shell .format-btn { background: var(--card); color: var(--text-primary); border-color: var(--line-strong); }

@@ -2,11 +2,11 @@
 .dm-wrap { max-width: 1040px; margin: 56px auto 0; padding: 0 24px; }
 .dm {
   --ink: #1d1d1f; --ink2: #515154; --ink3: #86868b; --line: rgba(29,29,31,.09); --surface: #fff; --bg: #f5f5f7;
-  --acc: #0071e3; --accs: rgba(0,113,227,.1); --rec: #ff3b30; --ok: #1f9d55; --ease: cubic-bezier(.23,1,.32,1);
+  --acc: #6A2D61; --accs: rgba(106,45,97,.1); --rec: #ff3b30; --ok: #1f9d55; --ease: cubic-bezier(.23,1,.32,1);
   position: relative; border-radius: 26px; background: var(--bg); color: var(--ink); overflow: hidden; text-align: left;
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-inter), 'Inter', system-ui, sans-serif;
   border: 1px solid rgba(255,255,255,.14);
-  box-shadow: 0 60px 140px -40px rgba(109,94,252,.65), 0 20px 50px -20px rgba(0,0,0,.6);
+  box-shadow: 0 60px 140px -40px rgba(58,15,52,.65), 0 20px 50px -20px rgba(0,0,0,.6);
   height: 470px; display: flex; flex-direction: column;
 }
 .dm-top { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: rgba(245,245,247,.9); }
@@ -60,7 +60,7 @@
 .dm-spin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: dm-rot .7s linear infinite; }
 .dm-badge { position: absolute; right: 16px; bottom: 26px; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 650; background: #e8f7ee; color: var(--ok); opacity: 0; transform: translateY(8px) scale(.96); transition: all .5s var(--ease); }
 .dm-badge.on { opacity: 1; transform: none; }
-.dm-cap { text-align: center; font-size: 12px; color: var(--faint, #727aa3); margin: 14px 0 0; }
+.dm-cap { text-align: center; font-size: 12px; color: var(--faint, #98A3AE); margin: 14px 0 0; }
 @keyframes dm-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes dm-pop { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 @keyframes dm-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.8); } }

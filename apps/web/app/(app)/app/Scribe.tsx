@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './scribe.css';
 import Onboarding from './Onboarding';
 import './polish.css';
+import './theme.css';
+import './shell/shell.css';
+import { DockFrame, DockCards, useLayout, useAnnouncer, type Drag } from './shell/Dock';
+import { buildCards, SI } from './shell/cards';
 import { BorderBeam } from 'border-beam';
 import { ThinkingOrb } from 'thinking-orbs';
 import { VoiceBeam } from 'voice-glow';
@@ -88,6 +92,12 @@ export default function Scribe() {
   const savedRef = useRef<string | null>(null);   // the note text last saved to history (null: not known yet)
   const eventsRef = useRef<Correction[]>([]);     // corrections waiting to be saved with the note
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { layout, dispatch } = useLayout();   // the modular layout: docks, panel order, sides, sizes (saved in this browser)
+  const [dragId, setDragId] = useState<import('./shell/layoutState').CardId | null>(null);
+  const [liveMsg, announce] = useAnnouncer();
+  const [drawerOpen, setDrawerOpen] = useState(false);   // the details panels as a drawer on narrow screens
+  const [toCheck, setToCheck] = useState(0);
+  const drag: Drag = { id: dragId, set: setDragId };
   const [fullNote, setFullNote] = useState(false);   // the note fills the whole window
   const [checksEnd, setChecksEnd] = useState<HTMLElement | null>(null);   // where the "Before you sign" checklist is drawn: the end of the note
   const [specialty, setSpecialty] = useState('auto');
@@ -739,26 +749,32 @@ export default function Scribe() {
   const recording = phase === 'recording';
   const dateStr = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
+  const phaseLabel = recording ? 'Recording' : phase === 'transcribing' ? 'Transcribing' : phase === 'generating' ? 'Writing note' : phase === 'done' ? 'Ready' : 'New';
+  const defs = buildCards({
+    panel, setPanel: (p) => setPanel(p as Panel), loadHistory, history, activeConsult: consultId, openConsult,
+    patient, setPatient, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
+    note, editing, toggleEdit, copy, saveState, retrySave: () => { void persistNote(); },
+    toCheck, review: () => window.dispatchEvent(new Event('notera:review')),
+    toggleRecord, busy: phase === 'transcribing' || phase === 'generating', newSession, dark, setDark,
+    inviteHref: invite.eligible ? invite.url : undefined, railed: !layout.open.sidebar,
+  });
+  const togglePanels = () => { if (typeof window !== 'undefined' && window.innerWidth <= 1180) setDrawerOpen((v) => !v); else dispatch({ t: 'toggleDock', dock: 'details' }); };
+
   return (
-    <div className={`notera-shell${dark ? ' dark-mode' : ''}`}>
-      {/* ── Sidebar ── */}
-      <aside className="sidebar">
+    <div className={`notera-shell${dark ? ' dark-mode' : ''}${drawerOpen ? ' drawer-open' : ''}`}>
+      {/* ── Left dock: aubergine, panels can be reordered, moved to the other dock, collapsed to a rail ── */}
+      <DockFrame dock="sidebar" layout={layout} dispatch={dispatch} label="Navigation" className="sidebar">
         <div className="sidebar-header">
           <div className="brand">
             <div className="brand-icon">{I.micStroke}</div>
             <span className="brand-name">Notera</span>
           </div>
+          <button type="button" className="sh-iconbtn" onClick={() => dispatch({ t: 'toggleDock', dock: 'sidebar' })} aria-label={layout.open.sidebar ? 'Collapse the sidebar' : 'Expand the sidebar'} title={layout.open.sidebar ? 'Collapse the sidebar' : 'Expand the sidebar'}>{SI.panelLeft}</button>
         </div>
         <div className="sidebar-section">
           <button className="new-session-btn glass" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
         </div>
-        <nav className="sidebar-nav">
-          <div className={`nav-item${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.micStroke}<span>Scribe</span></div>
-          <div className={`nav-item${panel === 'paste' ? ' active' : ''}`} data-tour="paste" onClick={() => setPanel('paste')}>{I.lines}<span>Paste transcript</span></div>
-          <div className={`nav-item${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}<span>Context</span></div>
-          <div className={`nav-item${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}<span>History</span></div>
-        </nav>
-        <div className="sidebar-spacer" />
+        <DockCards dock="sidebar" layout={layout} dispatch={dispatch} defs={defs} drag={drag} announce={announce} />
         <nav className="sidebar-nav sidebar-nav-lower">
           {invite.eligible && (
             <a className="nav-item" href={invite.url} target="_blank" rel="noopener noreferrer" title="Open the Notera Style Interview">{I.doc}<span>Style interview</span>{!inviteInfo.done && <span className="invite-dot" aria-hidden="true" />}</a>
@@ -773,7 +789,7 @@ export default function Scribe() {
             <div className="user-email">{me?.email || 'Notera scribe'}</div>
           </div>
         </div>
-      </aside>
+      </DockFrame>
 
       {/* ── Main ── */}
       <main className="main-content">
@@ -807,15 +823,6 @@ export default function Scribe() {
                   : 'New consultation'
               }</div>
             </div>
-            <div className="meta-pills">
-              <div className="meta-pill">{I.cal}<span>{dateStr}</span></div>
-              <div className="meta-pill">{I.globe}
-                <select className="pill-select" value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
-                  <option value="auto">Auto-detect</option>
-                  {SPECIALTIES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-                </select>
-              </div>
-            </div>
           </div>
           <div className="top-bar-right">
             {me?.plan === 'free' && (
@@ -824,6 +831,7 @@ export default function Scribe() {
               </button>
             )}
             <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
+            <button type="button" className="top-icon-btn" title="Show or hide the side panels" aria-label="Show or hide the side panels" aria-pressed={layout.open.details} onClick={togglePanels}>{SI.panelRight}</button>
             <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 12 }}>
             <button className="top-create-btn glass" onClick={createSOAP} data-tour="create"
               disabled={phase === 'generating' || !transcript.trim() || !!note}
@@ -954,7 +962,7 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>
@@ -994,6 +1002,19 @@ export default function Scribe() {
           </div>
         </div>
       </main>
+
+      {/* ── Right dock: session, note, checks, tools. Drag a panel by its grip, or focus the grip and use the arrow keys ── */}
+      {drawerOpen && <div className="sh-scrim" onClick={() => setDrawerOpen(false)} aria-hidden="true" />}
+      <DockFrame dock="details" layout={layout} dispatch={dispatch} label="Side panels" className="details">
+        <div className="dock-bar">
+          <span className="dock-bar-title">Panels</span>
+          <button type="button" className="sh-iconbtn" onClick={() => dispatch({ t: 'swapSide', dock: 'details' })} aria-label="Move these panels to the other side" title="Move to the other side">{SI.swap}</button>
+          <button type="button" className="sh-iconbtn" onClick={() => { dispatch({ t: 'reset' }); announce('Layout reset'); }} aria-label="Reset the layout" title="Reset the layout">{SI.reset}</button>
+          <button type="button" className="sh-iconbtn" onClick={() => { setDrawerOpen(false); dispatch({ t: 'toggleDock', dock: 'details' }); }} aria-label="Hide the side panels" title="Hide the side panels">{SI.close}</button>
+        </div>
+        <DockCards dock="details" layout={layout} dispatch={dispatch} defs={defs} drag={drag} announce={announce} />
+      </DockFrame>
+      <div className="sr-only" aria-live="polite" role="status">{liveMsg}</div>
 
       {paywall && (
         <div className="pw-scrim" onClick={() => setPaywall(false)}>
