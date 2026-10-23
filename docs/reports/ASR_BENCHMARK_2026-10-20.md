@@ -48,3 +48,23 @@ Cost guard unchanged: the premium Google models can never be billed in productio
 * **Cost:** about $0.03 for a 12-minute recording; at most one offer per recording; a per-person cap of 30 re-runs a day (`ASR_RERUN_PER_DAY`).
 * **Live check on the deployed backend:** a 10.4-minute recording took 8.1 s through the re-run path (Gemini 2.5 Flash, 1,169 words) and 10.0 s through the normal path (Chirp 2, 1,136 words).
 * After a re-transcribe the doctor presses Create note again; the existing note, if any, is not changed automatically.
+
+## 6. Accuracy round (2026-10-23): medical vocabulary and a second opinion
+Triggered by a real comparison where the speech text had "class tenderness" for **calf tenderness**, "my uncle swells" for **my ankles swell**, "light headache" for lightheadedness and a dropped patient question. Chirp 2 had been sent no medical vocabulary at all.
+
+**Built** (`src/asr/medicalVocab.js`, `consensus.js`, `googleSpeech.js`, `engines.js`; tests `test/asrAccuracy.test.mjs`, `asrEngines.test.mjs`; tool `tools/asr-variants.mjs`):
+* **Medical vocabulary** (about 485 phrases, boosted): generic drug names, Canadian brands and clinical words mined from the 2,801 gold notes, plus anatomy, symptom and women's-health words. Switch: `ASR_HINTS=0` turns it off.
+* **Second opinion** (`crossCheck`, on by default, switch in the admin console "Speech to text"): a different kind of engine hears the same audio at the same time (Gemini checks Chirp 2; Chirp 2 checks Gemini). A medical word it heard that sounds like an ordinary word in the first text replaces it; a run of 6 or more words the first engine dropped is added only between two stretches both agree on. A failed, slow or looping second engine changes nothing. About $0.002 a minute, no extra waiting (it runs alongside).
+* **Overlap windows**: built and measured, then switched off (`ASR_OVERLAP_SECONDS` enables them).
+
+**Measured** (9 recordings with human transcripts, mean per recording; the benchmark recordings are simulated visits):
+| Variant | Word error rate | Missed words | Medical-term recall | Key-token recall |
+|---|---|---|---|---|
+| Chirp 2 as before | 11.03 % | 2.3 % | 97.0 % | 91.2 % |
+| + vocabulary hints | 10.80 % | 2.2 % | 97.4 % | 91.5 % |
+| + hints, second opinion from Gemini | 10.80 % | 2.2 % | 97.9 % | 92.1 % |
+| Gemini 2.5 Flash alone | 10.41 % | 2.0 % | 97.8 % | 94.0 % |
+| Gemini primary, second opinion from Chirp 2 + hints | **10.44 %** | **2.0 %** | **99.4 %** | **94.0 %** |
+Overlap windows: worse on 5 of 6 recordings measured (for example 7.7 % to 8.4 %), so off. Word-time overlap was worse still.
+
+**Reading it honestly:** the differences are small (0.2 to 0.6 points) and the recordings are not real doctor calls. Hints never made a recording worse in meaning (one file lost an exact match because Chirp wrote "acetaminophen" for "Tylenol"). Gemini 2.5 Flash was at least as accurate as Chirp 2 and misses fewer words; the best measured setup is **Gemini as the primary engine with Chirp 2 as the second opinion**. Production still has Chirp 2 as primary (proven in daily use); the owner can switch the primary in the admin console. Gemini answers 429 under heavy parallel load, which the fallback chain handles.
