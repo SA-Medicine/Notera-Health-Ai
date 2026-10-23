@@ -40,12 +40,17 @@ Cause: the guards correctly remove a `Diagnosis:` line that only repeats the hea
 * Advice and follow-up are added as parts of the treatment line, so the unchanged Advice / Follow-up splitter shows them on their own lines.
 * A problem that is still a bare heading after that is removed (the Subjective already tells the story); if the model could not be asked the heading stays and the clinician gets a "Nothing is written under this problem" check. If every problem is bare they all stay.
 
+## v2.1.2 — coverage check (owner unlocked 2026-10-23 with `UNLOCK STYLE SPEC v1`: "there should be nothing missing")
+New stage `noteCoverage.js` after plan completeness and before the grounding agent (switch `stage.noteCoverage`, `NOTE_COVERAGE=0`); no format or prompt-registry change.
+* One call reads the transcript against the finished note and lists what was said and is not in it: Subjective facts (under the topic heading they belong to, or a new heading), history (earlier tests and results, conditions, vaccines, medicines), examination and results, and plan items (through the plan-completeness checks).
+* An item needs an exact 6–25 word quote that is really in the transcript, must not already be in the note, is a short plain phrase, and is capped at 12 per note. No diagnosis is created, no existing line is reworded or removed. The grounding agent then checks the added lines like all others.
+
 ## Open questions, kept as in v1 (owner decision 2026-10-22)
 Refills stay under the condition the drug treats (A5) · Past Medical History stays at about six bullets plus Medications (P1) · results of one panel stay on one line (O2) · bullets stay short clinical clauses.
 
 ## Pipeline in force
-writer (gemini-3.7-flash, prompt `prompts/writer-v5.txt`, 2 reference notes) ∥ checklist → (draft retry if no plan/loop) → merge → drug guard → chronic-in-PMH, template and placement guards, drug-plausibility flag → verifier → reviewer (editor) → story agent (topics; 3 tries, then grouping fallback) → repeated-fragment/result/plan tidy → address removal → investigation re-attach → assessment trimming → **quality guards (diagnosis, spoken words, side check)** → **plan sweep** → **plan completeness (v2.1.1)** → **grounding agent** → reference names → **labels joined** → render → **Advice / Follow-up lines**.
-Switches for emergencies only: `QUALITY_GUARDS=0`, `ADVICE_LINES=0`, `PLAN_SWEEP=0`, `PLAN_COMPLETE=0`, `PLAN_JOIN_LABELS=0`, `GROUNDING=0`.
+writer (gemini-3.7-flash, prompt `prompts/writer-v5.txt`, 2 reference notes) ∥ checklist → (draft retry if no plan/loop) → merge → drug guard → chronic-in-PMH, template and placement guards, drug-plausibility flag → verifier → reviewer (editor) → story agent (topics; 3 tries, then grouping fallback) → repeated-fragment/result/plan tidy → address removal → investigation re-attach → assessment trimming → **quality guards (diagnosis, spoken words, side check)** → **plan sweep** → **plan completeness (v2.1.1)** → **coverage check (v2.1.2)** → **grounding agent** → reference names → **labels joined** → render → **Advice / Follow-up lines**.
+Switches for emergencies only: `QUALITY_GUARDS=0`, `ADVICE_LINES=0`, `PLAN_SWEEP=0`, `PLAN_COMPLETE=0`, `NOTE_COVERAGE=0`, `PLAN_JOIN_LABELS=0`, `GROUNDING=0`.
 
 ## How the lock is enforced
 Same as v1: `ops.spec_lock` (database, fails closed), `specLock.js`, `spec/LOCK.json` + `test/specLock.test.mjs` (SHA-256 of the writer prompt `prompts/writer-v5.txt`, every prompt, shipped defaults of spec-shaping settings, the guards, the renderer, reference names **and the v2 code**: plan join, plan sweep, quality guards, laterality, advice lines, writer retry, topic grouping, grounding agent, condition guard, plan attribution), `node scripts/spec-lock.mjs` (check; `write <version>` only with owner approval). Studio checks notes against `spec/style-spec-v2.json` (rules A8–A12, P5–P7, G2, G3 added).
