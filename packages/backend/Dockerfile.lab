@@ -12,6 +12,7 @@ RUN npm ci --omit=dev --workspace @notera/backend || npm install --omit=dev --wo
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*   # the speech benchmark decodes audio files here
 RUN useradd -m -u 10001 notera
 COPY --from=build --chown=notera:notera /app /app
 # scoring metrics + the gold (transcript -> expert note) corpus the lab evaluates against
