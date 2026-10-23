@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { SITE_URL, TERMS_VERSION } from '../../lib/legal'
+import { ImproveChoice } from '../components/PrivacyChoice'
 
 /* First-login onboarding: a Terms & Conditions accept step, then a few plain-language
    coach-marks over the key buttons so a non-technical clinician can get going immediately.
@@ -20,9 +22,20 @@ export default function Onboarding() {
   const [i, setI] = useState(0)
   const [agreed, setAgreed] = useState(false)
   const [rect, setRect] = useState<DOMRect | null>(null)
+  const [improve, setImprove] = useState(false)   // optional, off unless the clinician turns it on
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
 
+  // The server knows which version of the terms this account accepted. A new version asks again; the tour is shown once per browser.
   useEffect(() => {
-    try { if (!localStorage.getItem('notera_onboarded_v1')) setActive(true) } catch { /* private mode */ }
+    const toured = () => { try { return !!localStorage.getItem('notera_onboarded_v1') } catch { return false } }
+    fetch('/backend/api/auth/consent', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('no consent endpoint'))))
+      .then((c: { termsVersion: string | null; current: string; improve: boolean }) => {
+        setImprove(!!c.improve)
+        if (c.termsVersion !== (c.current || TERMS_VERSION)) { setPhase('terms'); setActive(true) } else if (!toured()) { setPhase('tour'); setActive(true) }
+      })
+      .catch(() => { if (!toured()) setActive(true) })
   }, [])
 
   const measure = useCallback(() => {
@@ -41,6 +54,15 @@ export default function Onboarding() {
 
   if (!active) return null
 
+  async function accept() {
+    setSaving(true); setErr('')
+    try {
+      const r = await fetch('/backend/api/auth/consent', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ terms: TERMS_VERSION, improve }) })
+      if (!r.ok) throw new Error('Could not save your choice. Please try again.')
+      let toured = false; try { toured = !!localStorage.getItem('notera_onboarded_v1') } catch { /* */ }
+      if (toured) setActive(false); else setPhase('tour')
+    } catch (e) { setErr((e as Error).message) } finally { setSaving(false) }
+  }
   const finish = () => { try { localStorage.setItem('notera_onboarded_v1', '1') } catch { /* */ } setActive(false) }
 
   // ── Terms & Conditions ──────────────────────────────────────────────────
@@ -54,14 +76,16 @@ export default function Onboarding() {
           <div className="nto-terms">
             <p><strong>Notera is a documentation aid, not a medical device.</strong> It drafts a clinical note from your consultation; a qualified clinician must review, edit and sign every note before it is used.</p>
             <p>You are responsible for the accuracy of the final note. Do not rely on Notera for clinical decisions. Ensure you have appropriate patient consent to record where required.</p>
-            <p>Your data is encrypted and never used to train models. By continuing you agree to the Terms of Service and Privacy Policy.</p>
+            <p>Recordings contain health information. Notera encrypts them, shows them only to you and to a few named staff (every access is logged), and never sells them. Read the <a href={`${SITE_URL}/terms`} target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href={`${SITE_URL}/privacy`} target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
           </div>
           <label className="nto-check">
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
             <span>I have read and agree to the Terms of Service and Privacy Policy.</span>
           </label>
+          <ImproveChoice value={improve} onChange={setImprove} disabled={saving} />
+          {err ? <p role="alert" style={{ color: 'var(--bad, #b3261e)', fontSize: 13, margin: '8px 0 0' }}>{err}</p> : null}
           <div className="nto-modal-actions">
-            <button className="nto-btn nto-btn-primary" disabled={!agreed} onClick={() => setPhase('tour')}>Agree &amp; continue</button>
+            <button className="nto-btn nto-btn-primary" disabled={!agreed || saving} onClick={accept}>{saving ? 'Saving…' : 'Agree & continue'}</button>
           </div>
         </div>
       </div>

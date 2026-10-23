@@ -26,7 +26,7 @@ export default function AboutPage() {
       <ul>
         <li><Check /><strong>Grounded, not guessed.</strong> Every line is traceable to what was actually said. We would rather leave something out than invent it.</li>
         <li><Check /><strong>The clinician signs.</strong> Notera drafts; a qualified clinician reviews and signs. It is a documentation aid, not a medical device.</li>
-        <li><Check /><strong>Privacy is the product.</strong> Patient data is encrypted and never used to train models.</li>
+        <li><Check /><strong>Privacy is the product.</strong> Patient data is encrypted, never sold, and used to improve Notera only if the clinician chooses to allow it.</li>
         <li><Check /><strong>It should sound like you.</strong> A good note reads the way you would have written it — your structure, your specialty.</li>
       </ul>
 

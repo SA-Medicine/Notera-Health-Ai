@@ -82,9 +82,10 @@ function renderLogin(err = '') {
 function shell() {
   $('#app').innerHTML = `<div class="shell"><aside class="side"><div class="brand"><i>N</i><div>Notera<small>Admin console</small></div></div>
     ${NAV.map(([g, items]) => `${g ? `<div class="navgrp">${g}</div>` : ''}${items.map(([k, l]) => `<button class="nav${S.view === k ? ' on' : ''}" data-nav="${k}">${ICONS[k] || ''}${l}</button>`).join('')}`).join('')}
-    <div class="grow"></div><div class="who"><b>${esc(S.user?.fullName || S.user?.email || 'Admin')}</b>${esc(S.user?.email || '')}<br><button class="btn sm" id="lo" style="margin-top:8px">Sign out</button></div></aside>
+    <div class="grow"></div><div class="who"><b>${esc(S.user?.fullName || S.user?.email || 'Admin')}</b>${esc(S.user?.email || '')}<br><div class="who-btns"><button class="btn sm" id="th" title="Switch between the light and the dark look">${window.NoteraTheme?.get() === 'dark' ? 'Light mode' : 'Dark mode'}</button><button class="btn sm" id="lo">Sign out</button></div></div></aside>
     <main class="main" id="view"></main></div>`;
   document.querySelectorAll('[data-nav]').forEach((b) => { b.onclick = () => go(b.dataset.nav); });
+  $('#th').onclick = () => { const t = window.NoteraTheme?.toggle(); $('#th').textContent = t === 'dark' ? 'Light mode' : 'Dark mode'; };
   $('#lo').onclick = async () => { await api('/api/auth/logout', { method: 'POST', noAuthRedirect: true }).catch(() => {}); S.user = null; renderLogin(); };
   go(S.view);
 }

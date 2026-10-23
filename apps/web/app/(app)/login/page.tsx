@@ -10,7 +10,7 @@ export default function LoginPage() {
           <p>Notera drafts a clean, structured SOAP note grounded on the facts of the consult. You review, edit, and sign — always.</p>
           <div className="points">
             <div><span className="tick">✓</span> Grounded to the transcript — no invented labs or medications</div>
-            <div><span className="tick">✓</span> HIPAA-ready · your visits are never used to train models</div>
+            <div><span className="tick">✓</span> Private by design · your visits are not used to train models unless you opt in</div>
             <div><span className="tick">✓</span> Notes in your voice, ready in about half a minute</div>
           </div>
         </div>

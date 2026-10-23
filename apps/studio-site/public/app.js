@@ -13,7 +13,8 @@ function shell(view) {
   const nav = S.me.access === 'owner' ? OWNER_NAV : S.me.access === 'interviewee' ? INTERVIEW_NAV : DOC_NAV;
   const lock = S.me.spec?.locked ? pill('Style Spec v' + S.me.spec.version + ' · locked', 'acc') : pill('Style Spec unlocked', 'warn');
   app.innerHTML = `<div class="top"><span class="brand">Notera Studio</span><nav class="nav">${nav.map(([k, l]) => `<a href="#/${k}" class="${view === k ? 'on' : ''}">${l}</a>`).join('')}</nav><div class="grow"></div>
-    ${lock}<span class="hint">${esc(S.me.name || 'Signed in')} · ${S.me.access === 'owner' ? 'owner' : S.me.access === 'interviewee' ? 'interview' : 'reviewer'}</span><button class="btn sm" id="out">Sign out</button></div><main id="view"></main>`;
+    ${lock}<span class="hint">${esc(S.me.name || 'Signed in')} · ${S.me.access === 'owner' ? 'owner' : S.me.access === 'interviewee' ? 'interview' : 'reviewer'}</span><button class="btn sm" id="th" title="Switch between the light and the dark look">${window.NoteraTheme?.get() === 'dark' ? 'Light mode' : 'Dark mode'}</button><button class="btn sm" id="out">Sign out</button></div><main id="view"></main>`;
+  $('#th').onclick = () => { const t = window.NoteraTheme?.toggle(); $('#th').textContent = t === 'dark' ? 'Light mode' : 'Dark mode'; };
   $('#out').onclick = async () => { await backend('/api/auth/logout', { method: 'POST', json: {}, quiet: true }).catch(() => {}); S.me = null; location.hash = '#/login'; };
   return $('#view');
 }

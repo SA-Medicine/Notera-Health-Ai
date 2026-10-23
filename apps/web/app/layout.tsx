@@ -16,10 +16,10 @@ export const metadata: Metadata = {
     template: '%s | Notera',
   },
   description:
-    'Notera is an AI medical scribe that turns consultations into grounded, structured SOAP notes in about half a minute. HIPAA-ready, never trained on your data, and in your voice. Free for your first 5 notes.',
+    'Notera is an AI medical scribe that turns consultations into grounded, structured SOAP notes in about half a minute. Private by design, not trained on your visits unless you opt in, and in your voice. Free for your first 5 notes.',
   keywords: [
     'Notera', 'AI medical scribe', 'AI tools for doctors', 'clinical documentation AI',
-    'SOAP note generator', 'AI for physicians', 'HIPAA compliant AI scribe',
+    'SOAP note generator', 'AI for physicians', 'privacy-first AI scribe',
     'ambient clinical documentation', 'automated charting', 'medical dictation alternative',
   ],
   applicationName: 'Notera',
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     siteName: 'Notera',
     url: SITE_URL,
     title: 'Notera — AI Medical Scribe for Doctors',
-    description: 'Turn consultations into grounded, structured SOAP notes in about half a minute. HIPAA-ready, physician-built.',
+    description: 'Turn consultations into grounded, structured SOAP notes in about half a minute. Private by design, physician-built.',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Notera — AI medical scribe' }],
   },
   twitter: {

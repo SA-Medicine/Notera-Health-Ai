@@ -21,7 +21,7 @@ import { makeSession } from '../admin/session.js';
 import { createUser, verifyLogin, setPassword, findByEmail, audit } from './users.js';
 import { query, one } from '../db/pool.js';
 import { sendMail } from './mailer.js';
-import { ensureAccountSchema, getAccount, FREE_NOTE_LIMIT } from './quota.js';
+import { ensureAccountSchema, getAccount, FREE_NOTE_LIMIT, getConsent, setConsent } from './quota.js';
 
 const PROD = process.env.NODE_ENV === 'production';
 const APP_URL = process.env.APP_URL || 'https://app.notera.health';
@@ -117,6 +117,22 @@ export function mountAuth(app, dataDir) {
       const acct = await getAccount(p.uid).catch(() => ({ plan: 'full', used: 0, limit: null, remaining: null }));
       res.json({ user: { id: p.uid, email: p.email, role: p.role || 'clinician', ...acct } });
     })();
+  });
+
+  // Consent: the terms version accepted and the optional "help improve Notera" choice. Own account only; every change is audited.
+  const sessionUid = (req) => { const p = S.verify(cookieFrom(req, S.COOKIE)); return p && p.uid ? p.uid : null; };
+  app.get('/api/auth/consent', async (req, res) => {
+    const uid = sessionUid(req); if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    try { res.json(await getConsent(uid)); } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.put('/api/auth/consent', json, async (req, res) => {
+    const uid = sessionUid(req); if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    try {
+      const { terms, improve } = req.body || {};
+      const out = await setConsent(uid, { terms: typeof terms === 'string' ? terms : undefined, improve: typeof improve === 'boolean' ? improve : undefined });
+      await audit(uid, 'consent_changed', { terms: typeof terms === 'string' ? terms : undefined, improve: typeof improve === 'boolean' ? improve : undefined }, String(req.headers['x-forwarded-for'] || '')).catch(() => {});
+      res.json(out);
+    } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   });
 
   // Admin: move an account between plans, e.g. { email, plan: 'full' } after a customer subscribes.

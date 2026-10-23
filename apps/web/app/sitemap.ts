@@ -11,6 +11,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/pricing', priority: 0.7, freq: 'monthly' },
     { path: '/about', priority: 0.5, freq: 'yearly' },
     { path: '/contact', priority: 0.5, freq: 'yearly' },
+    { path: '/privacy', priority: 0.3, freq: 'yearly' },
+    { path: '/terms', priority: 0.3, freq: 'yearly' },
   ]
   return pages.map((p) => ({
     url: `${SITE_URL}${p.path === '/' ? '' : p.path}`,

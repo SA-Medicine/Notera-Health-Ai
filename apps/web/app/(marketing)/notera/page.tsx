@@ -6,10 +6,10 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://aitoolsfordoctor.com'
 export const metadata: Metadata = {
   title: 'Notera — AI Medical Scribe & SOAP Note Generator',
   description:
-    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in about half a minute. Ambient AI documentation for physicians — HIPAA-ready, never trained on your data. Free for your first 5 notes.',
+    'Notera is an AI medical scribe that turns any consultation into a clean, grounded SOAP note in about half a minute. Ambient AI documentation for physicians — Private by design, not trained on your visits unless you opt in. Free for your first 5 notes.',
   keywords: ['AI medical scribe', 'SOAP note generator', 'AI clinical documentation', 'ambient scribe', 'automated charting', 'medical dictation alternative'],
   alternates: { canonical: '/notera' },
-  openGraph: { title: 'Notera — AI Medical Scribe & SOAP Note Generator', description: 'Turn consultations into grounded SOAP notes in about half a minute. HIPAA-ready, physician-built.', url: `${SITE}/notera`, images: ['/og.png'] },
+  openGraph: { title: 'Notera — AI Medical Scribe & SOAP Note Generator', description: 'Turn consultations into grounded SOAP notes in about half a minute. Private by design, physician-built.', url: `${SITE}/notera`, images: ['/og.png'] },
 }
 
 const jsonLd = {
@@ -54,8 +54,8 @@ export default function NoteraPage() {
         <ul>
           <li><Check />Line-by-line grounding to the transcript</li>
           <li><Check />Flags above every note show what to check before you sign</li>
-          <li><Check />HIPAA-ready · encrypted in transit and at rest</li>
-          <li><Check />Your visits are never used to train models</li>
+          <li><Check />Safeguards in line with HIPAA · encrypted in transit and at rest</li>
+          <li><Check />Your visits are used to improve Notera only if you opt in</li>
         </ul>
 
         <h2>Specialties</h2>
@@ -63,7 +63,7 @@ export default function NoteraPage() {
 
         <h2>Frequently asked</h2>
         <div className="mkt-faq">
-          <div className="mkt-qa"><h3>Is Notera HIPAA compliant?</h3><p>Notera is built to meet HIPAA requirements — encrypted in transit and at rest, per-user access, and audit logging. Your data is never used to train models.</p></div>
+          <div className="mkt-qa"><h3>Is Notera HIPAA compliant?</h3><p>Notera is built with safeguards in line with HIPAA and Canadian privacy law: encrypted in transit and at rest, per-user access, and audit logging of staff access to recordings. A Business Associate Agreement is available on the Enterprise plan. Your visits are used to improve Notera only if you choose to allow it, and you can change that at any time. See the <a href="/privacy" style={{ color: 'var(--brand2)' }}>Privacy Policy</a>.</p></div>
           <div className="mkt-qa"><h3>Does it work with my EMR?</h3><p>The finished note copies cleanly into any EMR today. Deeper write-back integrations are available on Enterprise.</p></div>
           <div className="mkt-qa"><h3>What does it cost?</h3><p>Free for your first 5 notes, then a simple per-clinician plan. See <a href="/pricing" style={{ color: 'var(--brand2)' }}>pricing</a>.</p></div>
         </div>

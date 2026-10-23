@@ -108,3 +108,8 @@ test('a recording with a stray piece in front of its header is cut at the header
   assert.equal(repairWebm(Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from('ftyp'), body])).ok, true, 'an MP4 recording is fine');
   assert.equal(repairWebm(Buffer.alloc(600, 9)).ok, false); assert.equal(repairWebm(Buffer.alloc(3)).ok, false);
 });
+
+test('the training manifest only ever includes recordings of clinicians who opted in', async () => {
+  const { SQL } = await import('../src/admin/audioLibrary.js');
+  assert.match(SQL.exportReal, /improve_consent = true/); assert.match(SQL.list, /improve_consent/);
+});

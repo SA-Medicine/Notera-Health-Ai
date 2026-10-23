@@ -10,7 +10,7 @@ export async function audioView(ctx) {
   let filter = 'all'; let data = { audio: [], totals: {} }; let open = null; let busy = false;
 
   $('#view').innerHTML = head('Audio', 'Every stored recording. Listen, mark what is a real consultation, delete what is not, and download the real ones for training.',
-    '<button class="btn" id="au-measure" title="Measure length, loudness and words for recordings that have not been measured yet">Measure new</button><button class="btn" id="au-ref">Refresh</button><button class="btn primary" id="au-exp" title="One line per recording marked Real: audio link (valid 24 hours), transcript and note">Download training manifest</button>')
+    '<button class="btn" id="au-measure" title="Measure length, loudness and words for recordings that have not been measured yet">Measure new</button><button class="btn" id="au-ref">Refresh</button><button class="btn primary" title="Only recordings marked Real whose clinician allowed use for improving Notera are included" id="au-exp" title="One line per recording marked Real: audio link (valid 24 hours), transcript and note">Download training manifest</button>')
     + '<div id="au-stats"></div><div class="segs" id="au-seg"></div><div id="au-tbl"></div>';
 
   async function load() {
@@ -39,7 +39,7 @@ export async function audioView(ctx) {
       const [sl, sc] = STATUS[x.status] || STATUS.unreviewed;
       const row = `<tr data-id="${esc(x.consult_id)}"><td><button class="btn sm primary" data-act="play" title="Listen here">${open === x.consult_id ? 'Hide' : '▶ Listen'}</button></td>
         <td>${esc(x.title || 'Consult')}<div class="sub" style="color:var(--ink-3);font-size:12px">${esc((x.specialty || '').replace(/_/g, ' '))}</div></td>
-        <td>${esc(x.email || x.clinician_id || '—')}${x.owner_role === 'admin' ? ' <span class="pill acc">admin</span>' : ''}</td><td>${fmtDate(x.created_at)}</td>
+        <td>${esc(x.email || x.clinician_id || '—')}${x.owner_role === 'admin' ? ' <span class="pill acc">admin</span>' : ''} ${x.improve ? '<span class="pill ok" title="This clinician allowed Notera to use their recordings to improve Notera">training OK</span>' : '<span class="pill" title="This clinician has not allowed use for improving Notera. The training manifest leaves it out.">no training</span>'}</td><td>${fmtDate(x.created_at)}</td>
         <td class="num">${mmss(x.duration_s)}</td><td class="num">${size(Number(x.bytes) || null)}</td><td class="num">${x.words ?? '—'}</td>
         <td>${x.analysed_at ? ((x.flags || []).length ? x.flags.map((f) => `<span class="pill warn" style="margin:1px">${esc(f)}</span>`).join('') : '<span class="sub" style="color:var(--ink-3)">nothing odd</span>') : '<span class="sub" style="color:var(--ink-3)">not measured</span>'}</td>
         <td><span class="pill ${sc}">${sl}</span>${x.reviewed_by ? `<div class="sub" style="color:var(--ink-3);font-size:11.5px">${esc(x.reviewed_by.split('@')[0])} · ${ago(x.reviewed_at)}</div>` : ''}</td>

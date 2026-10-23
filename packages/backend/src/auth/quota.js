@@ -19,6 +19,10 @@ export function ensureAccountSchema() {
     _ready = query(`
       ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'full';
       ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS free_notes_used int NOT NULL DEFAULT 0;
+      ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS terms_version text;
+      ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz;
+      ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS improve_consent boolean NOT NULL DEFAULT false;
+      ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS improve_consent_at timestamptz;
     `).then(() => console.log('[auth] account plan columns ready'))
       .catch((e) => { _ready = null; console.warn('[auth] account schema init failed:', e.message); throw e; });
   }
@@ -103,3 +107,23 @@ export async function asrQuotaGate(req, res, next) {
 }
 
 export const refundIfReserved = (req) => (req.quota?.reserved ? refundNote(req.quota.userId) : null);
+
+// ── consent ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Two separate things, never bundled: (1) acceptance of the Terms and Privacy Policy, required to use Notera, recorded with the version accepted;
+// (2) the optional choice to let Notera use this clinician's recordings, transcripts and notes to evaluate and improve Notera itself. Default off.
+export const TERMS_VERSION = '2026-10-23';
+
+export async function getConsent(userId) {
+  await ensureAccountSchema();
+  const r = await one(`SELECT terms_version, terms_accepted_at, improve_consent, improve_consent_at FROM auth.users WHERE id=$1`, [userId]);
+  return { current: TERMS_VERSION, termsVersion: r?.terms_version || null, termsAcceptedAt: r?.terms_accepted_at || null, improve: !!r?.improve_consent, improveAt: r?.improve_consent_at || null };
+}
+
+/** { terms: '<version>' } records acceptance of that exact version only; { improve: true|false } records the optional choice (and when). */
+export async function setConsent(userId, { terms, improve } = {}) {
+  await ensureAccountSchema();
+  if (terms !== undefined && terms !== TERMS_VERSION) throw Object.assign(new Error('These are not the current terms. Reload the page and read them again.'), { status: 409 });
+  if (terms !== undefined) await query(`UPDATE auth.users SET terms_version=$2, terms_accepted_at=now() WHERE id=$1`, [userId, terms]);
+  if (typeof improve === 'boolean') await query(`UPDATE auth.users SET improve_consent=$2, improve_consent_at=now() WHERE id=$1`, [userId, improve]);
+  return getConsent(userId);
+}

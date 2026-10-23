@@ -35,6 +35,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <nav>
             <a href="/">Home</a><a href="/notera">Product</a><a href="/pricing">Pricing</a>
             <a href="/about">About</a><a href="/contact">Contact</a>
+            <a href="/privacy">Privacy</a><a href="/terms">Terms</a>
           </nav>
         </div>
       </footer>

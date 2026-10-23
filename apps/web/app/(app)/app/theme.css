@@ -66,3 +66,12 @@ body.dark-mode * { scrollbar-color: rgba(221, 227, 232, 0.28) transparent; }
   --bg: var(--canvas); --panel: var(--card); --ink-soft: #695967; --ink-faint: #7D707B; --line-soft: rgba(58, 15, 52, 0.06);
   --brand: var(--aub-700); --brand-ink: var(--aub-800); --brand-tint: var(--aub-100); --radius: 16px; --shadow: var(--elev-1);
 }
+
+/* ---------- Privacy & data choice (onboarding + account menu) ---------- */
+.pc-opt { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 18px; padding: 12px 14px; border: 1px solid var(--line, rgba(58, 15, 52, .14)); border-radius: 14px; background: color-mix(in srgb, var(--surface, #fff) 70%, transparent); cursor: pointer; }
+.pc-opt input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--accent, #4B1A44); cursor: pointer; }
+.pc-opt span { display: grid; gap: 4px; font-size: 13.5px; line-height: 1.45; color: var(--ink, #1C0B19); }
+.pc-opt em { font-style: normal; color: var(--ink-3, #7D707B); font-weight: 500; }
+.pc-opt small { font-size: 12.5px; color: var(--ink-2, #4A3A47); }
+.pc-links { font-size: 12.5px; color: var(--ink-3, #7D707B); margin: 0 0 14px; }
+.pc-links a { color: var(--accent, #4B1A44); text-underline-offset: 2px; }

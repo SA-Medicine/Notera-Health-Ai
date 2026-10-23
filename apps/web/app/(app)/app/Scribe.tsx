@@ -117,7 +117,9 @@ export default function Scribe() {
   useEffect(() => { try { setInviteHidden(sessionStorage.getItem('interviewBannerHidden') === '1'); } catch { /* storage unavailable */ } }, []);
   const [pasteText, setPasteText] = useState('');
   const [elapsed, setElapsed] = useState(0);
-  const [dark, setDark] = useState(false);
+  const [dark, setDarkRaw] = useState(false);   // light by default; dark only when chosen, and remembered in this browser
+  const setDark = (f: (v: boolean) => boolean) => setDarkRaw((v) => { const n = f(v); try { localStorage.setItem('notera.theme', n ? 'dark' : 'light'); } catch { /* private window */ } document.documentElement.classList.toggle('dark', n); return n; });
+  useEffect(() => { try { setDarkRaw(localStorage.getItem('notera.theme') === 'dark'); } catch { /* */ } }, []);
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
   const [me, setMe] = useState<{ fullName: string; email: string; initials: string; plan?: string; used?: number; limit?: number | null; remaining?: number | null } | null>(null);

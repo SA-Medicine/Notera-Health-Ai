@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import { useInvite } from './useInvite';
+import PrivacyChoice from './PrivacyChoice';
 
 export default function TopBar() {
   const { user, signOut } = useAuth();
@@ -12,6 +13,7 @@ export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const [privacy, setPrivacy] = useState(false);
   const onLanding = pathname === '/' || pathname === '/login';
 
   function doSignOut() {
@@ -49,6 +51,7 @@ export default function TopBar() {
                   {invite.eligible && (
                     <a className="btn ghost sm" style={{ width: '100%', marginBottom: 8 }} href={invite.url} target="_blank" rel="noopener noreferrer">Style interview</a>
                   )}
+                  <button className="btn ghost sm" style={{ width: '100%', marginBottom: 8 }} onClick={() => { setMenu(false); setPrivacy(true); }}>Privacy &amp; data</button>
                   <button className="btn ghost sm" style={{ width: '100%' }} onClick={doSignOut}>Sign out</button>
                 </div>
               )}
@@ -66,6 +69,7 @@ export default function TopBar() {
           </>
         )}
       </div>
+      {privacy && <PrivacyChoice onClose={() => setPrivacy(false)} />}
     </header>
   );
 }

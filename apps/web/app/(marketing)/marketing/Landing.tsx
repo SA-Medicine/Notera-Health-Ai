@@ -137,7 +137,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
             <div className="s"><div className="n">~30s</div><div className="l">from stop to a finished note</div></div>
             <div className="s"><div className="n" data-count="5">0</div><div className="l">free notes, no card</div></div>
             <div className="s"><div className="n">1 tap</div><div className="l">to copy into your EMR</div></div>
-            <div className="s"><div className="n">0</div><div className="l">visits used to train models</div></div>
+            <div className="s"><div className="n">0</div><div className="l">visits used without your OK</div></div>
           </div>
         </div>        </section>
 
@@ -228,9 +228,9 @@ export default function Landing({ appUrl }: { appUrl: string }) {
             <p className="lead">We treat privacy as the product, not a footnote.</p>
           </div>
           <div className="secgrid">
-            <div className="secitem" data-reveal><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg><h4>HIPAA-ready</h4><p>Built to meet HIPAA requirements from the ground up.</p></div>
-            <div className="secitem d1" data-reveal><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" strokeWidth="1.6" /></svg><h4>Encrypted end to end</h4><p>At rest and in transit — always.</p></div>
-            <div className="secitem d2" data-reveal><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" /><path d="M8 12l3 3 5-6" stroke="currentColor" strokeWidth="1.6" /></svg><h4>Never trained on your data</h4><p>Your visits are never used to train models.</p></div>
+            <div className="secitem" data-reveal><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg><h4>Built for health privacy</h4><p>Safeguards in line with HIPAA and Canadian privacy law.</p></div>
+            <div className="secitem d1" data-reveal><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" strokeWidth="1.6" /></svg><h4>Encrypted</h4><p>At rest and in transit.</p></div>
+            <div className="secitem d2" data-reveal><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" /><path d="M8 12l3 3 5-6" stroke="currentColor" strokeWidth="1.6" /></svg><h4>Your choice, off by default</h4><p>Your visits improve Notera only if you opt in.</p></div>
             <div className="secitem d3" data-reveal><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" strokeWidth="1.6" /></svg><h4>Full audit trail</h4><p>Every access is logged and reviewable.</p></div>
           </div>
         </div></section>
@@ -307,7 +307,7 @@ export default function Landing({ appUrl }: { appUrl: string }) {
           </div>
           <div className="faq">
             <div className="qa" data-reveal><button className="q">Will it cope with my patients&apos; accents and the way people actually talk?<span className="pm">+</span></button><div className="a"><p>Yes — that&apos;s exactly what it&apos;s tuned for. Real visits are messy: people interrupt, trail off, and use their own words. Notera is built around real consultation audio, not clean studio dictation.</p></div></div>
-            <div className="qa" data-reveal><button className="q">Is my patient data used to train the AI?<span className="pm">+</span></button><div className="a"><p>No. Your visits are never used to train models. Data is encrypted at rest and in transit, and every access is logged.</p></div></div>
+            <div className="qa" data-reveal><button className="q">Is my patient data used to train the AI?<span className="pm">+</span></button><div className="a"><p>Not unless you choose to allow it. It is off by default, you can change it at any time, and it is never required. Data is encrypted at rest and in transit, and staff access to recordings is logged.</p></div></div>
             <div className="qa" data-reveal><button className="q">What if it writes something the patient didn&apos;t say?<span className="pm">+</span></button><div className="a"><p>It&apos;s built to catch exactly that. Each line is compared with the recording; lines it cannot support are removed or flagged for you, drug names are checked, and a side that does not match is flagged. No scribe is perfect, which is why every note stays a draft until you read and sign it.</p></div></div>
             <div className="qa" data-reveal><button className="q">Does it work with my EMR?<span className="pm">+</span></button><div className="a"><p>The finished note copies cleanly into any EMR today. Deeper write-back integrations are available on Enterprise — tell us which system you use and we&apos;ll walk you through it.</p></div></div>
             <div className="qa" data-reveal><button className="q">How long does setup take?<span className="pm">+</span></button><div className="a"><p>About three minutes. Create an account, allow your microphone, and record your first visit. No IT ticket required.</p></div></div>

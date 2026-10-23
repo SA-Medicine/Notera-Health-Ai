@@ -7,7 +7,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.aitoolsfordoctor
 export const metadata: Metadata = {
   title: 'Notera — the AI medical scribe that writes the note as you talk',
   description:
-    'Notera listens to the visit and writes a clean, grounded SOAP note in about half a minute — HIPAA-ready, never trained on your data, and in your voice. Free for your first 5 notes.',
+    'Notera listens to the visit and writes a clean, grounded SOAP note in about half a minute — private by design, not trained on your visits unless you opt in, and in your voice. Free for your first 5 notes.',
   alternates: { canonical: '/' },
 }
 
@@ -28,7 +28,7 @@ const jsonLd = {
       '@type': 'FAQPage',
       mainEntity: [
         { '@type': 'Question', name: 'Is my patient data used to train the AI?',
-          acceptedAnswer: { '@type': 'Answer', text: 'No. Your visits are never used to train models. Data is encrypted at rest and in transit, with per-user access and audit logging.' } },
+          acceptedAnswer: { '@type': 'Answer', text: 'Not unless you choose to allow it. Using Notera never requires it, it is off by default, and you can change it at any time. Data is encrypted at rest and in transit, with per-user access and audit logging of staff access to recordings.' } },
         { '@type': 'Question', name: 'What if it writes something the patient did not say?',
           acceptedAnswer: { '@type': 'Answer', text: 'Every line is grounded to the transcript, drug names are checked against a real drug database, and anything uncertain is flagged for the clinician rather than written in.' } },
         { '@type': 'Question', name: 'Does it work with my EMR?',

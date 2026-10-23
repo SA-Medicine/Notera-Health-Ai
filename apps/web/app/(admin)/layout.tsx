@@ -5,7 +5,7 @@ import { Providers } from '../providers'
 // never touches the clinician product's white theme.
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark min-h-screen bg-background text-foreground antialiased">
+    <div className="min-h-screen bg-background text-foreground antialiased">
       <Providers>{children}</Providers>
     </div>
   )

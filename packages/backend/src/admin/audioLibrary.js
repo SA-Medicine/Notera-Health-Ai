@@ -11,6 +11,7 @@
 import express from 'express';
 import { query, one } from '../db/pool.js';
 import { measureAudio, audioFlags, countWords, wordsPerMinute, decodeFile, missingWebmHeader } from './audioStats.js';
+import { ensureAccountSchema } from '../auth/quota.js';
 
 export const STATUSES = ['unreviewed', 'real', 'not_real'];
 const ID_RX = /^[A-Za-z0-9_-]{3,80}$/;
@@ -24,7 +25,7 @@ export const SQL = {
       status text NOT NULL DEFAULT 'unreviewed' CHECK (status IN ('unreviewed', 'real', 'not_real', 'removed')), note text,
       reviewed_by text, reviewed_at timestamptz, analysed_at timestamptz)`,
   list: `
-    SELECT c.consult_id, c.title, c.specialty, c.created_at, c.clinician_id, u.email, u.role AS owner_role, length(coalesce(c.transcript->>'text', '')) AS transcript_chars,
+    SELECT c.consult_id, c.title, c.specialty, c.created_at, c.clinician_id, u.email, u.role AS owner_role, coalesce(u.improve_consent, false) AS improve, length(coalesce(c.transcript->>'text', '')) AS transcript_chars,
            r.bytes, r.duration_s, r.level, r.words, r.wpm, coalesce(r.flags, '{}') AS flags, coalesce(r.status, 'unreviewed') AS status, r.note, r.reviewed_by, r.reviewed_at, r.analysed_at
       FROM clinical.consults c
       LEFT JOIN auth.users u ON u.id::text = c.clinician_id
@@ -61,11 +62,12 @@ export const SQL = {
                     (SELECT d.rendered_note FROM clinical.drafts d WHERE d.consult_id = c.consult_id AND d.rendered_note IS NOT NULL ORDER BY d.created_at DESC LIMIT 1)) AS note,
            r.duration_s, r.reviewed_by, r.reviewed_at
       FROM clinical.consults c JOIN ops.audio_review r ON r.consult_id = c.consult_id
+      JOIN auth.users u ON u.id::text = c.clinician_id AND u.improve_consent = true
      WHERE c.audio_uri IS NOT NULL AND c.audio_uri <> '' AND r.status = 'real' ORDER BY c.created_at LIMIT 1000`,
 };
 
 let _ready = null;
-export const ensureAudioTable = () => (_ready ||= query(SQL.ensure).catch((e) => { _ready = null; throw e; }));
+export const ensureAudioTable = () => (_ready ||= Promise.all([ensureAccountSchema(), query(SQL.ensure)]).catch((e) => { _ready = null; throw e; }));
 export const resetAudioTableCache = () => { _ready = null; };
 
 const defaultBucket = async () => { const { Storage } = await import('@google-cloud/storage'); return new Storage().bucket(BUCKET()); };
