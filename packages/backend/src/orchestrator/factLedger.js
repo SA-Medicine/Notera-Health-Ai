@@ -16,6 +16,7 @@ import { listing } from './planComplete.js';
 
 const STOP = new Set('the and for with that this have has had was were are you your his her she him they them their from about into onto over under then than also just very really okay yeah well like some any all can could would should will not but out get got going been being did does doing one two three patient says said told states reported reports mentions mentioned noted discussed discusses need needs wants want'.split(' '));
 const NEG = /\b(no|not|denies|denied|without|negative|never|none|nil|absent)\b/i;
+const PLAN_TYPES = new Set(['medication', 'medication_order', 'treatment', 'treatment_instruction', 'investigation', 'referral', 'follow_up', 'administrative_action']);
 const SKIP_TYPES = new Set(['temporal_reference', 'clinician_reasoning']);
 const ACTION_WORDS = /\b(advis\w*|should|need\w*|avoid\w*|use|apply|take|return|stop|start|continue|rest|ice|elevat\w*|exercis\w*|limit|drink|eat|call|go to|see|keep|do not|don't|try|increase|decrease|monitor|check|follow|book|arrange|schedule\w*|fax\w*|prescri\w*|refer\w*|order\w*)\b/i;
 const GIVEN_RX = /\b(vaccin\w*|injection|shot|immuni[sz]ation|administered|booster)\b/i;
@@ -24,7 +25,9 @@ const HIST_TYPES = new Set(['pmh', 'family_history', 'social_history', 'procedur
 const stem = (w) => w.replace(/(ing|ed|es|s)$/, '').slice(0, 6);
 // the same thing said two ways counts as the same: follow-up / return in / rtc, x-ray / xray, blood pressure / bp, 150/80 / 150 over 80
 const canon = (s) => String(s || '').toLowerCase().replace(/follow[\s-]?up|\brtc\b|return(?:ing)? (?:to (?:the )?clinic )?(?:in|visit)|come back in|see (?:you|me) (?:again )?in|re-?check(?:ed)?|review in/g, ' followup ').replace(/x[\s-]?rays?/g, ' xray ').replace(/blood pressure|\bbp\b/g, ' bloodpressure ').replace(/(\d)\s*\/\s*(\d)/g, '$1 $2').replace(/(\d)\s+over\s+(\d)/g, '$1 $2');
-const words = (s) => canon(s).replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/).filter(Boolean);
+const NUMW = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, sixty: 60 };
+const numWords = (s) => s.replace(/(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|sixty)(?=s+(?:tos+w+s+)?(?:weeks?|months?|days?|years?|hours?|tablets?|pills?|times?|doses?|mg|milligrams?|puffs?|units?))/g, (m) => ' ' + NUMW[m] + ' ');
+const words = (s) => numWords(canon(s)).replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/).filter(Boolean);
 const numsOf = (s) => (String(s || '').match(/\d+(?:\.\d+)?/g) || []).map((n) => String(Number(n)));
 const cap = (t) => String(t).trim().replace(/^./, (c) => c.toUpperCase());
 
@@ -57,7 +60,7 @@ export function unitsOf(note) {
     const h = l.match(/^###\s+(.+)$/); if (h) { section = h[1]; block = null; topic = ''; continue; }
     const tp = l.match(/^\*\*(.+?)\*\*\s*$/); if (tp) topic = tp[1].replace(/:$/, '');
     const p = section.startsWith('Assessment') && l.match(/^\d+\.\s+\*\*(.+?)\*\*/);
-    if (p) { block = { section, text: p[1], title: p[1] }; units.push(block); continue; }
+    if (p) { block = { section, text: p[1], title: p[1], isBlock: true }; units.push(block); continue; }
     if (block && /^\s*-\s/.test(raw)) { block.text += ' ' + l; }
     units.push({ section, text: (topic && !section.startsWith('Assessment') ? topic + ' ' : '') + l.replace(/^[-*]\s*/, '').replace(/\*\*/g, ''), block: block && /^\s*-\s/.test(raw) ? block.title : '' });
   }
@@ -68,6 +71,7 @@ export function matchFact(f, units) {
   const { stems, nums } = keysOf(f); if (!stems.length && !nums.length) return null;
   const need = stems.length <= 2 ? stems.length : Math.ceil(stems.length * 0.6); let best = null;
   for (const u of units) {
+    if (u.isBlock && (f.importance === 'critical' || !PLAN_TYPES.has(f.type))) continue;   // a whole problem block only vouches for a plan fact that is not critical; a critical fact must sit in one line
     const hit = stems.filter((s) => u.w.has(s)).length; if (hit < need) continue;
     if (nums.length && !nums.every((n) => u.nums.has(n))) continue;
     if (f.negative && !u.neg) continue;
@@ -175,7 +179,15 @@ export function applyPlacement(note, answer, missing, transcript, log = () => {}
   const md = norm(noteToMarkdown(note)); const byId = new Map(missing.map((f) => [f.id, f])); const items = []; const itemFact = [];
   for (const e of entries) {
     const f = byId.get(e?.fact); if (!f) continue;
-    if (e.found_in) { if (md.includes(norm(e.found_in)) && norm(e.found_in).length >= 8) out.judgedPresent.add(f.id); else out.dropped.push({ id: f.id, why: 'claimed line not in the note' }); continue; }
+    if (e.found_in) {
+      const claimed = norm(e.found_in); if (!(md.includes(claimed) && claimed.length >= 8)) { out.dropped.push({ id: f.id, why: 'claimed line not in the note' }); continue; }
+      if (f.importance === 'critical') {   // for a critical fact the model's word is not enough: the claimed line must carry the fact's words and every number
+        const { stems, nums } = keysOf(f); const lines = unitsOf(note).filter((u) => !u.isBlock && norm(u.text).includes(claimed));
+        const ok = lines.some((u) => stems.filter((s) => u.w.has(s)).length >= Math.ceil(stems.length * 0.5) && nums.every((n) => u.nums.has(n)));
+        if (!ok) { out.dropped.push({ id: f.id, why: 'critical fact: claimed line does not hold it' }); continue; }
+      }
+      out.judgedPresent.add(f.id); continue;
+    }
     items.push({ section: e.section, topic: e.topic || '', n: e.n, field: e.field, text: e.text || f.text, evidence: f.quote }); itemFact.push(f.id);
   }
   if (items.length) { const before = norm(noteToMarkdown(note)); applyCoverage(note, { raw: JSON.stringify({ items }), ms: 0 }, transcript, log); if (norm(noteToMarkdown(note)) !== before) for (const id of itemFact) out.placed.add(id); }

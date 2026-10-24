@@ -79,3 +79,14 @@ test('a shot given in the visit goes to its own problem, never to Vital Signs or
   const req = requiredFacts([F({ id: 'F1', type: 'clinical_context', text: 'flu season is early this year' }), F({ id: 'F2', type: 'treatment_instruction', text: 'pneumonia shot is an infection in the lungs' }), F({ id: 'F3', type: 'treatment_instruction', text: 'use heat on the neck twice a day' })]);
   assert.deepEqual(req.map((f) => f.id), ['F3']);
 });
+
+test('spelled-out numbers count: "four weeks" is not found in a line that says "2 weeks"; a critical fact needs its own line, and the model cannot vouch for it', async () => {
+  const n = note(); n.assessment_and_plan.push({ issue: 'Stress', diagnosis: '', assessment: '', differential_diagnoses: [], investigations_planned: '', treatment_planned: 'Advised to take 2 weeks stress leave', referrals: '' });
+  const units = unitsOf(n); const sick = F({ type: 'administrative_action', text: 'sick note for work for four weeks', importance: 'major' });
+  assert.equal(matchFact(sick, units), null, '4 weeks is not 2 weeks');
+  const ok = F({ type: 'administrative_action', text: 'stress leave for two weeks', importance: 'major' }); assert.ok(matchFact(ok, units));
+  const crit = F({ id: 'F009', type: 'referral', text: 'referral to dermatologist for mole on back', importance: 'critical', body_part: 'back', quote: 'refer you to the dermatologist for the mole on your back' });
+  const llm = { generateContent: async () => JSON.stringify({ entries: [{ fact: 'F009', found_in: 'Left hip pain' }] }) };
+  const r = await reconcileFacts(llm, n, { facts: [crit], edges: [] }, 'we will refer you to the dermatologist for the mole on your back');
+  assert.equal(r.rows[0].status, 'forced', 'the model pointed at a line that does not hold a critical fact');
+});
