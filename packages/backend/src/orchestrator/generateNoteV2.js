@@ -543,6 +543,14 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs,
         let dupPair = false; for (let i = 0; i < bl.length && !dupPair; i++) for (let j = i + 1; j < bl.length; j++) { const sh = [...bl[i]].filter((w) => bl[j].has(w)).length; if (bl[i].size >= 3 && bl[j].size >= 3 && sh / Math.min(bl[i].size, bl[j].size) >= 0.8) { dupPair = true; break; } }
         if (dupPair) chk = { ok: false, why: 'some bullets repeat each other — say every fact once, under its topic, and do not append the old fragments' };
       }
+      if (chk.ok && added.length && process.env.NOTE_FIX !== '0') {   // the merge pass must not append the added lines as topics of their own next to the bullets that already say them
+        const all = [out.subjective.reason_for_visit, out.subjective.hpi_details].flatMap((v) => String(v || '').split('\n')).map((l) => l.trim()).filter(Boolean);
+        const heads = all.filter(isHead).map((h) => norm(h)); const twice = heads.find((h, i) => heads.indexOf(h) !== i);
+        const ws = (l) => new Set(norm(l).split(' ').filter((w) => w.length > 3)); const bl = all.filter((l) => !isHead(l)).map((l) => l.replace(/^[-•*]\s*/, ''));
+        const copied = added.find((a) => { const A = ws(a); if (A.size < 3) return false; const self = bl.filter((b) => norm(b) === norm(a)); if (!self.length) return false; return bl.some((b) => norm(b) !== norm(a) && [...A].filter((w) => ws(b).has(w)).length / A.size >= 0.6); });
+        if (twice) chk = { ok: false, why: `the topic "${twice}" appears twice — one heading per topic, merge the two` };
+        else if (copied) chk = { ok: false, why: `"${copied}" was appended as it is next to a bullet that already says it — merge it into that bullet` };
+      }
       if (chk.ok && lostMed) chk = { ok: false, why: `the medication line lost "${lostMed}" — keep every drug name and strength exactly` };
       if (!chk.ok) { why = chk.why; rejected = out.subjective; log(`[v2:story] attempt ${attempt + 1} rejected — ${chk.why}`); continue; }
       log(`[v2:story] applied${attempt ? ' on retry' : ''} (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);

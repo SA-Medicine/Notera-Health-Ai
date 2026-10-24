@@ -136,6 +136,12 @@ test('medicines: a drug already named in the plan is found; the Medications line
   n.assessment_and_plan.push({ issue: 'Arthritis and inflammation', treatment_planned: '' });
   const where = placeFact(n, F({ type: 'medication', text: 'Ozempic', medication: 'Ozempic', medication_status: 'active', quote: 'what about Ozempic for the inflammation?' }), { edges: [], facts: [] });
   assert.match(where, /Advice/); assert.doesNotMatch(n.past_medical_history.other, /Ozempic/);
-  assert.match(placeFact(n, F({ type: 'medication', text: 'Vitamin D', medication: 'Eltroxin', medication_status: 'active', quote: 'I take it' }), { edges: [], facts: [] }), /already listed/);
+  assert.match(placeFact(n, F({ type: 'medication', text: 'ADHD medication', medication: 'ADHD medication', medication_status: 'active', quote: 'I take it' }), { edges: [], facts: [] }), /already listed/);
   assert.ok(!n.assessment_and_plan.some((p) => p.issue === 'Medication'), 'no catch-all Medication problem');
+});
+test('a medicine checked with a question ("you take Eltroxin once a day?") and already in the plan is not written in again as discussed', () => {
+  const n = note(); n.assessment_and_plan.push({ issue: 'Hypothyroidism', treatment_planned: 'Continue Eltroxin 0.2 mg half tablet once daily' });
+  const before = JSON.stringify(n.assessment_and_plan);
+  assert.match(placeFact(n, F({ type: 'medication', text: 'Eltroxin once a day', medication: '', medication_status: 'active', quote: 'you take the Eltroxin once a day?' }), { edges: [], facts: [] }), /already named/);
+  assert.equal(JSON.stringify(n.assessment_and_plan), before);
 });

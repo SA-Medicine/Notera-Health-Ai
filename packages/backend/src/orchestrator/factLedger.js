@@ -73,7 +73,8 @@ export function unitsOf(note) {
 const MED_TYPES = new Set(['medication', 'medication_order']);
 // the medicine fixes of 2026-10-24 (drug already named = found, Medications line only for what is taken, each drug once); NOTE_FIX=0 = the earlier rules
 export const noteFix = () => process.env.NOTE_FIX !== '0';
-const drugStem = (f) => { const w = words(f.medication || '').find((x) => x.length >= 4 && !STOP.has(x)); return w ? stem(w) : ''; };
+// the drug's name: the medication field, else the first capitalised word of the fact ("Eltroxin once a day" has an empty medication field)
+const drugStem = (f) => { const w = words(f.medication || '').find((x) => x.length >= 4 && !STOP.has(x)) || (String(f.text || '').match(/\b[A-Z][a-zA-Z-]{3,}\b/) || [''])[0].toLowerCase(); return w && !STOP.has(w) ? stem(w) : ''; };
 export function matchFact(f, units) {
   const { stems, nums } = keysOf(f); if (!stems.length && !nums.length) return null;
   // a medicine is in the note when a line names the drug with every number the fact has ("Eltroxin refill request" is held by "Continued: Eltroxin 0.2 mg ...")
@@ -154,7 +155,9 @@ export function placeFact(note, f, graph) {
     const home = () => (ds && ap.find((p) => new Set(words(JSON.stringify(p)).map(stem)).has(ds))) || bestProblem(note, f, graph) || byQuote() || ap.find((p) => /renew|refill|prescription|medication/i.test(p.issue || ''));
     if (f.medication_status === 'planned' || f.type === 'medication_order') { const p = home() || newProblem(note, f.body_part || 'Prescription renewals'); addPlan(p, 'treatment_planned', medLine(f, med)); return `Plan / ${p.issue} / Treatment`; }
     // the Medications line lists what the patient takes; a drug that was only discussed or considered (Ozempic asked about) goes under its problem as discussed
-    const said = `${f.text} ${f.quote || ''}`; const considering = /\?|\b(thinking about|looking (into|for|at)|interested in|consider\w*|research\w*|would like|wondering|what about|heard about|asked about|pre-?auth\w*)\b/i.test(said);
+    // a question mark is not "considering": the clinician checks current medicines with questions ("you take Eltroxin once a day?")
+    if (ds && (note.assessment_and_plan || []).some((p) => new Set(words(JSON.stringify(p)).map(stem)).has(ds))) return 'Plan (already named)';
+    const said = `${f.text} ${f.quote || ''}`; const considering = /\b(thinking about|looking (into|for|at)|interested in|consider\w*|research\w*|would like|wondering|what about|heard about|asked about|pre-?auth\w*)\b/i.test(said);
     const taking = !considering && (/^(active|current|continu\w*|ongoing|existing|taking|chronic|home)$/i.test(f.medication_status || '') || (!f.medication_status && /\b(taking|takes|i take|i'm on|i am on|using|on it)\b/i.test(said)));
     if (f.medication_status === 'historical' && !considering) { addLine(note.past_medical_history ||= {}, 'medical_surgical', line); return 'Past Medical History'; }   // a past medicine is history, not a current one
     if (!taking) { const p = home(); if (!p) throw new Error('discussed medicine with no problem to put it under'); addPlan(p, 'treatment_planned', `Discussed ${med}`); return `Plan / ${p.issue} / Advice`; }
