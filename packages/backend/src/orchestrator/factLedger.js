@@ -118,7 +118,8 @@ export function medLine(f, med) {
 /** Write one fact into the note by rule. Returns where it went. */
 export function placeFact(note, f, graph) {
   const line = cap(f.text.replace(/\.$/, ''));
-  const med = f.medication ? cap([f.medication, f.dose, f.frequency].filter(Boolean).join(' ')) : line;
+  const sane = (s, rx) => (rx.test(String(s || '').trim()) ? String(s).trim() : '');   // the extractor sometimes puts run-together words in dose / frequency; only a real dose or frequency is written
+  const med = f.medication ? cap([f.medication, sane(f.dose, /^\d+(\.\d+)?\s*(mg|mcg|g|ml|units?|iu|%|tablets?|pills?|puffs?|drops?)$/i), sane(f.frequency, /^[a-z0-9 ,./-]{2,40}$/i)].filter(Boolean).join(' ')) : line;
   if (GIVEN_RX.test(f.text) && !HIST_TYPES.has(f.type) && f.type !== 'family_history' && !/\b(due|next year|last year|ago|history of|had a)\b/i.test(f.text)) {   // a vaccine or injection given in the visit is a plan item under its own problem, never an exam finding or a vital sign
     const ap = (note.assessment_and_plan ||= []); const kind = /\bb12\b/i.test(f.text) ? 'b12' : /vaccin|immuni|\bflu\b|influenza|tetanus|mmr|tdap|covid|shingrix|booster/i.test(f.text) ? 'vaccine' : 'injection';
     const rx = { b12: /b12/i, vaccine: /vaccin|immuni/i, injection: /injection/i }[kind]; let p = ap.find((x) => rx.test(String(x?.issue || '')) && (kind !== 'injection' || !/b12|vaccin/i.test(String(x.issue))));
