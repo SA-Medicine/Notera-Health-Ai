@@ -17,6 +17,8 @@ import { listing } from './planComplete.js';
 const STOP = new Set('the and for with that this have has had was were are you your his her she him they them their from about into onto over under then than also just very really okay yeah well like some any all can could would should will not but out get got going been being did does doing one two three patient says said told states reported reports mentions mentioned noted discussed discusses need needs wants want'.split(' '));
 const NEG = /\b(no|not|denies|denied|without|negative|never|none|nil|absent)\b/i;
 const SKIP_TYPES = new Set(['temporal_reference', 'clinician_reasoning']);
+const ACTION_WORDS = /\b(advis\w*|should|need\w*|avoid\w*|use|apply|take|return|stop|start|continue|rest|ice|elevat\w*|exercis\w*|limit|drink|eat|call|go to|see|keep|do not|don't|try|increase|decrease|monitor|check|follow|book|arrange|schedule\w*|fax\w*|prescri\w*|refer\w*|order\w*)\b/i;
+const GIVEN_RX = /\b(vaccin\w*|injection|shot|immuni[sz]ation|administered|booster)\b/i;
 const SUBJ_TYPES = new Set(['symptom', 'injury_mechanism', 'contextual_activity', 'resolved_symptom', 'previous_episode', 'lifestyle_modification', 'medication_tolerance', 'care_barrier', 'clinical_context', 'patient_preference', 'shared_decision_making', 'treatment_duration']);
 const HIST_TYPES = new Set(['pmh', 'family_history', 'social_history', 'procedure_history']);
 const stem = (w) => w.replace(/(ing|ed|es|s)$/, '').slice(0, 6);
@@ -40,6 +42,9 @@ export function requiredFacts(facts) {
     if (!f.render_required || !f.grounded || f.confidence < 0.5 || SKIP_TYPES.has(f.type) || !f.text) return false;
     if (f.type === 'medication' && (f.medication_status === 'mention' || (f.negative && f.medication_status !== 'planned'))) return false;
     if (f.importance === 'background') return false;
+    // the clinician explaining something ("flu season is early", "pneumonia shot is for the lungs") is not a fact the note must hold; an instruction needs an action
+    if (f.type === 'clinical_context' && f.importance !== 'critical') return false;
+    if (f.type === 'treatment_instruction' && !ACTION_WORDS.test(f.text)) return false;
     const k = words(f.text).join(' '); if (seen.has(k)) return false; seen.add(k); return true;
   });
 }
@@ -105,6 +110,12 @@ export function medLine(f, med) {
 export function placeFact(note, f, graph) {
   const line = cap(f.text.replace(/\.$/, ''));
   const med = f.medication ? cap([f.medication, f.dose, f.frequency].filter(Boolean).join(' ')) : line;
+  if (GIVEN_RX.test(f.text) && !HIST_TYPES.has(f.type) && f.type !== 'family_history' && !/\b(due|next year|last year|ago|history of|had a)\b/i.test(f.text)) {   // a vaccine or injection given in the visit is a plan item under its own problem, never an exam finding or a vital sign
+    const ap = (note.assessment_and_plan ||= []); const kind = /\bb12\b/i.test(f.text) ? 'b12' : /vaccin|immuni|\bflu\b|influenza|tetanus|mmr|tdap|covid|shingrix|booster/i.test(f.text) ? 'vaccine' : 'injection';
+    const rx = { b12: /b12/i, vaccine: /vaccin|immuni/i, injection: /injection/i }[kind]; let p = ap.find((x) => rx.test(String(x?.issue || '')) && (kind !== 'injection' || !/b12|vaccin/i.test(String(x.issue))));
+    if (!p) p = newProblem(note, { b12: 'Vitamin B12 injection', vaccine: 'Immunisation', injection: 'Injection' }[kind]);
+    addPlan(p, 'treatment_planned', /administ|given|received/i.test(line) ? line : `${line} administered`); return `Plan / ${p.issue} / Given today`;
+  }
   if (f.type === 'physical_exam' || f.type === 'normal_finding') {
     const o = (note.objective ||= {});
     if (f.numeric_type === 'vitals' || /\b(blood pressure|bp|pulse|heart rate|temperature|spo2|weight|bmi)\b/i.test(f.text)) { addLine(o, 'vital_signs', line); return 'Objective / Vital Signs'; }
@@ -181,7 +192,7 @@ export async function reconcileFacts(llm, note, graph, transcript, log = () => {
     if (ans.error) log(`[v2:ledger] placement call skipped — ${ans.error}`);
   }
   L = ledger(note, req); const forced = [];
-  for (const f of L.missing) { if (judged.has(f.id)) continue; try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
+  for (const f of L.missing) { if (judged.has(f.id) || f.importance === 'minor') continue; /* minor facts are placed only when the model chose to; critical and major ones always */ try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
   const rows = ledger(note, req).rows.map((r) => (r.status === 'found' ? (placed.has(r.id) ? { ...r, status: 'placed' } : r) : judged.has(r.id) ? { ...r, status: 'found', where: 'in other words' } : r));
   for (const x of forced) { const row = rows.find((r) => r.id === x.id); if (row && row.status !== 'found' && row.status !== 'placed') { row.status = 'forced'; row.where = x.where; } else if (row) { row.status = 'forced'; row.where = x.where; } }
   const count = (s) => rows.filter((r) => r.status === s).length;

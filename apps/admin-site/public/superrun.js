@@ -116,7 +116,16 @@ export async function superRunView(ctx) {
     ? `<section class="sr-sec ap"><h4>${esc(s.title)}</h4>${s.problems.map((p, i) => `<div class="sr-prob"><div class="sr-ptitle"><span>${i + 1}</span>${esc(p.title)}</div>${p.lines.map((l) => `<div class="sr-pl${l.sub ? ' sub' : ''}">${l.label ? `<em>${esc(l.label)}</em>` : '<em class="plain"></em>'}<span>${esc(l.text)}</span></div>`).join('')}</div>`).join('')}</section>`
     : `<section class="sr-sec"><h4>${esc(s.title)}</h4>${s.groups.map((g) => `<div class="sr-grp">${g.title ? `<div class="sr-gt">${esc(g.title)}</div>` : ''}<ul>${g.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</section>`);
 
-  const STAGES = { 'writer+checklist': 'Writer and checklist', 'writer-retry': 'Writer retry (the first draft looped)', editor: 'Editor', verifier: 'Verifier', story: 'Subjective topics', sweep: 'Problem sweep', complete: 'Plan completeness', coverage: 'Coverage check (what is missing)', ground: 'Grounding check', ref: 'Reference names' };
+  // every fact the fact graph found in the visit, and whether the note holds it: found / placed by the model / written in by rule
+  function ledgerHtml(n) {
+    const L = n.pipeline?.factLedger; if (!L || !L.rows?.length) return '';
+    const s = L.summary || {}; const byId = Object.fromEntries((L.facts || []).map((f) => [f.id, f]));
+    const label = { found: 'in the note', placed: 'placed by the model', forced: 'written in by rule', missing: 'MISSING' };
+    const rows = [...L.rows].sort((a, b) => (a.status === 'found') - (b.status === 'found'));
+    return `<details class="sr-flags" style="margin-top:10px"><summary style="color:var(--ink-2)">Fact ledger: ${s.required} facts the visit contained, ${s.required - (s.missingBefore || 0)} already in the note, ${s.placed || 0} placed, ${s.forced || 0} written in by rule, ${s.stillMissing || 0} missing</summary>
+      <div class="tbl-wrap"><table><thead><tr><th>Fact</th><th>Type</th><th>Weight</th><th>Status</th><th>Where</th></tr></thead><tbody>${rows.map((r) => { const f = byId[r.id] || {}; return `<tr><td>${esc(f.text || r.id)}</td><td>${esc((f.type || '').replace(/_/g, ' '))}</td><td>${esc(f.importance || '')}</td><td><span class="pill ${r.status === 'found' ? 'ok' : r.status === 'missing' ? 'bad' : 'warn'}">${label[r.status] || r.status}</span></td><td>${esc(r.where || '')}</td></tr>`; }).join('')}</tbody></table></div></details>`;
+  }
+  const STAGES = { 'writer+checklist': 'Writer and checklist', 'writer-retry': 'Writer retry (the first draft looped)', editor: 'Editor', verifier: 'Verifier', story: 'Subjective topics', sweep: 'Problem sweep', complete: 'Plan completeness', coverage: 'Coverage check (what is missing)', ledger: 'Fact ledger (every fact placed)', ground: 'Grounding check', ref: 'Reference names' };
   function timingHtml(n) {
     const tm = n.pipeline?.timings; if (!tm) return '';
     const rows = Object.entries(tm).filter(([k, v]) => STAGES[k] && v > 0).sort((a, b) => b[1] - a[1]);
@@ -160,7 +169,7 @@ export async function superRunView(ctx) {
     const flags = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f.severity));
     return `<div class="sr-body">${top}<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}</div>
       <div class="sr-note">${parseNote(n.rendered).map(noteSection).join('')}</div>
-      ${timingHtml(n)}
+      ${ledgerHtml(n)}${timingHtml(n)}
       ${flags.length ? `<details class="sr-flags"><summary>${flags.length} line${flags.length === 1 ? '' : 's'} the pipeline wants checked</summary><ul>${flags.slice(0, 12).map((f) => `<li>${esc(String(f.message || '').slice(0, 220))}</li>`).join('')}</ul></details>` : ''}
       ${auditHtml()}${summaryHtml()}</div>`;
   }

@@ -70,3 +70,12 @@ test('a medicine written in by rule starts with the right action and names the d
   assert.equal(medLine(F({ text: 'Lyrica twice daily', medication: 'Lyrica', dose: '75 mg', frequency: 'twice daily' }), 'Lyrica 75 mg twice daily'), 'Start Lyrica 75 mg twice daily');
   assert.equal(medLine(F({ text: 'continue Tylenol as needed', medication: 'Tylenol' }), 'Tylenol'), 'Continue Tylenol as needed');
 });
+
+test('a shot given in the visit goes to its own problem, never to Vital Signs or the first problem; explanations are not required facts', async () => {
+  const n = note(); const g = { facts: [], edges: [] };
+  assert.match(placeFact(n, F({ type: 'physical_exam', text: 'B12 injection', numeric_type: 'vitals' }), g), /Given today/);
+  assert.match(placeFact(n, F({ type: 'treatment_instruction', text: 'Influenza vaccination administered in left arm' }), g), /Given today/);
+  const md = noteToMarkdown(n); assert.ok(!/Vital Signs/.test(md)); assert.match(md, /Vitamin B12 injection[\s\S]*B12 injection administered/); assert.match(md, /Immunisation[\s\S]*Influenza vaccination administered in left arm/);
+  const req = requiredFacts([F({ id: 'F1', type: 'clinical_context', text: 'flu season is early this year' }), F({ id: 'F2', type: 'treatment_instruction', text: 'pneumonia shot is an infection in the lungs' }), F({ id: 'F3', type: 'treatment_instruction', text: 'use heat on the neck twice a day' })]);
+  assert.deepEqual(req.map((f) => f.id), ['F3']);
+});
