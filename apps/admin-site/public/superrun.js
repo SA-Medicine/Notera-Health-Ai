@@ -177,7 +177,7 @@ export async function superRunView(ctx) {
     if (n.status === 'error') return `<div class="sr-err">${esc(n.error)}</div><div class="sr-next"><button class="btn primary sr-retry-note">Try again</button></div>`;
     if (n.status !== 'done') return '<p class="hint">Waiting to start.</p>';
     const flags = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f.severity));
-    return `<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}${n.cost ? ` · ${usd(n.cost.usd)}` : ''}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}</div>
+    return `<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}${n.cost ? ` · ${usd(n.cost.usd)}` : ''}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}${n.fellBack ? '<span class="pill bad">the first draft failed: the fallback model wrote this note</span>' : ''}</div>
       <div class="sr-note">${parseNote(n.rendered).map(noteSection).join('')}</div>
       ${ledgerHtml(n)}${timingHtml(n)}
       ${flags.length ? `<details class="sr-flags"><summary>${flags.length} line${flags.length === 1 ? '' : 's'} the pipeline wants checked</summary><ul>${flags.slice(0, 12).map((f) => `<li>${esc(String(f.message || '').slice(0, 220))}</li>`).join('')}</ul></details>` : ''}
@@ -190,7 +190,7 @@ export async function superRunView(ctx) {
     const n = (v) => (v == null ? '—' : Number(v).toLocaleString('en-GB'));
     const rows = [['Time to write', A.seconds != null ? A.seconds + ' s' : '—', B.seconds != null ? B.seconds + ' s' : '—'], ['Cost of the note', usd(A.cost?.usd), usd(B.cost?.usd)],
       ['Tokens in / out', A.cost ? `${n(A.cost.prompt)} / ${n(A.cost.output)}` : '—', B.cost ? `${n(B.cost.prompt)} / ${n(B.cost.output)}` : '—'], ['Thinking tokens', n(A.cost?.thoughts), n(B.cost?.thoughts)],
-      ['Audit score', a ? a.score + '/100' : '—', b ? b.score + '/100' : '—'], ['Critical findings', n(crit(a)), n(crit(b))], ['Wrong / missing', a ? `${(a.wrong || []).length} / ${(a.missing || []).length}` : '—', b ? `${(b.wrong || []).length} / ${(b.missing || []).length}` : '—'], ['Lines to check', n(A.toCheck), n(B.toCheck)]];
+      ['Audit score', a ? a.score + '/100' : '—', b ? b.score + '/100' : '—'], ['Critical findings', n(crit(a)), n(crit(b))], ['Wrong / missing', a ? `${(a.wrong || []).length} / ${(a.missing || []).length}` : '—', b ? `${(b.wrong || []).length} / ${(b.missing || []).length}` : '—'], ['Lines to check', n(A.toCheck), n(B.toCheck)], ['Written by', A.fellBack ? 'the fallback model' : 'this writer', B.fellBack ? 'the fallback model' : 'this writer']];
     return `<div class="tbl-wrap sr-cmp"><table><thead><tr><th>Same transcript, two writers</th><th>${esc(A.writer || 'Production')}</th><th>${esc(B.writer || run.proWriter || 'Pro')}</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</tbody></table></div>`;
   }
 

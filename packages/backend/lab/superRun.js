@@ -269,10 +269,11 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
     const [noteKey, auditKey] = NOTE_KEYS[which]; const sourceLabel = ENGINE_INFO[use].label;
     return (async () => {
       const t0 = Date.now(); const log = []; touch(run, noteKey, { status: 'running', stage: `The note pipeline is writing the SOAP note${which === 'pro' ? ` with ${PRO_WRITER}` : ''}`, sourceKey: use, sourceLabel, startedAt: new Date().toISOString(), transcriptWords: words(text).length });
-      const n = await steps.note(text, (l) => { if (log.length < 60) log.push(String(l).slice(0, 160)); }, which === 'pro' ? { writerModel: PRO_WRITER } : {});
+      let fellBack = false;   // the configured writer is not always the one that wrote the note: a failed draft is rewritten by the fallback model
+      const n = await steps.note(text, (l) => { if (/fallback model\): kept the retry|retrying once on the fallback model/.test(l)) fellBack = true; if (log.length < 60) log.push(String(l).slice(0, 160)); }, which === 'pro' ? { writerModel: PRO_WRITER } : {});
       if (!String(n.rendered || '').trim()) throw new Error('the pipeline returned an empty note');
       const warn = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f?.severity)).length;
-      touch(run, noteKey, { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), writer: n.trace?.used?.config?.writer || (which === 'pro' ? PRO_WRITER : ''), cost: n.cost || null, pipeline: n.trace || null, pipelineLog: log.filter((l) => /writer|retry|loop|rejected|failed|fallback|timed out|coverage|complete/i.test(l) && !/tokens]/.test(l)).slice(0, 14), finishedAt: new Date().toISOString() });
+      touch(run, noteKey, { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), writer: n.trace?.used?.config?.writer || (which === 'pro' ? PRO_WRITER : ''), fellBack, cost: n.cost || null, pipeline: n.trace || null, pipelineLog: log.filter((l) => /writer|retry|loop|rejected|failed|fallback|timed out|coverage|complete/i.test(l) && !/tokens]/.test(l)).slice(0, 14), finishedAt: new Date().toISOString() });
       await runAudit(run, auditKey, text, n.rendered);
     })().catch((e2) => touch(run, noteKey, { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }));
   };

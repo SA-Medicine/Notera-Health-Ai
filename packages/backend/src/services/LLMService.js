@@ -214,8 +214,12 @@ export class LLMService {
     // The owner's rule (2026-10-24): no thinking anywhere, it only costs time. Every call is sent with thinking off; LLM_THINKING=allow restores the callers' budgets.
     // gemini-2.5-pro refuses a budget of 0 (400), so it gets its minimum, 128. gemini-3.1-pro-preview and 3.5-flash-lite accept 0 (0 thought tokens);
     // gemini-3.7/3.8-flash accept 0 but still think (~1,000 tokens), which no setting stops.
-    if (process.env.LLM_THINKING !== 'allow') body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    // Judges and auditors keep their own budgets: they only measure, and every A/B must be scored by the same judge.
+    if (process.env.LLM_THINKING !== 'allow' && !/judge|audit/.test(this._agent || '')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     if (/^gemini-2\.5-pro/.test(this.model) && body.generationConfig.thinkingConfig.thinkingBudget === 0) body.generationConfig.thinkingConfig = { thinkingBudget: 128 };
+    // gemini-3.1-pro-preview ignores a budget of 0 on long prompts (~3,070 thought tokens on the writer prompt, measured on 30 gold notes): the thinking
+    // counts against maxOutputTokens, so without room on top the note was cut off after ~116 tokens. Pro models get 8,000 extra.
+    if (/-pro/.test(this.model)) body.generationConfig.maxOutputTokens = Math.min(65536, maxOutputTokens + 8000);
     if (options.temperature !== undefined) body.generationConfig.temperature = options.temperature;
     else if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
     // Sampling controls (hyper-parameters). Per-call options win over GEMINI_* env defaults; unset = model default.
