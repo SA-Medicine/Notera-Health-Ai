@@ -26,6 +26,8 @@ const DEFAULT_PRICES = {
   'gemini-3.5-flash':      { input: 0.30, output: 2.50 },
   'gemini-3.5-flash-lite': { input: 0.30, output: 2.50 },
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
+  'gemini-3.1-pro-preview': { input: 2.00, output: 12.00 },
+  'gemini-2.5-pro':        { input: 1.25, output: 10.00 },
 };
 let _priceCache = null, _priceCacheAt = 0;
 async function prices() {

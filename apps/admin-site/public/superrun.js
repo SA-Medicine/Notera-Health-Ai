@@ -9,7 +9,7 @@ import { lab } from './kit.js';
 export async function superRunView(ctx) {
   const { $, esc, ago, head, toast, api } = ctx;
   let run = null; let recs = []; let poll = null; let pick = ''; let player = null;
-  const ui = { openStep: null, transcript: false, showFull: {}, use: 'winner' };
+  const ui = { openStep: null, transcript: false, showFull: {}, use: 'winner', pair: false };
   const mmss = (s) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`);
   const pct = (v) => (v == null ? '—' : Math.round(v) + '%');
   const usd = (v) => (v == null ? '—' : '$' + (v < 0.01 ? v.toFixed(4) : v.toFixed(3)));
@@ -23,7 +23,7 @@ export async function superRunView(ctx) {
 
   function reset() { stopPoll(); run = null; ui.openStep = null; ui.transcript = false; ui.showFull = {}; ui.use = 'winner'; draw(); }
   function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
-  function running() { return run && ['asr', 'compare', 'note', 'audit'].some((k) => run[k]?.status === 'running'); }
+  function running() { return run && ['asr', 'compare', 'note', 'audit', 'notePro', 'auditPro'].some((k) => run[k]?.status === 'running'); }
   function startPoll() {
     stopPoll(); poll = setInterval(async () => {
       if (!document.getElementById('sr-stack')) return stopPoll();   // the admin left this page
@@ -92,6 +92,7 @@ export async function superRunView(ctx) {
       ${lst('Clinical risks', r.clinical_risks)}${r.limits ? `<p class="hint">Limits: ${esc(r.limits)}${c.audioAttached ? '' : ' (the reviewer had no audio this time)'}</p>` : ''}
       ${run.note.status === 'idle' ? `<div class="sr-use"><b>Write the SOAP note from</b>
         <label><input type="radio" name="sr-use" value="winner" ${ui.use === 'winner' ? 'checked' : ''}> the better transcript (${esc(win)})</label><label><input type="radio" name="sr-use" value="chirp" ${ui.use === 'chirp' ? 'checked' : ''}> Chirp 2</label><label><input type="radio" name="sr-use" value="gemini" ${ui.use === 'gemini' ? 'checked' : ''}> Gemini 2.5 Flash</label></div>
+        <div class="sr-use"><label><input type="checkbox" id="sr-pair" ${ui.pair ? 'checked' : ''}> Also write a second note from the same transcript with <b>${esc(run.proWriter || 'the Pro model')}</b>, at the same time, and compare them side by side</label></div>
         <div class="sr-next"><button class="btn primary" id="sr-next2">Next: create the SOAP note ▸</button></div>` : ''}</div>`;
   }
 
@@ -133,10 +134,10 @@ export async function superRunView(ctx) {
     return `<details class="sr-flags" style="margin-top:10px"><summary style="color:var(--ink-2)">Where the time went, ${n.seconds} s in all</summary><div class="tbl-wrap"><table><tbody>${rows.map(([k, v]) => `<tr><td>${STAGES[k]}</td><td style="text-align:right">${(v / 1000).toFixed(1)} s</td></tr>`).join('')}</tbody></table></div>${log.length ? `<ul>${log.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</details>`;
   }
   const ring = (score) => { const r = 34; const c = 2 * Math.PI * r; const v = Math.max(0, Math.min(100, score || 0)); return `<svg class="sr-ring" viewBox="0 0 80 80" width="84" height="84" role="img" aria-label="Score ${v} of 100"><circle cx="40" cy="40" r="${r}" class="bg"/><circle cx="40" cy="40" r="${r}" class="fg ${v >= 80 ? 'ok' : v >= 60 ? 'warn' : 'bad'}" stroke-dasharray="${(c * v) / 100} ${c}" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle">${v}</text></svg>`; };
-  function auditHtml() {
-    const au = run.audit; const a = au.result;
+  function auditHtml(au = run.audit) {
+    const a = au.result;
     if (au.status === 'running') return `<div class="sr-sub sr-loading">${spin}<div><h3>Auditing the note</h3><p class="hint">${esc(au.stage || 'Working')}… ${elapsed(au.startedAt)} s</p></div></div><div class="sr-shim big"></div>`;
-    if (au.status === 'error') return `<div class="sr-err">${esc(au.error)}</div><div class="sr-next"><button class="btn primary" id="sr-retry3">Run the audit again</button></div>`;
+    if (au.status === 'error') return `<div class="sr-err">${esc(au.error)}</div><div class="sr-next"><button class="btn primary sr-retry3">Run the audit again</button></div>`;
     if (!a) return '';
     const sev = (x) => `<span class="pill ${x === 'critical' ? 'bad' : x === 'major' || x === 'important' ? 'warn' : ''}">${esc(x || 'minor')}</span>`;
     const L = (arr, f) => (arr || []).slice(0, 8).map(f).join('');
@@ -153,7 +154,7 @@ export async function superRunView(ctx) {
       ${(a.suggestions || []).length ? `<div class="sr-list"><b>Suggestions</b><ul>${a.suggestions.slice(0, 6).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}</div>`;
   }
   function summaryHtml() {
-    const s = run.summary; if (!s || run.audit.status !== 'done') return '';
+    const s = run.summary; if (!s || run.audit.status !== 'done' || (run.pair && !['done', 'error'].includes(run.auditPro?.status))) return '';
     return `<div class="sr-sum ${s.verdict.replace(' ', '-')}"><div class="sr-sum-head"><small>Consolidated statement</small><h3>${esc(s.headline)}</h3></div>
       <ol>${s.lines.map((l) => `<li class="${l.ok ? 'ok' : 'no'}"><b>${esc(l.step)}</b><span>${esc(l.text)}</span></li>`).join('')}</ol>
       <div class="sr-caveats">${s.caveats.map((x) => `<p>${esc(x)}</p>`).join('')}</div>
@@ -164,14 +165,33 @@ export async function superRunView(ctx) {
     const src = n.sourceLabel ? `from the <b>${esc(n.sourceLabel)}</b> transcript` : '';
     const tx = run.asr.engines[n.sourceKey]?.text || '';
     const top = `<button class="sr-fold" id="sr-tx" aria-expanded="${ui.transcript}"><span>${ui.transcript ? '▾' : '▸'}</span> Transcript used ${src} <small>${ui.transcript ? 'click to close' : 'click to open'}</small></button>${ui.transcript ? `<div class="sr-txfull">${esc(tx)}</div>` : ''}`;
-    if (n.status === 'running') return `<div class="sr-body">${top}<div class="sr-loading">${spin}<div><h3>Writing the SOAP note</h3><p class="hint">${esc(n.stage || 'Working')}… ${elapsed(n.startedAt)} s</p></div></div><div class="sr-shim big"></div></div>`;
-    if (n.status === 'error') return `<div class="sr-body">${top}<div class="sr-err">${esc(n.error)}</div><div class="sr-next"><button class="btn primary" id="sr-retry-note">Try again</button></div></div>`;
+    if (!run.pair) return `<div class="sr-body">${top}${noteBody(n, run.audit, src)}${summaryHtml()}</div>`;
+    const np = run.notePro || {};
+    return `<div class="sr-body">${top}${compareTable()}<div class="sr-pair">
+      <div class="sr-side"><div class="sr-model"><b>${esc(n.writer || 'Production writer')}</b><span class="hint">the production pipeline</span></div>${noteBody(n, run.audit, src)}</div>
+      <div class="sr-side"><div class="sr-model"><b>${esc(np.writer || run.proWriter || 'Pro model')}</b><span class="hint">same pipeline, Pro writer, thinking off</span></div>${noteBody(np, run.auditPro || {}, src)}</div></div>${summaryHtml()}</div>`;
+  }
+  // one note with its ledger, timings, flags and audit (used once, or twice side by side)
+  function noteBody(n, au, src) {
+    if (n.status === 'running') return `<div class="sr-loading">${spin}<div><h3>Writing the SOAP note</h3><p class="hint">${esc(n.stage || 'Working')}… ${elapsed(n.startedAt)} s</p></div></div><div class="sr-shim big"></div>`;
+    if (n.status === 'error') return `<div class="sr-err">${esc(n.error)}</div><div class="sr-next"><button class="btn primary sr-retry-note">Try again</button></div>`;
+    if (n.status !== 'done') return '<p class="hint">Waiting to start.</p>';
     const flags = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f.severity));
-    return `<div class="sr-body">${top}<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}</div>
+    return `<div class="sr-notehead"><h3>SOAP note</h3><span class="hint">written in ${n.seconds} s ${src}${n.cost ? ` · ${usd(n.cost.usd)}` : ''}</span>${n.toCheck ? `<span class="pill warn">${n.toCheck} to check</span>` : '<span class="pill ok">nothing flagged</span>'}</div>
       <div class="sr-note">${parseNote(n.rendered).map(noteSection).join('')}</div>
       ${ledgerHtml(n)}${timingHtml(n)}
       ${flags.length ? `<details class="sr-flags"><summary>${flags.length} line${flags.length === 1 ? '' : 's'} the pipeline wants checked</summary><ul>${flags.slice(0, 12).map((f) => `<li>${esc(String(f.message || '').slice(0, 220))}</li>`).join('')}</ul></details>` : ''}
-      ${auditHtml()}${summaryHtml()}</div>`;
+      ${auditHtml(au)}`;
+  }
+  // the two notes in numbers: time, cost, tokens and what the auditor found
+  function compareTable() {
+    const A = run.note || {}; const B = run.notePro || {}; const a = run.audit?.result; const b = run.auditPro?.result;
+    const crit = (x) => (x ? (x.wrong || []).filter((w) => w.severity === 'critical').length + (x.missing || []).filter((m) => m.importance === 'critical').length : null);
+    const n = (v) => (v == null ? '—' : Number(v).toLocaleString('en-GB'));
+    const rows = [['Time to write', A.seconds != null ? A.seconds + ' s' : '—', B.seconds != null ? B.seconds + ' s' : '—'], ['Cost of the note', usd(A.cost?.usd), usd(B.cost?.usd)],
+      ['Tokens in / out', A.cost ? `${n(A.cost.prompt)} / ${n(A.cost.output)}` : '—', B.cost ? `${n(B.cost.prompt)} / ${n(B.cost.output)}` : '—'], ['Thinking tokens', n(A.cost?.thoughts), n(B.cost?.thoughts)],
+      ['Audit score', a ? a.score + '/100' : '—', b ? b.score + '/100' : '—'], ['Critical findings', n(crit(a)), n(crit(b))], ['Wrong / missing', a ? `${(a.wrong || []).length} / ${(a.missing || []).length}` : '—', b ? `${(b.wrong || []).length} / ${(b.missing || []).length}` : '—'], ['Lines to check', n(A.toCheck), n(B.toCheck)]];
+    return `<div class="tbl-wrap sr-cmp"><table><thead><tr><th>Same transcript, two writers</th><th>${esc(A.writer || 'Production')}</th><th>${esc(B.writer || run.proWriter || 'Pro')}</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   // a finished step folds into one line you can open again
@@ -203,9 +223,10 @@ export async function superRunView(ctx) {
     const n1 = $('#sr-next1'); if (n1) n1.onclick = () => step('compare');
     const r2 = $('#sr-retry2'); if (r2) r2.onclick = () => step('compare');
     document.querySelectorAll('input[name="sr-use"]').forEach((r) => { r.onchange = () => { ui.use = r.value; }; });
-    const n2 = $('#sr-next2'); if (n2) n2.onclick = () => step('note', { use: ui.use === 'winner' ? undefined : ui.use });
-    const rn = $('#sr-retry-note'); if (rn) rn.onclick = () => step('note', { use: ui.use === 'winner' ? undefined : ui.use });
-    const r3 = $('#sr-retry3'); if (r3) r3.onclick = () => step('note');
+    const pr = $('#sr-pair'); if (pr) pr.onchange = () => { ui.pair = pr.checked; };
+    const n2 = $('#sr-next2'); if (n2) n2.onclick = () => step('note', { use: ui.use === 'winner' ? undefined : ui.use, pair: ui.pair });
+    document.querySelectorAll('.sr-retry-note').forEach((b) => { b.onclick = () => step('note', { use: ui.use === 'winner' ? undefined : ui.use, pair: !!run.pair }); });
+    document.querySelectorAll('.sr-retry3').forEach((b) => { b.onclick = () => step('note'); });
     const tx = $('#sr-tx'); if (tx) tx.onclick = () => { ui.transcript = !ui.transcript; draw(); };
     const cp = $('#sr-copy'); if (cp) cp.onclick = () => { const s = run.summary; navigator.clipboard.writeText([s.headline, '', ...s.lines.map((l) => `${l.step}: ${l.text}`), '', ...s.caveats].join('\n')); toast('Statement copied'); };
     const dl = $('#sr-dl'); if (dl) dl.onclick = async () => { try { const res = await fetch(`/lab/superrun/${run.id}/report`, { credentials: 'same-origin' }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `super-run-${run.id}.json`; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { toast(e.message, true); } };

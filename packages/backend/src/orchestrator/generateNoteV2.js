@@ -619,7 +619,7 @@ export async function generateNoteV2(input, opts = {}) {
       let writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
       const writerOpts = {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
-        retries: 3, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
+        retries: 3, hedgeMs: opts.writerHedgeMs ?? cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: opts.writerFallback ?? (cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite'),
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
       const graphOn = process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false;

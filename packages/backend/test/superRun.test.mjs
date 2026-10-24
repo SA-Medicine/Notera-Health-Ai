@@ -73,6 +73,21 @@ test('the admin can pick the other transcript for the note', async () => {
     assert.equal(done.note.sourceKey, 'chirp'); assert.equal(over.noteSawText, CHIRP);
   } finally { server.close(); }
 });
+test('pair: two notes from the same transcript at the same time, Flash and the Pro writer, each audited and priced', async () => {
+  const { server, base } = boot({ winner: 'B' });
+  try {
+    const run = await (await post(base, '', { consultId: 'CONS-1' })).json(); await until(base, run.id, (r) => r.asr.status === 'done');
+    await post(base, `/${run.id}/compare`); await until(base, run.id, (r) => r.compare.status === 'done');
+    await post(base, `/${run.id}/note`, { pair: true }); const done = await until(base, run.id, (r) => r.audit.status === 'done' && r.auditPro?.status === 'done');
+    assert.equal(done.pair, true); assert.equal(done.notePro.sourceKey, 'gemini', 'both notes use the same transcript'); assert.equal(done.notePro.writer, done.proWriter);
+    assert.equal(done.auditPro.result.score, 86); assert.ok(done.summary.lines.some((l) => l.step === 'Side by side'));
+  } finally { server.close(); }
+});
+test('usageCost prices every call, thinking billed as output', async () => {
+  const { usageCost } = await import('../lab/superRun.js');
+  const c = await usageCost([{ model: 'gemini-3.1-pro-preview', prompt: 1_000_000, output: 0, thoughts: 0 }, { model: 'gemini-3.1-pro-preview', prompt: 0, output: 500_000, thoughts: 500_000 }]);
+  assert.equal(c.usd, 14); assert.equal(c.calls, 2); assert.equal(c.byModel['gemini-3.1-pro-preview'].thoughts, 500_000);
+});
 test('a damaged recording is explained; a failed model is reported and the chain stops there', async () => {
   let b = boot({ damaged: true }); try {
     const run = await (await post(b.base, '', { consultId: 'CONS-BAD' })).json(); const r = await until(b.base, run.id, (x) => x.asr.status === 'error');

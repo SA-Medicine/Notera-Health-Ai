@@ -9,6 +9,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 // Per-call default-model override (lab experiments: run the multi-agent pipeline on another model without touching env).
 const _modelStore = new AsyncLocalStorage();
 export const runWithModel = (model, fn) => (model ? _modelStore.run({ model }, fn) : fn());
+// Every call made inside withUsage(fn) is listed (model, agent, tokens), so one note's cost can be counted even while another note runs at the same time.
+const _usageStore = new AsyncLocalStorage();
+export async function withUsage(fn) { const calls = []; const result = await _usageStore.run(calls, fn); return { result, calls }; }
 const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export const MODEL_TIERS = {
@@ -101,6 +104,7 @@ export class LLMService {
     const t = Number(usage?.totalTokenCount || (p + o));
     rec.prompt += p; rec.output += o; rec.total += t; rec.calls += 1;
     const th = Number(usage?.thoughtsTokenCount || 0);
+    _usageStore.getStore()?.push({ model: this.model, agent, prompt: p, output: o, thoughts: th });
     console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t}${th ? ` thoughts=${th}` : ''} (model=${this.model})`);
   }
 
@@ -207,6 +211,11 @@ export class LLMService {
     if (options.thinkingBudget !== undefined) body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget };
     else if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') body.generationConfig.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
     else body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    // The owner's rule (2026-10-24): no thinking anywhere, it only costs time. Every call is sent with thinking off; LLM_THINKING=allow restores the callers' budgets.
+    // gemini-2.5-pro refuses a budget of 0 (400), so it gets its minimum, 128. gemini-3.1-pro-preview and 3.5-flash-lite accept 0 (0 thought tokens);
+    // gemini-3.7/3.8-flash accept 0 but still think (~1,000 tokens), which no setting stops.
+    if (process.env.LLM_THINKING !== 'allow') body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    if (/^gemini-2\.5-pro/.test(this.model) && body.generationConfig.thinkingConfig.thinkingBudget === 0) body.generationConfig.thinkingConfig = { thinkingBudget: 128 };
     if (options.temperature !== undefined) body.generationConfig.temperature = options.temperature;
     else if (process.env.GEMINI_TEMPERATURE) body.generationConfig.temperature = Number(process.env.GEMINI_TEMPERATURE);
     // Sampling controls (hyper-parameters). Per-call options win over GEMINI_* env defaults; unset = model default.

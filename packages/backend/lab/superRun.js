@@ -23,13 +23,17 @@ import { defaultRunners } from '../src/asr/engines.js';
 import { alignTokens } from '../src/asr/consensus.js';
 import { MEDICAL_TERMS } from '../src/asr/medicalVocab.js';
 import { generateNote } from '../src/orchestrator/generateNote.js';
-import { createGeminiService } from '../src/services/LLMService.js';
+import { createGeminiService, withUsage } from '../src/services/LLMService.js';
+import { costFor } from '../src/ops/opsLog.js';
 
 export const ENGINE_INFO = {
   chirp: { id: 'chirp', label: 'Chirp 2', detail: 'Google Speech-to-Text V2, with the medical vocabulary', price: 0.016 },
   gemini: { id: 'gemini', label: 'Gemini 2.5 Flash', detail: 'Google Gemini audio transcription', price: 0.002 },
 };
 export const JUDGE = 'gemini-2.5-pro';
+// the second note of a side-by-side run: the same pipeline with the newest Pro model on Vertex as the writer (thinking off, like every call)
+export const PRO_WRITER = process.env.SUPERRUN_PRO_MODEL || 'gemini-3.1-pro-preview';
+const NOTE_KEYS = { flash: ['note', 'audit'], pro: ['notePro', 'auditPro'] };
 const BUCKET = () => process.env.GCS_AUDIO_BUCKET || '';
 const RUN_RX = /^sr_[a-z0-9]{6,24}$/; const ID_RX = /^[A-Za-z0-9_-]{3,80}$/;
 const nameOf = (uri) => String(uri || '').replace(`gs://${BUCKET()}/`, '');
@@ -91,7 +95,7 @@ async function compareWithAudio({ mp3, textA, textB, facts }) {
   const cut = (s) => String(s).slice(0, 30000);
   const user = `MEASURED FACTS (computed by code, do not contradict): ${JSON.stringify(facts)}\n\n=== TRANSCRIPT A (${ENGINE_INFO.chirp.label}) ===\n${cut(textA)}\n\n=== TRANSCRIPT B (${ENGINE_INFO.gemini.label}) ===\n${cut(textB)}\n\n${mp3 ? 'The recording is attached.' : 'NO RECORDING IS ATTACHED.'} Return ONLY the JSON.`;
   const parts = [...(mp3 ? [{ inlineData: { mimeType: 'audio/mp3', data: mp3.toString('base64') } }] : []), { text: user }];
-  const body = { systemInstruction: { parts: [{ text: COMPARE_SYS }] }, contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, maxOutputTokens: 16000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 1024 } } };
+  const body = { systemInstruction: { parts: [{ text: COMPARE_SYS }] }, contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, maxOutputTokens: 16000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 128 } } };   // 128 = the least gemini-2.5-pro accepts
   for (let attempt = 0; attempt < 3; attempt++) {
     const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(170000) }); const j = await r.json();
     if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 5000 * (attempt + 1))); continue; }
@@ -125,12 +129,27 @@ export const realSteps = {
   async chirp(pcm) { return (await transcribeChirpPcm(pcm, { model: 'chirp_2', location: process.env.ASR_V2_LOCATION || 'us-central1', hints: true, overlapSeconds: 0, log: () => {} })).text; },
   async gemini(pcm) { const r = await defaultRunners.gemini(pcm, 'gemini-2.5-flash', () => {}); return { text: r.text, note: r.loopedWindows ? `The model looped in ${r.loopedWindows} part(s) of the recording; the repeated text was cut back to two copies.` : '' }; },
   compare: compareWithAudio,
-  async note(transcript, onLog) {
+  async note(transcript, onLog, { writerModel } = {}) {
     const trace = {};
-    const r = await generateNote({ transcript: String(transcript).slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'super-run' }, { persist: false, mode: 'v2', onLog, trace });
-    return { rendered: r.renderedNote || '', flags: r.flags || [], status: r.status, trace: { used: trace.used, timings: trace.timings, factLedger: trace.factLedger || null, factGraph: trace.factGraph || null } };
+    // a Pro writer is never raced against the Flash fallback (the hedge would hand back a Flash note); it falls back only if it fails
+    const extra = writerModel ? { writerModel, writerHedgeMs: 0 } : {};
+    const { result: r, calls } = await withUsage(() => generateNote({ transcript: String(transcript).slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'super-run' }, { persist: false, mode: 'v2', onLog, trace, ...extra }));
+    return { rendered: r.renderedNote || '', flags: r.flags || [], status: r.status, cost: await usageCost(calls), trace: { used: trace.used, timings: trace.timings, factLedger: trace.factLedger || null, factGraph: trace.factGraph || null } };
   },
 };
+
+/** What one note cost: every model call it made, priced per model (thinking tokens are billed as output). */
+export async function usageCost(calls = []) {
+  const byModel = {}; let usd = 0;
+  for (const c of calls) {
+    const m = (byModel[c.model] ||= { calls: 0, prompt: 0, output: 0, thoughts: 0, usd: 0 });
+    const cost = await costFor(c.model, c.prompt, c.output + c.thoughts);
+    m.calls++; m.prompt += c.prompt; m.output += c.output; m.thoughts += c.thoughts; m.usd += cost; usd += cost;
+  }
+  for (const m of Object.values(byModel)) m.usd = +m.usd.toFixed(4);
+  const sum = (k) => calls.reduce((a, c) => a + c[k], 0);
+  return { usd: +usd.toFixed(4), calls: calls.length, prompt: sum('prompt'), output: sum('output'), thoughts: sum('thoughts'), byModel };
+}
 
 export function recordingName(r) {
   const owner = r.full_name || (r.email ? String(r.email).split('@')[0] : 'unknown');
@@ -150,6 +169,10 @@ export function buildSummary(run) {
     lines.push({ step: 'Compare', ok: true, text: `The reviewer (${JUDGE}, ${run.compare.audioAttached ? 'listening to the recording' : 'without the audio'}) judged ${w} better, confidence ${c.confidence || 'unknown'}${c.scores ? `, overall ${c.scores.A?.overall ?? '?'} vs ${c.scores.B?.overall ?? '?'}` : ''}. ${c.headline || ''}` });
   }
   if (run.note?.status === 'done') lines.push({ step: 'SOAP note', ok: true, text: `The SOAP note was written from the ${run.note.sourceLabel} transcript in ${run.note.seconds} s; ${run.note.toCheck} line${run.note.toCheck === 1 ? '' : 's'} flagged to check before signing.` });
+  if (run.notePro?.status === 'done') {
+    const fa = run.audit?.result; const pa = run.auditPro?.result; const usd = (c) => (c?.usd != null ? `$${c.usd.toFixed(3)}` : 'cost unknown');
+    lines.push({ step: 'Side by side', ok: true, text: `From the same transcript: ${run.note.writer || 'Flash'} wrote its note in ${run.note.seconds} s for ${usd(run.note.cost)}${fa ? `, audit ${fa.score}/100` : ''}; ${run.notePro.writer} wrote its note in ${run.notePro.seconds} s for ${usd(run.notePro.cost)}${pa ? `, audit ${pa.score}/100` : ''}. One audit each is a single opinion, not proof of which model is better.` });
+  }
   let verdict = 'incomplete'; const caveats = [];
   if (a) {
     const crit = (a.wrong || []).filter((x) => x.severity === 'critical').length + (a.missing || []).filter((x) => x.importance === 'critical').length;
@@ -172,10 +195,10 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
   const save = (run) => { try { fs.writeFileSync(file(run.id), JSON.stringify(run)); } catch { /* disk full: the run still works in memory */ } };
   const load = (id) => {
     if (RUNS.has(id)) return RUNS.get(id);
-    try { const run = JSON.parse(fs.readFileSync(file(id), 'utf8')); for (const k of ['asr', 'compare', 'note', 'audit']) if (run[k]?.status === 'running') { run[k] = { ...run[k], status: 'error', error: 'interrupted by a restart, run this step again' }; } RUNS.set(id, run); return run; } catch { return null; }
+    try { const run = JSON.parse(fs.readFileSync(file(id), 'utf8')); for (const k of ['asr', 'compare', 'note', 'audit', 'notePro', 'auditPro']) if (run[k]?.status === 'running') { run[k] = { ...run[k], status: 'error', error: 'interrupted by a restart, run this step again' }; } RUNS.set(id, run); return run; } catch { return null; }
   };
   const touch = (run, step, patch) => { run[step] = { ...run[step], ...patch }; run.updatedAt = new Date().toISOString(); save(run); };
-  const view = (run) => ({ ...run, summary: buildSummary(run) });
+  const view = (run) => ({ ...run, proWriter: PRO_WRITER, summary: buildSummary(run) });
   const who = (req) => ({ id: String(req.headers['x-admin-id'] || ''), email: String(req.headers['x-admin-email'] || '') });
   const note = async (req, what, detail) => { const a = who(req); if (a.id) await auditFn(a.id, what, detail, String(req.headers['x-forwarded-for'] || '')).catch(() => {}); };
 
@@ -192,7 +215,7 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
     const id = String(req.body?.consultId || ''); if (!ID_RX.test(id)) return res.status(400).json({ error: 'pick a recording' });
     const c = await steps.consult(id); if (!c?.audio_uri) return res.status(404).json({ error: 'that recording has no audio' });
     const run = { id: 'sr_' + crypto.randomBytes(6).toString('hex'), consultId: id, name: recordingName(c), owner: c.full_name || c.email || '', by: who(req).email || 'admin', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      durationS: null, asr: blankStep(), compare: blankStep(), note: blankStep(), audit: blankStep() };
+      durationS: null, asr: blankStep(), compare: blankStep(), note: blankStep(), audit: blankStep(), notePro: blankStep(), auditPro: blankStep() };
     RUNS.set(run.id, run); save(run); await note(req, 'admin_super_run', { consultId: id, step: 'start' });
     runAsr(run, c).catch((e) => touch(run, 'asr', { status: 'error', error: String(e.message).slice(0, 300), finishedAt: new Date().toISOString() }));
     res.json(view(run));
@@ -236,30 +259,43 @@ export function mountSuperRun(app, { wrap, auditAdhoc, dataDir, steps = realStep
     res.json(view(run));
   }));
 
-  // 3 · the note, then its audit (one chain)
+  // 3 · the note, then its audit (one chain); with "pair", a second note from the same transcript with the Pro writer, at the same time
+  const runAudit = async (run, auditKey, text, rendered) => {
+    const t1 = Date.now(); touch(run, auditKey, { status: 'running', error: '', stage: 'The auditor is checking the note against the transcript', startedAt: new Date().toISOString() });
+    try { const result = await auditAdhoc({ transcript: text, note: rendered }); touch(run, auditKey, { status: 'done', stage: '', result, model: JUDGE, finishedAt: new Date().toISOString(), ms: Date.now() - t1 }); }
+    catch (e2) { touch(run, auditKey, { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }); }
+  };
+  const writeAndAudit = (run, which, use, text) => {
+    const [noteKey, auditKey] = NOTE_KEYS[which]; const sourceLabel = ENGINE_INFO[use].label;
+    return (async () => {
+      const t0 = Date.now(); const log = []; touch(run, noteKey, { status: 'running', stage: `The note pipeline is writing the SOAP note${which === 'pro' ? ` with ${PRO_WRITER}` : ''}`, sourceKey: use, sourceLabel, startedAt: new Date().toISOString(), transcriptWords: words(text).length });
+      const n = await steps.note(text, (l) => { if (log.length < 60) log.push(String(l).slice(0, 160)); }, which === 'pro' ? { writerModel: PRO_WRITER } : {});
+      if (!String(n.rendered || '').trim()) throw new Error('the pipeline returned an empty note');
+      const warn = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f?.severity)).length;
+      touch(run, noteKey, { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), writer: n.trace?.used?.config?.writer || (which === 'pro' ? PRO_WRITER : ''), cost: n.cost || null, pipeline: n.trace || null, pipelineLog: log.filter((l) => /writer|retry|loop|rejected|failed|fallback|timed out|coverage|complete/i.test(l) && !/tokens]/.test(l)).slice(0, 14), finishedAt: new Date().toISOString() });
+      await runAudit(run, auditKey, text, n.rendered);
+    })().catch((e2) => touch(run, noteKey, { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }));
+  };
   app.post('/superrun/:id/note', wrap(async (req, res) => {
     const run = RUN_RX.test(req.params.id) ? load(req.params.id) : null; if (!run) return res.status(404).json({ error: 'not found' });
     if (run.compare?.status !== 'done') return res.status(409).json({ error: 'compare the transcripts first' });
-    if (run.note.status === 'done' && run.audit.status === 'error') {   // the note is fine, only the audit failed: run just the audit again
-      const text = run.asr.engines[run.note.sourceKey].text; await note(req, 'admin_super_run', { consultId: run.consultId, step: 'audit-retry' });
-      (async () => { const t1 = Date.now(); touch(run, 'audit', { status: 'running', error: '', stage: 'The auditor is checking the note against the transcript', startedAt: new Date().toISOString() }); const result = await auditAdhoc({ transcript: text, note: run.note.rendered }); touch(run, 'audit', { status: 'done', stage: '', result, model: JUDGE, finishedAt: new Date().toISOString(), ms: Date.now() - t1 }); })()
-        .catch((e2) => touch(run, 'audit', { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }));
+    run.notePro ||= blankStep(); run.auditPro ||= blankStep();
+    const failedAudits = Object.values(NOTE_KEYS).filter(([n, a]) => run[n].status === 'done' && run[a].status === 'error');
+    if (failedAudits.length) {   // the note is fine, only its audit failed: run just that audit again
+      await note(req, 'admin_super_run', { consultId: run.consultId, step: 'audit-retry' });
+      for (const [n, a] of failedAudits) runAudit(run, a, run.asr.engines[run[n].sourceKey].text, run[n].rendered);
       return res.json(view(run));
     }
-    if (['running', 'done'].includes(run.note.status) || run.audit.status === 'running') return res.json(view(run));
+    const busy = (k) => ['running', 'done'].includes(run[k].status);
+    if (busy('note') || run.audit.status === 'running' || busy('notePro')) {   // one note of a pair failed: write just that one again
+      for (const which of ['flash', 'pro']) { const k = run[NOTE_KEYS[which][0]]; if (k.status === 'error' && k.sourceKey) writeAndAudit(run, which, k.sourceKey, run.asr.engines[k.sourceKey].text); }
+      return res.json(view(run));
+    }
     const win = run.compare.result?.winner; const use = ['chirp', 'gemini'].includes(req.body?.use) ? req.body.use : win === 'A' ? 'chirp' : 'gemini';   // tie or unknown: Gemini (cheaper, and as accurate or better in the benchmarks)
-    const e = run.asr.engines; const text = e[use].text; const sourceLabel = ENGINE_INFO[use].label;
-    await note(req, 'admin_super_run', { consultId: run.consultId, step: 'note', source: use });
-    (async () => {
-      const t0 = Date.now(); const log = []; touch(run, 'note', { status: 'running', stage: 'The note pipeline is writing the SOAP note', sourceKey: use, sourceLabel, startedAt: new Date().toISOString(), transcriptWords: words(text).length });
-      const n = await steps.note(text, (l) => { if (log.length < 60) log.push(String(l).slice(0, 160)); });
-      if (!String(n.rendered || '').trim()) throw new Error('the pipeline returned an empty note');
-      const warn = (n.flags || []).filter((f) => ['warning', 'critical'].includes(f?.severity)).length;
-      touch(run, 'note', { status: 'done', stage: '', rendered: n.rendered, flags: (n.flags || []).slice(0, 30), toCheck: warn, seconds: +((Date.now() - t0) / 1000).toFixed(1), pipeline: n.trace || null, pipelineLog: log.filter((l) => /writer|retry|loop|rejected|failed|fallback|timed out|coverage|complete/i.test(l) && !/tokens]/.test(l)).slice(0, 14), finishedAt: new Date().toISOString() });
-      const t1 = Date.now(); touch(run, 'audit', { status: 'running', stage: 'The auditor is checking the note against the transcript', startedAt: new Date().toISOString() });
-      try { const result = await auditAdhoc({ transcript: text, note: n.rendered }); touch(run, 'audit', { status: 'done', stage: '', result, model: JUDGE, finishedAt: new Date().toISOString(), ms: Date.now() - t1 }); }
-      catch (e2) { touch(run, 'audit', { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }); }
-    })().catch((e2) => touch(run, 'note', { status: 'error', error: String(e2.message).slice(0, 300), finishedAt: new Date().toISOString() }));
+    const text = run.asr.engines[use].text; const pair = !!req.body?.pair; run.pair = pair;
+    await note(req, 'admin_super_run', { consultId: run.consultId, step: 'note', source: use, pair });
+    writeAndAudit(run, 'flash', use, text);
+    if (pair) writeAndAudit(run, 'pro', use, text);
     res.json(view(run));
   }));
 
