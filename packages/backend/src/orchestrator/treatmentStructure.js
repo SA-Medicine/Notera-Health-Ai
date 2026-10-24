@@ -28,7 +28,7 @@ export function classify(part) {
   if (CHANGE.test(p)) return 'Changed';
   if (GIVEN.test(p)) return 'Given today';
   if (START.test(p)) return 'Started';
-  if (DOSE.test(p)) return 'Started';   // "Lyrica 75 mg twice daily" with no verb is something to take
+  // a drug with a dose but no action word is NOT assumed started: "Started" is only written when the line says so (a discussed drug was shown as started)
   return 'Other';
 }
 
@@ -41,7 +41,8 @@ export function bare(part, kind) {
 
 /** Lay out one "Treatment planned" line; returns the lines to put in its place (an array of strings, indentation included). */
 export function layoutTreatment(indent, text) {
-  const parts = String(text).split(/;\s+/).map((x) => x.trim()).filter(Boolean);
+  const parts = String(text).split(/;\s+/).map((x) => x.trim()).filter(Boolean)
+    .reduce((a, p) => { if (a.length && /\b(Dr|Mr|Mrs|Ms|St|Prof)\.?$/.test(a[a.length - 1])) a[a.length - 1] = a[a.length - 1].replace(/\.?$/, '. ') + p; else a.push(p); return a; }, []);   // "by Dr" + "Kallell" are one item
   const items = parts.map((p) => { const kind = classify(p); return { kind, text: bare(p, kind) }; });
   if (items.length < 2 && (!items.length || items[0].kind === 'Other')) return [`${indent}- Treatment planned: ${parts.join('; ')}`];
   const out = [`${indent}- Treatment planned:`];

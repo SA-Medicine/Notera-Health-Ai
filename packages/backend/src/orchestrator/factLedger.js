@@ -109,7 +109,8 @@ const ACTION_LEAD = /^(start|stop|continue|increase|decrease|reduce|switch|chang
 export function medLine(f, med) {
   const t = String(f.text || '').replace(/\.$/, '').trim();
   if (ACTION_LEAD.test(t)) return cap(t);
-  const verb = /increas|higher dose|up the dose/i.test(t) ? 'Increase' : /decreas|reduc|lower/i.test(t) ? 'Decrease' : /\bstop|discontinu|\bhold\b/i.test(t) ? 'Stop' : /continu|refill|renew|resume/i.test(t) ? 'Continue' : 'Start';
+  const said = `${t} ${f.quote || ''}`;   // "Start" only when the visit says it was started or prescribed; otherwise the drug was discussed
+  const verb = /increas|higher dose|up the dose/i.test(said) ? 'Increase' : /decreas|reduc|lower/i.test(said) ? 'Decrease' : /\bstop|discontinu|\bhold\b/i.test(said) ? 'Stop' : /continu|refill|renew|resume/i.test(said) ? 'Continue' : /\b(start|prescrib\w*|put you on|give you|i'll give|try you on|new prescription|begin)\b/i.test(said) ? 'Start' : 'Discussed';
   const base = med && f.medication ? med : cap(t); const extra = numsOf(t).filter((n) => !numsOf(base).includes(n)).length ? ` (${t})` : '';
   return `${verb} ${base}${extra}`;
 }

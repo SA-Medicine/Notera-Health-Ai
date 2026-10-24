@@ -67,7 +67,8 @@ test('a medicine written in by rule starts with the right action and names the d
   const { medLine } = await import('../src/orchestrator/factLedger.js');
   assert.equal(medLine(F({ text: 'Atacand dose increase', medication: 'Atacand' }), 'Atacand'), 'Increase Atacand');
   assert.equal(medLine(F({ text: 'stop the naproxen', medication: 'Naproxen' }), 'Naproxen'), 'Stop the naproxen');
-  assert.equal(medLine(F({ text: 'Lyrica twice daily', medication: 'Lyrica', dose: '75 mg', frequency: 'twice daily' }), 'Lyrica 75 mg twice daily'), 'Start Lyrica 75 mg twice daily');
+  assert.equal(medLine(F({ text: 'Lyrica twice daily', medication: 'Lyrica', dose: '75 mg', frequency: 'twice daily', quote: 'I will start you on Lyrica' }), 'Lyrica 75 mg twice daily'), 'Start Lyrica 75 mg twice daily');
+  assert.equal(medLine(F({ text: 'Ozempic', medication: 'Ozempic', quote: 'some people use Ozempic for that' }), 'Ozempic'), 'Discussed Ozempic', 'a drug only talked about is never written as started');
   assert.equal(medLine(F({ text: 'continue Tylenol as needed', medication: 'Tylenol' }), 'Tylenol'), 'Continue Tylenol as needed');
 });
 

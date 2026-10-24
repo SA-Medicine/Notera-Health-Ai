@@ -5,7 +5,7 @@ import { splitAdviceLines } from '../src/orchestrator/adviceLines.js';
 import { noteToMarkdown } from '../src/orchestrator/renderMarkdown.js';
 
 test('parts are sorted into what was started, changed, stopped, continued, given today and the rest', () => {
-  assert.equal(classify('Start Lyrica (pregabalin) 75 mg twice daily'), 'Started'); assert.equal(classify('Lyrica 75 mg twice daily'), 'Started');
+  assert.equal(classify('Start Lyrica (pregabalin) 75 mg twice daily'), 'Started'); assert.equal(classify('Lyrica 75 mg twice daily'), 'Other', 'no action word: not assumed started');
   assert.equal(classify('Discontinue naproxen'), 'Stopped'); assert.equal(classify('Do not take Percocet'), 'Stopped');
   assert.equal(classify('Continue Tylenol (acetaminophen) as needed'), 'Continued'); assert.equal(classify('Refill amlodipine 5 mg daily'), 'Continued');
   assert.equal(classify('Increase trazodone to 100 mg at bedtime'), 'Changed');
