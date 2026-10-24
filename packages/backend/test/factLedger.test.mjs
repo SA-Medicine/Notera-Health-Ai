@@ -109,3 +109,14 @@ test('the same amount written two ways is one fact: 1,000 micrograms = 1000 mcg,
   assert.ok(matchFact(F({ type: 'medication', text: 'Atacand dose', medication: 'Atacand' }), u));
   assert.equal(matchFact(F({ type: 'lab_result', text: 'Iron level 41' }), u), null);
 });
+
+test('the writer\'s fact ids are taken off every line and kept as citations; a cited fact counts as found (a critical one only if the code finds it too)', async () => {
+  const { stripCitations } = await import('../src/orchestrator/factLedger.js');
+  const out = { subjective: { hpi_details: '[F001,F002] Left hip pain since last winter\n[-] Feels tired' }, assessment_and_plan: [{ issue: 'Hip', treatment_planned: '[F003] Start Lyrica 75 mg twice daily; Stop naproxen [F004]' }] };
+  const c = stripCitations(out);
+  assert.equal(out.subjective.hpi_details, 'Left hip pain since last winter\nFeels tired'); assert.equal(out.assessment_and_plan[0].treatment_planned, 'Start Lyrica 75 mg twice daily; Stop naproxen');
+  assert.deepEqual([...c.ids].sort(), ['F001', 'F002', 'F003', 'F004']); assert.equal(c.lines, 4); assert.equal(c.cited, 2);
+  const n = note(); const facts = [F({ id: 'F001', text: 'mother had breast cancer', type: 'family_history', importance: 'major' }), F({ id: 'F002', text: 'stroke last year', type: 'pmh', importance: 'critical' })];
+  const r = await reconcileFacts(null, n, { facts, edges: [] }, 'x', () => {}, { cited: new Set(['F001', 'F002']) });
+  const st = Object.fromEntries(r.rows.map((x) => [x.id, x.status])); assert.equal(st.F001, 'found'); assert.equal(st.F002, 'forced', 'a critical cited fact the code cannot find is written in');
+});

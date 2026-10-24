@@ -201,8 +201,28 @@ export function applyPlacement(note, answer, missing, transcript, log = () => {}
 }
 
 /** The whole stage. Mutates the note. Returns { rows, summary }. */
-export async function reconcileFacts(llm, note, graph, transcript, log = () => {}) {
-  const t0 = Date.now(); const req = requiredFacts(graph.facts); if (!req.length) return { rows: [], summary: { facts: graph.facts.length, required: 0 }, ms: 0 };
+/**
+ * The writer can cite the facts each line comes from: "[F003,F007] Lyrica 75 mg twice daily". This strips the tags from every line of the writer's
+ * JSON (in place) and returns the cited ids. A line marked "[-]" states nothing from the graph.
+ */
+export function stripCitations(obj) {
+  const ids = new Set(); let lines = 0, cited = 0;
+  const one = (l) => {
+    if (!l.trim()) return l; lines++; let hit = false;
+    const out = l.replace(/\s*\[((?:F\d{3}\s*,?\s*)+|-)\]\s*/g, (m, g) => { if (g !== '-') { hit = true; for (const id of g.match(/F\d{3}/g) || []) ids.add(id); } return ' '; }).replace(/^(\s*[-•*]?)\s+/, '$1').replace(/\s{2,}/g, ' ').trim();
+    if (hit) cited++; return out;
+  };
+  const walk = (v) => (typeof v === 'string' ? v.split('\n').map(one).join('\n') : Array.isArray(v) ? v.map(walk) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : v);
+  const clean = walk(obj); for (const k of Object.keys(clean)) obj[k] = clean[k];
+  return { ids, lines, cited };
+}
+
+export async function reconcileFacts(llm, note, graph, transcript, log = () => {}, { cited = null } = {}) {
+  const t0 = Date.now(); const all = requiredFacts(graph.facts); if (!all.length) return { rows: [], summary: { facts: graph.facts.length, required: 0 }, ms: 0 };
+  // a fact the writer cited is in the note by the writer's own account; a critical one must also be found by the code check
+  const units0 = unitsOf(note); const citedRows = [];
+  const req = all.filter((f) => { if (!cited || !cited.has(f.id)) return true; if (f.importance === 'critical' && !matchFact(f, units0)) return true; citedRows.push({ id: f.id, status: 'found', where: 'cited by the writer' }); return false; });
+  if (!req.length) return { rows: citedRows, summary: { facts: graph.facts.length, required: all.length, found: citedRows.length, placed: 0, forced: 0, stillMissing: 0, missingBefore: 0, cited: citedRows.length }, dropped: [], ms: Date.now() - t0 };
   let L = ledger(note, req); const first = L.missing.length; let placed = new Set(), judged = new Set(), dropped = [];
   if (L.missing.length && llm) {
     const ans = await askPlacement(llm, note, L.missing);
@@ -213,8 +233,9 @@ export async function reconcileFacts(llm, note, graph, transcript, log = () => {
   for (const f of L.missing) { if (judged.has(f.id) || f.importance === 'minor') continue; /* minor facts are placed only when the model chose to; critical and major ones always */ try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
   const rows = ledger(note, req).rows.map((r) => (r.status === 'found' ? (placed.has(r.id) ? { ...r, status: 'placed' } : r) : judged.has(r.id) ? { ...r, status: 'found', where: 'in other words' } : r));
   for (const x of forced) { const row = rows.find((r) => r.id === x.id); if (row && row.status !== 'found' && row.status !== 'placed') { row.status = 'forced'; row.where = x.where; } else if (row) { row.status = 'forced'; row.where = x.where; } }
+  rows.unshift(...citedRows);
   const count = (s) => rows.filter((r) => r.status === s).length;
-  const summary = { facts: graph.facts.length, required: req.length, found: count('found'), placed: count('placed'), forced: count('forced'), stillMissing: rows.filter((r) => r.status === 'missing').length, missingBefore: first };
+  const summary = { cited: citedRows.length, facts: graph.facts.length, required: all.length, found: count('found'), placed: count('placed'), forced: count('forced'), stillMissing: rows.filter((r) => r.status === 'missing').length, missingBefore: first };
   log(`[v2:ledger] ${summary.required} required fact(s): ${req.length - first} already in the note, ${summary.placed} placed by the model, ${summary.forced} written in by rule${dropped.length ? ` · ${dropped.length} model entries not used` : ''}`);
   return { rows, summary, dropped, ms: Date.now() - t0 };
 }

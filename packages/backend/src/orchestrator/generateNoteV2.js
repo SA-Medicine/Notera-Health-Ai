@@ -51,6 +51,7 @@ import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraph } from './factGraph.js';
 import { reconcileFacts } from './factLedger.js';
 import { checkDrugs } from './drugCheck.js';
+import { stripCitations } from './factLedger.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -547,6 +548,8 @@ export async function generateNoteV2(input, opts = {}) {
   const t0 = Date.now();
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
   const persist = opts.persist !== false;
+  const lean = opts.lean ?? process.env.LEAN === '1';      // v3 experiment: the fact graph feeds a writer that cites fact ids per line; the model stages that patch the draft (editor, verifier, story, sweep, attribution, coverage, grounding) are skipped
+  const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null;
   const onProgress = opts.onProgress || (() => {});
   const log = (l) => { console.log(l); try { if (opts.onLog) opts.onLog(String(l)); } catch { /* logging must never break a note */ } };
   const consultId = input.consultId || `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -613,10 +616,11 @@ export async function generateNoteV2(input, opts = {}) {
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
       const graphOn = process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false;
-      if (graphOn && (opts.factsToWriter === true || process.env.FACTS_TO_WRITER === '1')) {   // the writer reads the fact graph too (it waits for the graph first)
+      if (graphOn && (cited || opts.factsToWriter === true || process.env.FACTS_TO_WRITER === '1')) {   // the writer reads the fact graph too (it waits for the graph first)
         factsP = buildFactGraph(transcript, { log }); const g0 = await factsP;
         if (g0.facts.length) writerUser += '\n\nFACT GRAPH (every fact below was said in the visit and has been checked against the transcript; each one must appear in the note, once, in the field where it belongs; drug names, doses, numbers and test names exactly as listed):\n' + g0.facts.slice(0, 90).map((f) => `${f.id} [${f.type}${f.medication_status ? '/' + f.medication_status : ''}${f.negative ? '/denied' : ''}] ${f.text}${f.body_part ? ' (' + f.body_part + ')' : ''}${f.value ? ' = ' + f.value + (f.unit ? ' ' + f.unit : '') : ''}`).join('\n') + '\n';
       }
+      if (cited) writerUser += '\nCITATIONS: start EVERY line of every field with the ids of the facts it states, in square brackets, e.g. "[F003,F007] Lyrica 75 mg twice daily". Every fact id in the FACT GRAPH must be cited by at least one line. A line that states nothing from the graph starts with "[-]".';
       const writerP = writerLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, writerOpts);
       const recallOn = opts.recall !== undefined ? !!opts.recall : cfg['recall.extended']; used.config.recall = recallOn;
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
@@ -626,6 +630,7 @@ export async function generateNoteV2(input, opts = {}) {
       const [writerRaw, check] = await Promise.all([writerP, checkP]); checkForRef = check;
       lap('writer+checklist', tw);
       let out = parseJson(writerRaw);
+      if (cited && out) { const c = stripCitations(out); citedIds = c.ids; log(`[v2:cite] ${c.lines} line(s), ${c.cited} with fact ids, ${c.ids.size} fact(s) cited`); if (opts.trace) opts.trace.citations = { lines: c.lines, cited: c.cited, ids: [...c.ids] }; }
       if (!out) {   // a stronger model occasionally returns truncated/invalid JSON (~4% on gemini-3.7-flash): retry once, deterministic, on the fallback model
         log('[v2:writer] unparseable JSON — retrying once on the fallback model at temperature 0');
         try { const retryLlm = await createGeminiService(null, { model: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite' }); retryLlm._agent = 'v2-writer';
@@ -653,14 +658,14 @@ export async function generateNoteV2(input, opts = {}) {
       }
       if (opts.trace) { opts.trace.writer_json = out; opts.trace.checklist = check; }
       if (!out) throw new Error('v2 writer returned unparseable JSON');
-      if (!blank && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0' && cfg['stage.planSweep'] !== false) {   // F1 (speed): the sweep only reads the draft's problem list, so it runs beside the editor and story; its answer is checked and merged against the FINAL note later
+      if (!blank && !lean && opts.planSweep !== false && process.env.PLAN_SWEEP !== '0' && cfg['stage.planSweep'] !== false) {   // F1 (speed): the sweep only reads the draft's problem list, so it runs beside the editor and story; its answer is checked and merged against the FINAL note later
         try {
           const sllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); sllm._agent = 'v2-sweep';
           sweepAnswer = askSweep(sllm, buildNote(JSON.parse(JSON.stringify(out)), { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION }), transcript);
         } catch (e) { log('[v2:sweep] not started — ' + e.message); }
       }
       let finalOut = out;
-      const useEditor = opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled'];
+      const useEditor = !lean && (opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled']);
       if (useEditor) {
         const te = Date.now(); const eMeta = await getActivePromptMeta(EDITOR_PROMPT_NAME); used.prompts.editor = eMeta ? `v${eMeta.version}` : 'default';
         const editorLlm = await createGeminiService(null, { model: cfg['editor.model'] });
@@ -689,7 +694,7 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 3) deterministic placement fixes, then ONE verifier call ---------------------
       try { note = reconcileNote(note); } catch (e) { log(`[v2] reconcile skipped: ${e.message}`); }
-      if (cfg['verifier.enabled']) {
+      if (!lean && cfg['verifier.enabled']) {
         const tv = Date.now();
         const v = await verifyNote(verifyLlm, note, transcript, log, { prompt: vMeta?.text, timeoutMs: cfg['verifier.timeoutMs'] });
         lap('verifier', tv);
@@ -718,11 +723,11 @@ export async function generateNoteV2(input, opts = {}) {
   try { note = reconcileNote(note); } catch { /* */ }
   try { dedupeNote(note, { log, freeFlow }); } catch (e) { log(`[v2] dedupe skipped: ${e.message}`); }
   let attrAnswer = null;   // plan attribution (Style Spec v2): asked beside the story agent, applied to the final note below
-  if (!blank && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0' && cfg['stage.attribution'] !== false) {
+  if (!blank && !lean && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0' && cfg['stage.attribution'] !== false) {
     try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
   }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
-  if (!blank && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
+  if (!blank && !lean && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
     const storyModel = opts.storyModel || cfg['story.model']; used.config.story = storyModel;
     const storyLlm = await createGeminiService(null, { model: storyModel });
@@ -753,7 +758,7 @@ export async function generateNoteV2(input, opts = {}) {
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
   }
-  const coverageOn = !blank && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false;   // the coverage check also covers the plan (one call instead of two), so the separate plan pass runs only when coverage is off
+  const coverageOn = !blank && !lean && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false;   // the coverage check also covers the plan (one call instead of two), so the separate plan pass runs only when coverage is off
   if (!blank && !coverageOn && opts.planComplete !== false && process.env.PLAN_COMPLETE !== '0' && cfg['stage.planComplete'] !== false && (note.assessment_and_plan || []).length) {   // Style Spec v2.1.1: a problem left as a bare heading is filled from the transcript (quote-checked) or removed; advice / follow-up / orders the plan left out are added (PLAN_COMPLETE=0 switches off)
     const tc = Date.now();
     try { const cllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); cllm._agent = 'v2-complete'; const pc = await completePlan(cllm, note, transcript, log); if (opts.trace) opts.trace.complete = pc; } catch (e) { log(`[v2:complete] skipped — ${e.message}`); }
@@ -768,11 +773,11 @@ export async function generateNoteV2(input, opts = {}) {
     const tl = Date.now();
     try {
       const graph = await factsP; if (opts.trace) opts.trace.factGraph = { facts: graph.facts.length, windows: graph.windows, recovered: graph.recovered, ms: graph.ms, counts: graph.counts, error: graph.error || null, graph: opts.keepGraph ? graph : undefined };
-      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log); if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
+      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log, { cited: citedIds }); if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
   }
-  if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
+  if (!blank && !lean && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
     try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
     lap('ground', tg);

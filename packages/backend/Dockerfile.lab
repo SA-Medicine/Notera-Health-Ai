@@ -18,6 +18,7 @@ COPY --from=build --chown=notera:notera /app /app
 # scoring metrics + the gold (transcript -> expert note) corpus the lab evaluates against
 COPY --chown=notera:notera eval/metrics.mjs ./eval/metrics.mjs
 COPY --chown=notera:notera data/gold ./data/gold
+COPY --chown=notera:notera eval/gold-set.json ./eval/gold-set.json
 RUN mkdir -p /lab-data && chown notera:notera /lab-data
 USER notera
 WORKDIR /app/packages/backend
