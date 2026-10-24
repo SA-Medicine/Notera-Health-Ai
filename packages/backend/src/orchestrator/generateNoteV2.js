@@ -549,6 +549,8 @@ export async function generateNoteV2(input, opts = {}) {
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
   const persist = opts.persist !== false;
   const lean = opts.lean ?? process.env.LEAN === '1';      // v3 experiment: the fact graph feeds a writer that cites fact ids per line; the model stages that patch the draft (editor, verifier, story, sweep, attribution, coverage, grounding) are skipped
+  const leanKeep = new Set(String(opts.leanKeep ?? process.env.LEAN_KEEP ?? '').split(',').map((s) => s.trim()).filter(Boolean));   // stages kept on in lean mode, e.g. coverage,story
+  const skip = (stageName) => lean && !leanKeep.has(stageName);
   const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null; let ledgerSummary = null;
   const onProgress = opts.onProgress || (() => {});
   const log = (l) => { console.log(l); try { if (opts.onLog) opts.onLog(String(l)); } catch { /* logging must never break a note */ } };
@@ -665,7 +667,7 @@ export async function generateNoteV2(input, opts = {}) {
         } catch (e) { log('[v2:sweep] not started — ' + e.message); }
       }
       let finalOut = out;
-      const useEditor = !lean && (opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled']);
+      const useEditor = !skip('editor') && (opts.editor !== undefined ? !!opts.editor : cfg['editor.enabled']);
       if (useEditor) {
         const te = Date.now(); const eMeta = await getActivePromptMeta(EDITOR_PROMPT_NAME); used.prompts.editor = eMeta ? `v${eMeta.version}` : 'default';
         const editorLlm = await createGeminiService(null, { model: cfg['editor.model'] });
@@ -694,7 +696,7 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 3) deterministic placement fixes, then ONE verifier call ---------------------
       try { note = reconcileNote(note); } catch (e) { log(`[v2] reconcile skipped: ${e.message}`); }
-      if (!lean && cfg['verifier.enabled']) {
+      if (!skip('verifier') && cfg['verifier.enabled']) {
         const tv = Date.now();
         const v = await verifyNote(verifyLlm, note, transcript, log, { prompt: vMeta?.text, timeoutMs: cfg['verifier.timeoutMs'] });
         lap('verifier', tv);
@@ -727,7 +729,7 @@ export async function generateNoteV2(input, opts = {}) {
     try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
   }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
-  if (!blank && !lean && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
+  if (!blank && !skip('story') && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
     const storyModel = opts.storyModel || cfg['story.model']; used.config.story = storyModel;
     const storyLlm = await createGeminiService(null, { model: storyModel });
@@ -758,7 +760,7 @@ export async function generateNoteV2(input, opts = {}) {
     try { const sw = applySweep(note, await sweepAnswer, transcript, log); if (opts.trace) opts.trace.sweep = sw; } catch (e) { log('[v2:sweep] skipped — ' + e.message); }
     lap('sweep', ts);
   }
-  const coverageOn = !blank && !lean && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false;   // the coverage check also covers the plan (one call instead of two), so the separate plan pass runs only when coverage is off
+  const coverageOn = !blank && !skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false;   // the coverage check also covers the plan (one call instead of two), so the separate plan pass runs only when coverage is off
   if (!blank && !coverageOn && opts.planComplete !== false && process.env.PLAN_COMPLETE !== '0' && cfg['stage.planComplete'] !== false && (note.assessment_and_plan || []).length) {   // Style Spec v2.1.1: a problem left as a bare heading is filled from the transcript (quote-checked) or removed; advice / follow-up / orders the plan left out are added (PLAN_COMPLETE=0 switches off)
     const tc = Date.now();
     try { const cllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); cllm._agent = 'v2-complete'; const pc = await completePlan(cllm, note, transcript, log); if (opts.trace) opts.trace.complete = pc; } catch (e) { log(`[v2:complete] skipped — ${e.message}`); }
@@ -777,7 +779,7 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
   }
-  if (!blank && !lean && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
+  if (!blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
     try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
     lap('ground', tg);
