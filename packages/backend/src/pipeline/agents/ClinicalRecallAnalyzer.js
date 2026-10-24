@@ -31,7 +31,7 @@ export class ClinicalRecallAnalyzer {
     ].join(" ").toLowerCase();
 
     // 1. Numeric Coverage
-    const transcriptNumbers = transcript.match(/\\b\\d{1,4}(\\.\\d{1,2})?\\b/g) || [];
+    const transcriptNumbers = transcript.match(/\b\d{1,4}(\.\d{1,2})?\b/g) || [];   // was written with doubled backslashes, so it matched the letters "b" and "d" and never fired
     let numFound = 0;
     for (const num of transcriptNumbers) {
       if (factTextLower.includes(num) || extractedNumerics.includes(num)) {

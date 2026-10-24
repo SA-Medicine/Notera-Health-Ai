@@ -48,6 +48,8 @@ import { completePlan } from './planComplete.js';
 import { coverNote } from './noteCoverage.js';
 import { structureTreatment } from './treatmentStructure.js';
 import { fixPlacementV2 } from './placementRules.js';
+import { buildFactGraph } from './factGraph.js';
+import { reconcileFacts } from './factLedger.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -583,7 +585,7 @@ export async function generateNoteV2(input, opts = {}) {
   const verifyLlm = await createGeminiService(null, { model: auxModel });
   const used = { config: { writer: opts.writerModel || cfg['writer.model'], temperature: opts.writerTemp ?? cfg['writer.temperature'], topP: opts.writerTopP ?? cfg['writer.topP'], helper: auxModel }, prompts: {} };
 
-  let note; let checkForRef = null; let sweepAnswer = null;   // sweepAnswer: the plan sweep asks its question while the editor and story agent work (speed)
+  let note; let checkForRef = null; let factsP = null; let sweepAnswer = null;   // sweepAnswer: the plan sweep asks its question while the editor and story agent work (speed)
   try {
     if (blank) {
       log('[upgrade:blank-encounter] nothing clinical in the transcript — emitting an empty note');
@@ -614,6 +616,7 @@ export async function generateNoteV2(input, opts = {}) {
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
         maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
+      factsP = (process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false) ? buildFactGraph(transcript, { log }) : null;   // Style Spec v2.3: the owner's fact-graph extractor reads the visit at the same time as the writer
       const [writerRaw, check] = await Promise.all([writerP, checkP]); checkForRef = check;
       lap('writer+checklist', tw);
       let out = parseJson(writerRaw);
@@ -754,6 +757,14 @@ export async function generateNoteV2(input, opts = {}) {
     const tv = Date.now();
     try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
     lap('coverage', tv);
+  }
+  if (factsP && !blank && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {   // Style Spec v2.3: every required fact of the graph is checked against the finished note; missing ones are placed by a model call, then by rule
+    const tl = Date.now();
+    try {
+      const graph = await factsP; if (opts.trace) opts.trace.factGraph = { facts: graph.facts.length, windows: graph.windows, recovered: graph.recovered, ms: graph.ms, counts: graph.counts, error: graph.error || null, graph: opts.keepGraph ? graph : undefined };
+      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log); if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
+    } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
+    lap('ledger', tl);
   }
   if (!blank && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
