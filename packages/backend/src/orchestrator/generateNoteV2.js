@@ -41,7 +41,7 @@ import { askSweep, applySweep } from './planSweep.js';
 import { splitAdviceLines } from './adviceLines.js';
 import { qualityGuards } from './qualityGuards.js';
 import { groupSubjectiveFields } from './topicGroup.js';
-import { groundNote, missingNumbers } from './groundingAgent.js';
+import { groundNote, missingNumbers, collectParts, applyRemovals } from './groundingAgent.js';
 import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 import { completePlan } from './planComplete.js';
@@ -664,9 +664,11 @@ export async function generateNoteV2(input, opts = {}) {
             ['same model', () => writerLlm.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: Math.max(0.4, Number(writerOpts.temperature) || 0), timeoutMs: Math.min(45000, writerOpts.timeoutMs || 45000), retries: 0, hedgeMs: 0 })],
             ['fallback model', async () => { const l = await createGeminiService(null, { model: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite' }); l._agent = 'v2-writer'; return l.generateContent(writerPrompt, writerUser + RETRY_NOTE, WRITER_SCHEMA, { ...writerOpts, temperature: 0, thinkingBudget: 0, fallbackModel: undefined, retries: 0, hedgeMs: 0, timeoutMs: 45000 }); }],
           ];
-          for (const [name, run] of attempts) {
-            if (!last) break;
-            let again = null; try { again = parseJson(await run()); } catch (e) { log(`[v2:writer] draft retry (${name}) failed — ${e.message}`); }
+          // both attempts run at the same time (they ran one after the other: up to 34 s); the same model's draft is still preferred when it is usable
+          const tries = process.env.PARALLEL_RETRY === '0' ? null : attempts.map(([name, run]) => run().then((r) => parseJson(r)).catch((e) => { log(`[v2:writer] draft retry (${name}) failed — ${e.message}`); return null; }));
+          for (let k = 0; k < attempts.length; k++) {
+            const [name, run] = attempts[k]; if (!last) break;
+            let again = null; if (tries) again = await tries[k]; else { try { again = parseJson(await run()); } catch (e) { log(`[v2:writer] draft retry (${name}) failed — ${e.message}`); } }
             const pick = pickDraft(out, again, transcript); log(`[v2:writer] draft retry (${name}): kept the ${pick.used} (${pick.before || 'ok'} -> ${pick.after || 'ok'})`);
             if (pick.used === 'retry') { out = pick.draft; used = name; } last = writerDraftIssue(out, transcript);
           }
@@ -687,7 +689,7 @@ export async function generateNoteV2(input, opts = {}) {
       if (useEditor) {
         const te = Date.now(); const eMeta = await getActivePromptMeta(EDITOR_PROMPT_NAME); used.prompts.editor = eMeta ? `v${eMeta.version}` : 'default';
         const editorLlm = await createGeminiService(null, { model: cfg['editor.model'] });
-        const er = await editWriterJson(editorLlm, out, transcript, log, { prompt: eMeta?.text, model: cfg['editor.model'], timeoutMs: cfg['editor.timeoutMs'] });
+        const er = await editWriterJson(editorLlm, out, transcript, log, { prompt: eMeta?.text, model: cfg['editor.model'], timeoutMs: Math.min(cfg['editor.timeoutMs'], Number(process.env.EDITOR_CAP_MS || 12000)) });   // the editor is 3.6 s on average; a slow one (18 s seen) is dropped and the draft kept, so a note stays under 60 s
         lap('editor', te); if (er.out) finalOut = er.out; if (opts.trace) opts.trace.editor = { applied: !!er.out, why: er.why, ms: er.ms, edited_json: er.out || null };
       }
       note = buildNote(finalOut, { specialty: specialtyResolved, noteType, generatedBy: PIPELINE_VERSION });
@@ -783,6 +785,16 @@ export async function generateNoteV2(input, opts = {}) {
     try { const cllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); cllm._agent = 'v2-complete'; const pc = await completePlan(cllm, note, transcript, log); if (opts.trace) opts.trace.complete = pc; } catch (e) { log(`[v2:complete] skipped — ${e.message}`); }
     lap('complete', tc);
   }
+  // The grounding check (10 s on average, the longest stage) runs AT THE SAME TIME as coverage, ledger and the story merge, on a copy of the note as it is now:
+  // what those stages add is already quote-checked (coverage evidence, fact-graph quotes). Its removals are applied to the finished note by text afterwards;
+  // a removed line that a later stage reworded is flagged for checking instead. PARALLEL_GROUND=0 runs it last, as before.
+  const groundOn = !blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false;
+  let groundP = null;
+  if (groundOn && process.env.PARALLEL_GROUND !== '0') {
+    const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now();
+    groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
+      .catch((e) => ({ error: e }));
+  }
   if (coverageOn) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
     const tv = Date.now();
     try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
@@ -811,7 +823,20 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:story] second pass skipped — ${e.message}`); }
     lap('reweave', tw);
   }
-  if (!blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
+  if (groundP) {   // the parallel grounding check: its removals and flags, applied to the finished note
+    const tg = Date.now(); const g = await groundP;
+    if (g.error) log(`[v2:ground] skipped — ${g.error.message}`);
+    else {
+      const parts = collectParts(note); const used = new Set(); const hits = []; const lost = [];
+      for (const r of g.gr0.removed || []) { const idx = parts.findIndex((p, i) => !used.has(i) && p.key === r.key && p.text === r.text); if (idx >= 0) { used.add(idx); hits.push({ idx }); } else lost.push(r); }
+      const n = applyRemovals(parts, hits);
+      note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...(g.snap.metadata?.flags || []).slice(g.flags0),
+        ...lost.map((r) => ({ type: 'check_against_recording', field: 'note', message: `"${String(r.text).slice(0, 120)}" - the fact check could not find this in the recording`, severity: 'warning' }))];
+      if (lost.length) log(`[v2:ground] ${lost.length} unsupported line(s) were reworded by a later stage: flagged for checking instead of removed`);
+      if (opts.trace) opts.trace.grounding = { ...g.gr0, removed: (g.gr0.removed || []).map((r) => ({ text: r.text, where: r.where })), appliedRemovals: n, parallel: true };
+    }
+    stage.ground = g.ms || 0; lap('groundWait', tg);   // 'ground' = the check's own time (it overlapped other stages); 'groundWait' = what the note still waited for it
+  } else if (groundOn) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
     try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
     lap('ground', tg);
