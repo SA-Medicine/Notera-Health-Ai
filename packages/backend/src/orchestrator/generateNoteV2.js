@@ -605,18 +605,23 @@ export async function generateNoteV2(input, opts = {}) {
       const shots = nShots ? pickExemplars(transcript, nShots, opts.exemplarExclude || []) : [];
       used.config.fewShot = shots.map((e) => e.id); if (opts.trace) opts.trace.exemplars = shots.map((e) => ({ id: e.id, sim: +e.sim.toFixed(3) }));
       if (shots.length) log(`[v2:fewshot] ${shots.length} reference note(s): ${shots.map((e) => e.id + ' (' + e.sim.toFixed(2) + ')').join(', ')}`);
-      const writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
+      let writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
       const writerOpts = {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: cfg['writer.timeoutMs'],
         retries: 3, hedgeMs: cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite',
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
+      const graphOn = process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false;
+      if (graphOn && (opts.factsToWriter === true || process.env.FACTS_TO_WRITER === '1')) {   // the writer reads the fact graph too (it waits for the graph first)
+        factsP = buildFactGraph(transcript, { log }); const g0 = await factsP;
+        if (g0.facts.length) writerUser += '\n\nFACT GRAPH (every fact below was said in the visit and has been checked against the transcript; each one must appear in the note, once, in the field where it belongs; drug names, doses, numbers and test names exactly as listed):\n' + g0.facts.slice(0, 90).map((f) => `${f.id} [${f.type}${f.medication_status ? '/' + f.medication_status : ''}${f.negative ? '/denied' : ''}] ${f.text}${f.body_part ? ' (' + f.body_part + ')' : ''}${f.value ? ' = ' + f.value + (f.unit ? ' ' + f.unit : '') : ''}`).join('\n') + '\n';
+      }
       const writerP = writerLlm.generateContent(writerPrompt, writerUser, WRITER_SCHEMA, writerOpts);
       const recallOn = opts.recall !== undefined ? !!opts.recall : cfg['recall.extended']; used.config.recall = recallOn;
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
         maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
-      factsP = (process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false) ? buildFactGraph(transcript, { log }) : null;   // Style Spec v2.3: the owner's fact-graph extractor reads the visit at the same time as the writer
+      if (!factsP) factsP = graphOn ? buildFactGraph(transcript, { log }) : null;   // Style Spec v2.3: the owner's fact-graph extractor reads the visit at the same time as the writer
       const [writerRaw, check] = await Promise.all([writerP, checkP]); checkForRef = check;
       lap('writer+checklist', tw);
       let out = parseJson(writerRaw);

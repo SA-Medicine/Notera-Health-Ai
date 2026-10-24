@@ -50,7 +50,7 @@ const worker = async () => {
       const meds = (trace.checklist?.medications || []).filter((m) => ['new', 'changed', 'stopped'].includes(m.status)).map((m) => m.name).filter(Boolean);
       let audit = null;
       try { const a = await fetch(`${LAB}/audit-adhoc`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lab-Key': KEY }, body: JSON.stringify({ transcript: tx.slice(0, 100000), note: md }) }); audit = await a.json(); } catch (e) { audit = { error: String(e.message) }; }
-      results.push({ id: c.consult_id, title: c.title, words: tx.split(/\s+/).length, seconds, metrics: noteMetrics(md, { meds }), audit, note: md, timings: trace.timings, removals: logs });
+      results.push({ id: c.consult_id, title: c.title, words: tx.split(/\s+/).length, seconds, metrics: noteMetrics(md, { meds }), audit, note: md, timings: trace.timings, removals: logs, ledger: trace.factLedger?.summary || null });
     } catch (e) { results.push({ id: c.consult_id, error: String(e.message).slice(0, 200) }); }
     process.stderr.write(`\r${results.length}/${list.length}`);
   }
@@ -69,5 +69,6 @@ const byStage = {}; let missTotal = 0; let missLost = 0; let removalLines = 0;
 for (const x of A) { for (const l of x.removals || []) { const tag = (l.match(/^\[([^\]]+)\]/) || [, 'other'])[1]; byStage[tag] = (byStage[tag] || 0) + 1; removalLines++; }
   for (const m of x.audit.missing || []) { missTotal++; const mw = words(m.fact); const hit = (x.removals || []).find((l) => { const q = (l.match(/"([^"]{8,})"/) || [, ''])[1]; const qw = words(q); if (!qw.size || !mw.size) return false; let n = 0; for (const w of mw) if (qw.has(w)) n++; return n / Math.min(mw.size, qw.size) >= 0.5; }); if (hit) { missLost++; const tag = (hit.match(/^\[([^\]]+)\]/) || [, 'other'])[1]; byStage['LOST:' + tag] = (byStage['LOST:' + tag] || 0) + 1; } } }
 console.log('guard removals per note', mean([removalLines / Math.max(1, A.length)]), '| audit-missing facts that a guard had removed', missLost + '/' + missTotal, JSON.stringify(byStage));
+{ const led = ok.filter((x) => x.ledger); const sum = (k) => led.reduce((s, x) => s + (x.ledger[k] || 0), 0); console.log('fact ledger over', led.length, 'notes: required', sum('required'), '| already in note', sum('required') - sum('missingBefore'), '| placed by model', sum('placed'), '| written by rule', sum('forced'), '| still missing', sum('stillMissing')); }
 console.log('seconds per note mean', mean(ok.map((x) => x.seconds)), 'max', Math.max(...ok.map((x) => x.seconds)));
 process.exit(0);

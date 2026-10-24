@@ -91,6 +91,16 @@ export function bestProblem(note, f, graph) {
   return best >= 0 ? ap[best] : ap[0];
 }
 
+const ACTION_LEAD = /^(start|stop|continue|increase|decrease|reduce|switch|change|refill|renew|resume|discontinue|titrate|prescribe|begin|add|hold|taper)/i;
+/** A plan item for a medicine that starts with the action ("Increase Atacand ...", "Stop naproxen"), the drug named with its dose and frequency. */
+export function medLine(f, med) {
+  const t = String(f.text || '').replace(/\.$/, '').trim();
+  if (ACTION_LEAD.test(t)) return cap(t);
+  const verb = /increas|higher dose|up the dose/i.test(t) ? 'Increase' : /decreas|reduc|lower/i.test(t) ? 'Decrease' : /\bstop|discontinu|\bhold\b/i.test(t) ? 'Stop' : /continu|refill|renew|resume/i.test(t) ? 'Continue' : 'Start';
+  const base = med && f.medication ? med : cap(t); const extra = numsOf(t).filter((n) => !numsOf(base).includes(n)).length ? ` (${t})` : '';
+  return `${verb} ${base}${extra}`;
+}
+
 /** Write one fact into the note by rule. Returns where it went. */
 export function placeFact(note, f, graph) {
   const line = cap(f.text.replace(/\.$/, ''));
@@ -103,7 +113,7 @@ export function placeFact(note, f, graph) {
   if (f.type === 'lab_result' || (f.type === 'investigation' && (f.value || /normal|abnormal|result|showed|shows|negative|positive/i.test(f.text)))) { addLine(note.objective ||= {}, 'completed_investigations', line); return 'Objective / Investigations'; }
   if (HIST_TYPES.has(f.type)) { const p = (note.past_medical_history ||= {}); addLine(p, f.type === 'family_history' ? 'family' : f.type === 'social_history' ? 'social' : 'medical_surgical', line); return 'Past Medical History'; }
   if (f.type === 'medication' || f.type === 'medication_order') {
-    if (f.medication_status === 'planned' || f.type === 'medication_order') { const p = bestProblem(note, f, graph) || newProblem(note, f.body_part || 'Medication'); addPlan(p, 'treatment_planned', `Start ${med}`.replace(/^Start (Continue|Stop|Increase|Decrease)/, '$1')); return `Plan / ${p.issue} / Treatment`; }
+    if (f.medication_status === 'planned' || f.type === 'medication_order') { const p = bestProblem(note, f, graph) || newProblem(note, f.body_part || 'Medication'); addPlan(p, 'treatment_planned', medLine(f, med)); return `Plan / ${p.issue} / Treatment`; }
     const o = (note.past_medical_history ||= {}); const cur = String(o.other || ''); const m = cur.match(/(^|\n)Medications:\s*(.*)/i);
     if (m) o.other = cur.replace(m[0], `${m[1]}Medications: ${m[2]}${m[2] ? ', ' : ''}${med}`); else addLine(o, 'other', `Medications: ${med}`); return 'Past Medical History / Medications';
   }

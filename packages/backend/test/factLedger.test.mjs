@@ -62,3 +62,11 @@ test('a model that says "already there" must point at a real note line; a made-u
   const r2 = await reconcileFacts(good, n2, { facts: f, edges: [] }, 'hip aches at night'); assert.equal(r2.rows[0].status, 'found'); assert.equal(r2.summary.forced, 0);
 });
 test('keysOf drops filler and keeps drug names and numbers', () => { const k = keysOf(F({ text: 'Patient reports taking Tylenol 1 to 2 tablets every 4 hours', medication: 'Tylenol' })); assert.ok(k.stems.includes('tyleno')); assert.deepEqual(k.nums.sort(), ['1', '2', '4']); assert.ok(!k.stems.includes('patien')); });
+
+test('a medicine written in by rule starts with the right action and names the drug', async () => {
+  const { medLine } = await import('../src/orchestrator/factLedger.js');
+  assert.equal(medLine(F({ text: 'Atacand dose increase', medication: 'Atacand' }), 'Atacand'), 'Increase Atacand');
+  assert.equal(medLine(F({ text: 'stop the naproxen', medication: 'Naproxen' }), 'Naproxen'), 'Stop the naproxen');
+  assert.equal(medLine(F({ text: 'Lyrica twice daily', medication: 'Lyrica', dose: '75 mg', frequency: 'twice daily' }), 'Lyrica 75 mg twice daily'), 'Start Lyrica 75 mg twice daily');
+  assert.equal(medLine(F({ text: 'continue Tylenol as needed', medication: 'Tylenol' }), 'Tylenol'), 'Continue Tylenol as needed');
+});
