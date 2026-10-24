@@ -132,7 +132,7 @@ export const realSteps = {
   async note(transcript, onLog, { writerModel } = {}) {
     const trace = {};
     // a Pro writer is never raced against the Flash fallback (the hedge would hand back a Flash note); it falls back only if it fails
-    const extra = writerModel ? { writerModel, writerHedgeMs: 0 } : {};
+    const extra = writerModel ? { writerModel, writerHedgeMs: 0, writerTimeoutMs: 120000 } : {};   // Pro thinks anyway: its writer step took 22-50 s on the gold set and 21 of 30 hit the 50 s limit
     const { result: r, calls } = await withUsage(() => generateNote({ transcript: String(transcript).slice(0, 120000), specialty: 'auto', noteType: 'consultation', clinicianId: 'super-run' }, { persist: false, mode: 'v2', onLog, trace, ...extra }));
     return { rendered: r.renderedNote || '', flags: r.flags || [], status: r.status, cost: await usageCost(calls), trace: { used: trace.used, timings: trace.timings, factLedger: trace.factLedger || null, factGraph: trace.factGraph || null } };
   },

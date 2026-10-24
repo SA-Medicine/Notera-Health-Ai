@@ -211,11 +211,12 @@ export class LLMService {
     if (options.thinkingBudget !== undefined) body.generationConfig.thinkingConfig = { thinkingBudget: options.thinkingBudget };
     else if (thinkingLevel && String(thinkingLevel).toLowerCase() !== 'off') body.generationConfig.thinkingConfig = { thinkingLevel: String(thinkingLevel).toLowerCase() };
     else body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    // The owner's rule (2026-10-24): no thinking anywhere, it only costs time. Every call is sent with thinking off; LLM_THINKING=allow restores the callers' budgets.
-    // gemini-2.5-pro refuses a budget of 0 (400), so it gets its minimum, 128. gemini-3.1-pro-preview and 3.5-flash-lite accept 0 (0 thought tokens);
-    // gemini-3.7/3.8-flash accept 0 but still think (~1,000 tokens), which no setting stops.
+    // LLM_THINKING=off sends every pipeline call with thinking off. Not the default: the paired gold A/B of 2026-10-24 (same judges, 29 notes) scored
+    // thinking off 65.6 vs 75.3, 0.90 vs 0.66 critical misses per note, for 6 s saved per note (32 vs 38 s).
+    // gemini-2.5-pro refuses a budget of 0 (400), so it gets its minimum, 128. gemini-3.5-flash-lite obeys 0; gemini-3.7/3.8-flash and
+    // gemini-3.1-pro-preview accept 0 but still think (~1,000 and ~3,000 tokens), which no setting stops.
     // Judges and auditors keep their own budgets: they only measure, and every A/B must be scored by the same judge.
-    if (process.env.LLM_THINKING !== 'allow' && !/judge|audit/.test(this._agent || '')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    if (process.env.LLM_THINKING === 'off' && !/judge|audit/.test(this._agent || '')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     if (/^gemini-2\.5-pro/.test(this.model) && body.generationConfig.thinkingConfig.thinkingBudget === 0) body.generationConfig.thinkingConfig = { thinkingBudget: 128 };
     // gemini-3.1-pro-preview ignores a budget of 0 on long prompts (~3,070 thought tokens on the writer prompt, measured on 30 gold notes): the thinking
     // counts against maxOutputTokens, so without room on top the note was cut off after ~116 tokens. Pro models get 8,000 extra.
