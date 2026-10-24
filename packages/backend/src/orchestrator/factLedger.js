@@ -14,7 +14,7 @@ import { noteToMarkdown } from './renderMarkdown.js';
 import { addSubjective, applyCoverage } from './noteCoverage.js';
 import { listing } from './planComplete.js';
 
-const STOP = new Set('the and for with that this have has had was were are you your his her she him they them their from about into onto over under then than also just very really okay yeah well like some any all can could would should will not but out get got going been being did does doing one two three patient says said told states reported reports mentions mentioned noted discussed discusses need needs wants want'.split(' '));
+const STOP = new Set('the and for with that this have has had was were are you your his her she him they them their from about into onto over under then than also just very really okay yeah well like some any all can could would should will not but level levels dose test tests result results value total supplement out get got going been being did does doing one two three patient says said told states reported reports mentions mentioned noted discussed discusses need needs wants want'.split(' '));
 const NEG = /\b(no|not|denies|denied|without|negative|never|none|nil|absent)\b/i;
 const PLAN_TYPES = new Set(['medication', 'medication_order', 'treatment', 'treatment_instruction', 'investigation', 'referral', 'follow_up', 'administrative_action']);
 const SKIP_TYPES = new Set(['temporal_reference', 'clinician_reasoning']);
@@ -27,11 +27,11 @@ const SUBJ_TYPES = new Set(['symptom', 'injury_mechanism', 'contextual_activity'
 const HIST_TYPES = new Set(['pmh', 'family_history', 'social_history', 'procedure_history']);
 const stem = (w) => w.replace(/(ing|ed|es|s)$/, '').slice(0, 6);
 // the same thing said two ways counts as the same: follow-up / return in / rtc, x-ray / xray, blood pressure / bp, 150/80 / 150 over 80
-const canon = (s) => String(s || '').toLowerCase().replace(/follow[\s-]?up|\brtc\b|return(?:ing)? (?:to (?:the )?clinic )?(?:in|visit)|come back in|see (?:you|me) (?:again )?in|re-?check(?:ed)?|review in/g, ' followup ').replace(/x[\s-]?rays?/g, ' xray ').replace(/blood pressure|\bbp\b/g, ' bloodpressure ').replace(/(\d)\s*\/\s*(\d)/g, '$1 $2').replace(/(\d)\s+over\s+(\d)/g, '$1 $2');
+const canon = (s) => String(s || '').toLowerCase().replace(/follow[\s-]?up|\brtc\b|return(?:ing)? (?:to (?:the )?clinic )?(?:in|visit)|come back in|see (?:you|me) (?:again )?in|re-?check(?:ed)?|review in/g, ' followup ').replace(/x[\s-]?rays?/g, ' xray ').replace(/blood pressure|\bbp\b/g, ' bloodpressure ').replace(/(\d)\s*\/\s*(\d)/g, '$1 $2').replace(/(\d)\s+over\s+(\d)/g, '$1 $2').replace(/(\d),(\d{3})/g, '$1$2').replace(/\bmicrograms?\b|\bµg\b/g, 'mcg').replace(/\bmilligrams?\b/g, 'mg');
 const NUMW = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, sixty: 60 };
 const numWords = (s) => s.replace(/(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|sixty)(?=s+(?:tos+w+s+)?(?:weeks?|months?|days?|years?|hours?|tablets?|pills?|times?|doses?|mg|milligrams?|puffs?|units?))/g, (m) => ' ' + NUMW[m] + ' ');
 const words = (s) => numWords(canon(s)).replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/).filter(Boolean);
-const numsOf = (s) => (String(s || '').match(/\d+(?:\.\d+)?/g) || []).map((n) => String(Number(n)));
+const numsOf = (s) => (String(s || '').replace(/(\d),(\d{3})/g, '$1$2').match(/\d+(?:\.\d+)?/g) || []).map((n) => String(Number(n)));
 const cap = (t) => String(t).trim().replace(/^./, (c) => c.toUpperCase());
 
 /** The words and numbers that must be in the note for the fact to count as there. */

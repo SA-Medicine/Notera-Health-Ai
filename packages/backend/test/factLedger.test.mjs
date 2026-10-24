@@ -100,3 +100,12 @@ test('a vaccine that was declined, or only due, is never written as administered
   const m = note(); placeFact(m, F({ type: 'investigation', text: 'MRI of the right shoulder', body_part: 'Right shoulder' }), g);
   assert.equal(m.assessment_and_plan[0].investigations_planned, ''); assert.equal(m.assessment_and_plan[1].issue, 'Right shoulder'); assert.match(m.assessment_and_plan[1].investigations_planned, /MRI of the right shoulder/);
 });
+
+test('the same amount written two ways is one fact: 1,000 micrograms = 1000 mcg, "iron level 31" = "iron 31", "Atacand dose" = "Atacand dose to two tablets"', () => {
+  const n = { metadata: {}, subjective: { hpi_details: 'Fatigue' }, objective: { completed_investigations: 'iron 31\ncholesterol high' }, assessment_and_plan: [{ issue: 'Low vitamin B12', treatment_planned: 'Start Vitamin B12 supplement 1000 mcg daily; Increase Atacand dose to two tablets every morning', referrals: '' }] };
+  const u = unitsOf(n);
+  assert.ok(matchFact(F({ type: 'medication', text: 'Vitamin B12 1,000 micrograms', medication: 'Vitamin B12' }), u));
+  assert.ok(matchFact(F({ type: 'lab_result', text: 'Iron level 31' }), u));
+  assert.ok(matchFact(F({ type: 'medication', text: 'Atacand dose', medication: 'Atacand' }), u));
+  assert.equal(matchFact(F({ type: 'lab_result', text: 'Iron level 41' }), u), null);
+});
