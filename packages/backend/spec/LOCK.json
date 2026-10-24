@@ -1,6 +1,6 @@
 {
-  "specVersion": "2.3.1",
-  "lockedAt": "2026-10-24T11:38:05.007Z",
+  "specVersion": "2.3.2",
+  "lockedAt": "2026-10-24T11:49:39.660Z",
   "note": "Doctor-approved note format. Do not change without the owner. See docs/STYLE_SPEC_V2_LOCKED.md",
   "files": {
     "prompts/writer-v5.txt": "eb65bb8d77af71f1f64e60fead31bc7274219c77f1ee76537987c136beef285d",
@@ -24,7 +24,7 @@
     "src/orchestrator/placementRules.js": "682638afdb52339d77dcac2411d6ff850a0618bd70940a0ed7789d91166ded69",
     "src/orchestrator/treatmentStructure.js": "3c78e8b48f9341d42ad106dd54c433caef6646e26f6dd2a2d6b596baaf008a92",
     "src/orchestrator/factGraph.js": "f4bff028f0d7d34e4840de3f8b87bc0cd3c06b951efe8fca4d1d554f45ef3a7e",
-    "src/orchestrator/factLedger.js": "a6a4bd7fbc01e1e7b470c5ef33985d06575f75d4597d28684e337094de89c762"
+    "src/orchestrator/factLedger.js": "5d0470b856e4b81fe78d91a45635da23ba44812b7125ed1e401d085ac3a91cd9"
   },
   "prompts": {
     "v2-writer": "eb65bb8d77af71f1f64e60fead31bc7274219c77f1ee76537987c136beef285d",

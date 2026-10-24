@@ -46,7 +46,7 @@ test('the whole stage: found facts stay, the model places some, the rest is writ
     F({ id: 'F001', type: 'medication', text: 'Start Lyrica 75 mg twice daily', medication: 'Lyrica', dose: '75 mg', frequency: 'twice daily', medication_status: 'planned', quote: 'start Lyrica 75 milligrams twice a day' }),
     F({ id: 'F002', type: 'physical_exam', text: 'blood pressure 150/80', numeric_type: 'vitals', quote: 'Your blood pressure is 150 over 80 today' }),
     F({ id: 'F003', type: 'follow_up', text: 'return in two weeks', quote: 'Come back in two weeks' }),
-    F({ id: 'F004', type: 'family_history', text: 'mother had breast cancer', quote: 'Your mother had breast cancer' }),
+    F({ id: 'F004', type: 'family_history', text: 'mother had breast cancer', quote: 'Your mother had breast cancer', importance: 'critical' }),
   ];
   const llm = { generateContent: async () => JSON.stringify({ entries: [{ fact: 'F003', section: 'plan', n: 1, field: 'follow_up', text: 'in two weeks', }] }) };
   const r = await reconcileFacts(llm, n, { facts, edges: [] }, TX);
@@ -55,11 +55,11 @@ test('the whole stage: found facts stay, the model places some, the rest is writ
   const again = await reconcileFacts(null, n, { facts, edges: [] }, TX); assert.equal(again.summary.forced, 0, 'a second pass finds everything');
 });
 test('a model that says "already there" must point at a real note line; a made-up line is not believed', async () => {
-  const n = note(); const f = [F({ id: 'F001', type: 'symptom', text: 'hip aches at night', body_part: 'Left Hip Pain', quote: 'hip aches at night' })];
+  const n = note(); const f = [F({ id: 'F001', type: 'symptom', text: 'hip aches at night', body_part: 'Left Hip Pain', quote: 'hip aches at night', importance: 'critical' })];
   const bad = { generateContent: async () => JSON.stringify({ entries: [{ fact: 'F001', found_in: 'Hip aches at night in bed' }] }) };
   const r = await reconcileFacts(bad, n, { facts: f, edges: [] }, 'hip aches at night'); assert.equal(r.rows[0].status, 'forced');
   const n2 = note(); const good = { generateContent: async () => JSON.stringify({ entries: [{ fact: 'F001', found_in: 'Present since last winter' }] }) };
-  const r2 = await reconcileFacts(good, n2, { facts: f, edges: [] }, 'hip aches at night'); assert.equal(r2.rows[0].status, 'found'); assert.equal(r2.summary.forced, 0);
+  const r2 = await reconcileFacts(good, n2, { facts: [{ ...f[0], importance: 'major' }], edges: [] }, 'hip aches at night'); assert.equal(r2.rows[0].status, 'found'); assert.equal(r2.summary.forced, 0);
 });
 test('keysOf drops filler and keeps drug names and numbers', () => { const k = keysOf(F({ text: 'Patient reports taking Tylenol 1 to 2 tablets every 4 hours', medication: 'Tylenol' })); assert.ok(k.stems.includes('tyleno')); assert.deepEqual(k.nums.sort(), ['1', '2', '4']); assert.ok(!k.stems.includes('patien')); });
 
@@ -120,4 +120,10 @@ test('the writer\'s fact ids are taken off every line and kept as citations; a c
   const n = note(); const facts = [F({ id: 'F001', text: 'mother had breast cancer', type: 'family_history', importance: 'major' }), F({ id: 'F002', text: 'stroke last year', type: 'pmh', importance: 'critical' })];
   const r = await reconcileFacts(null, n, { facts, edges: [] }, 'x', () => {}, { cited: new Set(['F001', 'F002']) });
   const st = Object.fromEntries(r.rows.map((x) => [x.id, x.status])); assert.equal(st.F001, 'found'); assert.equal(st.F002, 'forced', 'a critical cited fact the code cannot find is written in');
+});
+
+test('a history or context fact the model did not place is not written in as a bare line (it would break the story); a plan fact is', async () => {
+  const n = note(); const facts = [F({ id: 'F001', type: 'symptom', text: 'neck cracking like a tendon snapping', importance: 'major', quote: 'neck cracking like a tendon snapping' }), F({ id: 'F002', type: 'referral', text: 'refer to physiotherapy', importance: 'major', quote: 'refer to physiotherapy' })];
+  const r = await reconcileFacts(null, n, { facts, edges: [] }, 'x'); const st = Object.fromEntries(r.rows.map((x) => [x.id, x.status]));
+  assert.equal(st.F001, 'missing'); assert.equal(st.F002, 'forced');
 });

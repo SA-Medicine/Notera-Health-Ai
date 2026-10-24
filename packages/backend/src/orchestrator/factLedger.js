@@ -232,7 +232,10 @@ export async function reconcileFacts(llm, note, graph, transcript, log = () => {
     if (ans.error) log(`[v2:ledger] placement call skipped — ${ans.error}`);
   }
   L = ledger(note, req); const forced = [];
-  for (const f of L.missing) { if (judged.has(f.id) || f.importance === 'minor') continue; /* minor facts are placed only when the model chose to; critical and major ones always */ try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
+  // written in by rule only when leaving it out would matter for care: a critical fact of any kind, or a plan / medicine / test / exam fact; history and context facts
+  // are placed only when the model found a place for them (by rule they became a list of bare facts that broke the story)
+  const FORCE_TYPES = new Set(['medication', 'medication_order', 'investigation', 'referral', 'follow_up', 'treatment', 'treatment_instruction', 'administrative_action', 'lab_result', 'physical_exam', 'normal_finding', 'diagnosis']);
+  for (const f of L.missing) { if (judged.has(f.id) || f.importance === 'minor' || (f.importance !== 'critical' && !FORCE_TYPES.has(f.type))) continue; /* minor facts are placed only when the model chose to; critical and major ones always */ try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
   const rows = ledger(note, req).rows.map((r) => (r.status === 'found' ? (placed.has(r.id) ? { ...r, status: 'placed' } : r) : judged.has(r.id) ? { ...r, status: 'found', where: 'in other words' } : r));
   for (const x of forced) { const row = rows.find((r) => r.id === x.id); if (row && row.status !== 'found' && row.status !== 'placed') { row.status = 'forced'; row.where = x.where; } else if (row) { row.status = 'forced'; row.where = x.where; } }
   rows.unshift(...citedRows);

@@ -551,7 +551,7 @@ export async function generateNoteV2(input, opts = {}) {
   const lean = opts.lean ?? process.env.LEAN === '1';      // v3 experiment: the fact graph feeds a writer that cites fact ids per line; the model stages that patch the draft (editor, verifier, story, sweep, attribution, coverage, grounding) are skipped
   const leanKeep = new Set(String(opts.leanKeep ?? process.env.LEAN_KEEP ?? '').split(',').map((s) => s.trim()).filter(Boolean));   // stages kept on in lean mode, e.g. coverage,story
   const skip = (stageName) => lean && !leanKeep.has(stageName);
-  const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null; let ledgerSummary = null;
+  const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null; let ledgerSummary = null; let storyDone = null;   // storyDone: the story pass ran; facts added after it are woven in by a second pass
   const onProgress = opts.onProgress || (() => {});
   const log = (l) => { console.log(l); try { if (opts.onLog) opts.onLog(String(l)); } catch { /* logging must never break a note */ } };
   const consultId = input.consultId || `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -751,6 +751,7 @@ export async function generateNoteV2(input, opts = {}) {
       } catch (e) { log('[v2:story] fallback skipped — ' + e.message); }
     }
     if (opts.trace) opts.trace.story = { applied: !!sr.out, why: sr.why, ms: sr.ms, subjective: sr.out?.subjective || null, rejected: sr.rejected || null };
+    storyDone = { sr, model: storyModel, prompt: sMeta?.text, snapshot: JSON.stringify([note.subjective, note.past_medical_history]) };
   }
   if (!blank && (opts.guardTemplate !== undefined ? !!opts.guardTemplate : cfg['guards.template'])) { try { sweepEmptyStatements(note, log); if (note.metadata.subjective_style === 'topics' && !freeFlow) dropCoveredFragments(note, log); dedupeObjective(note, log); stripAddresses(note, log); reattachInvestigations(note, log); trimAssessment(note, log); tidyPlan(note, log, { exact: freeFlow }); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
   if (attrAnswer) { try { const at = applyAttribution(note, await attrAnswer, transcript, log); if (opts.trace) opts.trace.attribution = at; } catch (e) { log('[v2:attr] skipped — ' + e.message); } }
@@ -778,6 +779,18 @@ export async function generateNoteV2(input, opts = {}) {
       if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
+  }
+  // Facts the coverage check and the fact ledger added to the Subjective or history arrive as bare lines after the story was written. When that happened, the story
+  // pass runs once more so they become part of the topic story (short lines that read on from each other) instead of a list of facts. Its own checks reject a rewrite
+  // that loses or invents anything, and then the note is kept as it is.
+  if (storyDone?.sr?.out && process.env.STORY_REWEAVE !== '0' && JSON.stringify([note.subjective, note.past_medical_history]) !== storyDone.snapshot) {
+    const tw = Date.now();
+    try {
+      const llm2 = await createGeminiService(null, { model: storyDone.model }); const sr2 = await storyPass(llm2, note, transcript, log, { prompt: storyDone.prompt, timeoutMs: cfg['story.timeoutMs'] });
+      if (sr2.out) { for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr2.out[sec] && k in sr2.out[sec]) note[sec][k] = String(sr2.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim(); log('[v2:story] added facts woven into the story'); }
+      else log(`[v2:story] second pass kept the note as it is (${sr2.why || 'rejected'})`);
+    } catch (e) { log(`[v2:story] second pass skipped — ${e.message}`); }
+    lap('reweave', tw);
   }
   if (!blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
     const tg = Date.now();
