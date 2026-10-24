@@ -217,8 +217,10 @@ export class LLMService {
     // gemini-3.1-pro-preview accept 0 but still think (~1,000 and ~3,000 tokens), which no setting stops.
     // Judges and auditors keep their own budgets: they only measure, and every A/B must be scored by the same judge.
     if (process.env.LLM_THINKING === 'off' && !/judge|audit/.test(this._agent || '')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    // LLM_THINKING_SCALE (e.g. 2) multiplies the budget of every pipeline stage that already thinks (judges excluded), with the same room added to the output cap
-    const scale = Number(process.env.LLM_THINKING_SCALE || 1); const tb = body.generationConfig.thinkingConfig.thinkingBudget;
+    // LLM_THINKING_SCALE multiplies the budget of every pipeline stage that already thinks (judges excluded), with the same room added to the output cap.
+    // Default 2 since the gold A/B of 2026-10-24 (same judges, same time): score 69.9 vs 65.0, notes with a critical miss 60% vs 73%, fewer wrong lines,
+    // for +$0.005 and +5 s per note. LLM_THINKING_SCALE=1 restores the old budgets.
+    const scale = Number(process.env.LLM_THINKING_SCALE || 2); const tb = body.generationConfig.thinkingConfig.thinkingBudget;
     if (scale > 1 && tb > 0 && !/judge|audit/.test(this._agent || '')) { const nb = Math.min(8192, Math.round(tb * scale)); body.generationConfig.thinkingConfig = { thinkingBudget: nb }; body.generationConfig.maxOutputTokens = Math.min(65536, body.generationConfig.maxOutputTokens + nb - tb); }
     if (/^gemini-2\.5-pro/.test(this.model) && body.generationConfig.thinkingConfig.thinkingBudget === 0) body.generationConfig.thinkingConfig = { thinkingBudget: 128 };
     // gemini-3.1-pro-preview ignores a budget of 0 on long prompts (~3,070 thought tokens on the writer prompt, measured on 30 gold notes): the thinking
