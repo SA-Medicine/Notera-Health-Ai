@@ -1,0 +1,277 @@
+{
+ "made": "2026-10-24",
+ "candidates": 60,
+ "rule": "transcript 300-2500 words, note 120-600, has a plan, numbers >=80% and words >=45% found in the transcript, one per topic, best score",
+ "pairs": [
+  {
+   "file": "htn-irreg-bleeding-cholesteatoma.txt",
+   "topic": "htn-irreg",
+   "tw": 1310,
+   "nw": 243,
+   "wordGround": 0.75,
+   "numGround": 0.8,
+   "score": 0.765
+  },
+  {
+   "file": "pelvic-pain-endometrial-lesions.txt",
+   "topic": "pelvic-pain",
+   "tw": 1900,
+   "nw": 209,
+   "wordGround": 0.71,
+   "numGround": 1,
+   "score": 0.741
+  },
+  {
+   "file": "thyroid-nodule-r-elbow-pain.txt",
+   "topic": "thyroid-nodule",
+   "tw": 2122,
+   "nw": 309,
+   "wordGround": 0.7,
+   "numGround": 0.89,
+   "score": 0.731
+  },
+  {
+   "file": "copd-exacerbation.txt",
+   "topic": "copd-exacerbation",
+   "tw": 1115,
+   "nw": 211,
+   "wordGround": 0.66,
+   "numGround": 0.83,
+   "score": 0.73
+  },
+  {
+   "file": "axillary-lump-neck-hip.txt",
+   "topic": "axillary-lump",
+   "tw": 1819,
+   "nw": 346,
+   "wordGround": 0.63,
+   "numGround": 0.85,
+   "score": 0.722
+  },
+  {
+   "file": "ld.txt",
+   "topic": "ld",
+   "tw": 928,
+   "nw": 200,
+   "wordGround": 0.59,
+   "numGround": 0.84,
+   "score": 0.722
+  },
+  {
+   "file": "r-hip-finger-injury.txt",
+   "topic": "r-hip",
+   "tw": 827,
+   "nw": 257,
+   "wordGround": 0.48,
+   "numGround": 0.91,
+   "score": 0.714
+  },
+  {
+   "file": "depression-anxiety-fu.txt",
+   "topic": "depression-anxiety",
+   "tw": 1060,
+   "nw": 150,
+   "wordGround": 0.59,
+   "numGround": 1,
+   "score": 0.708
+  },
+  {
+   "file": "generalized-pain.txt",
+   "topic": "generalized-pain",
+   "tw": 1462,
+   "nw": 263,
+   "wordGround": 0.52,
+   "numGround": 1,
+   "score": 0.706
+  },
+  {
+   "file": "hematuria-r-knee-pain.txt",
+   "topic": "hematuria-r",
+   "tw": 874,
+   "nw": 207,
+   "wordGround": 0.55,
+   "numGround": 0.8,
+   "score": 0.704
+  },
+  {
+   "file": "add-r-pelvic.txt",
+   "topic": "add-r",
+   "tw": 896,
+   "nw": 208,
+   "wordGround": 0.52,
+   "numGround": 0.85,
+   "score": 0.703
+  },
+  {
+   "file": "memory-loss-foot-pain.txt",
+   "topic": "memory-loss",
+   "tw": 1296,
+   "nw": 235,
+   "wordGround": 0.51,
+   "numGround": 1,
+   "score": 0.7
+  },
+  {
+   "file": "patient-622-patient-2989-bleed.txt",
+   "topic": "patient-622",
+   "tw": 755,
+   "nw": 217,
+   "wordGround": 0.51,
+   "numGround": 0.82,
+   "score": 0.7
+  },
+  {
+   "file": "untitled-session-51.txt",
+   "topic": "untitled-session",
+   "tw": 988,
+   "nw": 159,
+   "wordGround": 0.6,
+   "numGround": 0.91,
+   "score": 0.7
+  },
+  {
+   "file": "mammogram-review-normal.txt",
+   "topic": "mammogram-review",
+   "tw": 1048,
+   "nw": 127,
+   "wordGround": 0.58,
+   "numGround": 1,
+   "score": 0.686
+  },
+  {
+   "file": "l-eye-irritation.txt",
+   "topic": "l-eye",
+   "tw": 624,
+   "nw": 187,
+   "wordGround": 0.45,
+   "numGround": 0.87,
+   "score": 0.685
+  },
+  {
+   "file": "ear-flutter-tmj.txt",
+   "topic": "ear-flutter",
+   "tw": 1065,
+   "nw": 317,
+   "wordGround": 0.48,
+   "numGround": 0.8,
+   "score": 0.681
+  },
+  {
+   "file": "ad.txt",
+   "topic": "ad",
+   "tw": 2087,
+   "nw": 296,
+   "wordGround": 0.65,
+   "numGround": 0.81,
+   "score": 0.68
+  },
+  {
+   "file": "htn-med-renewal.txt",
+   "topic": "htn-med",
+   "tw": 1284,
+   "nw": 184,
+   "wordGround": 0.53,
+   "numGround": 1,
+   "score": 0.678
+  },
+  {
+   "file": "preventive-care-breast-lesions.txt",
+   "topic": "preventive-care",
+   "tw": 2234,
+   "nw": 252,
+   "wordGround": 0.6,
+   "numGround": 0.95,
+   "score": 0.678
+  },
+  {
+   "file": "dm-hyperchol-r-breast.txt",
+   "topic": "dm-hyperchol",
+   "tw": 956,
+   "nw": 158,
+   "wordGround": 0.57,
+   "numGround": 0.84,
+   "score": 0.671
+  },
+  {
+   "file": "weight-loss-lbp-peri.txt",
+   "topic": "weight-loss",
+   "tw": 2286,
+   "nw": 278,
+   "wordGround": 0.63,
+   "numGround": 0.86,
+   "score": 0.669
+  },
+  {
+   "file": "depression-chol-travel.txt",
+   "topic": "depression-chol",
+   "tw": 2308,
+   "nw": 263,
+   "wordGround": 0.66,
+   "numGround": 0.83,
+   "score": 0.667
+  },
+  {
+   "file": "l-thumb-pain-arthritis.txt",
+   "topic": "l-thumb",
+   "tw": 1062,
+   "nw": 177,
+   "wordGround": 0.47,
+   "numGround": 1,
+   "score": 0.667
+  },
+  {
+   "file": "diabetes-mot-form.txt",
+   "topic": "diabetes-mot",
+   "tw": 1892,
+   "nw": 290,
+   "wordGround": 0.51,
+   "numGround": 0.96,
+   "score": 0.666
+  },
+  {
+   "file": "l-hip-s-p-fx.txt",
+   "topic": "l-hip",
+   "tw": 1201,
+   "nw": 161,
+   "wordGround": 0.57,
+   "numGround": 0.91,
+   "score": 0.666
+  },
+  {
+   "file": "sp-2.txt",
+   "topic": "sp-2",
+   "tw": 1387,
+   "nw": 231,
+   "wordGround": 0.54,
+   "numGround": 0.88,
+   "score": 0.666
+  },
+  {
+   "file": "irreg-menses-eczema.txt",
+   "topic": "irreg-menses",
+   "tw": 2206,
+   "nw": 297,
+   "wordGround": 0.61,
+   "numGround": 0.83,
+   "score": 0.663
+  },
+  {
+   "file": "l-knee-pain-asthma.txt",
+   "topic": "l-knee",
+   "tw": 1753,
+   "nw": 353,
+   "wordGround": 0.48,
+   "numGround": 0.87,
+   "score": 0.662
+  },
+  {
+   "file": "sw-2.txt",
+   "topic": "sw-2",
+   "tw": 2495,
+   "nw": 322,
+   "wordGround": 0.63,
+   "numGround": 0.8,
+   "score": 0.658
+  }
+ ]
+}
