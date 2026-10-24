@@ -115,3 +115,15 @@ The owner's v1 fact-graph extractor and recovery agent now run beside the writer
 
 Across all fact-graph runs (five configurations, 80 notes) critical misses averaged 0.41 per note against 0.88 for v2.2.0. What the audit still calls missing is mostly detail on a fact the graph holds ("for life", a dose change, "four weeks, not two"): the ledger checks facts, not every attribute of a fact. Of 42 lines the ledger added, about 16 were flagged wrong by the auditor; the worst, a vaccine the patient declined written as "administered", is fixed (a vaccine is written as given only when the words say so).
 Known remaining: a fact written twice in other words (for example a drug line and a "continued" line), a lab result under Treatment, third-party history, and wrong doses that come from a misheard drug name (the speech models).
+
+### Against the doctor's own notes (gold set, 2026-10-24)
+
+`tools/gold-pick.mjs` picked 30 of the 2 790 gold pairs in `data/gold` (one per topic; transcript 600-2 500 words; the doctor's note complete and faithful to the transcript) into `eval/gold-set.json`. `tools/gold-eval.mjs` writes a note for each (the pair's own note kept out of the reference examples) and two judges (Gemini 2.5 Pro and Gemini 2.5 Flash) compare it with the doctor's note.
+
+| Pipeline | Score (both judges) | Critical misses per note (Pro / Flash) | Notes with any critical miss | Wrong lines per note (Pro / Flash) | Time per note |
+|---|---|---|---|---|---|
+| v2.3 full (production) | 70.9 | 0.50 / 1.40 | 21 / 30 | 2.3 / 5.0 | 43 s |
+| Lean, cited (`LEAN=1`): graph-fed writer citing fact ids, 6 patch-up model stages skipped | 64.9 | 0.73 / 1.47 | 18 / 30 | 2.0 / 3.0 | 29 s |
+| Lean + coverage (`LEAN=1, LEAN_KEEP=coverage`) | 72.9 | 0.77 / 1.90 | 20 / 30 | 2.9 / 4.5 | 32 s |
+
+Decision: production stays on v2.3 full, because it misses the fewest critical facts (the owner's first priority). The lean modes are faster and use about half the model calls but miss more critical facts; they stay available behind the switches. The two judges disagree by about 21 points on a note's score, so only large differences mean anything.
