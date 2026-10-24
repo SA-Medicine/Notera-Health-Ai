@@ -50,6 +50,7 @@ import { structureTreatment } from './treatmentStructure.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraph } from './factGraph.js';
 import { reconcileFacts } from './factLedger.js';
+import { checkDrugs } from './drugCheck.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -792,6 +793,12 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
   const renderedNote = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  let drugReview = [];   // the medicines box under the note: every drug, checked against RxNorm (name and dose), with a one-click fix
+  if (!blank && process.env.DRUG_CHECK !== '0' && opts.drugCheck !== false && cfg['stage.drugCheck'] !== false) {
+    const td = Date.now();
+    try { const dc = await checkDrugs(renderedNote, transcript, { log, patientMeds: input.patientMeds || opts.patientMeds || [] }); drugReview = dc.review; note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...dc.flags, ...dc.review.map((r) => ({ type: 'drug_review', field: 'medications', severity: 'info', message: JSON.stringify(r) }))]; if (opts.trace) opts.trace.drugs = dc.review; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); }
+    lap('drugs', td);
+  }
 
   // 5) persist -------------------------------------------------------------------
   const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note

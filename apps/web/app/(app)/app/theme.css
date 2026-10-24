@@ -88,3 +88,21 @@ body.dark-mode * { scrollbar-color: rgba(221, 227, 232, 0.28) transparent; }
 .nto-modal-actions .nto-btn { min-height: 44px; }
 @media (max-width: 520px) { .nto-modal-actions { justify-content: stretch; } .nto-modal-actions .nto-btn { width: 100%; } .pc-opt small { font-size: 12px; } }
 @media (max-height: 640px) { .nto-modal-mark { display: none; } .nto-modal-sub { margin-bottom: 10px; } .nto-terms { max-height: 18dvh; } .pc-opt { padding: 10px 12px; margin-bottom: 10px; } }
+
+/* ---------- Medicines box under the note ---------- */
+.drug-box { margin: 18px 0 6px; padding: 14px 16px; border: 1px solid var(--line, rgba(58, 15, 52, .12)); border-radius: 14px; background: var(--card-2, #F8FAFB); }
+.drug-box h4 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
+.drug-box h4 small { font-weight: 500; color: var(--text-faint, #7D707B); font-size: 12px; }
+.drug-box ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.drug-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--card, #fff); border: 1px solid var(--line, rgba(58, 15, 52, .1)); }
+.drug-row.is-warn { border-color: rgba(180, 83, 9, .45); }
+.drug-main { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; min-width: 0; }
+.drug-main b { font-size: 14px; }
+.drug-dose { font-size: 12.5px; color: var(--text-muted, #695967); font-variant-numeric: tabular-nums; }
+.drug-status { font-size: 12.5px; }
+.drug-status.is-ok { color: #0f766e; }
+.drug-status.is-warn { color: #b45309; font-weight: 600; }
+.drug-actions, .drug-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.drug-edit input { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-strong, rgba(58, 15, 52, .2)); min-width: 200px; font: inherit; font-size: 13.5px; }
+.sh-meds { width: 100%; resize: vertical; min-height: 44px; font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line, rgba(58, 15, 52, .14)); }
+body.dark-mode .drug-row { background: var(--card); }

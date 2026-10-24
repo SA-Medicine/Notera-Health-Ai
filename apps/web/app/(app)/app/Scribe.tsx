@@ -16,6 +16,7 @@ import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './t
 import { mdToHtml } from './noteRender';
 import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
+import DrugBox from './DrugBox';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -103,6 +104,7 @@ export default function Scribe() {
   const [checksEnd, setChecksEnd] = useState<HTMLElement | null>(null);   // where the "Before you sign" checklist is drawn: the end of the note
   const [specialty, setSpecialty] = useState('auto');
   const [patient, setPatient] = useState('');
+  const [patientMeds, setPatientMeds] = useState('');   // optional: the patient's medication list from the EHR, sent with the transcript to check drug names
   const [error, setError] = useState('');
   const [genStep, setGenStep] = useState(0);
   const [consultId, setConsultId] = useState<string | null>(null);
@@ -637,7 +639,7 @@ export default function Scribe() {
       const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
       const start = await fetch(`${API}/api/consults/async`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician' }),
+        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician', patientMeds: patientMeds.split(/[\n,;]/).map((s) => s.trim()).filter(Boolean) }),
       });
       if (start.status === 402) { setPaywall(true); setPhase(transcriptRef.current ? 'done' : 'idle'); refreshQuota(); return; }
       const startBody = await readJson(start);
@@ -767,7 +769,7 @@ export default function Scribe() {
   const phaseLabel = recording ? 'Recording' : phase === 'transcribing' ? 'Transcribing' : phase === 'generating' ? 'Writing note' : phase === 'done' ? 'Ready' : 'New';
   const defs = buildCards({
     panel, setPanel: (p) => setPanel(p as Panel), loadHistory, history, activeConsult: consultId, openConsult,
-    patient, setPatient, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
+    patient, setPatient, patientMeds, setPatientMeds, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
     note, editing, toggleEdit, copy, saveState, retrySave: () => { void persistNote(); },
     toCheck, review: () => window.dispatchEvent(new Event('notera:review')),
     toggleRecord, busy: phase === 'transcribing' || phase === 'generating', newSession, dark, setDark,
@@ -977,7 +979,7 @@ export default function Scribe() {
                   </div>
                 </div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>

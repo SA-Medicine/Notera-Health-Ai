@@ -41,7 +41,7 @@ const dayShort = (iso: string) => { try { return new Date(iso).toLocaleDateStrin
 export type CardsProps = {
   panel: string; setPanel: (p: string) => void; loadHistory: () => void;
   history: SessionItem[]; activeConsult: string | null; openConsult: (id: string) => void;
-  patient: string; setPatient: (v: string) => void; specialty: string; setSpecialty: (v: string) => void; specialties: string[];
+  patient: string; setPatient: (v: string) => void; patientMeds: string; setPatientMeds: (v: string) => void; specialty: string; setSpecialty: (v: string) => void; specialties: string[];
   dateStr: string; timer: string; recording: boolean; phaseLabel: string;
   note: string; editing: boolean; toggleEdit: () => void; copy: (plain: boolean) => void; saveState: 'idle' | 'saving' | 'saved' | 'error'; retrySave: () => void;
   toCheck: number; review: () => void;
@@ -83,6 +83,7 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
       body: (
         <div className="sh-fields">
           <label className="sh-field"><span>Patient</span><input value={p.patient} onChange={(e) => p.setPatient(e.target.value)} placeholder="Name or ID" autoComplete="off" /></label>
+          <label className="sh-field"><span>Medications (from the EHR)</span><textarea className="sh-meds" rows={2} value={p.patientMeds} onChange={(e) => p.setPatientMeds(e.target.value)} placeholder="Optional. Paste the patient's list, e.g. amlodipine 5 mg, Atacand 16 mg. Used to check drug names." /></label>
           <label className="sh-field"><span>Specialty</span>
             <select value={p.specialty} onChange={(e) => p.setSpecialty(e.target.value)}><option value="auto">Auto-detect</option>{p.specialties.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select>
           </label>

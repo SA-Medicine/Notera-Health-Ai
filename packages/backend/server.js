@@ -116,6 +116,7 @@ const isBlankTranscript = (t) => typeof t === 'string' && t.trim().length < 2;
 app.post('/api/consults', noteQuotaGate, async (req, res) => {
   try {
     const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
+  const patientMeds = Array.isArray(req.body?.patientMeds) ? req.body.patientMeds.map(String).slice(0, 60) : [];   // the patient's medication list from the EHR, when the clinician gives it: used to check drug names
     if (!transcript && !audioUri) return res.status(400).json({ error: 'transcript or audioUri required' });
     if (!audioUri && isBlankTranscript(transcript)) {
       refundIfReserved(req);
@@ -123,7 +124,7 @@ app.post('/api/consults', noteQuotaGate, async (req, res) => {
       return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
     }
     const result = await generateNote(
-      { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt },
+      { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, patientMeds },
       { deidMode, includeLogs: !!req.body?.includeLogs }
     );
     res.json(result);
@@ -143,6 +144,7 @@ setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now
 
 app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
   const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
+  const patientMeds = Array.isArray(req.body?.patientMeds) ? req.body.patientMeds.map(String).slice(0, 60) : [];   // the patient's medication list from the EHR, when the clinician gives it: used to check drug names
   if (!transcript && !audioUri) { refundIfReserved(req); return res.status(400).json({ error: 'transcript or audioUri required' }); }
   if (!audioUri && isBlankTranscript(transcript)) {
     refundIfReserved(req);
@@ -156,7 +158,7 @@ app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
   (async () => {
     try {
       const result = await generateNote(
-        { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt },
+        { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, patientMeds },
         { deidMode, includeLogs: !!req.body?.includeLogs }
       );
       _jobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
