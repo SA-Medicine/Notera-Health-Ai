@@ -81,11 +81,12 @@ export function matchFact(f, units) {
   const ds = MED_TYPES.has(f.type) && noteFix() ? drugStem(f) : '';
   // an instruction about a medicine (continue, renew, start, stop, change, an order, a planned drug) is only held by a PLAN line: the drug on the Medications line
   // is not the instruction ("continue candesartan/HCT 16/12.5" was counted as present from the history and never written into the plan)
-  const instruction = f.type === 'medication_order' || f.medication_status === 'planned' || /\b(continu\w*|renew\w*|refill\w*|start\w*|stop\w*|discontinu\w*|increas\w*|decreas\w*|switch\w*|chang\w*|prescri\w*|resum\w*|hold)\b/i.test(f.text);
+  const instruction = noteFix() && MED_TYPES.has(f.type) && (f.type === 'medication_order' || f.medication_status === 'planned' || /\b(continu\w*|renew\w*|refill\w*|start\w*|stop\w*|discontinu\w*|increas\w*|decreas\w*|switch\w*|chang\w*|prescri\w*|resum\w*|hold)\b/i.test(f.text));
   if (ds) { const u = units.find((x) => !x.isBlock && x.w.has(ds) && nums.every((n) => x.nums.has(n)) && (!f.negative || x.neg) && (!instruction || /^Assessment/.test(x.section))); if (u) return { section: u.section, text: u.text, score: 1 }; }
   const need = stems.length <= 2 ? stems.length : Math.ceil(stems.length * 0.6); let best = null;
   for (const u of units) {
     if (u.isBlock && (f.importance === 'critical' || !PLAN_TYPES.has(f.type))) continue;   // a whole problem block only vouches for a plan fact that is not critical; a critical fact must sit in one line
+    if (instruction && !/^Assessment/.test(u.section)) continue;
     const hit = stems.filter((s) => u.w.has(s)).length; if (hit < need) continue;
     if (nums.length && !nums.every((n) => u.nums.has(n))) continue;
     if (f.negative && !u.neg) continue;
