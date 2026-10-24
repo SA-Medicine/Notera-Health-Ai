@@ -145,3 +145,9 @@ test('a medicine checked with a question ("you take Eltroxin once a day?") and a
   assert.match(placeFact(n, F({ type: 'medication', text: 'Eltroxin once a day', medication: '', medication_status: 'active', quote: 'you take the Eltroxin once a day?' }), { edges: [], facts: [] }), /already named/);
   assert.equal(JSON.stringify(n.assessment_and_plan), before);
 });
+test('an instruction about a medicine is only held by a plan line, never by the Medications line', () => {
+  const n = note(); n.past_medical_history.other = 'Medications: candesartan/HCT 16/12.5 mg daily';
+  assert.equal(matchFact(F({ type: 'medication', text: 'Continue candesartan/HCT 16/12.5 mg daily', medication: 'candesartan', medication_status: 'active' }), unitsOf(n)), null);
+  n.assessment_and_plan.push({ issue: 'Hypertension', treatment_planned: 'Continue candesartan/HCT 16/12.5 mg daily' });
+  assert.ok(matchFact(F({ type: 'medication', text: 'Continue candesartan/HCT 16/12.5 mg daily', medication: 'candesartan', medication_status: 'active' }), unitsOf(n)));
+});
