@@ -329,3 +329,10 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--surface-2); 
 .who-btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .sr-pl.sub { margin-left: 18px; }
 .sr-pl.sub em { width: 110px; }
+.navtoggle { width: 100%; text-align: left; background: none; border: 0; cursor: pointer; font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: 14px 10px 4px; }
+.q-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.q-cards .stat small { color: var(--ink-3); } .q-cards .stat b { display: block; font-size: 24px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.q-cards .stat.warn b { color: var(--warn); } .q-cards .stat.bad b { color: var(--bad); }
+.q-bar { position: relative; height: 20px; min-width: 110px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.q-bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); border-radius: 6px; } .q-bar i.warn { background: var(--warn-soft); }
+.q-bar span { position: relative; padding-left: 8px; font-size: 12px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }

@@ -549,7 +549,7 @@ export async function generateNoteV2(input, opts = {}) {
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
   const persist = opts.persist !== false;
   const lean = opts.lean ?? process.env.LEAN === '1';      // v3 experiment: the fact graph feeds a writer that cites fact ids per line; the model stages that patch the draft (editor, verifier, story, sweep, attribution, coverage, grounding) are skipped
-  const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null;
+  const cited = opts.cited ?? (lean || process.env.CITED_WRITER === '1'); let citedIds = null; let ledgerSummary = null;
   const onProgress = opts.onProgress || (() => {});
   const log = (l) => { console.log(l); try { if (opts.onLog) opts.onLog(String(l)); } catch { /* logging must never break a note */ } };
   const consultId = input.consultId || `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -773,7 +773,7 @@ export async function generateNoteV2(input, opts = {}) {
     const tl = Date.now();
     try {
       const graph = await factsP; if (opts.trace) opts.trace.factGraph = { facts: graph.facts.length, windows: graph.windows, recovered: graph.recovered, ms: graph.ms, counts: graph.counts, error: graph.error || null, graph: opts.keepGraph ? graph : undefined };
-      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log, { cited: citedIds }); if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
+      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
   }
@@ -806,6 +806,8 @@ export async function generateNoteV2(input, opts = {}) {
   }
 
   // 5) persist -------------------------------------------------------------------
+  // what the admin Quality page reads for every production note: fact ledger, medicines, checks, time per stage
+  note.metadata ||= {}; note.metadata.quality = { ledger: ledgerSummary, drugs: { total: drugReview.length, unknown: drugReview.filter((d) => !d.verified).length, suggested: drugReview.filter((d) => d.suggestion).length, doseChecks: drugReview.filter((d) => !d.doseOk).length }, timings: { ...stage, total: Date.now() - t0 }, mode: lean ? 'lean' : 'v2', at: new Date().toISOString() };
   const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {

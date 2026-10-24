@@ -8,15 +8,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ico = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICONS = {
   overview: ico('<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>'), users: ico('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6 6 0 013.5 5.5"/>'),
-  consults: ico('<path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9zM14 3v6h6M8 13h8M8 17h5"/>'), audio: ico('<path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/>'), superrun: ico('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'),
+  consults: ico('<path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9zM14 3v6h6M8 13h8M8 17h5"/>'), audio: ico('<path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/>'), quality: ico('<path d="M4 19h16M6 16l4-5 3 3 5-7"/>'), superrun: ico('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'),
   activity: ico('<path d="M3 12h4l3-8 4 16 3-8h4"/>'), pipeline: ico('<path d="M4 6h6v4H4zM14 14h6v4h-6zM10 8h4a2 2 0 012 2v4"/>'), lab: ico('<path d="M12 3v4M12 17v4M4.2 7.5l3.5 2M16.3 14.5l3.5 2M4.2 16.5l3.5-2M16.3 9.5l3.5-2"/><circle cx="12" cy="12" r="3"/>'), guide: ico('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>'), results: ico('<rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/>'), insights: ico('<path d="M12 3a6 6 0 00-3 11.2V17h6v-2.8A6 6 0 0012 3zM9.5 21h5"/>'), judge: ico('<path d="M12 3v18M5 7h14M5 7l-2.5 6a3 3 0 005 0zM19 7l-2.5 6a3 3 0 005 0z"/>'), system: ico('<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 013 3v4"/>'), prompts: ico('<path d="M4 5h16M4 10h16M4 15h10M4 20h6"/>'), settings: ico('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'), compare: ico('<path d="M8 3v18M16 3v18M3 8h5M16 16h5"/>'), optimize: ico('<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/>'), trends: ico('<path d="M3 17l5-6 4 3 8-9M16 5h4v4"/>'), bench: ico('<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'),
 };
 const NAV = [
   ['', [['guide', 'Start here']]],
-  ['Admin · Monitor', [['overview', 'Overview'], ['users', 'Users'], ['consults', 'Notes'], ['audio', 'Audio'], ['superrun', 'Super run'], ['activity', 'Activity']]],
-  ['Admin · Control production', [['system', 'System'], ['prompts', 'Prompts'], ['settings', 'Settings'], ['speech', 'Speech to text']]],
-  ['Harness · Test and improve', [['lab', '1 · Run & inputs'], ['results', '2 · Review notes'], ['compare', '3 · Compare runs'], ['judge', '3 · Blind judge'], ['insights', '4 · Diagnose'], ['optimize', '5 · Improve'], ['trends', 'Trends']]],
-  ['Tools', [['pipeline', 'Pipeline log'], ['bench', 'Test bench']]],
+  ['Every day', [['quality', 'Quality'], ['superrun', 'Super run'], ['consults', 'Notes'], ['audio', 'Audio'], ['users', 'Users']]],
+  ['Production', [['overview', 'Overview'], ['activity', 'Activity'], ['system', 'System'], ['prompts', 'Prompts'], ['settings', 'Settings'], ['speech', 'Speech to text']]],
+  ['Lab tools', [...[['lab', '1 · Run & inputs'], ['results', '2 · Review notes'], ['compare', '3 · Compare runs'], ['judge', '3 · Blind judge'], ['insights', '4 · Diagnose'], ['optimize', '5 · Improve'], ['trends', 'Trends']], ...[['pipeline', 'Pipeline log'], ['bench', 'Test bench']]]],
 ];
 const NAVKEYS = NAV.flatMap(([, items]) => items.map(([k]) => k));
 
@@ -26,6 +25,7 @@ import { settingsView } from './settings.js';
 import { speechView } from './speech.js';
 import { audioView } from './audio.js';
 import { superRunView } from './superrun.js';
+import { qualityView } from './quality.js';
 import { promptsView } from './prompts.js';
 import { compareView } from './compare.js';
 import { optimizeView } from './optimize.js';
@@ -79,12 +79,14 @@ function renderLogin(err = '') {
 }
 
 /* ───────────── shell ───────────── */
+const labOpen = () => { try { return localStorage.getItem('notera.admin.lab') === '1'; } catch { return false; } };   // the Lab tools group stays folded unless opened
 function shell() {
   $('#app').innerHTML = `<div class="shell"><aside class="side"><div class="brand"><i>N</i><div>Notera<small>Admin console</small></div></div>
-    ${NAV.map(([g, items]) => `${g ? `<div class="navgrp">${g}</div>` : ''}${items.map(([k, l]) => `<button class="nav${S.view === k ? ' on' : ''}" data-nav="${k}">${ICONS[k] || ''}${l}</button>`).join('')}`).join('')}
+    ${NAV.map(([g, items]) => { const lab = g === 'Lab tools'; const open = !lab || labOpen() || items.some(([k]) => k === S.view); return `${g ? (lab ? `<button class="navgrp navtoggle" id="labtoggle" aria-expanded="${open}">${g} ${open ? '▾' : '▸'}</button>` : `<div class="navgrp">${g}</div>`) : ''}${!open ? '' : items.map(([k, l]) => `<button class="nav${S.view === k ? ' on' : ''}" data-nav="${k}">${ICONS[k] || ''}${l}</button>`).join('')}`; }).join('')}
     <div class="grow"></div><div class="who"><b>${esc(S.user?.fullName || S.user?.email || 'Admin')}</b>${esc(S.user?.email || '')}<br><div class="who-btns"><button class="btn sm" id="th" title="Switch between the light and the dark look">${window.NoteraTheme?.get() === 'dark' ? 'Light mode' : 'Dark mode'}</button><button class="btn sm" id="lo">Sign out</button></div></div></aside>
     <main class="main" id="view"></main></div>`;
   document.querySelectorAll('[data-nav]').forEach((b) => { b.onclick = () => go(b.dataset.nav); });
+  const lt = document.getElementById('labtoggle'); if (lt) lt.onclick = () => { try { localStorage.setItem('notera.admin.lab', labOpen() ? '0' : '1'); } catch { /* private window */ } shell(); };
   $('#th').onclick = () => { const t = window.NoteraTheme?.toggle(); $('#th').textContent = t === 'dark' ? 'Light mode' : 'Dark mode'; };
   $('#lo').onclick = async () => { await api('/api/auth/logout', { method: 'POST', noAuthRedirect: true }).catch(() => {}); S.user = null; renderLogin(); };
   go(S.view);
@@ -92,7 +94,7 @@ function shell() {
 function go(v) {
   labStop(); systemStop(); if (!NAVKEYS.includes(v)) v = 'guide'; S.view = v; history.replaceState(null, '', '#' + v);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  const fn = { overview, users, consults: () => consults(), audio: () => audioView(CTX), superrun: () => superRunView(CTX), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), speech: () => speechView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
+  const fn = { overview, users, consults: () => consults(), audio: () => audioView(CTX), superrun: () => superRunView(CTX), quality: () => qualityView(CTX), activity, pipeline, bench, lab: () => labView(CTX), system: () => systemView(CTX), prompts: () => promptsView(CTX), settings: () => settingsView(CTX), speech: () => speechView(CTX), compare: () => compareView(CTX, 'stats'), judge: () => compareView(CTX, 'judge'), results: () => resultsView(CTX), insights: () => insightsView(CTX), guide: () => guideView(CTX), optimize: () => optimizeView(CTX), trends: () => trendsView(CTX) }[v] || guideView.bind(null, CTX);
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
