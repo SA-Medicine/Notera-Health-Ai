@@ -97,3 +97,21 @@ A/B with 2 repeats per consult, stored transcripts, the earlier pipeline (2.1.2:
 Read: structure and placement are better (fewer wrong and misplaced lines, half the repeated labels, presentation up), score is level within the auditor's noise (it scored the same note between 45 and 85), and completeness is NOT better (missing facts and missing plan lines are slightly higher). A first run of v2.2.0 with the "free flow" rules relaxed scored worse (66.9 vs 72.5 for the notes as saved; junk "Referrals: <problem>" lines and fragment spam), so free flow is OFF by default (`FREE_FLOW=1` turns it on); only 5 of 34 audit-missing facts could be traced to a guard removal, so the guards are not the main cause of missing facts. The plan-drug check fell from 100% to 89%: the one miss was an ASR error ("a cand" for a drug name) that the unheard-drug guard correctly replaced by its class ("ARB").
 
 Open: completeness (missing facts) needs a different approach than rules: better ASR vocabulary for drug names, and a larger sample (77 consults) once signed notes exist.
+
+### Fact graph and ledger (v2.3.0, same 8 consults, 2 repeats, same auditor)
+
+The owner's v1 fact-graph extractor and recovery agent now run beside the writer; a ledger checks every required fact against the finished note and places what is missing (model first, rule second). Rows are runs of 15-16 notes; the auditor varies by several points from run to run, so read the columns as trends.
+
+| Measure | Earlier 2.1.2 | v2.2.0 | v2.3.0 final |
+|---|---|---|---|
+| Audit score (mean) | 62.0 | 64.1 | 67.5 |
+| Missing facts per note | 4.73 | 5.19 | 4.19 |
+| Missing rated important | 38 | 46 | 32 |
+| Missing rated critical | 9 | 14 | 8 |
+| Wrong lines per note | 5.67 | 4.94 | 5.06 |
+| Merged-problem gaps | 9 | 13 | 4 |
+| Presentation (flow / readability / organisation) | 51 / 44 / 38 | 54 / 48 / 40 | 55 / 47 / 46 |
+| Note time (mean) | 58 s | 53 s | 36 s |
+
+Across all fact-graph runs (five configurations, 80 notes) critical misses averaged 0.41 per note against 0.88 for v2.2.0. What the audit still calls missing is mostly detail on a fact the graph holds ("for life", a dose change, "four weeks, not two"): the ledger checks facts, not every attribute of a fact. Of 42 lines the ledger added, about 16 were flagged wrong by the auditor; the worst, a vaccine the patient declined written as "administered", is fixed (a vaccine is written as given only when the words say so).
+Known remaining: a fact written twice in other words (for example a drug line and a "continued" line), a lab result under Treatment, third-party history, and wrong doses that come from a misheard drug name (the speech models).
