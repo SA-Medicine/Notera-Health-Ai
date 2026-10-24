@@ -240,7 +240,9 @@ function cleanText(text, { splitSemi = false } = {}) {
     for (let part of pieces.flatMap((x) => splitSentences(x))) {
       part = collapseLoops(part.replace(/\s{2,}/g, ' ')).replace(/[;,]+$/, '').trim();
       if (!part || isMeta(part)) continue;
-      if (part.length > 420) part = part.slice(0, 420).replace(/\s+\S*$/, '');   // runaway line: cut at a word boundary
+      // runaway line: cut at a word boundary. A plan "a; b; c" list is cut per item, never as a whole (a long Advice list lost its last items)
+      const cut = (s) => (s.length > 420 ? s.slice(0, 420).replace(/\s+\S*$/, '') : s);
+      if (part.length > 420) part = process.env.NOTE_FIX === '0' ? cut(part) : part.split(/;\s+/).map(cut).join('; ');
       out.push(part);
     }
   }
@@ -511,12 +513,13 @@ HARD RULES: keep every fact exactly — write numbers as numerals exactly as in 
 // Fewer, fuller bullets that carry the same facts; editorAccepts() still rejects any rewrite that drops one. STORY_COMPACT=0 turns it off.
 export const STORY_COMPACT = `
 LENGTH: write like the physician who reads it — fewer, fuller bullets. Each bullet is ONE or TWO lines (about 10 to 22 words) that joins the closely related facts of one point with commas or " - " ("Right hip pain for 3 weeks, worse on stairs and at night, eased by rest"; "Tried Advil 400 mg twice daily with little relief, no side effects"). A topic usually has 2 to 4 bullets; the whole Subjective usually has 5 to 10 bullets. Merge bullets that say the same thing or continue each other, and delete restatements, but NEVER drop a fact, number, drug, denial or detail: shorter by merging and removing repetition, never by leaving facts out.`;
-export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs }) {
+export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs, added = [] }) {
   if (process.env.STORY_COMPACT !== '0' && !/\nLENGTH:/.test(prompt || '')) prompt = (prompt || STORY_SYS) + STORY_COMPACT;
   const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
   const noHeads = (o) => { const c = {}; for (const [sec, f] of Object.entries(o || {})) { c[sec] = {}; for (const [k, v] of Object.entries(f || {})) c[sec][k] = String(v ?? '').split('\n').filter((l) => !/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(l.trim())).join('\n'); } return c; };   // topic headings are structure, not facts
-  const user = `TRANSCRIPT (for checking facts only):\n"""\n${transcript.slice(0, 60000)}\n"""\n\nNOTE JSON:\n${JSON.stringify(draft)}\n\nReturn the rewritten JSON.`;
+  const merge = added.length && process.env.NOTE_FIX !== '0' ? `\n\nLINES ADDED AFTER THE STORY WAS WRITTEN (they are in the NOTE JSON as bare one-fact lines): ${added.slice(0, 30).map((x) => `"${x}"`).join('; ')}.\nMerge EACH of them into the bullet of the topic it belongs to (join with a comma or " - "), or into the Past Medical History field it belongs to (a condition, a medicine, a past test); never leave one as a bullet on its own and never repeat a fact another bullet already says. Keep every fact and number.` : '';
+  const user = `TRANSCRIPT (for checking facts only):\n"""\n${transcript.slice(0, 60000)}\n"""\n\nNOTE JSON:\n${JSON.stringify(draft)}${merge}\n\nReturn the rewritten JSON.`;
   let why = 'error'; let rejected = null;
   try {
     llm._agent = 'v2-story';
@@ -791,7 +794,10 @@ export async function generateNoteV2(input, opts = {}) {
   if (storyDone?.sr?.out && process.env.STORY_REWEAVE !== '0' && JSON.stringify([note.subjective, note.past_medical_history]) !== storyDone.snapshot) {
     const tw = Date.now();
     try {
-      const llm2 = await createGeminiService(null, { model: storyDone.model }); const sr2 = await storyPass(llm2, note, transcript, log, { prompt: storyDone.prompt, timeoutMs: cfg['story.timeoutMs'] });
+      // the lines that arrived after the story, so the second pass merges them into the bullets they belong to instead of keeping them as one-fact bullets
+      const linesOf = (v) => (typeof v === 'string' ? v.split('\n') : v && typeof v === 'object' ? Object.values(v).flatMap(linesOf) : []).map((x) => String(x).replace(/^\s*[-•*]\s*/, '').trim()).filter((x) => x.length > 3 && !/:\s*$/.test(x));
+      const before = new Set(linesOf(JSON.parse(storyDone.snapshot))); const added = linesOf([note.subjective, note.past_medical_history]).filter((x) => !before.has(x));
+      const llm2 = await createGeminiService(null, { model: storyDone.model }); const sr2 = await storyPass(llm2, note, transcript, log, { prompt: storyDone.prompt, timeoutMs: cfg['story.timeoutMs'], added });
       if (sr2.out) { for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr2.out[sec] && k in sr2.out[sec]) note[sec][k] = String(sr2.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim(); log('[v2:story] added facts woven into the story'); }
       else log(`[v2:story] second pass kept the note as it is (${sr2.why || 'rejected'})`);
     } catch (e) { log(`[v2:story] second pass skipped — ${e.message}`); }

@@ -127,3 +127,15 @@ test('a history or context fact the model did not place is not written in as a b
   const r = await reconcileFacts(null, n, { facts, edges: [] }, 'x'); const st = Object.fromEntries(r.rows.map((x) => [x.id, x.status]));
   assert.equal(st.F001, 'missing'); assert.equal(st.F002, 'forced');
 });
+test('medicines: a drug already named in the plan is found; the Medications line lists only what is taken, each drug once; a drug only asked about is "Discussed" under its problem', async () => {
+  const { dedupeMedLine } = await import('../src/orchestrator/factLedger.js');
+  const n = note(); n.past_medical_history.other = 'Medications: M-Vac two times a week, Eltroxin half a tablet once a day, ADHD medication 10 mg once a day, M-Vac, Eltroxin once a day';
+  n.assessment_and_plan.push({ issue: 'Hypothyroidism', treatment_planned: 'Continue Eltroxin 0.2 mg half tablet once daily' });
+  assert.ok(matchFact(F({ type: 'medication_order', text: 'Eltroxin refill request', medication: 'Eltroxin' }), unitsOf(n)), 'named in the plan: found, not written in again');
+  assert.equal(dedupeMedLine(n), 2); assert.equal(n.past_medical_history.other, 'Medications: M-Vac two times a week, Eltroxin half a tablet once a day, ADHD medication 10 mg once a day');
+  n.assessment_and_plan.push({ issue: 'Arthritis and inflammation', treatment_planned: '' });
+  const where = placeFact(n, F({ type: 'medication', text: 'Ozempic', medication: 'Ozempic', medication_status: 'active', quote: 'what about Ozempic for the inflammation?' }), { edges: [], facts: [] });
+  assert.match(where, /Advice/); assert.doesNotMatch(n.past_medical_history.other, /Ozempic/);
+  assert.match(placeFact(n, F({ type: 'medication', text: 'Vitamin D', medication: 'Eltroxin', medication_status: 'active', quote: 'I take it' }), { edges: [], facts: [] }), /already listed/);
+  assert.ok(!n.assessment_and_plan.some((p) => p.issue === 'Medication'), 'no catch-all Medication problem');
+});

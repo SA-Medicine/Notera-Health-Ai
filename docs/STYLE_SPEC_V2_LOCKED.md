@@ -59,6 +59,13 @@ New stages `factGraph.js` and `factLedger.js` (switches `FACT_GRAPH=0`, `FACT_LE
 * Optional `FACTS_TO_WRITER=1` also gives the writer the graph; in the test it did not reduce critical misses, so it is off.
 * The Super run shows the ledger (every fact, its weight, status and where it went) under the note.
 
+## v2.3.3 — medicines, filler plan lines, long Advice, story merge (owner, 2026-10-24: "fix the remaining flaws ... test on the gold set before deploying")
+All behind one switch, `NOTE_FIX=0` restores v2.3.2.
+* **Long Advice line.** A plan "a; b; c" list longer than 420 characters was cut as a whole at 420 (the last advice items were lost); now each item is capped on its own.
+* **Medicines in the ledger.** A medicine fact counts as present when a note line names the drug with all its numbers ("Eltroxin refill request" is held by "Continued: Eltroxin 0.2 mg …"). The Medications line gets only a drug the patient takes, and never one already listed; a drug only asked about or considered goes under its problem as "Discussed X"; a historical drug goes to the history; no catch-all "Medication" problem is created. The Medications line is de-duplicated by drug name after the ledger. The placement model is told a diagnosis is history, a considered drug is "Discussed", and to prefer "found_in".
+* **Plan parts with no action word.** An explanation ("X is a GLP-1 medication", side effects, off-label) moves from Treatment planned to Advice; a statement of what happened ("Physiotherapy helped …") moves to the problem's summary line. Wording kept.
+* **Story merge.** The second story pass is given the lines that arrived after the story (coverage and ledger) and told to merge each into the bullet or history field it belongs to.
+
 ## Open questions, kept as in v1 (owner decision 2026-10-22)
 Refills stay under the condition the drug treats (A5) · Past Medical History stays at about six bullets plus Medications (P1) · results of one panel stay on one line (O2) · bullets stay short clinical clauses.
 

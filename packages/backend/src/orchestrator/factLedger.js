@@ -70,8 +70,15 @@ export function unitsOf(note) {
   return units.map((u) => ({ ...u, w: new Set(words(u.text).map(stem)), nums: new Set(numsOf(u.text)), neg: NEG.test(u.text) }));
 }
 
+const MED_TYPES = new Set(['medication', 'medication_order']);
+// the medicine fixes of 2026-10-24 (drug already named = found, Medications line only for what is taken, each drug once); NOTE_FIX=0 = the earlier rules
+export const noteFix = () => process.env.NOTE_FIX !== '0';
+const drugStem = (f) => { const w = words(f.medication || '').find((x) => x.length >= 4 && !STOP.has(x)); return w ? stem(w) : ''; };
 export function matchFact(f, units) {
   const { stems, nums } = keysOf(f); if (!stems.length && !nums.length) return null;
+  // a medicine is in the note when a line names the drug with every number the fact has ("Eltroxin refill request" is held by "Continued: Eltroxin 0.2 mg ...")
+  const ds = MED_TYPES.has(f.type) && noteFix() ? drugStem(f) : '';
+  if (ds) { const u = units.find((x) => !x.isBlock && x.w.has(ds) && nums.every((n) => x.nums.has(n)) && (!f.negative || x.neg)); if (u) return { section: u.section, text: u.text, score: 1 }; }
   const need = stems.length <= 2 ? stems.length : Math.ceil(stems.length * 0.6); let best = null;
   for (const u of units) {
     if (u.isBlock && (f.importance === 'critical' || !PLAN_TYPES.has(f.type))) continue;   // a whole problem block only vouches for a plan fact that is not critical; a critical fact must sit in one line
@@ -135,9 +142,24 @@ export function placeFact(note, f, graph) {
   }
   if (f.type === 'lab_result' || (f.type === 'investigation' && (f.value || /normal|abnormal|result|showed|shows|negative|positive/i.test(f.text)))) { addLine(note.objective ||= {}, 'completed_investigations', line); return 'Objective / Investigations'; }
   if (HIST_TYPES.has(f.type)) { const p = (note.past_medical_history ||= {}); addLine(p, f.type === 'family_history' ? 'family' : f.type === 'social_history' ? 'social' : 'medical_surgical', line); return 'Past Medical History'; }
-  if (f.type === 'medication' || f.type === 'medication_order') {
+  if ((f.type === 'medication' || f.type === 'medication_order') && !noteFix()) {
     if (f.medication_status === 'planned' || f.type === 'medication_order') { const p = bestProblem(note, f, graph) || newProblem(note, f.body_part || 'Medication'); addPlan(p, 'treatment_planned', medLine(f, med)); return `Plan / ${p.issue} / Treatment`; }
     const o = (note.past_medical_history ||= {}); const cur = String(o.other || ''); const m = cur.match(/(^|\n)Medications:\s*(.*)/i);
+    if (m) o.other = cur.replace(m[0], `${m[1]}Medications: ${m[2]}${m[2] ? ', ' : ''}${med}`); else addLine(o, 'other', `Medications: ${med}`); return 'Past Medical History / Medications';
+  }
+  if (f.type === 'medication' || f.type === 'medication_order') {
+    // the problem this medicine belongs to: the one that already names it, else the closest by words; never a new catch-all "Medication" problem
+    const ds = drugStem(f); const ap = note.assessment_and_plan || [];
+    const byQuote = () => { let best = null, s0 = 0.12; for (const p of ap) { const s = overlap(`${f.text} ${f.quote || ''}`, `${p.issue} ${p.assessment || ''} ${p.treatment_planned || ''}`); if (s > s0) { s0 = s; best = p; } } return best; };
+    const home = () => (ds && ap.find((p) => new Set(words(JSON.stringify(p)).map(stem)).has(ds))) || bestProblem(note, f, graph) || byQuote() || ap.find((p) => /renew|refill|prescription|medication/i.test(p.issue || ''));
+    if (f.medication_status === 'planned' || f.type === 'medication_order') { const p = home() || newProblem(note, f.body_part || 'Prescription renewals'); addPlan(p, 'treatment_planned', medLine(f, med)); return `Plan / ${p.issue} / Treatment`; }
+    // the Medications line lists what the patient takes; a drug that was only discussed or considered (Ozempic asked about) goes under its problem as discussed
+    const said = `${f.text} ${f.quote || ''}`; const considering = /\?|\b(thinking about|looking (into|for|at)|interested in|consider\w*|research\w*|would like|wondering|what about|heard about|asked about|pre-?auth\w*)\b/i.test(said);
+    const taking = !considering && (/^(active|current|continu\w*|ongoing|existing|taking|chronic|home)$/i.test(f.medication_status || '') || (!f.medication_status && /\b(taking|takes|i take|i'm on|i am on|using|on it)\b/i.test(said)));
+    if (f.medication_status === 'historical' && !considering) { addLine(note.past_medical_history ||= {}, 'medical_surgical', line); return 'Past Medical History'; }   // a past medicine is history, not a current one
+    if (!taking) { const p = home(); if (!p) throw new Error('discussed medicine with no problem to put it under'); addPlan(p, 'treatment_planned', `Discussed ${med}`); return `Plan / ${p.issue} / Advice`; }
+    const o = (note.past_medical_history ||= {}); const cur = String(o.other || ''); const m = cur.match(/(^|\n)Medications:\s*(.*)/i);
+    if (m && ds && new Set(words(m[2]).map(stem)).has(ds)) return 'Past Medical History / Medications (already listed)';
     if (m) o.other = cur.replace(m[0], `${m[1]}Medications: ${m[2]}${m[2] ? ', ' : ''}${med}`); else addLine(o, 'other', `Medications: ${med}`); return 'Past Medical History / Medications';
   }
   if (f.type === 'investigation') { const p = bestProblem(note, f, graph) || newProblem(note, f.body_part || 'Investigations'); addPlan(p, 'investigations_planned', line); return `Plan / ${p.issue} / Investigations`; }
@@ -166,13 +188,16 @@ For EVERY fact return one entry:
 Plan: every medicine started, changed, stopped or continued is its own "treatment" item that starts with the action and names the drug with dose and frequency. A vaccine or procedure is "administered" ONLY when the words show it was given in this visit; one the patient refused or put off is "Declined pneumonia vaccine"; one that is only due or already up to date is written as "Pneumonia vaccine due" or "Tetanus up to date", never as given. Vitals and exam findings are "objective" ("examination" with the body part, "results" for a test result). Do not invent anything the fact does not say. Never skip a fact without found_in.
 Return ONLY JSON: {"entries":[...]}`;
 
+export const LEDGER_FIX = `
+Also: a diagnosis or condition the patient has is "history", never a Subjective bullet. A medicine the patient takes goes in "history"; one that was only asked about or considered is a plan "advice" item "Discussed <drug>". Prefer "found_in" whenever an existing line says the same thing in other words: add a fact only when it is really missing.`;
+
 const factLine = (f) => `[${f.id}] ${f.type}${f.medication_status ? '/' + f.medication_status : ''}${f.negative ? '/negative' : ''}${f.body_part ? ' (' + f.body_part + ')' : ''}: ${f.text}${f.value ? ' = ' + f.value + ' ' + (f.unit || '') : ''} | said: "${f.quote.slice(0, 160)}"`;
 
 export async function askPlacement(llm, note, missing, { timeoutMs = 45000 } = {}) {
   const t0 = Date.now();
   try {
     const body = noteToMarkdown(note).split('### Assessment & Plan')[0].trim();
-    const raw = await llm.generateContent(LEDGER_SYS, `NOTE:\n${body}\n\nPLAN PROBLEMS:\n${listing(note.assessment_and_plan || [])}\n\nFACTS NOT FOUND:\n${missing.slice(0, 45).map(factLine).join('\n')}\n\nReturn ONLY the JSON.`, null,
+    const raw = await llm.generateContent(LEDGER_SYS + (noteFix() ? LEDGER_FIX : ''), `NOTE:\n${body}\n\nPLAN PROBLEMS:\n${listing(note.assessment_and_plan || [])}\n\nFACTS NOT FOUND:\n${missing.slice(0, 45).map(factLine).join('\n')}\n\nReturn ONLY the JSON.`, null,
       { maxOutputTokens: 5000, temperature: 0, timeoutMs, retries: 2, hedgeMs: 0, thinkingBudget: 512, responseMimeType: 'application/json' });
     return { raw, ms: Date.now() - t0 };
   } catch (e) { return { raw: null, error: String(e.message || e), ms: Date.now() - t0 }; }
@@ -219,6 +244,23 @@ export function stripCitations(obj) {
   return { ids, lines, cited };
 }
 
+/**
+ * The Medications line names each drug once: a later item for a drug already listed is dropped, unless it carries a number the first one does not
+ * ("M-Vac two times a week, Eltroxin half a tablet once a day, ..., M-Vac, Eltroxin once a day" -> the last two go). Returns how many were dropped.
+ */
+export function dedupeMedLine(note) {
+  const o = note.past_medical_history; const cur = String(o?.other || ''); const m = cur.match(/(^|\n)(Medications:\s*)(.*)/i); if (!m) return 0;
+  const items = m[3].split(/,\s+|;\s+/).map((x) => x.trim()).filter(Boolean); const kept = []; let dropped = 0;
+  const key = (s) => { const w = words(s).find((x) => x.length >= 3 && !STOP.has(x) && !/^\d/.test(x)); return w ? stem(w) : ''; };
+  for (const it of items) {
+    const k = key(it); const prev = k && kept.find((x) => key(x) === k);
+    if (prev && numsOf(it).every((n) => numsOf(prev).includes(n))) { dropped++; continue; }
+    kept.push(it);
+  }
+  if (dropped) o.other = cur.replace(m[0], `${m[1]}${m[2]}${kept.join(', ')}`);
+  return dropped;
+}
+
 export async function reconcileFacts(llm, note, graph, transcript, log = () => {}, { cited = null } = {}) {
   const t0 = Date.now(); const all = requiredFacts(graph.facts); if (!all.length) return { rows: [], summary: { facts: graph.facts.length, required: 0 }, ms: 0 };
   // a fact the writer cited is in the note by the writer's own account; a critical one must also be found by the code check
@@ -236,6 +278,7 @@ export async function reconcileFacts(llm, note, graph, transcript, log = () => {
   // are placed only when the model found a place for them (by rule they became a list of bare facts that broke the story)
   const FORCE_TYPES = new Set(['medication', 'medication_order', 'investigation', 'referral', 'follow_up', 'treatment', 'treatment_instruction', 'administrative_action', 'lab_result', 'physical_exam', 'normal_finding', 'diagnosis']);
   for (const f of L.missing) { if (judged.has(f.id) || f.importance === 'minor' || (f.importance !== 'critical' && !FORCE_TYPES.has(f.type))) continue; /* minor facts are placed only when the model chose to; critical and major ones always */ try { const where = placeFact(note, f, graph); forced.push({ id: f.id, where }); } catch (e) { dropped.push({ id: f.id, why: String(e.message).slice(0, 80) }); } }
+  const dupMeds = noteFix() ? dedupeMedLine(note) : 0; if (dupMeds) log(`[v2:ledger] ${dupMeds} repeated drug(s) removed from the Medications line`);
   const rows = ledger(note, req).rows.map((r) => (r.status === 'found' ? (placed.has(r.id) ? { ...r, status: 'placed' } : r) : judged.has(r.id) ? { ...r, status: 'found', where: 'in other words' } : r));
   for (const x of forced) { const row = rows.find((r) => r.id === x.id); if (row && row.status !== 'found' && row.status !== 'placed') { row.status = 'forced'; row.where = x.where; } else if (row) { row.status = 'forced'; row.where = x.where; } }
   rows.unshift(...citedRows);

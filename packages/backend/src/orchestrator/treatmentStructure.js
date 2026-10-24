@@ -39,23 +39,38 @@ export function bare(part, kind) {
   return p.replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Lay out one "Treatment planned" line; returns the lines to put in its place (an array of strings, indentation included). */
-export function layoutTreatment(indent, text) {
+// A part with no action word is not a treatment. An explanation ("Ozempic is a GLP-1 medication", "Nausea as side effect of GLP-1s") is advice the patient
+// was given; a statement of what happened ("Physiotherapy helped reduce symptoms") belongs with the problem's summary. Both move, with their wording kept.
+const EXPLAIN = /\b(is|are) (an?|the|not|recommended|used|indicated|approved|proven|safe|effective)\b|\bside[\s-]effects?\b|\boff[\s-]label\b|\brisks? of\b|\bbenefits? of\b/i;
+const HAPPENED = /\b(helped|improved|worked|resolved|reduced|was|were|had|has been|have been|did not help|didn'?t help)\b/i;
+export function sortOther(part) { const p = String(part).trim(); if (process.env.NOTE_FIX === '0' || classify(p) !== 'Other') return 'treat'; if (EXPLAIN.test(p)) return 'advice'; if (HAPPENED.test(p)) return 'summary'; return 'treat'; }
+
+/** Lay out one "Treatment planned" line; returns the lines to put in its place (an array of strings, indentation included), and the parts that are not treatment. */
+export function layoutTreatment(indent, text, moved = { advice: [], summary: [] }) {
   const parts = String(text).split(/;\s+/).map((x) => x.trim()).filter(Boolean)
-    .reduce((a, p) => { if (a.length && /\b(Dr|Mr|Mrs|Ms|St|Prof)\.?$/.test(a[a.length - 1])) a[a.length - 1] = a[a.length - 1].replace(/\.?$/, '. ') + p; else a.push(p); return a; }, []);   // "by Dr" + "Kallell" are one item
+    .reduce((a, p) => { if (a.length && /\b(Dr|Mr|Mrs|Ms|St|Prof)\.?$/.test(a[a.length - 1])) a[a.length - 1] = a[a.length - 1].replace(/\.?$/, '. ') + p; else a.push(p); return a; }, [])   // "by Dr" + "Kallell" are one item
+    .filter((p) => { const s = sortOther(p); if (s === 'treat') return true; moved[s].push(p.replace(/\.$/, '').replace(/^./, (c) => c.toUpperCase())); return false; });
+  if (!parts.length) return [];
   const items = parts.map((p) => { const kind = classify(p); return { kind, text: bare(p, kind) }; });
-  if (items.length < 2 && (!items.length || items[0].kind === 'Other')) return [`${indent}- Treatment planned: ${parts.join('; ')}`];
+  if (items.length < 2 && items[0].kind === 'Other') return [`${indent}- Treatment planned: ${parts.join('; ')}`];
   const out = [`${indent}- Treatment planned:`];
   for (const k of ORDER) for (const it of items.filter((x) => x.kind === k)) out.push(`${indent}  - ${k}: ${it.text}`);
   return out;
 }
 
 export function structureTreatment(md) {
-  const lines = String(md || '').split('\n'); const out = []; let inAP = false;
-  for (const l of lines) {
+  const lines = String(md || '').split('\n'); const out = []; let inAP = false; let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
     if (/^###\s+/.test(l)) inAP = /^###\s+Assessment/i.test(l);
-    const m = inAP && l.match(/^(\s+)-\s+Treatment planned:\s*(.+)$/);
-    if (m) out.push(...layoutTreatment(m[1], m[2])); else out.push(l);
+    if (!inAP || !/^\d+\.\s/.test(l)) { out.push(l); i++; continue; }
+    const block = [l]; i++; while (i < lines.length && /^\s+-\s/.test(lines[i])) block.push(lines[i++]);
+    const moved = { advice: [], summary: [] }; const body = [];
+    for (const b of block.slice(1)) { const m = b.match(/^(\s+)-\s+Treatment planned:\s*(.+)$/); if (m) body.push(...layoutTreatment(m[1], m[2], moved)); else body.push(b); }
+    const ind = (block[1]?.match(/^(\s+)-\s/) || [, '   '])[1];
+    if (moved.summary.length) { const at = body.findIndex((x) => new RegExp(`^${ind}-\\s+(Treatment planned|Investigations planned|Referrals|Advice|Follow-up):`).test(x)); body.splice(at < 0 ? body.length : at, 0, ...moved.summary.map((s) => `${ind}- ${s}`)); }
+    if (moved.advice.length) { const a = body.findIndex((x) => new RegExp(`^${ind}-\\s+Advice:`).test(x)); if (a >= 0) body[a] = `${body[a].replace(/[;\s]+$/, '')}; ${moved.advice.join('; ')}`; else { const f = body.findIndex((x) => new RegExp(`^${ind}-\\s+Follow-up:`).test(x)); body.splice(f < 0 ? body.length : f, 0, `${ind}- Advice: ${moved.advice.join('; ')}`); } }
+    out.push(block[0], ...body);
   }
   return out.join('\n');
 }

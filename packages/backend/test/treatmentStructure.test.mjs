@@ -35,3 +35,9 @@ test('Objective: labelled groups, and Deferred when nothing was measured, examin
   assert.match(none, /### Objective\n- Deferred\n\n### Assessment & Plan/);
   assert.equal(noteToMarkdown({ metadata: {} }), '', 'an empty note stays empty');
 });
+test('a part with no action word is sorted: an explanation goes to Advice, what happened goes to the problem summary, wording kept', () => {
+  const md = '### Assessment & Plan\n1. **Arthritis**\n   - Treatment planned: Start Tylenol 500 mg as needed; Ozempic is a GLP-1 medication; Nausea as side effect of GLP-1s\n   - Advice: Pre-authorization forms for Wegovy\n2. **Neck pain**\n   - Treatment planned: Physiotherapy helped reduce symptoms\n';
+  const out = structureTreatment(md);
+  assert.match(out, /1\. \*\*Arthritis\*\*\n   - Treatment planned:\n     - Started: Tylenol 500 mg as needed\n   - Advice: Pre-authorization forms for Wegovy; Ozempic is a GLP-1 medication; Nausea as side effect of GLP-1s/);
+  assert.match(out, /2\. \*\*Neck pain\*\*\n   - Physiotherapy helped reduce symptoms\n?$/);
+});
