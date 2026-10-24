@@ -19,6 +19,13 @@ import { createGeminiService } from '../services/LLMService.js';
 
 export const WINDOW_WORDS = 650;      // a window this long returns its facts in about 5-8 s
 export const OVERLAP_WORDS = 90;      // a fact spoken at the border is seen by both windows
+export const SWEEP_CATEGORIES = [
+  'follow_up: every return visit, recheck or "see you again", with its timeframe, and anything the clinician will do once tests are done',
+  'medication: every drug named, with dose, frequency, quantity, refills, pharmacy, and whether it was started, stopped, changed, continued or only discussed; every change of dose',
+  'treatment_instruction: every piece of advice, warning or instruction the clinician gave the patient, with its duration (for example "for life")',
+  'investigation: every test, scan or blood work ordered, planned, reviewed or due, with its date or timeframe',
+  'social_history: age band, menopause status, travel plans, work, who the patient lives with, when the patient states it',
+];
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Split a transcript into overlapping windows on sentence ends. One window when it is short. */
@@ -84,11 +91,19 @@ export async function buildFactGraph(transcript, { log = () => {}, encounterType
   const t0 = Date.now();
   try {
     const wins = windowsOf(transcript);
+    // The details the plan is made of are the ones a first pass leaves out most often (the audit of 16 notes: follow-up after the tests, "up the dose", recheck in 6-12 months,
+    // a drug's quantity and pharmacy, advice "for life"). The owner's recovery agent is therefore run on every transcript for these categories, at the same time as the windows.
+    const sweepP = (!recover || process.env.FACT_SWEEP === '0') ? Promise.resolve(null) : (async () => {
+      try { const llm = await createGeminiService(); llm._agent = 'fact-recovery'; const g0 = await new FactRecoveryAgent(llm).execute(transcript, SWEEP_CATEGORIES, { clinical_entities: [] }); return { clinical_entities: g0.clinical_entities || [], relationships: [] }; }
+      catch (e) { log(`[v2:facts] detail sweep skipped — ${String(e.message).slice(0, 100)}`); return null; }
+    })();
     const graphs = await Promise.all(wins.map(async (w, i) => {
       const llm = await createGeminiService(); llm._agent = 'observation-extractor';
       try { return await new ClinicalObservationExtractorAgent(llm).execute(w, encounterType); } catch (e) { log(`[v2:facts] window ${i + 1}/${wins.length} failed — ${String(e.message).slice(0, 120)}`); return null; }
     }));
-    let g = mergeGraphs(graphs);
+    const swept = await sweepP; const sweptN = swept?.clinical_entities?.length || 0;
+    let g = mergeGraphs([...graphs, swept]);
+    if (sweptN) log(`[v2:facts] detail sweep returned ${sweptN} fact(s), ${g.clinical_entities.length - graphs.reduce((n, x) => n + (x?.clinical_entities?.length || 0), 0)} of them new`);
     if (!g.clinical_entities.length) return { facts: [], edges: [], orders: [], followUps: [], medications: [], counts: {}, windows: wins.length, recovered: 0, ms: Date.now() - t0, error: 'no facts returned' };
     try { g = RelationshipEngine.execute(g); } catch { /* the engine only adds edges */ }
     let recovered = 0;
