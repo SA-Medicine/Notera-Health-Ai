@@ -19,7 +19,10 @@ const NEG = /\b(no|not|denies|denied|without|negative|never|none|nil|absent)\b/i
 const PLAN_TYPES = new Set(['medication', 'medication_order', 'treatment', 'treatment_instruction', 'investigation', 'referral', 'follow_up', 'administrative_action']);
 const SKIP_TYPES = new Set(['temporal_reference', 'clinician_reasoning']);
 const ACTION_WORDS = /\b(advis\w*|should|need\w*|avoid\w*|use|apply|take|return|stop|start|continue|rest|ice|elevat\w*|exercis\w*|limit|drink|eat|call|go to|see|keep|do not|don't|try|increase|decrease|monitor|check|follow|book|arrange|schedule\w*|fax\w*|prescri\w*|refer\w*|order\w*)\b/i;
-const GIVEN_RX = /\b(vaccin\w*|injection|shot|immuni[sz]ation|administered|booster)\b/i;
+const DECLINE_RX = /\b(declin\w*|refus\w*|do(?:es)? not want|don'?t want|no thanks|not today|not now|pass on|doesn'?t want)\b/i;
+const NOT_GIVEN_RX = /\b(up to date|already (?:had|got|has)|okay on|ok on|due|next year|later|if you want|would you like|do you want)\b/i;
+const GIVEN_WORDS = /\b(administered|given|gave|give you|got (?:the|a|your)|received|injected|in the (?:left|right) arm|in your (?:left|right) arm)\b/i;
+const GIVEN_RX =/\b(vaccin\w*|injection|shot|immuni[sz]ation|administered|booster)\b/i;
 const SUBJ_TYPES = new Set(['symptom', 'injury_mechanism', 'contextual_activity', 'resolved_symptom', 'previous_episode', 'lifestyle_modification', 'medication_tolerance', 'care_barrier', 'clinical_context', 'patient_preference', 'shared_decision_making', 'treatment_duration']);
 const HIST_TYPES = new Set(['pmh', 'family_history', 'social_history', 'procedure_history']);
 const stem = (w) => w.replace(/(ing|ed|es|s)$/, '').slice(0, 6);
@@ -97,7 +100,8 @@ export function bestProblem(note, f, graph) {
   const texts = [f.text + ' ' + f.body_part, ...linked.map((id) => (graph.facts.find((x) => x.id === id) || {}).text || '')];
   let best = -1, score = 0.15;
   ap.forEach((p, i) => { const t = `${p.issue} ${p.diagnosis || ''}`; const s = Math.max(...texts.map((x) => overlap(x, t))); if (s > score) { score = s; best = i; } });
-  return best >= 0 ? ap[best] : ap[0];
+  // nothing matches: a follow-up goes under the main problem; anything else is NOT dumped under an unrelated first problem (the caller makes a problem for it)
+  return best >= 0 ? ap[best] : (f.type === 'follow_up' ? ap[0] : null);
 }
 
 const ACTION_LEAD = /^(start|stop|continue|increase|decrease|reduce|switch|change|refill|renew|resume|discontinue|titrate|prescribe|begin|add|hold|taper)/i;
@@ -118,7 +122,9 @@ export function placeFact(note, f, graph) {
     const ap = (note.assessment_and_plan ||= []); const kind = /\bb12\b/i.test(f.text) ? 'b12' : /vaccin|immuni|\bflu\b|influenza|tetanus|mmr|tdap|covid|shingrix|booster/i.test(f.text) ? 'vaccine' : 'injection';
     const rx = { b12: /b12/i, vaccine: /vaccin|immuni/i, injection: /injection/i }[kind]; let p = ap.find((x) => rx.test(String(x?.issue || '')) && (kind !== 'injection' || !/b12|vaccin/i.test(String(x.issue))));
     if (!p) p = newProblem(note, { b12: 'Vitamin B12 injection', vaccine: 'Immunisation', injection: 'Injection' }[kind]);
-    addPlan(p, 'treatment_planned', /administ|given|received/i.test(line) ? line : `${line} administered`); return `Plan / ${p.issue} / Given today`;
+    // never write "administered" for a shot that was only talked about: the words say whether it was given, declined, or is just due
+    const said = `${f.text} ${f.quote}`; const declined = DECLINE_RX.test(said); const given = GIVEN_WORDS.test(said) && !declined && !NOT_GIVEN_RX.test(said);
+    addPlan(p, 'treatment_planned', declined ? `Declined ${f.text.replace(/\.$/, '').replace(/^declined\s+/i, '')}` : given ? (/administ|given|received|got/i.test(line) ? line : `${line} administered`) : line); return `Plan / ${p.issue} / ${given ? 'Given today' : declined ? 'Declined' : 'Treatment'}`;
   }
   if (f.type === 'physical_exam' || f.type === 'normal_finding') {
     const o = (note.objective ||= {});
@@ -155,7 +161,7 @@ You receive the NOTE (Subjective with topic headings, Past Medical History, Obje
 For EVERY fact return one entry:
  - if the note already says it in other words: {"fact":"F012","found_in":"<the exact note line that holds it, copied>"};
  - otherwise say where it belongs: {"fact":"F012","section":"subjective|history|objective|plan","topic":"<exact existing Subjective heading, or a short new heading>","n":<plan problem number, or 0 with "topic" = a plain problem name when no listed problem covers it>,"field":"treatment|advice|follow_up|investigations|referrals|assessment|examination|results","text":"<short plain clinical phrase, the fact's own words, numbers and drug names exactly>"}.
-Plan: every medicine started, changed, stopped or continued is its own "treatment" item that starts with the action and names the drug with dose and frequency. A vaccine or procedure given in the visit is "treatment" ("Influenza vaccine administered"). Vitals and exam findings are "objective" ("examination" with the body part, "results" for a test result). Do not invent anything the fact does not say. Never skip a fact without found_in.
+Plan: every medicine started, changed, stopped or continued is its own "treatment" item that starts with the action and names the drug with dose and frequency. A vaccine or procedure is "administered" ONLY when the words show it was given in this visit; one the patient refused or put off is "Declined pneumonia vaccine"; one that is only due or already up to date is written as "Pneumonia vaccine due" or "Tetanus up to date", never as given. Vitals and exam findings are "objective" ("examination" with the body part, "results" for a test result). Do not invent anything the fact does not say. Never skip a fact without found_in.
 Return ONLY JSON: {"entries":[...]}`;
 
 const factLine = (f) => `[${f.id}] ${f.type}${f.medication_status ? '/' + f.medication_status : ''}${f.negative ? '/negative' : ''}${f.body_part ? ' (' + f.body_part + ')' : ''}: ${f.text}${f.value ? ' = ' + f.value + ' ' + (f.unit || '') : ''} | said: "${f.quote.slice(0, 160)}"`;

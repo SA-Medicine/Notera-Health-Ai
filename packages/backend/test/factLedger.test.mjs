@@ -73,8 +73,8 @@ test('a medicine written in by rule starts with the right action and names the d
 
 test('a shot given in the visit goes to its own problem, never to Vital Signs or the first problem; explanations are not required facts', async () => {
   const n = note(); const g = { facts: [], edges: [] };
-  assert.match(placeFact(n, F({ type: 'physical_exam', text: 'B12 injection', numeric_type: 'vitals' }), g), /Given today/);
-  assert.match(placeFact(n, F({ type: 'treatment_instruction', text: 'Influenza vaccination administered in left arm' }), g), /Given today/);
+  assert.match(placeFact(n, F({ type: 'physical_exam', text: 'B12 injection', numeric_type: 'vitals', quote: 'I will give you the B12 injection now' }), g), /Given today/);
+  assert.match(placeFact(n, F({ type: 'treatment_instruction', text: 'Influenza vaccination administered in left arm', quote: 'we gave you the flu shot in the left arm' }), g), /Given today/);
   const md = noteToMarkdown(n); assert.ok(!/Vital Signs/.test(md)); assert.match(md, /Vitamin B12 injection[\s\S]*B12 injection administered/); assert.match(md, /Immunisation[\s\S]*Influenza vaccination administered in left arm/);
   const req = requiredFacts([F({ id: 'F1', type: 'clinical_context', text: 'flu season is early this year' }), F({ id: 'F2', type: 'treatment_instruction', text: 'pneumonia shot is an infection in the lungs' }), F({ id: 'F3', type: 'treatment_instruction', text: 'use heat on the neck twice a day' })]);
   assert.deepEqual(req.map((f) => f.id), ['F3']);
@@ -89,4 +89,14 @@ test('spelled-out numbers count: "four weeks" is not found in a line that says "
   const llm = { generateContent: async () => JSON.stringify({ entries: [{ fact: 'F009', found_in: 'Left hip pain' }] }) };
   const r = await reconcileFacts(llm, n, { facts: [crit], edges: [] }, 'we will refer you to the dermatologist for the mole on your back');
   assert.equal(r.rows[0].status, 'forced', 'the model pointed at a line that does not hold a critical fact');
+});
+
+test('a vaccine that was declined, or only due, is never written as administered; a plan item with no matching problem does not land under an unrelated one', () => {
+  const n = note(); const g = { facts: [], edges: [] };
+  placeFact(n, F({ type: 'treatment', text: 'pneumonia shot', quote: 'I do not want the pneumonia shot today' }), g);
+  placeFact(n, F({ type: 'treatment', text: 'tetanus shot', quote: 'you are okay on tetanus, it is good for ten years' }), g);
+  placeFact(n, F({ type: 'treatment', text: 'Influenza vaccine in the left arm', quote: 'I will give you the flu shot in the left arm' }), g);
+  const md = noteToMarkdown(n); assert.match(md, /Declined pneumonia shot/); assert.ok(!/Pneumonia shot administered|Tetanus shot administered/i.test(md)); assert.match(md, /Tetanus shot/); assert.match(md, /Influenza vaccine in the left arm administered/);
+  const m = note(); placeFact(m, F({ type: 'investigation', text: 'MRI of the right shoulder', body_part: 'Right shoulder' }), g);
+  assert.equal(m.assessment_and_plan[0].investigations_planned, ''); assert.equal(m.assessment_and_plan[1].issue, 'Right shoulder'); assert.match(m.assessment_and_plan[1].investigations_planned, /MRI of the right shoulder/);
 });
