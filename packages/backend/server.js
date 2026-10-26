@@ -160,12 +160,15 @@ app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
   if (cid) {
     const prev = _byConsult.get(`${owner}|${cid}`); const pj = prev && _jobs.get(prev);
     if (pj && pj.status !== 'error') { refundIfReserved(req); return res.status(202).json({ jobId: prev, consultId: cid, reused: true }); }
-    const row = await store.getConsult(cid).catch(() => null);
-    if (row?.clinician_id && req.user?.id && row.clinician_id !== req.user.id) { refundIfReserved(req); return res.status(403).json({ error: 'forbidden' }); }
   }
+  // the job is registered BEFORE any await, so two requests arriving at the same instant cannot both start a note
   const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   _jobs.set(jobId, { status: 'pending', createdAt: Date.now(), consultId: cid, owner });
   if (cid) _byConsult.set(`${owner}|${cid}`, jobId);
+  if (cid) {
+    const row = await store.getConsult(cid).catch(() => null);
+    if (row?.clinician_id && req.user?.id && row.clinician_id !== req.user.id) { _jobs.delete(jobId); _byConsult.delete(`${owner}|${cid}`); refundIfReserved(req); return res.status(403).json({ error: 'forbidden' }); }
+  }
   res.status(202).json({ jobId, consultId: cid });   // respond instantly
   // Run the pipeline AFTER responding — never blocks the request.
   (async () => {

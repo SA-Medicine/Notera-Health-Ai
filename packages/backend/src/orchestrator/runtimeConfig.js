@@ -13,7 +13,7 @@ import { query, one } from '../db/pool.js';
 
 const env = (k) => process.env[k];
 const num = (k, d) => (env(k) !== undefined && env(k) !== '' && Number.isFinite(Number(env(k))) ? Number(env(k)) : d);
-const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
+const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
 
 /** key → { group, label, type, def, min, max, options, help, stage } */
 export const REGISTRY = {
