@@ -8,6 +8,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 // Per-call default-model override (lab experiments: run the multi-agent pipeline on another model without touching env).
 const _modelStore = new AsyncLocalStorage();
+// A model of the same class to retry on when a model's shared capacity is exhausted (429). gemini-3.7-flash is served only on the global endpoint.
+const BUSY_ALT = { 'gemini-2.5-flash': 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite': 'gemini-2.5-flash', 'gemini-3.7-flash': 'gemini-2.5-flash', 'gemini-2.5-flash-lite': 'gemini-3.5-flash-lite' };
 export const runWithModel = (model, fn) => (model ? _modelStore.run({ model }, fn) : fn());
 // Every call made inside withUsage(fn) is listed (model, agent, tokens), so one note's cost can be counted even while another note runs at the same time.
 const _usageStore = new AsyncLocalStorage();
@@ -106,6 +108,12 @@ export class LLMService {
     const th = Number(usage?.thoughtsTokenCount || 0);
     _usageStore.getStore()?.push({ model: this.model, agent, prompt: p, output: o, thoughts: th });
     console.log(`[tokens] ${agent}: prompt=${p} output=${o} total=${t}${th ? ` thoughts=${th}` : ''} (model=${this.model})`);
+  }
+
+  /** The generateContent URL of a model at a given Vertex location (used to retry a 429 on another capacity pool). */
+  _endpointAt(loc, model = this.model) {
+    const host = loc === 'global' ? 'https://aiplatform.googleapis.com' : `https://${loc}-aiplatform.googleapis.com`;
+    return `${host}/v1/projects/${this.project}/locations/${loc}/publishers/google/models/${model}:generateContent`;
   }
 
   _endpoint(stream = false, model = this.model) {
@@ -245,7 +253,7 @@ export class LLMService {
     }
 
     let headers = usingProxy ? { 'Content-Type': 'application/json' } : await this._authHeaders();
-    let lastErr;
+    let lastErr; let busy = 0; let curModel = this.model;
     try {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -284,6 +292,14 @@ export class LLMService {
           }
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
             lastErr = new Error(`Gemini API ${response.status} (retrying)`);
+            // 429 RESOURCE_EXHAUSTED on Vertex pay-as-you-go is Google's shared capacity for that model at that endpoint running out (not our
+            // quota, not a free tier). Asking the same pool again soon often fails again (3 notes on 2026-10-26), so the retry goes somewhere
+            // else: first a gemini-2.x model's regional endpoint (its own capacity), then a sibling model of the same class.
+            if (response.status === 429 && !usingProxy && this.backend === 'vertex' && process.env.LLM_BUSY_SWITCH !== '0') {
+              busy += 1;
+              if (busy === 1 && this.location === 'global' && /^gemini-2\./.test(curModel)) { url = this._endpointAt('us-central1', curModel); console.warn(`[LLMService] 429 on ${this._agent || 'llm'}: retrying ${curModel} on us-central1`); }
+              else if (BUSY_ALT[curModel]) { curModel = BUSY_ALT[curModel]; url = this._endpoint(false, curModel); console.warn(`[LLMService] 429 on ${this._agent || 'llm'}: retrying on ${curModel}`); }
+            }
             // Exponential backoff with jitter — a 429 (RESOURCE_EXHAUSTED) or 5xx means the
             // endpoint is overloaded/throttled; retrying INSTANTLY just hammers it and makes
             // the throttle worse. Wait 1s, 2s, 4s… (capped 10s) so quota has time to recover.

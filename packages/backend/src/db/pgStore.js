@@ -50,8 +50,10 @@ export function pgStoreDriver() {
              (consult_id, clinician_id, specialty, note_type, status, audio_uri, pipeline_version, transcript, entities, metadata, created_at)
            VALUES ($1,$2,$3,$4, COALESCE($5,'processing')::clinical.consult_status, $6,$7,$8,$9, COALESCE($10,'{}')::jsonb, COALESCE($11, now()))
            ON CONFLICT (consult_id) DO UPDATE SET
-             clinician_id=EXCLUDED.clinician_id, specialty=EXCLUDED.specialty, note_type=EXCLUDED.note_type,
-             status=EXCLUDED.status, audio_uri=EXCLUDED.audio_uri, pipeline_version=EXCLUDED.pipeline_version`,
+             clinician_id=COALESCE(EXCLUDED.clinician_id, clinical.consults.clinician_id), specialty=COALESCE(EXCLUDED.specialty, clinical.consults.specialty),
+             note_type=COALESCE(EXCLUDED.note_type, clinical.consults.note_type), status=EXCLUDED.status,
+             audio_uri=COALESCE(EXCLUDED.audio_uri, clinical.consults.audio_uri), pipeline_version=COALESCE(EXCLUDED.pipeline_version, clinical.consults.pipeline_version),
+             transcript=COALESCE(EXCLUDED.transcript, clinical.consults.transcript)`,   -- saving a consult again never wipes its recording or transcript (the recording is now uploaded before the note is written)
           [c.consultId, c.clinicianId || null, c.specialty || null, c.noteType || null, c.status || null,
            c.audioUri || null, c.generatedBy || c.pipelineVersion || null,
            c.transcript ? JSON.stringify(c.transcript) : null,

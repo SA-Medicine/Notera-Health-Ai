@@ -138,9 +138,10 @@ app.post('/api/consults', noteQuotaGate, async (req, res) => {
 //   GET  /api/consults/job/:jobId → { status: pending|done|error, result?, error? }
 // Each request is tiny, so no single call ever approaches the edge timeout, and the
 // client can poll for up to 5 minutes (or longer) with no risk of a 524.
-const _jobs = new Map();   // jobId -> { status, result, error, createdAt }
+const _jobs = new Map();   // jobId -> { status, result, error, createdAt, consultId, owner }
+const _byConsult = new Map();   // "<user>|<consultId>" -> jobId (one note job per consult)
 const JOB_TTL_MS = 15 * 60 * 1000;
-setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now - j.createdAt > JOB_TTL_MS) _jobs.delete(id); }, 60_000).unref?.();
+setInterval(() => { const now = Date.now(); for (const [id, j] of _jobs) if (now - j.createdAt > JOB_TTL_MS) { _jobs.delete(id); for (const [k, v] of _byConsult) if (v === id) _byConsult.delete(k); } }, 60_000).unref?.();
 
 app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
   const { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, deidMode } = req.body || {};
@@ -151,31 +152,55 @@ app.post('/api/consults/async', noteQuotaGate, async (req, res) => {
     recordAudioEvent({ clinicianId, reason: 'empty_transcript', meta: { via: 'async' } });
     return res.status(422).json({ error: 'empty_transcript', message: 'No speech detected — nothing to write a note from.' });
   }
+  // The browser names the consult (consultId) when the recording starts, saves the consult and its recording BEFORE asking for the note, and sends the
+  // same id here. A second request for the same consult (a double click, a retry after a refresh) gets the job that is already running or finished,
+  // instead of writing a second note: three notes were written from one recording in 0.2 s on 2026-10-26.
+  const owner = req.user?.id || clinicianId;
+  const cid = /^[A-Za-z0-9_-]{6,80}$/.test(String(req.body?.consultId || '')) ? String(req.body.consultId) : null;
+  if (cid) {
+    const prev = _byConsult.get(`${owner}|${cid}`); const pj = prev && _jobs.get(prev);
+    if (pj && pj.status !== 'error') { refundIfReserved(req); return res.status(202).json({ jobId: prev, consultId: cid, reused: true }); }
+    const row = await store.getConsult(cid).catch(() => null);
+    if (row?.clinician_id && req.user?.id && row.clinician_id !== req.user.id) { refundIfReserved(req); return res.status(403).json({ error: 'forbidden' }); }
+  }
   const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  _jobs.set(jobId, { status: 'pending', createdAt: Date.now() });
-  res.status(202).json({ jobId });   // respond instantly
+  _jobs.set(jobId, { status: 'pending', createdAt: Date.now(), consultId: cid, owner });
+  if (cid) _byConsult.set(`${owner}|${cid}`, jobId);
+  res.status(202).json({ jobId, consultId: cid });   // respond instantly
   // Run the pipeline AFTER responding — never blocks the request.
   (async () => {
     try {
       const result = await generateNote(
-        { transcript, audioUri, specialty, noteType, clinicianId, templateSystemPrompt, patientMeds },
+        { transcript, audioUri, specialty, noteType, clinicianId: req.user?.id || clinicianId, templateSystemPrompt, patientMeds, ...(cid ? { consultId: cid } : {}) },
         { deidMode, includeLogs: !!req.body?.includeLogs }
       );
-      _jobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
+      _jobs.set(jobId, { status: 'done', result, createdAt: Date.now(), consultId: result?.consultId || cid, owner });
     } catch (err) {
       console.error('[/api/consults/async] error', err);
       refundIfReserved(req);   // a failed note doesn't count against the free quota
-      _jobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() });
+      _jobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now(), consultId: cid, owner });
     }
   })();
 });
 
-app.get('/api/consults/job/:jobId', (req, res) => {
+// The note as saved in the database, for a job this server no longer holds (it restarted, or the job aged out).
+async function savedNote(consultId, userId) {
+  const c = await store.getConsult(consultId).catch(() => null);
+  if (!c || (userId && c.clinician_id && c.clinician_id !== userId)) return null;
+  const d = [...(c.drafts || [])].reverse().find((x) => x?.rendered_note || x?.note?.rendered || x?.renderedNote);
+  if (!d) return { status: c.status === 'processing' ? 'lost' : 'none', consultId };
+  return { status: 'done', result: { consultId, renderedNote: d.rendered_note || d.renderedNote || d.note?.rendered || '', flags: d.flags || d.note?.metadata?.flags || [], detectedSpecialty: c.specialty || null } };
+}
+
+app.get('/api/consults/job/:jobId', async (req, res) => {
   const j = _jobs.get(req.params.jobId);
-  if (!j) return res.status(404).json({ status: 'error', error: 'job not found or expired' });
-  if (j.status === 'done') return res.json({ status: 'done', result: j.result });
-  if (j.status === 'error') return res.json({ status: 'error', error: j.error });
-  return res.json({ status: 'pending' });
+  const consultId = j?.consultId || (/^[A-Za-z0-9_-]{6,80}$/.test(String(req.query.consultId || '')) ? String(req.query.consultId) : null);
+  if (j?.status === 'done') return res.json({ status: 'done', consultId, result: j.result });
+  if (j?.status === 'error') return res.json({ status: 'error', consultId, error: j.error });
+  if (j) return res.json({ status: 'pending', consultId, startedAt: j.createdAt });
+  // not in memory: the server restarted or the job aged out. The note may already be saved; if it is not, say the job was lost so the page can start it again.
+  if (consultId) { const s = await savedNote(consultId, req.user?.id); if (s?.status === 'done') return res.json(s); if (s) return res.json({ status: 'lost', consultId }); }
+  return res.status(404).json({ status: 'lost', error: 'job not found or expired' });
 });
 
 app.get('/api/consults/:id', async (req, res) => {

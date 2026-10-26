@@ -2,7 +2,7 @@
 
 // Medicines box under the note: every drug the note names, checked against RxNorm (the NIH drug database) for its name and its dose.
 // One click takes the suggested name; or type the right drug. The change is made in the note text and saved with the corrections, like every other fix.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { NoteFlag, Correction } from './NoteChecks'
 import { replaceWord } from './noteFix'
 
@@ -13,6 +13,10 @@ export default function DrugBox({ flags, note, onChange, onCorrection }: { flags
   const [edit, setEdit] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [done, setDone] = useState<Record<string, string>>({})
+  // the clinician can switch the drug suggestions off (and on again); the choice is remembered in this browser
+  const [on, setOn] = useState(true)
+  useEffect(() => { try { setOn(localStorage.getItem('notera.drugSuggest') !== 'off') } catch { /* private window */ } }, [])
+  const toggle = () => setOn((v) => { const n = !v; try { localStorage.setItem('notera.drugSuggest', n ? 'on' : 'off') } catch { /* */ } return n })
   if (!rows.length) return null
 
   const first = (r: Row) => r.name.split(' ')[0]
@@ -28,8 +32,9 @@ export default function DrugBox({ flags, note, onChange, onCorrection }: { flags
     : { cls: 'ok', text: r.dose ? `Known drug, ${r.dose} is a real strength` : 'Known drug' }
 
   return (
-    <section className="drug-box" aria-label="Medicines in this note">
-      <h4>Medicines in this note <small>checked against RxNorm</small></h4>
+    <section className={`drug-box${on ? '' : ' is-off'}`} aria-label="Medicines in this note">
+      <h4>Medicines in this note <small>{on ? 'checked against RxNorm' : 'suggestions off'}</small>
+        <label className="drug-toggle"><input type="checkbox" checked={on} onChange={toggle} />Drug suggestions</label></h4>
       <ul>
         {rows.filter(inNote).concat(rows.filter((r) => !inNote(r) && done[r.name])).map((r) => {
           const s = status(r)

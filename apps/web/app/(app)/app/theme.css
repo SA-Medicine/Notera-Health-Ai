@@ -106,3 +106,17 @@ body.dark-mode * { scrollbar-color: rgba(221, 227, 232, 0.28) transparent; }
 .drug-edit input { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-strong, rgba(58, 15, 52, .2)); min-width: 200px; font: inherit; font-size: 13.5px; }
 .sh-meds { width: 100%; resize: vertical; min-height: 44px; font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line, rgba(58, 15, 52, .14)); }
 body.dark-mode .drug-row { background: var(--card); }
+
+/* errors the clinician can read and dismiss; recording save status; time while the note is written */
+.scribe-alert { display: flex; align-items: flex-start; gap: 12px; padding: 9px 20px; background: var(--red-pale); color: var(--red); font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+.scribe-alert span { flex: 1; min-width: 0; }
+.scribe-alert button { background: none; border: 0; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.rec-saved { padding: 5px 20px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--border, rgba(0,0,0,.06)); }
+.rec-saved.is-saving { color: var(--ink-3, #6b6b76); }
+.rec-saved.is-saved { color: var(--green, #2e7d4f); }
+.rec-saved.is-retry { color: var(--amber, #a15c00); background: rgba(255, 170, 0, .08); }
+.gen-time { margin-top: 14px; font-size: 12.5px; color: var(--ink-3, #6b6b76); text-align: center; max-width: 420px; line-height: 1.5; }
+.drug-box .drug-toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--ink-3, #6b6b76); cursor: pointer; user-select: none; }
+.drug-box .drug-toggle input { accent-color: var(--aub, #3A0F34); width: 14px; height: 14px; }
+.drug-box h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.drug-box.is-off ul { display: none; }

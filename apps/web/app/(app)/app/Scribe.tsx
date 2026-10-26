@@ -17,6 +17,7 @@ import { mdToHtml } from './noteRender';
 import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
+import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending } from './audioVault';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
@@ -60,6 +61,25 @@ async function readJson(r: Response): Promise<any> {
     throw new Error(r.ok ? 'Backend returned a non-JSON response (is the API reachable?).' : `Request failed (${r.status}).`);
   }
   try { return JSON.parse(body); } catch { throw new Error('Backend returned an invalid response.'); }
+}
+
+// A consult is named in the browser when the visit starts, so the recording, the transcript and the note are saved under ONE id from the first
+// second: a refresh, a double click or a server restart can never split a visit into several consults or lose its note.
+const newConsultId = () => `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const PENDING_KEY = 'notera.pendingNote';   // the note being written: { jobId, consultId, startedAt, transcript, specialty, patientMeds }
+type PendingNote = { jobId: string; consultId: string; startedAt: number; transcript: string; specialty: string; patientMeds: string[] };
+const readPending = (): PendingNote | null => { try { const p = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); return p && p.jobId && p.consultId ? p : null; } catch { return null; } };
+const writePending = (p: PendingNote | null) => { try { if (p) localStorage.setItem(PENDING_KEY, JSON.stringify(p)); else localStorage.removeItem(PENDING_KEY); } catch { /* private window */ } };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// What the clinician reads when something goes wrong: what happened and what to do, never a raw server message.
+function friendly(msg: string): string {
+  const m = String(msg || '');
+  if (/429|RESOURCE_EXHAUSTED|rate|busy/i.test(m)) return 'The AI service is busy right now. Your recording and transcript are saved — press Create SOAP again in a minute.';
+  if (/timed? ?out|timeout|524|504|502|503/i.test(m)) return 'The server took too long to answer. Your recording and transcript are saved — press Create SOAP again.';
+  if (/empty_transcript|No speech/i.test(m)) return 'No speech was found in the recording, so there is nothing to write a note from.';
+  if (/unauthenticated|401|sign/i.test(m)) return 'Your sign-in has expired. Sign in again — nothing you recorded is lost; the note will be in History.';
+  if (/network|Failed to fetch|Load failed/i.test(m)) return 'The connection dropped. Your recording is kept in this browser and will be saved when the connection is back.';
+  return m.length > 160 || /[{}<]/.test(m) ? 'Something went wrong while writing the note. Your recording and transcript are saved — press Create SOAP again.' : m;
 }
 
 // tiny inline icons
@@ -156,6 +176,10 @@ export default function Scribe() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transcriptRef = useRef('');
   const noteBodyRef = useRef<HTMLDivElement | null>(null);
+  const sessionCid = useRef<string | null>(null);     // this visit's consult id (named when recording starts or a transcript is pasted)
+  const creating = useRef(false);                      // a Create SOAP is being handled: a second click is ignored
+  const [audioState, setAudioState] = useState<'none' | 'saving' | 'saved' | 'retry'>('none');   // is this visit's recording safely on the server
+  const [genElapsed, setGenElapsed] = useState(0);
 
   const flash = (msg: string, kind: 'success' | 'error' = 'success') => { setToast({ msg, kind }); setTimeout(() => setToast(null), 2600); };
 
@@ -199,6 +223,8 @@ export default function Scribe() {
     try { const r = await fetch(`${API}/api/library/consults`, { credentials: 'include' }); if (r.ok) setHistory((await readJson(r)).consults || []); } catch { /* */ }
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
+  // on page load: pick up a note that was being written, and save any recording this browser still holds
+  useEffect(() => { void resumeNote(); const t = setTimeout(() => { void recoverRecordings(); }, 1500); return () => clearTimeout(t); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Report uncaught frontend errors to the ops log (no PHI — message/stack/route only).
   useEffect(() => {
@@ -357,6 +383,7 @@ export default function Scribe() {
     segments.current.clear();
     segQueue.current = [];
     fullChunks.current = []; fullBlob.current = null; setDensity(null);  // discard the silent audio — nothing saved
+    if (sessionCid.current) void vaultDrop(sessionCid.current);
     setLines([]); setTx(''); setElapsed(0); setPendingSegs(0); setFailedSegs(0); setPhase('idle');
     flash('Recording stopped — no speech detected for about 3 minutes. Nothing was saved.', 'error');
     fetch(`${API}/api/ops/audio-event`, {
@@ -397,6 +424,50 @@ export default function Scribe() {
       if (fullBlob.current?.size && looksIncomplete(words, seconds)) setDensity({ words, wpm: Math.round(wordsPerMinute(words, seconds)), minutes: Math.round(seconds / 6) / 10 }); else setDensity(null);
     } catch { setDensity(null); }
     setPhase('done');
+    void saveRecording();   // the recording is saved NOW, not after the note: a note that fails or a closed tab can no longer lose it
+  }
+
+  // Save this visit (transcript, then recording) on the server under its consult id, with retries. The browser copy is dropped only once the
+  // server confirms it has the audio; until then a later page load saves it again (recoverRecordings).
+  async function saveRecording() {
+    const cid = sessionCid.current; if (!cid) return;
+    void vaultUpdate(cid, { stoppedAt: Date.now(), transcript: transcriptRef.current.trim() });
+    const blob = fullBlob.current; if (!blob?.size) return;
+    setAudioState('saving');
+    const ok = await uploadVisit(cid, blob, transcriptRef.current.trim(), patient || null);
+    setAudioState(ok ? 'saved' : 'retry');
+    if (ok) { void vaultDrop(cid); loadHistory(); }
+    else flash('The recording could not be saved yet — it is kept in this browser and will be saved automatically.', 'error');
+  }
+  async function uploadVisit(cid: string, blob: Blob, text: string, title: string | null): Promise<boolean> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const s = await fetch(`${API}/api/library/consults`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultId: cid, transcript: text || undefined, title: title || undefined, specialty: specialty === 'auto' ? undefined : specialty, noteType: 'consultation', status: 'processing' }) });
+        if (s.status === 401) return false;
+        if (!s.ok) throw new Error(String(s.status));
+        const u = await fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob });
+        if (u.ok) return true;
+        if (u.status === 401 || u.status === 403) return false;
+      } catch { /* network: try again */ }
+      await sleep([2000, 5000, 12000][attempt] || 15000);
+    }
+    return false;
+  }
+  // On page load: any recording this browser still holds (a refresh during or after a visit, a failed upload) is saved now. A recording with
+  // no transcript yet (the page was closed while recording) is transcribed from the audio, so it shows up in History ready for a note.
+  async function recoverRecordings() {
+    const pend = await vaultPending(); if (!pend.length) return;
+    for (const m of pend) {
+      if (sessionCid.current === m.id) continue;
+      const raw = await vaultBlob(m.id, m.mime); if (!raw?.size || raw.size < 2000) { await vaultDrop(m.id); continue; }
+      const sealed = await sealRecording([raw], m.mime); const blob = (sealed.ok && sealed.blob) || raw;
+      let text = m.transcript || '';
+      if (!text) { try { text = await transcribeBlob(blob, true); } catch { /* saved without a transcript; the audio is still kept */ } }
+      const when = new Date(m.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const ok = await uploadVisit(m.consultId, blob, text, `Recovered recording · ${new Date(m.startedAt).toLocaleDateString()} ${when}`);
+      if (ok) { await vaultDrop(m.id); flash(`A recording from ${when} that was not saved has been recovered — it is in History.`); loadHistory(); }
+    }
   }
 
   // Offered when the transcript looks far too short for the recording: send the saved full recording to the Gemini re-transcribe pass.
@@ -562,13 +633,16 @@ export default function Scribe() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream; setMicStream(stream); stopping.current = false; startTs.current = Date.now();
-      fullChunks.current = []; fullBlob.current = null; setDensity(null);
+      fullChunks.current = []; fullBlob.current = null; setDensity(null); setAudioState('none');
+      const cid = newConsultId(); sessionCid.current = cid;
       try {
         const fr = new MediaRecorder(stream); fullRecRef.current = fr;
         const mine: Blob[] = []; fullChunks.current = mine;   // this recorder's own pieces: a late piece from an earlier recorder can no longer land in front of the file header
         fullStopped.current = new Promise<void>((res) => { fr.onstop = () => res(); });
         fullMime.current = fr.mimeType || 'audio/webm';
-        fr.ondataavailable = (e) => { if (e.data.size) mine.push(e.data); };
+        void vaultStart({ id: cid, consultId: cid, mime: fullMime.current, startedAt: startTs.current });
+        // every second of audio is also kept in this browser until the server has the recording (a refresh or crash no longer loses the visit)
+        fr.ondataavailable = (e) => { if (e.data.size) { mine.push(e.data); void vaultChunk(cid, e.data); } };
         fr.start(1000);
       } catch { fullRecRef.current = null; }
       setPhase('recording');
@@ -591,6 +665,7 @@ export default function Scribe() {
   function loadPastedTranscript() {
     const t = pasteText.trim(); if (!t) return;
     setHistoryView(false);
+    sessionCid.current = newConsultId(); setAudioState('none');
     setTx(t); setLines(t.split(/(?<=[.!?])\s+/).filter(Boolean).map((s, i) => ({ t: mmss(i * 5), text: s })));
     setPhase('done'); setPasteText(''); setPanel('transcript');
     flash('Transcript loaded');
@@ -615,69 +690,101 @@ export default function Scribe() {
       setPanel('note');
       return;
     }
-    // On a long consult the last segments can still be transcribing when the clinician
-    // hits Create. Generating now would write the note from a truncated transcript, so
-    // wait for them (up to 4 minutes) rather than silently losing the tail.
-    if (segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) {
-      setPanel('transcript');
-      flash('Finishing transcription before writing the note…');
-      const deadline = Date.now() + 4 * 60_000;
-      while ((segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    }
-    if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
-    setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
-    const stepper = setInterval(() => setGenStep((s) => Math.min(s + 1, 3)), 3500);
-    // Async job + polling: the pipeline can run >100s on long transcripts, which would die at
-    // Cloudflare's edge timeout if we held one long request. Instead we kick off a background
-    // job and poll a tiny status endpoint every 3s for up to 5 minutes — no request ever
-    // approaches the edge timeout, so there is effectively no client-side timeout.
-    const POLL_MS = 3_000, MAX_WAIT_MS = 8 * 60_000;
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    if (creating.current) return;   // a double click (three notes were written from one recording in 0.2 s) is ignored
+    creating.current = true;
     try {
-      const meRes = await fetch(`${API}/api/auth/me`, { credentials: 'include' }).then((r) => r.ok ? readJson(r) : null).catch(() => null);
-      const start = await fetch(`${API}/api/consults/async`, {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: buildTranscript(), specialty, noteType: 'consultation', clinicianId: meRes?.user?.id || 'clinician', patientMeds: patientMeds.split(/[\n,;]/).map((s) => s.trim()).filter(Boolean) }),
-      });
-      if (start.status === 402) { setPaywall(true); setPhase(transcriptRef.current ? 'done' : 'idle'); refreshQuota(); return; }
-      const startBody = await readJson(start);
-      if (!start.ok || !startBody?.jobId) throw new Error(startBody?.error || 'Could not start note generation');
-      const jobId = startBody.jobId as string;
-      // Poll until the job finishes (or errors, or we hit the 5-minute ceiling).
-      let d: any = null; const t0 = Date.now();
-      for (;;) {
-        await sleep(POLL_MS);
-        const pr = await fetch(`${API}/api/consults/job/${jobId}`, { credentials: 'include' }).catch(() => null);
-        const pj = pr ? await readJson(pr).catch(() => null) : null;
-        if (pj?.status === 'done') { d = pj.result; break; }
-        if (pj?.status === 'error') throw new Error(pj.error || 'Note generation failed');
-        if (Date.now() - t0 > MAX_WAIT_MS) throw new Error('Note generation is taking longer than 8 minutes — it may still finish; check History shortly.');
-        // status 'pending' (or a transient network blip) → keep polling
+      // On a long consult the last segments can still be transcribing when the clinician hits Create. Generating now would write the note
+      // from a truncated transcript, so wait for them (up to 4 minutes) rather than silently losing the tail.
+      if (segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) {
+        setPanel('transcript');
+        flash('Finishing transcription before writing the note…');
+        const deadline = Date.now() + 4 * 60_000;
+        while ((segQueue.current.length || inFlight.current > 0 || retryWaiting.current > 0 || captureLive.current) && Date.now() < deadline) await sleep(500);
       }
-      const md = d.renderedNote || d.rawRenderedNote || '';
-      savedRef.current = md; eventsRef.current = []; setResolvedFlags([]); setSaveState('idle');
-      setNote(md); setNoteFlags(Array.isArray(d.flags) ? d.flags : []); setConsultId(d.consultId || null); setPhase('done');
-      flash('Note generated');
-      refreshQuota();
-      const cid = d.consultId;
-      const resolvedSpec = (specialty === 'auto' ? (d.detectedSpecialty || 'consult') : specialty) as string;
-      if (cid) {
-        fetch(`${API}/api/library/consults`, {
-          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultId: cid, transcript: transcriptRef.current.trim(), renderedNote: md, title: patient || `${resolvedSpec.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty: resolvedSpec, noteType: 'consultation', status: 'ready' }),
-        })
-          .then(() => { if (fullBlob.current?.size) return fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': fullBlob.current!.type }, body: fullBlob.current! }); })
-          .then(() => loadHistory()).catch(() => {});
+      if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
+      const cid = sessionCid.current || (sessionCid.current = newConsultId());
+      const meds = patientMeds.split(/[\n,;]/).map((s) => s.trim()).filter(Boolean);
+      const job = { consultId: cid, startedAt: Date.now(), transcript: buildTranscript(), specialty, patientMeds: meds };
+      setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
+      const started = await startJob(job);
+      if (!started) return;
+      await followJob({ ...job, jobId: started });
+    } finally { creating.current = false; }
+  }
+
+  // Ask the server to write the note. Returns the job id, or null after telling the clinician why it could not start.
+  async function startJob(j: Omit<PendingNote, 'jobId'>): Promise<string | null> {
+    try {
+      const r = await fetch(`${API}/api/consults/async`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultId: j.consultId, transcript: j.transcript, specialty: j.specialty, noteType: 'consultation', patientMeds: j.patientMeds }),
+      });
+      if (r.status === 402) { setPaywall(true); setPhase(transcriptRef.current ? 'done' : 'idle'); refreshQuota(); return null; }
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok || !body?.jobId) throw new Error(r.status === 401 ? 'unauthenticated' : body?.message || body?.error || `start failed (${r.status})`);
+      writePending({ ...j, jobId: body.jobId });
+      return body.jobId as string;
+    } catch (e) {
+      const msg = friendly((e as Error).message); setError(msg); flash(msg, 'error'); setPhase(transcriptRef.current ? 'done' : 'idle');
+      return null;
+    }
+  }
+
+  // Wait for the note. It is remembered in this browser while it is written, so a refresh or a closed tab picks it up again (resumeNote).
+  // The status call tells pending / done / error / lost; lost means the server restarted mid-note: the note is started again once, under the same
+  // consult id, so it can never be written twice.
+  async function followJob(p: PendingNote) {
+    const t0 = p.startedAt; let jobId = p.jobId; let restarted = false; let misses = 0;
+    const stepper = setInterval(() => { setGenStep((s) => Math.min(s + 1, 3)); }, 4000);
+    const clock = setInterval(() => setGenElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    setPhase('generating'); setPanel('note');
+    try {
+      for (;;) {
+        await sleep(2500);
+        let r: Response | null = null;
+        try { r = await fetch(`${API}/api/consults/job/${jobId}?consultId=${encodeURIComponent(p.consultId)}`, { credentials: 'include', cache: 'no-store' }); } catch { r = null; }
+        if (!r) { if (++misses > 60) throw new Error('network'); continue; }   // a dropped connection: keep waiting (about 2.5 minutes of retries)
+        misses = 0;
+        if (r.status === 401) throw new Error('unauthenticated');
+        const pj = await r.json().catch(() => null);
+        if (pj?.status === 'done' && pj.result) { showNote(pj.result, p.consultId); return; }
+        if (pj?.status === 'error') throw new Error(pj.error || 'note failed');
+        if (pj?.status === 'lost' || r.status === 404) {
+          if (restarted) throw new Error('The server restarted while writing this note. Press Create SOAP again — your transcript is kept.');
+          restarted = true; const again = await startJob(p); if (!again) return; jobId = again; continue;
+        }
+        if (Date.now() - t0 > 6 * 60_000) throw new Error('This note is taking unusually long. It will appear in History as soon as it is ready.');
       }
     } catch (e) {
-      const msg = (e as Error).message || 'Note generation failed';
-      setError(msg); setPhase(transcriptRef.current ? 'done' : 'idle'); flash(msg, 'error');
-      loadHistory();   // the backend may have finished after we gave up — surface it in History
-    } finally {
-      clearInterval(stepper);
-    }
+      const raw = (e as Error).message; const msg = friendly(raw);
+      setError(msg); flash(msg, 'error'); setPhase(transcriptRef.current ? 'done' : 'idle');
+      if (raw !== 'unauthenticated' && raw !== 'network') writePending(null);   // signed out / offline: keep it, the next page load picks the note up
+      loadHistory();
+    } finally { clearInterval(stepper); clearInterval(clock); setGenElapsed(0); }
+  }
+
+  function showNote(d: any, cid: string) {
+    writePending(null);
+    const md = d.renderedNote || d.rawRenderedNote || '';
+    savedRef.current = md; eventsRef.current = []; setResolvedFlags([]); setSaveState('idle');
+    setNote(md); setNoteFlags(Array.isArray(d.flags) ? d.flags : []); setConsultId(d.consultId || cid); setPhase('done'); setError('');
+    flash('Note generated');
+    refreshQuota();
+    const resolvedSpec = (specialty === 'auto' ? (d.detectedSpecialty || 'consult') : specialty) as string;
+    // the title for History (the note itself was saved by the server under this consult id); a recording still waiting is saved again
+    fetch(`${API}/api/library/consults`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consultId: d.consultId || cid, title: patient || `${resolvedSpec.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`, specialty: resolvedSpec, noteType: 'consultation', status: 'ready' }) })
+      .then(() => loadHistory()).catch(() => {});
+    if (audioState === 'retry') void saveRecording();
+  }
+
+  // A page load while a note was being written: show the waiting screen and pick the note up (it may already be finished).
+  async function resumeNote() {
+    const p = readPending(); if (!p) return;
+    if (Date.now() - p.startedAt > 30 * 60_000) { writePending(null); return; }
+    sessionCid.current = p.consultId; setTx(p.transcript.replace(/^\[Patient context\][^\n]*\n/, '')); setLines([]);
+    flash('Picking up the note you were waiting for…');
+    await followJob(p);
   }
 
   async function openConsult(id: string) {
@@ -701,7 +808,7 @@ export default function Scribe() {
       const segs = (parts.length > 1 ? parts : savedTx.split(/(?<=[.!?])\s+/))
         .map((s) => s.trim()).filter(Boolean);
       setLines(segs.map((s, i) => ({ t: mmss(i * 5), text: s })));
-      setConsultId(id); setPhase('done'); setEditing(false);
+      setConsultId(id); sessionCid.current = id; setPhase('done'); setEditing(false);
       setHistoryView(true);   // read-only saved transcript, not the live paste box
       setPanel('note');
     } catch { /* */ }
@@ -720,6 +827,7 @@ export default function Scribe() {
     stopping.current = false; captureLive.current = false; finishing.current = false;
     emptySegs.current = 0; silenceAbort.current = false;
     fullChunks.current = []; fullBlob.current = null; setDensity(null);
+    sessionCid.current = null; setAudioState('none');
     setPendingSegs(0); setFailedSegs(0);
     setPhase('idle'); setLines([]); setTx(''); setNote(''); savedRef.current = null; eventsRef.current = []; setResolvedFlags([]); setSaveState('idle'); setNoteFlags([]); setConsultId(null); setPatient(''); setElapsed(0); setEditing(false); setError(''); setHistoryView(false); setPasteText(''); setPanel('transcript');
   }
@@ -873,7 +981,8 @@ export default function Scribe() {
           <button className={`main-tab${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}History</button>
         </nav>
 
-        {error && <div style={{ padding: '8px 20px', background: 'var(--red-pale)', color: 'var(--red)', fontSize: 12.5, fontWeight: 600 }}>{error}</div>}
+        {error && <div role="alert" className="scribe-alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
+        {audioState !== 'none' && phase !== 'recording' && <div className={`rec-saved is-${audioState}`} role="status">{audioState === 'saving' ? 'Saving the recording…' : audioState === 'saved' ? 'Recording saved' : 'Recording kept in this browser — saving again automatically'}</div>}
 
         <div className="panels-container">
           {/* Context */}
@@ -977,6 +1086,7 @@ export default function Scribe() {
                       <div key={i} className={`gen-step${i < genStep ? ' done' : i === genStep ? ' now' : ''}`}><span className="gd">{i < genStep ? '✓' : ''}</span>{st}</div>
                     ))}
                   </div>
+                  <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can refresh or close this page; the note is kept and shows up here or in History.</p>
                 </div>
               ) : note ? (
                 <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
