@@ -53,7 +53,7 @@ export function pgStoreDriver() {
              clinician_id=COALESCE(EXCLUDED.clinician_id, clinical.consults.clinician_id), specialty=COALESCE(EXCLUDED.specialty, clinical.consults.specialty),
              note_type=COALESCE(EXCLUDED.note_type, clinical.consults.note_type), status=EXCLUDED.status,
              audio_uri=COALESCE(EXCLUDED.audio_uri, clinical.consults.audio_uri), pipeline_version=COALESCE(EXCLUDED.pipeline_version, clinical.consults.pipeline_version),
-             transcript=COALESCE(EXCLUDED.transcript, clinical.consults.transcript)`,   -- saving a consult again never wipes its recording or transcript (the recording is now uploaded before the note is written)
+             transcript=COALESCE(EXCLUDED.transcript, clinical.consults.transcript)`,   // saving a consult again never wipes its recording or transcript (the recording is now uploaded before the note is written)
           [c.consultId, c.clinicianId || null, c.specialty || null, c.noteType || null, c.status || null,
            c.audioUri || null, c.generatedBy || c.pipelineVersion || null,
            c.transcript ? JSON.stringify(c.transcript) : null,
