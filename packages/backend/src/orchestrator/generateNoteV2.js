@@ -46,7 +46,8 @@ import { groundNote, missingNumbers, collectParts, applyRemovals } from './groun
 import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 import { completePlan } from './planComplete.js';
-import { coverNote } from './noteCoverage.js';
+import { coverNote, askCoverage, applyCoverage } from './noteCoverage.js';
+import { issuesOf, remapCoverageRaw, askLedgerEarly, ledgerShim } from './gapEarly.js';
 import { structureTreatment } from './treatmentStructure.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraph } from './factGraph.js';
@@ -753,6 +754,19 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && !lean && opts.planAttribution !== false && process.env.ATTRIBUTION !== '0' && cfg['stage.attribution'] !== false) {
     try { const allm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); allm._agent = 'v2-attr'; attrAnswer = askAttribution(allm, note, transcript); } catch (e) { log('[v2:attr] not started — ' + e.message); }
   }
+  // GAP_EARLY=1 (audit experiment, off by default): the coverage question and the fact ledger's AI question are asked NOW, on a copy of the note, while the story agent
+  // rewrites the wording; the answers are applied to the finished note below (see gapEarly.js). Same questions, same checks, asked earlier.
+  let covEarlyP = null; let covEarlyIssues = null; let ledgerEarlyP = null;
+  if (process.env.GAP_EARLY === '1' && !blank && !lean) {
+    const early = structuredClone(note); const em = opts.storyModel || cfg['story.model'];
+    if (!skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {
+      covEarlyIssues = issuesOf(early);
+      try { const vllm = await createGeminiService(null, { model: em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [] }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
+    }
+    if (factsP && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {
+      try { const lllm = await createGeminiService(null, { model: em }); lllm._agent = 'v2-ledger'; ledgerEarlyP = askLedgerEarly(factsP, early, lllm); } catch (e) { log('[v2:ledger] early start failed — ' + e.message); }
+    }
+  }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
   if (!blank && !skip('story') && (opts.story !== undefined ? !!opts.story : cfg['story.enabled'])) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
@@ -804,14 +818,17 @@ export async function generateNoteV2(input, opts = {}) {
   }
   if (coverageOn) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
     const tv = Date.now();
-    try { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
+    try {
+      if (covEarlyP) { const ans = await covEarlyP; const cv = applyCoverage(note, ans && ans.raw != null ? { ...ans, raw: remapCoverageRaw(ans.raw, covEarlyIssues, note) } : ans, transcript, log); if (opts.trace) opts.trace.coverage = { ...cv, early: true }; }
+      else { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; }
+    } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
     lap('coverage', tv);
   }
   if (factsP && !blank && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {   // Style Spec v2.3: every required fact of the graph is checked against the finished note; missing ones are placed by a model call, then by rule
     const tl = Date.now();
     try {
-      const graph = await factsP; if (opts.trace) opts.trace.factGraph = { facts: graph.facts.length, windows: graph.windows, recovered: graph.recovered, ms: graph.ms, counts: graph.counts, error: graph.error || null, graph: opts.keepGraph ? graph : undefined };
-      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
+      const graph = await factsP; const earlyL = ledgerEarlyP ? await ledgerEarlyP : null; if (opts.trace) opts.trace.factGraph = { facts: graph.facts.length, windows: graph.windows, recovered: graph.recovered, ms: graph.ms, counts: graph.counts, error: graph.error || null, graph: opts.keepGraph ? graph : undefined };
+      if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(earlyL && !earlyL.error ? ledgerShim(earlyL, note) : lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
   }
