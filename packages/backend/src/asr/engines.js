@@ -102,6 +102,7 @@ function pcmToWav(pcm) {
   h.writeUInt32LE(16000, 24); h.writeUInt32LE(32000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40); return Buffer.concat([h, pcm]);
 }
 import { collapseLoops } from './loops.js';
+import { stripPromptLeak } from './promptLeak.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
 async function geminiRunner(pcm, model, log) {
   const { createGeminiService } = await import('../services/LLMService.js');
@@ -131,7 +132,7 @@ async function geminiRunner(pcm, model, log) {
     return pieces.join(' ');
   };
   await Promise.all(Array.from({ length: Math.min(3, windows.length) }, async () => {
-    while (next < windows.length) { const i = next++; try { parts[i] = await one(i); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
+    while (next < windows.length) { const i = next++; try { parts[i] = stripPromptLeak(await one(i)); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
   }));
   const text = parts.filter(Boolean).join(' ').trim();
   if (!text && failed === windows.length) throw new Error(`Gemini transcription failed for all ${windows.length} window(s)`);

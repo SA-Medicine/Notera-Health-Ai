@@ -56,7 +56,7 @@ const askCoverage = (llm, note, tx, o = {}) => (process.env.COVERAGE_WINDOWS ===
 import { issuesOf, remapCoverageRaw, askLedgerEarly, ledgerShim } from './gapEarly.js';
 import { structureTreatment } from './treatmentStructure.js';
 import { fixPlacementV2 } from './placementRules.js';
-import { buildFactGraph } from './factGraph.js';
+import { buildFactGraphPlus } from './factGraphPlus.js';
 import { reconcileFacts } from './factLedger.js';
 import { checkDrugs } from './drugCheck.js';
 import { stripCitations } from './factLedger.js';
@@ -665,7 +665,7 @@ export async function generateNoteV2(input, opts = {}) {
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
       const graphOn = process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false;
       if (graphOn && (cited || opts.factsToWriter === true || process.env.FACTS_TO_WRITER === '1')) {   // the writer reads the fact graph too (it waits for the graph first)
-        factsP = buildFactGraph(transcript, { log }); const g0 = await factsP;
+        factsP = buildFactGraphPlus(transcript, { log }); const g0 = await factsP;
         if (g0.facts.length) writerUser += '\n\nFACT GRAPH (every fact below was said in the visit and has been checked against the transcript; each one must appear in the note, once, in the field where it belongs; drug names, doses, numbers and test names exactly as listed):\n' + g0.facts.slice(0, 90).map((f) => `${f.id} [${f.type}${f.medication_status ? '/' + f.medication_status : ''}${f.negative ? '/denied' : ''}] ${f.text}${f.body_part ? ' (' + f.body_part + ')' : ''}${f.value ? ' = ' + f.value + (f.unit ? ' ' + f.unit : '') : ''}`).join('\n') + '\n';
       }
       if (cited) writerUser += '\nCITATIONS: start EVERY line of every field with the ids of the facts it states, in square brackets, e.g. "[F003,F007] Lyrica 75 mg twice daily". Every fact id in the FACT GRAPH must be cited by at least one line. A line that states nothing from the graph starts with "[-]".';
@@ -674,7 +674,7 @@ export async function generateNoteV2(input, opts = {}) {
       const checkP = checkLlm.generateContent((cMeta?.text || CHECK_SYS) + (recallOn ? CHECK_EXTRA : ''), `TRANSCRIPT:\n"""\n${transcript}\n"""\n\nReturn ONLY the JSON.`, recallOn ? CHECK_SCHEMA_X : CHECK_SCHEMA, {
         maxOutputTokens: recallOn ? 3000 : 1500, timeoutMs: 20000, retries: 0, hedgeMs: 7000, temperature: 0, thinkingBudget: 0 })
         .then((r) => parseJson(r)).catch((e) => { log(`[v2:checklist] skipped — ${e.message}`); return null; });
-      if (!factsP) factsP = graphOn ? buildFactGraph(transcript, { log }) : null;   // Style Spec v2.3: the owner's fact-graph extractor reads the visit at the same time as the writer
+      if (!factsP) factsP = graphOn ? buildFactGraphPlus(transcript, { log }) : null;   // Style Spec v2.3: the owner's fact-graph extractor reads the visit at the same time as the writer
       const [writerRaw, check] = await Promise.all([writerP, checkP]); checkForRef = check;
       lap('writer+checklist', tw);
       let out = parseJson(writerRaw);

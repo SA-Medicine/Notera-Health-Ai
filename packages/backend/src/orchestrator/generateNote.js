@@ -18,6 +18,7 @@ import { extractEntities } from '../ner/nerClient.js';
 import { deidentify, reidentify, mapFingerprint } from '../deid/deidentify.js';
 import { structureNote, storyToSchema } from './structureNote.js';
 import { narrateNote } from './heidiNarrative.js';
+import { stripPromptLeak } from '../asr/promptLeak.js';
 import { composeStory } from './heidiStoryEngine.js';
 import { reconcileNote } from './reconcileNote.js';
 import { runGuardrails } from '../validation/guardrails.js';
@@ -68,6 +69,7 @@ export async function generateNote(input, opts = {}) {
     transcript = transcript.replace(/\b(?:19|20)\d{2}-\d{1,2}-\d{1,2}\b/g, '[date]');
     if (transcript !== _before) console.log('[deid-normalize] neutralized synthetic ISO date placeholders in the transcript');
   }
+  { const _clean = stripPromptLeak(transcript); if (_clean !== transcript) { console.log('[asr] removed the transcription instruction that the speech engine wrote into the transcript'); transcript = _clean; } }
   if (!transcript.trim()) throw new Error('generateNote: no transcript or audioUri provided');
 
   if (persist) {
