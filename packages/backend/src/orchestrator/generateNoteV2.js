@@ -792,7 +792,7 @@ export async function generateNoteV2(input, opts = {}) {
     if (earlyOn('GAP_EARLY')) {
     if (!skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {
       covEarlyIssues = issuesOf(early);
-      try { const vllm = await createGeminiService(null, { model: em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [], makeLlm: async () => { const l = await createGeminiService(null, { model: em }); l._agent = 'v2-coverage'; return l; } }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
+      try { const vllm = await createGeminiService(null, { model: process.env.COVERAGE_MODEL || em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [], makeLlm: async () => { const l = await createGeminiService(null, { model: process.env.COVERAGE_MODEL || em }); l._agent = 'v2-coverage'; return l; } }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
     }
     if (factsP && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {
       try { const lllm = await createGeminiService(null, { model: em }); lllm._agent = 'v2-ledger'; ledgerEarlyP = askLedgerEarly(factsP, early, lllm); } catch (e) { log('[v2:ledger] early start failed — ' + e.message); }
