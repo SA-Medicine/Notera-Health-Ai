@@ -520,6 +520,9 @@ HARD RULES: keep every fact exactly — write numbers as numerals exactly as in 
 export const STORY_COMPACT = `
 LENGTH: write like the physician who reads it — fewer, fuller bullets. Each bullet is ONE or TWO lines (about 10 to 22 words) that joins the closely related facts of one point with commas or " - " ("Right hip pain for 3 weeks, worse on stairs and at night, eased by rest"; "Tried Advil 400 mg twice daily with little relief, no side effects"). A topic usually has 2 to 4 bullets; the whole Subjective usually has 5 to 10 bullets. Merge bullets that say the same thing or continue each other, and delete restatements, but NEVER drop a fact, number, drug, denial or detail: shorter by merging and removing repetition, never by leaving facts out.`;
 /** Counts of the model calls of one note: calls, tokens (thinking apart) and calls per model. Plain numbers, no text. */
+// GAP_EARLY / GROUND_EARLY are ON by default since the gold A/B of 2026-10-27 (60 pipelines on 30 notes, then a hold-out of 30 new notes): about 10 s (-25%) less time per note,
+// critical misses, wrong lines and fact recall unchanged within noise. GAP_EARLY=0 / GROUND_EARLY=0 restore the earlier order (coverage, ledger and grounding after the story agent).
+const earlyOn = (name) => process.env[name] !== '0';
 export function usageSummary(calls = []) {
   const byModel = {}; let prompt = 0, output = 0, thoughts = 0;
   for (const c of calls) { const m = (byModel[c.model] ||= { calls: 0, prompt: 0, output: 0, thoughts: 0 }); m.calls++; m.prompt += c.prompt; m.output += c.output; m.thoughts += c.thoughts || 0; prompt += c.prompt; output += c.output; thoughts += c.thoughts || 0; }
@@ -777,14 +780,14 @@ export async function generateNoteV2(input, opts = {}) {
   let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null; let planCheckP = null;
   // GROUND_EARLY=1 starts the grounding check at the same moment, on the same copy (the writer's note, before the story rewording): it no longer waits behind the
   // gap stages. Its removals reach the finished note by text; a Subjective line the story reworded meanwhile is flagged for the clinician instead of removed.
-  if ((process.env.GAP_EARLY === '1' || process.env.GROUND_EARLY === '1' || process.env.PLAN_CHECK === '1') && !blank && !lean) {
+  if ((earlyOn('GAP_EARLY') || earlyOn('GROUND_EARLY') || process.env.PLAN_CHECK === '1') && !blank && !lean) {
     const early = structuredClone(note); const em = opts.storyModel || cfg['story.model'];
     if (process.env.PLAN_CHECK === '1') { try { const pllm = await createGeminiService(null, { model: em }); pllm._agent = 'v2-plancheck'; planCheckP = planActionCheck(pllm, noteToMarkdown(early), transcript, log); } catch (e) { log('[v2:plan-check] not started — ' + e.message); } }
-    if (process.env.GROUND_EARLY === '1' && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {
+    if (earlyOn('GROUND_EARLY') && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {
       const flags0 = (early.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(early).map((p) => p.text));
       groundP = (async () => { const gllm = await createGeminiService(null, { model: em }); gllm._agent = 'v2-ground'; const gr0 = (process.env.GROUND_FACTS === '1' && factsP) ? await groundNoteFactAware(gllm, early, transcript, factsP, log) : await groundNote(gllm, early, transcript, log); return { gr0, snap: early, flags0, ms: Date.now() - tg0 }; })().catch((e) => ({ error: e }));
     }
-    if (process.env.GAP_EARLY === '1') {
+    if (earlyOn('GAP_EARLY')) {
     if (!skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {
       covEarlyIssues = issuesOf(early);
       try { const vllm = await createGeminiService(null, { model: em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [] }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
