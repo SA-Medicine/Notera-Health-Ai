@@ -14,6 +14,10 @@ export const runWithModel = (model, fn) => (model ? _modelStore.run({ model }, f
 // Every call made inside withUsage(fn) is listed (model, agent, tokens), so one note's cost can be counted even while another note runs at the same time.
 const _usageStore = new AsyncLocalStorage();
 export async function withUsage(fn) { const calls = []; const result = await _usageStore.run(calls, fn); return { result, calls }; }
+// Inside an existing usage context the calls go to it; otherwise a new one is opened. generateNote() uses this so that EVERY model call of a note (fact graph,
+// story, coverage, ledger, grounding ...) is counted, not only the three instances the cost line used to read.
+export function ensureUsage(fn) { return _usageStore.getStore() ? fn() : _usageStore.run([], fn); }
+export function currentUsage() { return _usageStore.getStore() || []; }
 const AI_STUDIO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export const MODEL_TIERS = {
@@ -228,6 +232,10 @@ export class LLMService {
     // LLM_THINKING_SCALE multiplies the budget of every pipeline stage that already thinks (judges excluded), with the same room added to the output cap.
     // Default 2 since the gold A/B of 2026-10-24 (same judges, same time): score 69.9 vs 65.0, notes with a critical miss 60% vs 73%, fewer wrong lines,
     // for +$0.005 and +5 s per note. LLM_THINKING_SCALE=1 restores the old budgets.
+    // Audit switch (2026-10-27): Gemini 3.6+ Flash models take thinking_level; thinking_budget is deprecated for them. LLM_3X_THINKING_LEVEL=low|medium|high sends the
+    // level instead of the budget to every such call (judges excluded); options.thinkingLevel does it for one call. Off by default: the budget 0 now sent works (no 400s in 14 days of logs).
+    const lvl3 = String(options.thinkingLevel || process.env.LLM_3X_THINKING_LEVEL || '').toLowerCase();
+    if (/^gemini-3\.[6-9]/.test(this.model) && /^(low|medium|high)$/.test(lvl3) && !/judge|audit/.test(this._agent || '')) body.generationConfig.thinkingConfig = { thinkingLevel: lvl3 };
     const scale = Number(process.env.LLM_THINKING_SCALE || 2); const tb = body.generationConfig.thinkingConfig.thinkingBudget;
     if (scale > 1 && tb > 0 && !/judge|audit/.test(this._agent || '')) { const nb = Math.min(8192, Math.round(tb * scale)); body.generationConfig.thinkingConfig = { thinkingBudget: nb }; body.generationConfig.maxOutputTokens = Math.min(65536, body.generationConfig.maxOutputTokens + nb - tb); }
     if (/^gemini-2\.5-pro/.test(this.model) && body.generationConfig.thinkingConfig.thinkingBudget === 0) body.generationConfig.thinkingConfig = { thinkingBudget: 128 };

@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use strict';
 
-import { createGeminiService } from '../services/LLMService.js';
+import { createGeminiService, ensureUsage } from '../services/LLMService.js';
 import { PipelineEngine } from '../pipeline/PipelineEngine.js';
 import { extractEntities } from '../ner/nerClient.js';
 import { deidentify, reidentify, mapFingerprint } from '../deid/deidentify.js';
@@ -35,7 +35,7 @@ export async function generateNote(input, opts = {}) {
   // PIPELINE_MODE=v2 → fast path (1 writer ∥ 1 checklist → 1 verifier). opts.mode overrides (A/B tests).
   if ((opts.mode || process.env.PIPELINE_MODE) === 'v2') {
     const { generateNoteV2 } = await import('./generateNoteV2.js');
-    return generateNoteV2(input, opts);
+    return ensureUsage(() => generateNoteV2(input, opts));   // every model call of the note is counted (see currentUsage in LLMService)
   }
   const {
     specialty = 'general_primary_care',

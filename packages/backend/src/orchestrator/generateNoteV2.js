@@ -20,7 +20,8 @@
 import fs from 'node:fs';
 
 import { emptyNote, emptyIssue, validateNote } from '@notera/schema';
-import { createGeminiService } from '../services/LLMService.js';
+import { createGeminiService, currentUsage } from '../services/LLMService.js';
+import { groundDelta } from './groundDelta.js';
 import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
@@ -513,13 +514,19 @@ HARD RULES: keep every fact exactly — write numbers as numerals exactly as in 
 // Fewer, fuller bullets that carry the same facts; editorAccepts() still rejects any rewrite that drops one. STORY_COMPACT=0 turns it off.
 export const STORY_COMPACT = `
 LENGTH: write like the physician who reads it — fewer, fuller bullets. Each bullet is ONE or TWO lines (about 10 to 22 words) that joins the closely related facts of one point with commas or " - " ("Right hip pain for 3 weeks, worse on stairs and at night, eased by rest"; "Tried Advil 400 mg twice daily with little relief, no side effects"). A topic usually has 2 to 4 bullets; the whole Subjective usually has 5 to 10 bullets. Merge bullets that say the same thing or continue each other, and delete restatements, but NEVER drop a fact, number, drug, denial or detail: shorter by merging and removing repetition, never by leaving facts out.`;
+/** Counts of the model calls of one note: calls, tokens (thinking apart) and calls per model. Plain numbers, no text. */
+export function usageSummary(calls = []) {
+  const byModel = {}; let prompt = 0, output = 0, thoughts = 0;
+  for (const c of calls) { const m = (byModel[c.model] ||= { calls: 0, prompt: 0, output: 0, thoughts: 0 }); m.calls++; m.prompt += c.prompt; m.output += c.output; m.thoughts += c.thoughts || 0; prompt += c.prompt; output += c.output; thoughts += c.thoughts || 0; }
+  return { calls: calls.length, prompt, output, thoughts, byModel };
+}
 export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs, added = [] }) {
   if (process.env.STORY_COMPACT !== '0' && !/\nLENGTH:/.test(prompt || '')) prompt = (prompt || STORY_SYS) + STORY_COMPACT;
   const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
   const noHeads = (o) => { const c = {}; for (const [sec, f] of Object.entries(o || {})) { c[sec] = {}; for (const [k, v] of Object.entries(f || {})) c[sec][k] = String(v ?? '').split('\n').filter((l) => !/^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(l.trim())).join('\n'); } return c; };   // topic headings are structure, not facts
   const merge = added.length && process.env.NOTE_FIX !== '0' ? `\n\nLINES ADDED AFTER THE STORY WAS WRITTEN (they are in the NOTE JSON as bare one-fact lines): ${added.slice(0, 30).map((x) => `"${x}"`).join('; ')}.\nMerge EACH of them into the bullet of the topic it belongs to (join with a comma or " - "), or into the Past Medical History field it belongs to (a condition, a medicine, a past test); never leave one as a bullet on its own and never repeat a fact another bullet already says. Keep every fact and number.` : '';
-  const user = `TRANSCRIPT (for checking facts only):\n"""\n${transcript.slice(0, 60000)}\n"""\n\nNOTE JSON:\n${JSON.stringify(draft)}${merge}\n\nReturn the rewritten JSON.`;
+  const user = `TRANSCRIPT (for checking facts only):\n"""\n${transcript.slice(0, 60000)}\n"""\n\nNOTE JSON:\n${JSON.stringify(draft)}${merge}\n\nReturn the rewritten JSON.${process.env.STORY_VARIANT === 'remind' ? '\n\nREMEMBER: hpi_details must contain topic HEADING lines (a plain line ending with a colon, e.g. "Breathing:") with the bullets under them.' : ''}`;
   let why = 'error'; let rejected = null;
   try {
     llm._agent = 'v2-story';
@@ -630,7 +637,7 @@ export async function generateNoteV2(input, opts = {}) {
       let writerUser = exemplarBlock(shots) + `TRANSCRIPT (sole source of truth):\n"""\n${transcript}\n"""\n\nWrite the SOAP note. Return ONLY JSON.`;
       const writerOpts = {
         maxOutputTokens: cfg['writer.maxOutputTokens'], timeoutMs: opts.writerTimeoutMs ?? cfg['writer.timeoutMs'],
-        retries: 3, hedgeMs: opts.writerHedgeMs ?? cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: opts.writerFallback ?? (cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite'),
+        retries: 3, hedgeMs: opts.writerHedgeMs ?? cfg['writer.hedgeMs'], temperature: opts.writerTemp ?? cfg['writer.temperature'], thinkingBudget: opts.writerThinking ?? cfg['writer.thinkingBudget'], fallbackModel: opts.writerFallback ?? (cfg['writer.fallbackModel'] || 'gemini-3.5-flash-lite'), ...(process.env.V2_WRITER_THINKING_LEVEL ? { thinkingLevel: process.env.V2_WRITER_THINKING_LEVEL } : {}),
         topP: opts.writerTopP ?? cfg['writer.topP'], ...(process.env.V2_WRITER_TOP_K ? { topK: Number(process.env.V2_WRITER_TOP_K) } : {}),
         ...(process.env.V2_WRITER_SEED ? { seed: Number(process.env.V2_WRITER_SEED) } : {}), ...(process.env.V2_WRITER_FREQ_PENALTY ? { frequencyPenalty: Number(process.env.V2_WRITER_FREQ_PENALTY) } : {}) };
       const graphOn = process.env.FACT_GRAPH !== '0' && opts.factGraph !== false && cfg['stage.factGraph'] !== false;
@@ -789,7 +796,7 @@ export async function generateNoteV2(input, opts = {}) {
   // what those stages add is already quote-checked (coverage evidence, fact-graph quotes). Its removals are applied to the finished note by text afterwards;
   // a removed line that a later stage reworded is flagged for checking instead. PARALLEL_GROUND=0 runs it last, as before.
   const groundOn = !blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false;
-  let groundP = null;
+  let groundP = null; let groundGap = null;
   if (groundOn && process.env.PARALLEL_GROUND !== '0') {
     const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now();
     groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
@@ -833,7 +840,16 @@ export async function generateNoteV2(input, opts = {}) {
       note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...(g.snap.metadata?.flags || []).slice(g.flags0),
         ...lost.map((r) => ({ type: 'check_against_recording', field: 'note', message: `"${String(r.text).slice(0, 120)}" - the fact check could not find this in the recording`, severity: 'warning' }))];
       if (lost.length) log(`[v2:ground] ${lost.length} unsupported line(s) were reworded by a later stage: flagged for checking instead of removed`);
-      if (opts.trace) opts.trace.grounding = { ...g.gr0, removed: (g.gr0.removed || []).map((r) => ({ text: r.text, where: r.where })), appliedRemovals: n, parallel: true };
+      // Audit 2026-10-27: the check ran on a copy taken BEFORE coverage, the fact ledger and the story merge. How many lines of the final note did it never see?
+      const seenTexts = new Set(collectParts(g.snap).map((p) => p.text)); const finalParts = collectParts(note); const unseen = finalParts.filter((p) => !seenTexts.has(p.text));
+      groundGap = { lines: finalParts.length, unseen: unseen.length, share: finalParts.length ? +(unseen.length / finalParts.length).toFixed(3) : 0 };
+      if (opts.trace) opts.trace.grounding = { ...g.gr0, removed: (g.gr0.removed || []).map((r) => ({ text: r.text, where: r.where })), appliedRemovals: n, parallel: true, gap: groundGap };
+      // GROUND_DELTA=1: one small extra check of exactly those lines (a few lines, about 2-3 s). Off by default until the gold A/B shows it pays.
+      if (unseen.length && process.env.GROUND_DELTA === '1') {
+        const td = Date.now();
+        try { const dl = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); dl._agent = 'v2-ground'; const dr = await groundDelta(dl, note, transcript, new Set(unseen.map((p) => p.text)), log); if (opts.trace) opts.trace.groundDelta = dr; } catch (e) { log(`[v2:ground-delta] skipped — ${e.message}`); }
+        lap('groundDelta', td);
+      }
     }
     stage.ground = g.ms || 0; lap('groundWait', tg);   // 'ground' = the check's own time (it overlapped other stages); 'groundWait' = what the note still waited for it
   } else if (groundOn) {   // Style Spec v2: grounding agent — last fact check of every line against the transcript (removes the unsupported, flags the doubtful)
@@ -866,7 +882,7 @@ export async function generateNoteV2(input, opts = {}) {
 
   // 5) persist -------------------------------------------------------------------
   // what the admin Quality page reads for every production note: fact ledger, medicines, checks, time per stage
-  note.metadata ||= {}; note.metadata.quality = { ledger: ledgerSummary, drugs: { total: drugReview.length, unknown: drugReview.filter((d) => !d.verified).length, suggested: drugReview.filter((d) => d.suggestion).length, doseChecks: drugReview.filter((d) => !d.doseOk).length }, timings: { ...stage, total: Date.now() - t0 }, mode: lean ? 'lean' : 'v2', at: new Date().toISOString() };
+  note.metadata ||= {}; note.metadata.quality = { groundGap, usage: usageSummary(currentUsage()), ledger: ledgerSummary, drugs: { total: drugReview.length, unknown: drugReview.filter((d) => !d.verified).length, suggested: drugReview.filter((d) => d.suggestion).length, doseChecks: drugReview.filter((d) => !d.doseOk).length }, timings: { ...stage, total: Date.now() - t0 }, mode: lean ? 'lean' : 'v2', at: new Date().toISOString() };
   const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {
@@ -888,7 +904,7 @@ export async function generateNoteV2(input, opts = {}) {
   try {
     const { recordRun } = await import('../ops/opsLog.js');
     recordRun({ consultId, clinicianId, model: writerLlm.model, status: gr.status === 'INVALID' ? 'partial' : 'ok', durationMs: total,
-      transcriptChars: transcript.length, noteChars: (renderedNote || '').length, tokenUsage, timings: { ...stage, total } });
+      transcriptChars: transcript.length, noteChars: (renderedNote || '').length, tokenUsage, calls: currentUsage().slice(), timings: { ...stage, total } });
   } catch { /* monitoring must never break generation */ }
 
   onProgress({ status: 'ready', consultId, draftId });

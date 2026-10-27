@@ -105,10 +105,23 @@ export async function recordRun(r = {}) {
   if (!ENABLED()) return;
   try {
     await ensureOpsSchema();
-    const tu = r.tokenUsage || {};
+    let tu = r.tokenUsage || {};
+    // `calls` = every model call of the note (LLMService usage store). The old figure came from three model instances only (writer, checklist, verifier):
+    // about 3 of 17 calls, so the stored cost was a third of the real one. Each call is priced at its own model's rate; thinking tokens are billed as output.
+    let cost;
+    if (Array.isArray(r.calls) && r.calls.length) {
+      const perAgent = {}; cost = 0;
+      for (const c of r.calls) {
+        const a = (perAgent[c.agent || 'unknown'] ||= { prompt: 0, output: 0, thoughts: 0, total: 0, calls: 0 });
+        a.prompt += c.prompt; a.output += c.output; a.thoughts += c.thoughts || 0; a.total += c.prompt + c.output + (c.thoughts || 0); a.calls += 1;
+        cost += await costFor(c.model, c.prompt, c.output + (c.thoughts || 0));
+      }
+      const totals = Object.values(perAgent).reduce((s, a) => ({ prompt: s.prompt + a.prompt, output: s.output + a.output, total: s.total + a.total, calls: s.calls + a.calls }), { prompt: 0, output: 0, total: 0, calls: 0 });
+      tu = { perAgent, totals }; cost = +cost.toFixed(5);
+    }
     const tot = tu.totals || {};
     const prompt = tot.prompt || 0, output = tot.output || 0, total = tot.total || (prompt + output);
-    const cost = await costFor(r.model, prompt, output);
+    if (cost === undefined) cost = await costFor(r.model, prompt, output);
     await query(
       `INSERT INTO ops.pipeline_runs
         (consult_id, clinician_id, model, status, duration_ms, transcript_chars, note_chars,

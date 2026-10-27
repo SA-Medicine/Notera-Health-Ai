@@ -39,7 +39,7 @@ await Promise.all(Array.from({ length: Number(concArg) || 4 }, async () => {
       const r = await generateNote({ transcript: tx, specialty: 'auto', noteType: 'consultation', clinicianId: 'gold-eval' }, { persist: false, mode: 'v2', trace, exemplarExclude: [slug(p.file), p.file] });
       const note = r.renderedNote || ''; const seconds = Math.round((Date.now() - t0) / 1000);
       const [a, b] = await Promise.all([judge('gemini-2.5-pro', tx, ref, note), judge('gemini-2.5-flash', tx, ref, note)]);
-      results.push({ file: p.file, tw: p.tw, seconds, note, judges: { pro: a, flash: b }, ledger: trace.factLedger?.summary || null, drugs: (trace.drugs || []).length, timings: trace.timings, tokens: r.tokenUsage || null });
+      results.push({ file: p.file, tw: p.tw, seconds, note, judges: { pro: a, flash: b }, ledger: trace.factLedger?.summary || null, drugs: (trace.drugs || []).length, timings: trace.timings, tokens: r.tokenUsage || null, usage: r.note?.metadata?.quality?.usage || null, groundGap: trace.grounding?.gap || null, groundDelta: trace.groundDelta || null, story: trace.story ? { applied: trace.story.applied, why: trace.story.why } : null });
     } catch (e) { results.push({ file: p.file, error: String(e.message).slice(0, 200) }); }
     process.stderr.write(`\r${results.length}/${set.length}`);
   }
