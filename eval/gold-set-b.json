@@ -1,0 +1,277 @@
+{
+ "made": "2026-10-27",
+ "candidates": 30,
+ "rule": "transcript 300-2500 words, note 120-600, has a plan, numbers >=80% and words >=45% found in the transcript, one per topic, best score",
+ "pairs": [
+  {
+   "file": "thyroid-nodule-hypertg.txt",
+   "topic": "thyroid-nodule",
+   "tw": 1446,
+   "nw": 249,
+   "wordGround": 0.62,
+   "numGround": 0.81,
+   "score": 0.691
+  },
+  {
+   "file": "patient-2999-strain-tear.txt",
+   "topic": "patient-2999",
+   "tw": 2072,
+   "nw": 330,
+   "wordGround": 0.57,
+   "numGround": 0.81,
+   "score": 0.657
+  },
+  {
+   "file": "allergic-rhinitis.txt",
+   "topic": "allergic-rhinitis",
+   "tw": 1129,
+   "nw": 241,
+   "wordGround": 0.48,
+   "numGround": 0.81,
+   "score": 0.653
+  },
+  {
+   "file": "htn-gerd-neck-lesion.txt",
+   "topic": "htn-gerd",
+   "tw": 1382,
+   "nw": 187,
+   "wordGround": 0.53,
+   "numGround": 0.92,
+   "score": 0.65
+  },
+  {
+   "file": "cataracts-wt-mgmt.txt",
+   "topic": "cataracts-wt",
+   "tw": 1352,
+   "nw": 201,
+   "wordGround": 0.52,
+   "numGround": 0.9,
+   "score": 0.648
+  },
+  {
+   "file": "abd-pain-uc-flare.txt",
+   "topic": "abd-pain",
+   "tw": 1986,
+   "nw": 218,
+   "wordGround": 0.6,
+   "numGround": 0.83,
+   "score": 0.639
+  },
+  {
+   "file": "annual-exam-eczema.txt",
+   "topic": "annual-exam",
+   "tw": 2118,
+   "nw": 291,
+   "wordGround": 0.55,
+   "numGround": 0.83,
+   "score": 0.635
+  },
+  {
+   "file": "chest-pain-htn-anemia.txt",
+   "topic": "chest-pain",
+   "tw": 1524,
+   "nw": 238,
+   "wordGround": 0.53,
+   "numGround": 0.8,
+   "score": 0.632
+  },
+  {
+   "file": "hand-arthritis-r-thumb-pain.txt",
+   "topic": "hand-arthritis",
+   "tw": 2180,
+   "nw": 251,
+   "wordGround": 0.48,
+   "numGround": 1,
+   "score": 0.631
+  },
+  {
+   "file": "chf-pruritus-derm.txt",
+   "topic": "chf-pruritus",
+   "tw": 2200,
+   "nw": 232,
+   "wordGround": 0.6,
+   "numGround": 0.8,
+   "score": 0.627
+  },
+  {
+   "file": "fever-swollen-glands.txt",
+   "topic": "fever-swollen",
+   "tw": 2252,
+   "nw": 158,
+   "wordGround": 0.6,
+   "numGround": 0.89,
+   "score": 0.624
+  },
+  {
+   "file": "fatigue-brain-fog.txt",
+   "topic": "fatigue-brain",
+   "tw": 2234,
+   "nw": 285,
+   "wordGround": 0.51,
+   "numGround": 0.88,
+   "score": 0.621
+  },
+  {
+   "file": "fatty-liver-dm-b12.txt",
+   "topic": "fatty-liver",
+   "tw": 1062,
+   "nw": 144,
+   "wordGround": 0.51,
+   "numGround": 0.86,
+   "score": 0.619
+  },
+  {
+   "file": "vaginal-itching-burning.txt",
+   "topic": "vaginal-itching",
+   "tw": 1800,
+   "nw": 300,
+   "wordGround": 0.49,
+   "numGround": 0.81,
+   "score": 0.618
+  },
+  {
+   "file": "mounjaro-diabetes-r-shoulder.txt",
+   "topic": "mounjaro-diabetes",
+   "tw": 814,
+   "nw": 151,
+   "wordGround": 0.45,
+   "numGround": 0.8,
+   "score": 0.615
+  },
+  {
+   "file": "mva-whiplash-strain.txt",
+   "topic": "mva-whiplash",
+   "tw": 2205,
+   "nw": 293,
+   "wordGround": 0.52,
+   "numGround": 0.83,
+   "score": 0.615
+  },
+  {
+   "file": "post-hospitalization-bp-liver.txt",
+   "topic": "post-hospitalization",
+   "tw": 2126,
+   "nw": 227,
+   "wordGround": 0.56,
+   "numGround": 0.83,
+   "score": 0.611
+  },
+  {
+   "file": "r-shoulder-pain-b12-inj.txt",
+   "topic": "r-shoulder",
+   "tw": 1664,
+   "nw": 242,
+   "wordGround": 0.47,
+   "numGround": 0.86,
+   "score": 0.61
+  },
+  {
+   "file": "perimenopause-irreg-cycles.txt",
+   "topic": "perimenopause-irreg",
+   "tw": 1736,
+   "nw": 216,
+   "wordGround": 0.53,
+   "numGround": 0.81,
+   "score": 0.605
+  },
+  {
+   "file": "patient-2440-pain.txt",
+   "topic": "patient-2440",
+   "tw": 1364,
+   "nw": 224,
+   "wordGround": 0.46,
+   "numGround": 0.8,
+   "score": 0.602
+  },
+  {
+   "file": "r-knee-oa-meds-refill.txt",
+   "topic": "r-knee",
+   "tw": 2300,
+   "nw": 285,
+   "wordGround": 0.5,
+   "numGround": 0.83,
+   "score": 0.601
+  },
+  {
+   "file": "wegovy-pbc-steatosis.txt",
+   "topic": "wegovy-pbc",
+   "tw": 2026,
+   "nw": 283,
+   "wordGround": 0.46,
+   "numGround": 0.85,
+   "score": 0.596
+  },
+  {
+   "file": "rx-refills-foot-pain-htn.txt",
+   "topic": "rx-refills",
+   "tw": 1590,
+   "nw": 233,
+   "wordGround": 0.46,
+   "numGround": 0.82,
+   "score": 0.591
+  },
+  {
+   "file": "htn-depression-wt-mgmt.txt",
+   "topic": "htn-depression",
+   "tw": 2318,
+   "nw": 258,
+   "wordGround": 0.51,
+   "numGround": 0.82,
+   "score": 0.59
+  },
+  {
+   "file": "wegovy-weight-loss.txt",
+   "topic": "wegovy-weight",
+   "tw": 1974,
+   "nw": 140,
+   "wordGround": 0.56,
+   "numGround": 0.85,
+   "score": 0.59
+  },
+  {
+   "file": "bereavement-knee.txt",
+   "topic": "bereavement-knee",
+   "tw": 2287,
+   "nw": 278,
+   "wordGround": 0.47,
+   "numGround": 0.85,
+   "score": 0.587
+  },
+  {
+   "file": "h-a-elevated-bp-contraception.txt",
+   "topic": "h-a",
+   "tw": 1076,
+   "nw": 130,
+   "wordGround": 0.49,
+   "numGround": 0.8,
+   "score": 0.58
+  },
+  {
+   "file": "sti-urinary-freq.txt",
+   "topic": "sti-urinary",
+   "tw": 2080,
+   "nw": 276,
+   "wordGround": 0.46,
+   "numGround": 0.8,
+   "score": 0.574
+  },
+  {
+   "file": "ingrown-toenail-l-toe.txt",
+   "topic": "ingrown-toenail",
+   "tw": 2382,
+   "nw": 181,
+   "wordGround": 0.52,
+   "numGround": 0.8,
+   "score": 0.561
+  },
+  {
+   "file": "resp-inf-cough.txt",
+   "topic": "resp-inf",
+   "tw": 1694,
+   "nw": 123,
+   "wordGround": 0.47,
+   "numGround": 0.83,
+   "score": 0.542
+  }
+ ]
+}

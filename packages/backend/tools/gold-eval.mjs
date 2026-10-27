@@ -14,7 +14,7 @@ import { createGeminiService } from '../src/services/LLMService.js';
 const pos = process.argv.slice(2).filter((a) => !a.startsWith('--')); const flag = (n, d) => ((process.argv.find((a) => a.startsWith('--' + n + '=')) || '').split('=').slice(1).join('=')) || d;
 const [label = 'gold', concArg = '4'] = pos; for (const kv of String(flag('env', '')).split(',').filter(Boolean)) { const i = kv.indexOf('='); process.env[kv.slice(0, i)] = kv.slice(i + 1); }
 const ROOT = process.env.REPO_ROOT || '/app'; const OUT = '/lab-data/gold-eval'; fs.mkdirSync(OUT, { recursive: true });
-const set = JSON.parse(fs.readFileSync(path.join(ROOT, 'eval', 'gold-set.json'), 'utf8')).pairs.slice(0, Number(flag('limit', '999')));
+const set = JSON.parse(fs.readFileSync(path.join(ROOT, 'eval', process.env.GOLD_SET || 'gold-set.json'), 'utf8')).pairs.slice(0, Number(flag('limit', '999')));
 const slug = (f) => f.replace(/\.txt$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export const JUDGE_SYS = `You compare a CANDIDATE clinic note with the REFERENCE note the doctor wrote for the same visit, using the TRANSCRIPT as the truth.

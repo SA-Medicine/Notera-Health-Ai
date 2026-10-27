@@ -25,6 +25,7 @@ import { groundDelta, askGroundDelta, applyGroundDelta } from './groundDelta.js'
 import { negationGuard } from './negationGuard.js';
 import { groundNoteFactAware } from './groundFacts.js';
 import { doseRepair } from './doseRepair.js';
+import { planActionCheck } from './planActionCheck.js';
 import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
@@ -773,11 +774,12 @@ export async function generateNoteV2(input, opts = {}) {
   // GAP_EARLY=1 (audit experiment, off by default): the coverage question and the fact ledger's AI question are asked NOW, on a copy of the note, while the story agent
   // rewrites the wording; the answers are applied to the finished note below (see gapEarly.js). Same questions, same checks, asked earlier.
   let covEarlyP = null; let covEarlyIssues = null; let ledgerEarlyP = null;
-  let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null;
+  let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null; let planCheckP = null;
   // GROUND_EARLY=1 starts the grounding check at the same moment, on the same copy (the writer's note, before the story rewording): it no longer waits behind the
   // gap stages. Its removals reach the finished note by text; a Subjective line the story reworded meanwhile is flagged for the clinician instead of removed.
-  if ((process.env.GAP_EARLY === '1' || process.env.GROUND_EARLY === '1') && !blank && !lean) {
+  if ((process.env.GAP_EARLY === '1' || process.env.GROUND_EARLY === '1' || process.env.PLAN_CHECK === '1') && !blank && !lean) {
     const early = structuredClone(note); const em = opts.storyModel || cfg['story.model'];
+    if (process.env.PLAN_CHECK === '1') { try { const pllm = await createGeminiService(null, { model: em }); pllm._agent = 'v2-plancheck'; planCheckP = planActionCheck(pllm, noteToMarkdown(early), transcript, log); } catch (e) { log('[v2:plan-check] not started — ' + e.message); } }
     if (process.env.GROUND_EARLY === '1' && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {
       const flags0 = (early.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(early).map((p) => p.text));
       groundP = (async () => { const gllm = await createGeminiService(null, { model: em }); gllm._agent = 'v2-ground'; const gr0 = (process.env.GROUND_FACTS === '1' && factsP) ? await groundNoteFactAware(gllm, early, transcript, factsP, log) : await groundNote(gllm, early, transcript, log); return { gr0, snap: early, flags0, ms: Date.now() - tg0 }; })().catch((e) => ({ error: e }));
@@ -923,6 +925,9 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
   const renderedNote = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
+    try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
+  }
   if (!blank && process.env.NEG_GUARD === '1') {   // flags only (negationGuard.js): a negated line the recording does not support is shown under "Before you sign"
     try { const ng = negationGuard(renderedNote, transcript, log); if (ng.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...ng.flags.map(({ kind, section, ...fl }) => fl)]; } if (opts.trace) opts.trace.negation = { flags: ng.flags.length, checked: ng.checked, negated: ng.negated }; } catch (e) { log(`[v2:negation] skipped — ${e.message}`); }
   }

@@ -11,10 +11,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = process.env.REPO_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const DIR = path.join(ROOT, 'data', 'gold'); const N = Number(process.argv[2]) || 30;
+// OUT_SET=gold-set-b.json EXCLUDE_SET=gold-set.json: a second, separate set (a hold-out for confirming a change on notes it was not tuned on)
+const OUT_SET = process.env.OUT_SET || 'gold-set.json'; const EXCLUDE = new Set(process.env.EXCLUDE_SET ? JSON.parse(fs.readFileSync(path.join(ROOT, 'eval', process.env.EXCLUDE_SET), 'utf8')).pairs.map((p) => p.file) : []);
 const words = (s) => String(s).toLowerCase().match(/[a-z]{5,}/g) || [];
 const nums = (s) => String(s).match(/\b\d+(?:\.\d+)?\b/g) || [];
 const rows = [];
 for (const f of fs.readdirSync(DIR)) {
+  if (EXCLUDE.has(f)) continue;
   const t = fs.readFileSync(path.join(DIR, f), 'utf8'); const i = t.search(/\n\s*\**Subjective:?\**/i); if (i < 0) continue;
   const tx = t.slice(0, i).replace(/^\s*\d+:\d+\s*$/gm, ' '); const note = t.slice(i);
   const tw = tx.split(/\s+/).filter(Boolean).length, nw = note.split(/\s+/).filter(Boolean).length;
@@ -33,5 +36,5 @@ rows.sort((a, b) => b.score - a.score);
 const seen = new Set(); const pick = [];
 for (const r of rows) { if (seen.has(r.topic)) continue; seen.add(r.topic); pick.push(r); if (pick.length >= N) break; }
 fs.mkdirSync(path.join(ROOT, 'eval'), { recursive: true });
-fs.writeFileSync(path.join(ROOT, 'eval', 'gold-set.json'), JSON.stringify({ made: new Date().toISOString().slice(0, 10), candidates: rows.length, rule: 'transcript 300-2500 words, note 120-600, has a plan, numbers >=80% and words >=45% found in the transcript, one per topic, best score', pairs: pick }, null, 1));
+fs.writeFileSync(path.join(ROOT, 'eval', OUT_SET), JSON.stringify({ made: new Date().toISOString().slice(0, 10), candidates: rows.length, rule: 'transcript 300-2500 words, note 120-600, has a plan, numbers >=80% and words >=45% found in the transcript, one per topic, best score', pairs: pick }, null, 1));
 console.log(`${rows.length} pairs pass the filters; picked ${pick.length}. Transcript words ${Math.min(...pick.map((p) => p.tw))}-${Math.max(...pick.map((p) => p.tw))}; topics: ${pick.map((p) => p.topic).join(', ')}`);

@@ -19,6 +19,7 @@ COPY --from=build --chown=notera:notera /app /app
 COPY --chown=notera:notera eval/metrics.mjs ./eval/metrics.mjs
 COPY --chown=notera:notera data/gold ./data/gold
 COPY --chown=notera:notera eval/gold-set.json ./eval/gold-set.json
+COPY --chown=notera:notera eval/gold-set-b.json ./eval/gold-set-b.json
 RUN mkdir -p /lab-data && chown notera:notera /lab-data
 USER notera
 WORKDIR /app/packages/backend
