@@ -196,3 +196,30 @@ node tools/audit/compare.mjs <runs>-j3                 # one table
 node tools/audit/paired.mjs <control-j3> <arm-j3>      # paired difference with standard error
 # hold-out: GOLD_SET=gold-set-b.json FACTS_FILE=/lab-data/gold-facts-b.json
 ```
+
+---
+
+## 11. Second round (same day): is extraction really the bottleneck, and can we fix it?
+
+**Test of the claim.** An independent list of what a complete note must hold was made by one strong model reading each whole recording (930 facts on the 30 gold notes, 323 critical; and 930 on the 30 hold-out notes, 386 critical; each fact has a word-for-word quote checked by code). Each note was then checked against that list and against the fact graph.
+
+| Result (control runs) | Gold set | Hold-out |
+|---|---|---|
+| Facts of the independent list stated by the note | 82% (critical 87–92%) | 85% (critical 93%) |
+| Facts of the list in the graph (graph file keeps only the required facts) | 42–43% | 44% |
+| Facts the note lacks that are NOT in the graph | 85–93% (critical 64–93%) | 93% (critical 94%) |
+
+So the claim holds: the facts that stay missing from the note are almost all facts the extractor never produced. Two cautions: the list is generous (it includes minor facts, and about 60% of the missing ones are Subjective detail), and the graph comparison uses the required-facts subset. Critical omissions are about 0.6–0.9 per note on this list; two identical control runs differ by 0.38 ± 0.22 per note, so only larger differences are visible.
+
+**Fix attempts (30 gold + 30 hold-out notes each, same-time controls, paired per note).**
+
+| Variant | Missing per note (all) | Critical missing | Time | Decision |
+|---|---|---|---|---|
+| Coverage check run on overlapping parts of the recording at the same time (`COVERAGE_WINDOWS=1`) | −0.45 ± 0.41 and −0.10 ± 0.41 | +0.05 ± 0.18 and −0.03 ± 0.16 | none (+1.7 calls/note) | No detectable effect. Off |
+| Coverage check on gemini-2.5-pro instead of flash (`COVERAGE_MODEL`) | −0.29 ± 0.37 and −0.40 ± 0.27 | +0.11 ± 0.20 and −0.15 ± 0.13 | **+3.7 s and +7.7 s mean; two notes over 60 s (max 129 s)** | Direction is good, not significant, and it risks the 60 s rule. Off |
+
+Nothing in this round was shipped. The windowed variant is in `coverageWindows.js` (`noteCoverage.js` is part of the locked spec files and was not edited).
+
+**Clinician review.** The AI judge cannot replace clinicians, and I cannot act as one. What is ready: `tools/audit/review-pack.mjs` builds a single offline HTML file with 60 notes (2,560 note lines): transcript on the left, each note line marked Supported or Wrong (kind, serious or minor), a box for facts left out, autosave and a results download. AI findings are hidden to avoid anchoring. Two clinicians should mark the same pack and a third should settle differences; their JSON files then calibrate the judge and show the true omission rate. Marking 2,560 lines is roughly a day of clinician time per reviewer; start with 20 notes if that is too much.
+
+**Evaluator notes.** `extractaudit.mjs` and `pairedoracle.mjs` (in `tools/audit`) are the new independent measures. The control-to-control spread is large, so a candidate needs at least about 0.4 fewer missing facts per note on 60 notes to be visible.
