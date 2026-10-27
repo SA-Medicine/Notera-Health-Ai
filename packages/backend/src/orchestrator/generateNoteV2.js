@@ -21,7 +21,8 @@ import fs from 'node:fs';
 
 import { emptyNote, emptyIssue, validateNote } from '@notera/schema';
 import { createGeminiService, currentUsage } from '../services/LLMService.js';
-import { groundDelta } from './groundDelta.js';
+import { groundDelta, askGroundDelta, applyGroundDelta } from './groundDelta.js';
+import { negationGuard } from './negationGuard.js';
 import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
@@ -531,12 +532,13 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs,
   let why = 'error'; let rejected = null;
   try {
     llm._agent = 'v2-story';
-    for (let attempt = 0; attempt < 3; attempt++) {   // 3rd try only after two rejections (30% of newer test notes lost their topic headings after two)
-      const feedback = attempt ? `\n\nYour previous rewrite was REJECTED by the fact checker: ${why}. Rewrite again, staying closer to the wording and facts of the NOTE JSON: do not add interpretive words (such as typically, chronic, requiring), do not change any number, and keep every fact.` : '';
+    // one attempt: returns { ok: true, out, chk } or { ok: false, why, rejected }; the checks are exactly the ones that decide whether a rewrite is kept
+    const runAttempt = async (attempt, useFeedback) => {
+      const feedback = useFeedback ? `\n\nYour previous rewrite was REJECTED by the fact checker: ${why}. Rewrite again, staying closer to the wording and facts of the NOTE JSON: do not add interpretive words (such as typically, chronic, requiring), do not change any number, and keep every fact.` : '';
       const raw = await llm.generateContent(prompt || STORY_SYS, user + feedback, null,
         { maxOutputTokens: 5000, timeoutMs: timeoutMs || 30000, retries: 0, hedgeMs: 20000, temperature: attempt === 1 ? 0 : attempt === 2 ? 0.3 : 0.2, thinkingBudget: 0, responseMimeType: 'application/json' });
       const out = parseJson(raw);
-      if (!out || typeof out.subjective !== 'object') { why = 'unparseable or incomplete JSON'; log(`[v2:story] attempt ${attempt + 1} rejected — ${why}`); continue; }
+      if (!out || typeof out.subjective !== 'object') { why = 'unparseable or incomplete JSON'; log(`[v2:story] attempt ${attempt + 1} rejected — ${why}`); return { ok: false, why, rejected }; }
       // the model sometimes returns a field as a list of lines instead of one string: always one string, one line per item
       for (const sec of ['subjective', 'past_medical_history']) for (const [k, v] of Object.entries(out[sec] || {})) if (Array.isArray(v)) out[sec][k] = v.map((x) => String(x ?? '').trim()).filter(Boolean).join('\n');
       const isHead = (l) => /^[A-Za-z][A-Za-z &/,'-]{1,50}:\s*$/.test(String(l).trim());
@@ -560,9 +562,21 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs,
         else if (copied) chk = { ok: false, why: `"${copied}" was appended as it is next to a bullet that already says it — merge it into that bullet` };
       }
       if (chk.ok && lostMed) chk = { ok: false, why: `the medication line lost "${lostMed}" — keep every drug name and strength exactly` };
-      if (!chk.ok) { why = chk.why; rejected = out.subjective; log(`[v2:story] attempt ${attempt + 1} rejected — ${chk.why}`); continue; }
-      log(`[v2:story] applied${attempt ? ' on retry' : ''} (kept ${(chk.kept * 100).toFixed(0)}% of words, ${chk.fresh} new words)`);
-      return { out, why: attempt ? 'applied on retry' : 'applied', ms: Date.now() - t0 };
+      if (!chk.ok) { why = chk.why; rejected = out.subjective; log(`[v2:story] attempt ${attempt + 1} rejected — ${chk.why}`); return { ok: false, why, rejected }; }
+      return { ok: true, out, chk };
+    };
+    const accept = (r, attempt) => { log(`[v2:story] applied${attempt ? ' on retry' : ''} (kept ${(r.chk.kept * 100).toFixed(0)}% of words, ${r.chk.fresh} new words)`); return { out: r.out, why: attempt ? 'applied on retry' : 'applied', ms: Date.now() - t0 }; };
+    let startAt = 0;
+    // STORY_PARALLEL=1: the first two attempts run at the same time (a retry used to wait for the rejection of the first: 1.4 rejections per note on the gold set, about
+    // 3 s each); the first one that passes the same checks is kept. Only if both are rejected does the third attempt run, with the rejection reason, as before.
+    if (process.env.STORY_PARALLEL === '1') {
+      const att = [0, 1].map((a) => runAttempt(a, false).then((r) => ({ ...r, a })).catch((e) => ({ ok: false, why: 'error: ' + e.message, rejected: null, a })));
+      const won = await Promise.any(att.map((p) => p.then((r) => (r.ok ? r : Promise.reject(r)))) ).catch(() => null);
+      if (won) return accept(won, won.a);
+      const all = await Promise.all(att); const last = all[all.length - 1]; why = last.why || why; rejected = last.rejected || rejected; startAt = 2;
+    }
+    for (let attempt = startAt; attempt < 3; attempt++) {   // 3rd try only after two rejections (30% of newer test notes lost their topic headings after two)
+      const r = await runAttempt(attempt, attempt > 0); if (r.ok) return accept(r, attempt);
     }
     return { out: null, why, rejected, ms: Date.now() - t0 };
   } catch (e) { log(`[v2:story] skipped — ${e.message}`); return { out: null, why: 'error: ' + e.message, ms: Date.now() - t0 }; }
@@ -810,9 +824,9 @@ export async function generateNoteV2(input, opts = {}) {
   // what those stages add is already quote-checked (coverage evidence, fact-graph quotes). Its removals are applied to the finished note by text afterwards;
   // a removed line that a later stage reworded is flagged for checking instead. PARALLEL_GROUND=0 runs it last, as before.
   const groundOn = !blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false;
-  let groundP = null; let groundGap = null;
+  let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null;
   if (groundOn && process.env.PARALLEL_GROUND !== '0') {
-    const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now();
+    const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(snap).map((p) => p.text));
     groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
       .catch((e) => ({ error: e }));
   }
@@ -831,6 +845,11 @@ export async function generateNoteV2(input, opts = {}) {
       if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(earlyL && !earlyL.error ? ledgerShim(earlyL, note) : lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
+  }
+  // GROUND_DELTA=2: the plan and Objective lines the gap stages added since the grounding snapshot are checked in the background while the story merge runs (groundDelta.js).
+  if (process.env.GROUND_DELTA === '2' && groundSnapTexts) {
+    const late = collectParts(note).filter((p) => !groundSnapTexts.has(p.text) && (p.where === 'objective' || p.where.startsWith('plan')));
+    if (late.length) { try { const dl = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); dl._agent = 'v2-ground'; deltaP = askGroundDelta(dl, transcript, late); } catch (e) { log(`[v2:ground-delta] not started — ${e.message}`); } }
   }
   // Facts the coverage check and the fact ledger added to the Subjective or history arrive as bare lines after the story was written. When that happened, the story
   // pass runs once more so they become part of the topic story (short lines that read on from each other) instead of a list of facts. Its own checks reject a rewrite
@@ -861,6 +880,7 @@ export async function generateNoteV2(input, opts = {}) {
       const seenTexts = new Set(collectParts(g.snap).map((p) => p.text)); const finalParts = collectParts(note); const unseen = finalParts.filter((p) => !seenTexts.has(p.text));
       groundGap = { lines: finalParts.length, unseen: unseen.length, share: finalParts.length ? +(unseen.length / finalParts.length).toFixed(3) : 0 };
       if (opts.trace) opts.trace.grounding = { ...g.gr0, removed: (g.gr0.removed || []).map((r) => ({ text: r.text, where: r.where })), appliedRemovals: n, parallel: true, gap: groundGap };
+      if (deltaP) { const td2 = Date.now(); const dec = await deltaP; const ap = applyGroundDelta(note, dec, log); if (opts.trace) opts.trace.groundDelta = { checked: dec.checked, removed: dec.remove, flagged: ap.flagged, ms: dec.ms, error: dec.error }; lap('groundDeltaWait', td2); }
       // GROUND_DELTA=1: one small extra check of exactly those lines (a few lines, about 2-3 s). Off by default until the gold A/B shows it pays.
       if (unseen.length && process.env.GROUND_DELTA === '1') {
         const td = Date.now();
@@ -890,6 +910,9 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
   const renderedNote = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  if (!blank && process.env.NEG_GUARD === '1') {   // flags only (negationGuard.js): a negated line the recording does not support is shown under "Before you sign"
+    try { const ng = negationGuard(renderedNote, transcript, log); if (ng.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...ng.flags.map(({ kind, section, ...fl }) => fl)]; } if (opts.trace) opts.trace.negation = { flags: ng.flags.length, checked: ng.checked, negated: ng.negated }; } catch (e) { log(`[v2:negation] skipped — ${e.message}`); }
+  }
   let drugReview = [];   // the medicines box under the note: every drug, checked against RxNorm (name and dose), with a one-click fix
   if (!blank && process.env.DRUG_CHECK !== '0' && opts.drugCheck !== false && cfg['stage.drugCheck'] !== false) {
     const td = Date.now();
