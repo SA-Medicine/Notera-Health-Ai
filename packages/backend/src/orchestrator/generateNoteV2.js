@@ -773,14 +773,23 @@ export async function generateNoteV2(input, opts = {}) {
   // GAP_EARLY=1 (audit experiment, off by default): the coverage question and the fact ledger's AI question are asked NOW, on a copy of the note, while the story agent
   // rewrites the wording; the answers are applied to the finished note below (see gapEarly.js). Same questions, same checks, asked earlier.
   let covEarlyP = null; let covEarlyIssues = null; let ledgerEarlyP = null;
-  if (process.env.GAP_EARLY === '1' && !blank && !lean) {
+  let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null;
+  // GROUND_EARLY=1 starts the grounding check at the same moment, on the same copy (the writer's note, before the story rewording): it no longer waits behind the
+  // gap stages. Its removals reach the finished note by text; a Subjective line the story reworded meanwhile is flagged for the clinician instead of removed.
+  if ((process.env.GAP_EARLY === '1' || process.env.GROUND_EARLY === '1') && !blank && !lean) {
     const early = structuredClone(note); const em = opts.storyModel || cfg['story.model'];
+    if (process.env.GROUND_EARLY === '1' && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false) {
+      const flags0 = (early.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(early).map((p) => p.text));
+      groundP = (async () => { const gllm = await createGeminiService(null, { model: em }); gllm._agent = 'v2-ground'; const gr0 = (process.env.GROUND_FACTS === '1' && factsP) ? await groundNoteFactAware(gllm, early, transcript, factsP, log) : await groundNote(gllm, early, transcript, log); return { gr0, snap: early, flags0, ms: Date.now() - tg0 }; })().catch((e) => ({ error: e }));
+    }
+    if (process.env.GAP_EARLY === '1') {
     if (!skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {
       covEarlyIssues = issuesOf(early);
       try { const vllm = await createGeminiService(null, { model: em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [] }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
     }
     if (factsP && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {
       try { const lllm = await createGeminiService(null, { model: em }); lllm._agent = 'v2-ledger'; ledgerEarlyP = askLedgerEarly(factsP, early, lllm); } catch (e) { log('[v2:ledger] early start failed — ' + e.message); }
+    }
     }
   }
   // STORY agent (independent, optional, LAST): the verified note is rewritten into a readable clinical story; facts are checked by code
@@ -826,8 +835,7 @@ export async function generateNoteV2(input, opts = {}) {
   // what those stages add is already quote-checked (coverage evidence, fact-graph quotes). Its removals are applied to the finished note by text afterwards;
   // a removed line that a later stage reworded is flagged for checking instead. PARALLEL_GROUND=0 runs it last, as before.
   const groundOn = !blank && !skip('grounding') && opts.grounding !== false && process.env.GROUNDING !== '0' && cfg['stage.grounding'] !== false;
-  let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null;
-  if (groundOn && process.env.PARALLEL_GROUND !== '0') {
+  if (groundOn && !groundP && process.env.PARALLEL_GROUND !== '0') {
     const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(snap).map((p) => p.text));
     groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = (process.env.GROUND_FACTS === '1' && factsP) ? await groundNoteFactAware(gllm, snap, transcript, factsP, log) : await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
       .catch((e) => ({ error: e }));
