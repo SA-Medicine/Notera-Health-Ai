@@ -23,6 +23,8 @@ import { emptyNote, emptyIssue, validateNote } from '@notera/schema';
 import { createGeminiService, currentUsage } from '../services/LLMService.js';
 import { groundDelta, askGroundDelta, applyGroundDelta } from './groundDelta.js';
 import { negationGuard } from './negationGuard.js';
+import { groundNoteFactAware } from './groundFacts.js';
+import { doseRepair } from './doseRepair.js';
 import { store, audit } from '../firestore/store.js';
 import { runGuardrails } from '../validation/guardrails.js';
 import { applyUpgradeGuardrails, isBlankEncounter, classifyEncounterDeterministic } from '../validation/upgrades.js';
@@ -827,7 +829,7 @@ export async function generateNoteV2(input, opts = {}) {
   let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null;
   if (groundOn && process.env.PARALLEL_GROUND !== '0') {
     const snap = structuredClone(note); const flags0 = (snap.metadata?.flags || []).length; const tg0 = Date.now(); groundSnapTexts = new Set(collectParts(snap).map((p) => p.text));
-    groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
+    groundP = (async () => { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = (process.env.GROUND_FACTS === '1' && factsP) ? await groundNoteFactAware(gllm, snap, transcript, factsP, log) : await groundNote(gllm, snap, transcript, log); return { gr0, snap, flags0, ms: Date.now() - tg0 }; })()
       .catch((e) => ({ error: e }));
   }
   if (coverageOn) {   // Style Spec v2.1.2: what was said and is missing from the finished note is added under its topic (quote-checked); the grounding agent checks it next (NOTE_COVERAGE=0 switches off)
@@ -845,6 +847,9 @@ export async function generateNoteV2(input, opts = {}) {
       if (graph.facts.length) { const lllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); lllm._agent = 'v2-ledger'; const led = await reconcileFacts(earlyL && !earlyL.error ? ledgerShim(earlyL, note) : lllm, note, graph, transcript, log, { cited: citedIds }); ledgerSummary = led.summary; if (opts.trace) opts.trace.factLedger = { summary: led.summary, rows: led.rows, facts: graph.facts.map((f) => ({ id: f.id, type: f.type, text: f.text, importance: f.importance })) }; }
     } catch (e) { log(`[v2:ledger] skipped — ${e.message}`); }
     lap('ledger', tl);
+  }
+  if (process.env.DOSE_REPAIR === '1' && factsP && !blank) {   // doseRepair.js: an amount the recording never says is replaced by the one the fact graph holds for that drug
+    try { const gr = await factsP; if (gr?.facts?.length) { const dr = doseRepair(note, transcript, gr.facts, log); if (opts.trace) opts.trace.dose = dr; } } catch (e) { log(`[v2:dose] skipped — ${e.message}`); }
   }
   // GROUND_DELTA=2: the plan and Objective lines the gap stages added since the grounding snapshot are checked in the background while the story merge runs (groundDelta.js).
   if (process.env.GROUND_DELTA === '2' && groundSnapTexts) {
