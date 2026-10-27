@@ -9,6 +9,7 @@
 'use strict';
 
 import express from 'express';
+import { zipWriter } from './zipStream.js';
 import { query, one } from '../db/pool.js';
 import { measureAudio, audioFlags, countWords, wordsPerMinute, decodeFile, missingWebmHeader } from './audioStats.js';
 import { ensureAccountSchema } from '../auth/quota.js';
@@ -157,4 +158,27 @@ export function mountAudioLibrary(R, { r, audit, ipOf, bucket = defaultBucket })
     res.setHeader('Content-Disposition', `attachment; filename="notera-training-manifest-${new Date().toISOString().slice(0, 10)}.jsonl"`);
     res.send(lines.join('\n') + (lines.length ? '\n' : ''));
   }));
+  // All recordings of ONE clinician as a single zip (names: date_time_consult.webm, plus an index.csv). ADMIN-ONLY and audited like every other audio download.
+  R.get('/audio-zip', r(async (req, res) => {
+    const user = String(req.query.user || ''); if (!/^[0-9a-f-]{36}$/i.test(user)) return bad(res, 'choose a clinician');
+    const rows = await query(`SELECT c.consult_id, c.audio_uri, c.created_at, c.specialty, c.title, r.duration_s, u.email FROM clinical.consults c LEFT JOIN ops.audio_review r ON r.consult_id = c.consult_id LEFT JOIN auth.users u ON u.id::text = c.clinician_id
+      WHERE c.clinician_id = $1 AND c.audio_uri IS NOT NULL AND c.audio_uri <> '' AND coalesce(r.status, '') <> 'removed' ORDER BY c.created_at`, [user]);
+    if (!rows.length) return bad(res, 'this clinician has no stored recordings', 404);
+    const b = await bucket(); const who = String(rows[0].email || user).split('@')[0].replace(/[^A-Za-z0-9._-]+/g, '_');
+    await audit(req.user.id, 'admin_download_audio', { owner: user, recordings: rows.length, zip: true }, ipOf(req));
+    res.setHeader('Content-Type', 'application/zip'); res.setHeader('Content-Disposition', `attachment; filename="notera-audio-${who}-${new Date().toISOString().slice(0, 10)}.zip"`);
+    const z = zipWriter((buf) => new Promise((ok, no) => { res.write(buf, (e) => (e ? no(e) : ok())); }));
+    const stamp = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15); const index = ['consult_id,recorded_at_utc,seconds,specialty,title,file'];
+    let done = 0;
+    try {
+      for (const x of rows) {
+        const file = `${stamp(x.created_at)}_${x.consult_id}.webm`;
+        try { await z.add(file, b.file(nameOf(x.audio_uri)).createReadStream(), new Date(x.created_at)); done++; index.push([x.consult_id, new Date(x.created_at).toISOString(), Math.round(x.duration_s || 0), x.specialty || '', String(x.title || '').replace(/[",\r\n]+/g, ' '), file].join(',')); }
+        catch (e) { console.error('[audio-zip]', x.consult_id, e.message); if (!res.writableEnded && done === 0 && rows.length === 1) throw e; }
+      }
+      await z.add('index.csv', (async function* () { yield Buffer.from(index.join('\n') + '\n'); })());
+      await z.finish(); res.end();
+    } catch (e) { console.error('[audio-zip] aborted', e.message); res.destroy(e); }
+  }));
+
 }

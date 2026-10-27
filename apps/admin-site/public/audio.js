@@ -29,7 +29,10 @@ export async function audioView(ctx) {
     const m2 = $('#au-m2'); if (m2) m2.onclick = measure;
     const seg = [['all', 'All'], ['unreviewed', 'Not reviewed'], ['real', 'Real'], ['not_real', 'Not real'], ['flagged', 'Flagged']];
     $('#au-seg').innerHTML = seg.map(([k, l]) => `<button class="seg${filter === k ? ' on' : ''}" data-f="${k}">${l}</button>`).join('')
-      + (t.not_real ? `<button class="btn sm danger" id="au-purge" style="margin-left:12px">Delete all ${t.not_real} marked Not real…</button>` : '');
+      + (t.not_real ? `<button class="btn sm danger" id="au-purge" style="margin-left:12px">Delete all ${t.not_real} marked Not real…</button>` : '')
+      + (() => { const owners = new Map(); for (const x of rows) if (x.clinician_id) { const o = owners.get(x.clinician_id) || { email: x.email || x.clinician_id, n: 0 }; o.n++; owners.set(x.clinician_id, o); }
+        return owners.size ? `<span style="margin-left:12px;display:inline-flex;gap:6px;align-items:center"><select class="select" id="au-zip-user" aria-label="Clinician">${[...owners].sort((a, b) => b[1].n - a[1].n).map(([id, o]) => `<option value="${esc(id)}">${esc(o.email)} (${o.n})</option>`).join('')}</select><button class="btn sm primary" id="au-zip" title="All stored recordings of this clinician in one zip file, with an index.csv. Recorded in the audit log.">Download all (zip)</button></span>` : ''; })();
+    const zp = $('#au-zip'); if (zp) zp.onclick = () => { const u = $('#au-zip-user').value; toast('Preparing the zip — the download starts in a moment'); location.href = `/backend/api/console/audio-zip?user=${encodeURIComponent(u)}`; };
     document.querySelectorAll('[data-f]').forEach((b) => { b.onclick = () => { filter = b.dataset.f; open = null; draw(); }; });
     const pu = $('#au-purge'); if (pu) pu.onclick = purge;
 

@@ -182,7 +182,7 @@ async function consultDrawer(id) {
       <div class="drawer-body" style="padding-top:16px">${body(tab)}</div>`);
     document.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => draw(b.dataset.tab); });
     $('#cp').onclick = () => { navigator.clipboard.writeText(dr?.rendered_note || ''); toast('Note copied'); };
-    const l = $('#lau'); if (l) l.onclick = async () => { l.disabled = true; try { const a = await api(`/api/console/consults/${encodeURIComponent(id)}/audio`); $('#au').innerHTML = `<audio controls autoplay src="${esc(a.url)}" style="width:100%"></audio><p style="color:var(--ink-3)">Link expires in ${Math.round(a.expiresInSec / 60)} min. This play is recorded in the audit log.</p>`; } catch (e) { toast(e.message, true); l.disabled = false; } };
+    const l = $('#lau'); if (l) l.onclick = async () => { l.disabled = true; try { const a = await api(`/api/console/consults/${encodeURIComponent(id)}/audio`); $('#au').innerHTML = `<audio controls autoplay src="${esc(a.url)}" style="width:100%"></audio><p style="color:var(--ink-3)">Link expires in ${Math.round(a.expiresInSec / 60)} min. This play is recorded in the audit log.</p><button class="btn" id="dla">Download recording</button>`; const d = $('#dla'); if (d) d.onclick = async () => { try { const z = await api(`/api/console/audio/${encodeURIComponent(id)}/url?download=1`); location.href = z.url; toast('Download started'); } catch (e2) { toast(e2.message, true); } }; } catch (e) { toast(e.message, true); l.disabled = false; } };
   };
   draw('note');
 }
