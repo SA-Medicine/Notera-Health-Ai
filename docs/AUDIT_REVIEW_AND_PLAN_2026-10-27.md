@@ -223,3 +223,20 @@ Nothing in this round was shipped. The windowed variant is in `coverageWindows.j
 **Clinician review.** The AI judge cannot replace clinicians, and I cannot act as one. What is ready: `tools/audit/review-pack.mjs` builds a single offline HTML file with 60 notes (2,560 note lines): transcript on the left, each note line marked Supported or Wrong (kind, serious or minor), a box for facts left out, autosave and a results download. AI findings are hidden to avoid anchoring. Two clinicians should mark the same pack and a third should settle differences; their JSON files then calibrate the judge and show the true omission rate. Marking 2,560 lines is roughly a day of clinician time per reviewer; start with 20 notes if that is too much.
 
 **Evaluator notes.** `extractaudit.mjs` and `pairedoracle.mjs` (in `tools/audit`) are the new independent measures. The control-to-control spread is large, so a candidate needs at least about 0.4 fewer missing facts per note on 60 notes to be visible.
+
+---
+
+## 12. Third round (same day): production notes check, instruction-text filter, second extraction reading
+
+**Dr Seema's three latest notes (27 Oct)** were compared with their transcripts and two were re-run in the lab. All stages ran (14–17 calls, 23–38 s, no errors). The plans exist but have gaps: a printed cholesterol blood-test order was lost (and calcium, vitamin D and the monthly osteoporosis medicine were missing from the plan) in one run, while the lab re-run of the same recording kept them. The extractor is not deterministic, so plan details come and go between runs. Other defects seen: "Advised Rogaine can be used" (only mentioned), "Mammogram discussion" with no support, speech-engine drug garbles ("sugar pill" = St. John's Wort, "Blood pressure pill 5 mg"), repeated A1C and ear-wax lines, filler headings ("Managed as needed").
+
+**Speech-engine instruction leaked into the transcript** in 3 of 72 consultations in 30 days (13 Oct first). `src/asr/promptLeak.js` removes its four exact sentences at the engine output and at note creation (tests: clean text unchanged). **Shipped** (commit 71c7369).
+
+**Second extraction reading (`FACT_GRAPH_RUNS=2`, `factGraphPlus.js`)**, 30 gold + 30 hold-out notes, same-time control plus earlier controls:
+
+| Set | Missing per note (all) | Critical missing | Time | Calls/note |
+|---|---|---|---|---|
+| Gold | −0.12 ± 0.25 | −0.05 ± 0.15 | +2.1 s | 20.5 vs 16.9 |
+| Hold-out | −0.44 ± 0.32 | +0.11 ± 0.13 | +4.9 s | 22.2 vs 17.5 |
+
+Direction is favourable but not significant (the same-time controls were worse than earlier controls, so the pooled comparison is the fair one). It costs 3–5 more calls and a few seconds. **Not shipped; off by default.**
