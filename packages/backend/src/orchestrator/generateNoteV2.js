@@ -50,6 +50,8 @@ import { groundNote, missingNumbers, collectParts, applyRemovals } from './groun
 import { fidelityGuards } from './fidelityGuards.js';
 import { askAttribution, applyAttribution } from './planAttribution.js';
 import { completePlan } from './planComplete.js';
+import { askActions, remapActions } from './actionPass.js';
+import { applyComplete as applyPlanComplete } from './planComplete.js';
 import { coverNote, askCoverage as askCoverageWhole, applyCoverage } from './noteCoverage.js';
 import { askCoverageWindowed } from './coverageWindows.js';
 const askCoverage = (llm, note, tx, o = {}) => (process.env.COVERAGE_WINDOWS === '1' ? askCoverageWindowed(llm, note, tx, o, { makeLlm: o.makeLlm }) : askCoverageWhole(llm, note, tx, o));
@@ -778,7 +780,7 @@ export async function generateNoteV2(input, opts = {}) {
   }
   // GAP_EARLY=1 (audit experiment, off by default): the coverage question and the fact ledger's AI question are asked NOW, on a copy of the note, while the story agent
   // rewrites the wording; the answers are applied to the finished note below (see gapEarly.js). Same questions, same checks, asked earlier.
-  let covEarlyP = null; let covEarlyIssues = null; let ledgerEarlyP = null;
+  let covEarlyP = null; let covEarlyIssues = null; let ledgerEarlyP = null; let actP = null; let actIssues = null;
   let groundP = null; let groundGap = null; let groundSnapTexts = null; let deltaP = null; let planCheckP = null;
   // GROUND_EARLY=1 starts the grounding check at the same moment, on the same copy (the writer's note, before the story rewording): it no longer waits behind the
   // gap stages. Its removals reach the finished note by text; a Subjective line the story reworded meanwhile is flagged for the clinician instead of removed.
@@ -792,6 +794,7 @@ export async function generateNoteV2(input, opts = {}) {
     if (earlyOn('GAP_EARLY')) {
     if (!skip('coverage') && opts.noteCoverage !== false && process.env.NOTE_COVERAGE !== '0' && cfg['stage.noteCoverage'] !== false) {
       covEarlyIssues = issuesOf(early);
+      if (process.env.ACTION_PASS === '1') { actIssues = covEarlyIssues; try { const allm = await createGeminiService(null, { model: em }); allm._agent = 'v2-actions'; actP = askActions(allm, early, transcript, { meds: checkForRef?.medications || [] }); } catch (e) { log('[v2:actions] early start failed — ' + e.message); } }
       try { const vllm = await createGeminiService(null, { model: process.env.COVERAGE_MODEL || em }); vllm._agent = 'v2-coverage'; covEarlyP = askCoverage(vllm, early, transcript, { meds: checkForRef?.medications || [], makeLlm: async () => { const l = await createGeminiService(null, { model: process.env.COVERAGE_MODEL || em }); l._agent = 'v2-coverage'; return l; } }); } catch (e) { log('[v2:coverage] early start failed — ' + e.message); }
     }
     if (factsP && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {
@@ -854,6 +857,11 @@ export async function generateNoteV2(input, opts = {}) {
       else { const vllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); vllm._agent = 'v2-coverage'; const cv = await coverNote(vllm, note, transcript, log, { meds: checkForRef?.medications || [] }); if (opts.trace) opts.trace.coverage = cv; }
     } catch (e) { log(`[v2:coverage] skipped — ${e.message}`); }
     lap('coverage', tv);
+  }
+  if (actP) {   // ACTION_PASS=1: the clinician's actions and decisions with their details, added through the plan-completeness checks
+    const ta = Date.now();
+    try { const a = await actP; if (a && a.raw != null) { const ap = applyPlanComplete(note, { ...a, raw: remapActions(a.raw, actIssues, note) }, transcript, (m) => log(m.replace('[v2:complete]', '[v2:actions]'))); if (opts.trace) opts.trace.actionPass = { added: ap.added.length, dropped: ap.dropped.length, ms: a.ms }; } else if (a?.error) log('[v2:actions] skipped — ' + a.error); } catch (e) { log(`[v2:actions] skipped — ${e.message}`); }
+    lap('actions', ta);
   }
   if (factsP && !blank && process.env.FACT_LEDGER !== '0' && opts.factLedger !== false && cfg['stage.factLedger'] !== false) {   // Style Spec v2.3: every required fact of the graph is checked against the finished note; missing ones are placed by a model call, then by rule
     const tl = Date.now();
