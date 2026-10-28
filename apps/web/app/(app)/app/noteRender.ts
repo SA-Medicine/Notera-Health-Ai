@@ -20,7 +20,9 @@ export function mdToHtml(md: string): string {
   const lines = esc(md || '').split('\n');
   const out: string[] = [];
   let inList = false;
+  let inAP = false;   // inside the Assessment & Plan: a bullet without a label is the problem's assessment line
   for (const ln of lines) {
+    if (/^#{1,6}\s/.test(ln)) inAP = /assessment/i.test(ln);
     // Numbered A&P problem heading: "1. **Title**" → keep the number inside the bold so "1. Title" stays on one line.
     const numHead = ln.match(/^\s*(\d+)\.\s+\*\*(.+?)\*\*\s*$/);
     if (numHead) {
@@ -34,7 +36,7 @@ export function mdToHtml(md: string): string {
       const lab = body.match(/^([A-Za-z][A-Za-z -]{2,26}):\s*(.*)$/);
       const kind = lab ? LABELS[lab[1].trim().toLowerCase()] : undefined;
       const sub = /^\s{5,}[-*]\s/.test(ln) && !!kind;   // a sub-point under "Treatment planned:"
-      out.push(kind ? `<li class="ap-line ap-${kind}${sub ? ' ap-sub' : ''}"><span class="ap-lbl">${lab![1]}:</span> ${lab![2]}</li>` : '<li>' + body + '</li>');
+      out.push(kind ? `<li class="ap-line ap-${kind}${sub ? ' ap-sub' : ''}"><span class="ap-lbl">${lab![1]}:</span> ${lab![2]}</li>` : inAP ? '<li class="ap-line ap-as">' + body + '</li>' : '<li>' + body + '</li>');
       continue;
     }
     if (inList) { out.push('</ul>'); inList = false; }

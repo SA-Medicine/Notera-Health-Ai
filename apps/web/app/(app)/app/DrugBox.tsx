@@ -2,22 +2,19 @@
 
 // Medicines box under the note: every drug the note names, checked against RxNorm (the NIH drug database) for its name and its dose.
 // One click takes the suggested name; or type the right drug. The change is made in the note text and saved with the corrections, like every other fix.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { NoteFlag, Correction } from './NoteChecks'
 import { replaceWord } from './noteFix'
 
 type Row = { name: string; line: string; verified: boolean; suggestion: string; dose: string; strengths: string[]; doseOk: boolean; source: string }
 
-export default function DrugBox({ flags, note, onChange, onCorrection }: { flags: NoteFlag[]; note: string; onChange: (md: string) => void; onCorrection?: (c: Correction) => void }) {
+export default function DrugBox({ flags, note, onChange, onCorrection, on, onToggle }: { flags: NoteFlag[]; note: string; onChange: (md: string) => void; onCorrection?: (c: Correction) => void; on: boolean; onToggle: () => void }) {
   const rows = useMemo(() => (flags || []).filter((f) => f.type === 'drug_review').map((f) => { try { return JSON.parse(f.message) as Row } catch { return null } }).filter((r): r is Row => !!r), [flags])
   const [edit, setEdit] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [done, setDone] = useState<Record<string, string>>({})
-  // the clinician can switch the drug suggestions off (and on again); the choice is remembered in this browser
-  const [on, setOn] = useState(true)
-  useEffect(() => { try { setOn(localStorage.getItem('notera.drugSuggest') !== 'off') } catch { /* private window */ } }, [])
-  const toggle = () => setOn((v) => { const n = !v; try { localStorage.setItem('notera.drugSuggest', n ? 'on' : 'off') } catch { /* */ } return n })
-  if (!rows.length) return null
+  // on / onToggle come from the note screen (one switch for the flags at the top and this box; see drugPrefs.ts)
+  if (!rows.length || !on) return null
 
   const first = (r: Row) => r.name.split(' ')[0]
   const inNote = (r: Row) => new RegExp('(?<![A-Za-z])' + first(r).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z])', 'i').test(note)
@@ -34,7 +31,7 @@ export default function DrugBox({ flags, note, onChange, onCorrection }: { flags
   return (
     <section className={`drug-box${on ? '' : ' is-off'}`} aria-label="Medicines in this note">
       <h4>Medicines in this note <small>{on ? 'checked against RxNorm' : 'suggestions off'}</small>
-        <label className="drug-toggle"><input type="checkbox" checked={on} onChange={toggle} />Drug suggestions</label></h4>
+        <label className="drug-toggle"><input type="checkbox" checked={on} onChange={onToggle} />Drug suggestions</label></h4>
       <ul>
         {rows.filter(inNote).concat(rows.filter((r) => !inNote(r) && done[r.name])).map((r) => {
           const s = status(r)

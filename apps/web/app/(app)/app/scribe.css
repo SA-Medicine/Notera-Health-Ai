@@ -2746,3 +2746,6 @@ body.dark-mode .notera-shell .note-content .note-body h3 { color: #f5f5f7; borde
 .notera-shell .note-body .ap-con > .ap-lbl { color: #4B1A44; }
 .notera-shell .note-body .ap-giv > .ap-lbl { color: #475569; }
 .notera-shell .note-body .ap-oth > .ap-lbl { color: var(--text-muted); }
+/* the assessment line of a problem (a bullet without a label): same alignment as Diagnosis / Treatment planned, no bullet dot, no extra gap, so it reads as part of the problem and not as a new paragraph */
+.notera-shell .note-body li.ap-as { list-style: none; margin-left: -4px; margin-top: 0; margin-bottom: 0; }
+.notera-shell .note-body .ap-head + ul { margin-top: 0; }

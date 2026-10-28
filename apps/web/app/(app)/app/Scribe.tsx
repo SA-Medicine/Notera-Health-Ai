@@ -17,6 +17,7 @@ import { mdToHtml } from './noteRender';
 import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
+import { DRUG_FLAG_TYPES, readDrugSuggest, writeDrugSuggest } from './drugPrefs';
 import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending } from './audioVault';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
@@ -107,6 +108,7 @@ export default function Scribe() {
   const [lines, setLines] = useState<Line[]>([]);
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
+  const [drugOn, setDrugOn] = useState(true);   // drug suggestions (flags at the top + Medicines box); off by default for some accounts, see drugPrefs.ts
   const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');   // the clinician's version of the note is saved to history as they edit
@@ -170,6 +172,7 @@ export default function Scribe() {
   const captureLive = useRef(false);    // a segment recorder is still open
   const finishing = useRef(false);      // maybeFinish() already ran for this session
   const stopping = useRef(false);
+  const createSoapRef = useRef<() => Promise<void>>(async () => {});   // always the latest createSOAP, so a stop that finishes later still uses the current patient name, specialty and medicines
   const startTs = useRef(0);
   const segTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stallTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -252,7 +255,7 @@ export default function Scribe() {
         const initials = parts.length >= 2
           ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
           : name.slice(0, 2).toUpperCase();
-        setMe({ fullName: name, email: u.email || '', initials, plan: u.plan, used: u.used, limit: u.limit, remaining: u.remaining });
+        setMe({ fullName: name, email: u.email || '', initials, plan: u.plan, used: u.used, limit: u.limit, remaining: u.remaining }); setDrugOn(readDrugSuggest(u.email || ''));
       })
       .catch(() => {});
   }, []);
@@ -425,6 +428,9 @@ export default function Scribe() {
     } catch { setDensity(null); }
     setPhase('done');
     void saveRecording();   // the recording is saved NOW, not after the note: a note that fails or a closed tab can no longer lose it
+    // Stop = write the note: when the recording has stopped and its transcript is complete, the SOAP note is created and the note page opens by itself (switch off with localStorage notera.autoNote = off)
+    let auto = true; try { auto = localStorage.getItem('notera.autoNote') !== 'off'; } catch { /* */ }
+    if (auto && countWords(transcriptRef.current) >= 25) void createSoapRef.current();
   }
 
   // Save this visit (transcript, then recording) on the server under its consult id, with retries. The browser copy is dropped only once the
@@ -683,6 +689,7 @@ export default function Scribe() {
     return parts.join('\n');
   }
 
+  createSoapRef.current = createSOAP;
   async function createSOAP() {
     // Guard: once a note is generated, the user must start a new session
     if (note) {
@@ -1089,7 +1096,7 @@ export default function Scribe() {
                   <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can refresh or close this page; the note is kept and shows up here or in History.</p>
                 </div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks flags={noteFlags} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label><NoteChecks flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>

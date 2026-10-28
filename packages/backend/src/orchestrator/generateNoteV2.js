@@ -922,6 +922,8 @@ export async function generateNoteV2(input, opts = {}) {
     try { const gllm = await createGeminiService(null, { model: opts.storyModel || cfg['story.model'] }); gllm._agent = 'v2-ground'; const gr0 = await groundNote(gllm, note, transcript, log); if (opts.trace) opts.trace.grounding = gr0; } catch (e) { log(`[v2:ground] skipped — ${e.message}`); }
     lap('ground', tg);
   }
+  // The first dedupe ran before coverage, the action pass, the ledger and the story merge added their lines: one more run now, with the same setting (identical lines only while FREE_FLOW is on).
+  if (!blank && process.env.LATE_DEDUPE !== '0') { try { dedupeNote(note, { log, freeFlow }); } catch (e) { log(`[v2] late dedupe skipped: ${e.message}`); } }
   // Reference names (RxNorm brand -> generic, ICD-10-CM codes): public NIH services, only drug/diagnosis words leave the server; time-boxed
   let refMeds = [];
   if (!blank && cfg['ref.enabled']) {
