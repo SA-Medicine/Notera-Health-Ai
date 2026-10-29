@@ -196,3 +196,16 @@ body.dark-mode .notera-shell .hc-chip { background: #2a2d36; color: #c9ced8; }
 body.dark-mode .notera-shell .hc-chip.warn { background: #3a2a10; color: #fdb022; }
 body.dark-mode .notera-shell .set-card { background: #1b1e24; border-color: #2c313a; color: #e8eaee; }
 body.dark-mode .notera-shell .hist-search, body.dark-mode .set-card .set-seg { background: #14161a; border-color: #2c313a; }
+
+/* ── Start / Stop: the main control of the screen, big and easy to find at a glance ── */
+.notera-shell .top-bar .top-resume-btn.glass { height: 46px; padding: 0 24px 0 18px; gap: 10px; font-size: 15.5px; font-weight: 750; letter-spacing: .01em; border-radius: 999px; background: var(--aub, #3A0F34); color: #fff; border: 2px solid var(--aub, #3A0F34); box-shadow: 0 0 0 4px rgba(58, 15, 52, .16), 0 8px 18px -8px rgba(58, 15, 52, .7); transition: transform .12s, box-shadow .15s, background .15s; }
+.notera-shell .top-bar .top-resume-btn.glass svg { width: 22px; height: 22px; }
+.notera-shell .top-bar .top-resume-btn.glass:hover:not(:disabled) { background: #52174a; border-color: #52174a; color: #fff; transform: translateY(-1px); box-shadow: 0 0 0 5px rgba(58, 15, 52, .22), 0 10px 22px -8px rgba(58, 15, 52, .8); }
+.notera-shell .top-bar .top-resume-btn.glass:active:not(:disabled) { transform: scale(.97); }
+.notera-shell .top-bar .top-resume-btn.glass:focus-visible { outline: 3px solid #f5b301; outline-offset: 3px; }
+.notera-shell .top-bar .top-resume-btn.glass.recording { background: #d92d20; border-color: #d92d20; color: #fff; animation: startPulse 1.6s ease-in-out infinite; }
+.notera-shell .top-bar .top-resume-btn.glass:disabled { opacity: .6; }
+@keyframes startPulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(217, 45, 32, .22), 0 8px 18px -8px rgba(217, 45, 32, .8); } 50% { box-shadow: 0 0 0 9px rgba(217, 45, 32, 0), 0 8px 18px -8px rgba(217, 45, 32, .8); } }
+body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording) { background: #f1f3f5; color: #3A0F34; border-color: #f1f3f5; box-shadow: 0 0 0 4px rgba(241, 243, 245, .16), 0 8px 18px -8px rgba(0, 0, 0, .7); }
+body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording):hover:not(:disabled) { background: #fff; border-color: #fff; color: #3A0F34; }
+@media (prefers-reduced-motion: reduce) { .notera-shell .top-bar .top-resume-btn.glass.recording { animation: none; } }
