@@ -122,3 +122,10 @@ body.dark-mode .drug-row { background: var(--card); }
 .drug-box.is-off ul { display: none; }
 .drug-toggle-top { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--ink-3, #667085); margin: 0 0 6px; cursor: pointer; }
 .drug-toggle-top input { accent-color: var(--aub, #3A0F34); width: 14px; height: 14px; }
+/* notes finished in the background: a small message at the top right that goes away by itself */
+.bg-toasts { position: fixed; top: 14px; right: 14px; z-index: 80; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.bg-toast { pointer-events: auto; max-width: 320px; text-align: left; font: 600 12.5px/1.35 inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-light, #d9dde3); background: var(--aub, #3A0F34); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.18); cursor: pointer; animation: bgToastIn .18s ease-out, bgToastOut .3s ease-in 4.8s forwards; }
+.bg-toast.error { background: #8a1c14; }
+@keyframes bgToastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes bgToastOut { to { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .bg-toast { animation: bgToastOut .3s ease-in 4.8s forwards; } }

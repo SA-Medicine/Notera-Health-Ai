@@ -68,7 +68,7 @@ async function readJson(r: Response): Promise<any> {
 // second: a refresh, a double click or a server restart can never split a visit into several consults or lose its note.
 const newConsultId = () => `CONS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const PENDING_KEY = 'notera.pendingNote';   // the note being written: { jobId, consultId, startedAt, transcript, specialty, patientMeds }
-type PendingNote = { jobId: string; consultId: string; startedAt: number; transcript: string; specialty: string; patientMeds: string[] };
+type PendingNote = { jobId: string; consultId: string; startedAt: number; transcript: string; specialty: string; patientMeds: string[]; title?: string };
 const readPending = (): PendingNote | null => { try { const p = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); return p && p.jobId && p.consultId ? p : null; } catch { return null; } };
 const writePending = (p: PendingNote | null) => { try { if (p) localStorage.setItem(PENDING_KEY, JSON.stringify(p)); else localStorage.removeItem(PENDING_KEY); } catch { /* private window */ } };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -180,7 +180,9 @@ export default function Scribe() {
   const transcriptRef = useRef('');
   const noteBodyRef = useRef<HTMLDivElement | null>(null);
   const sessionCid = useRef<string | null>(null);     // this visit's consult id (named when recording starts or a transcript is pasted)
-  const creating = useRef(false);                      // a Create SOAP is being handled: a second click is ignored
+  const creating = useRef<Set<string>>(new Set());     // consult ids whose Create SOAP is being handled: a second click for the same one is ignored (another recording can write its note at the same time)
+  const [bgToasts, setBgToasts] = useState<{ id: number; msg: string; cid: string; kind: 'success' | 'error' }[]>([]);   // small top-right messages for notes that finished in the background
+  const bgToast = (msg: string, cid: string, kind: 'success' | 'error' = 'success') => { const id = Date.now() + Math.random(); setBgToasts((l) => [...l, { id, msg, cid, kind }].slice(-3)); setTimeout(() => setBgToasts((l) => l.filter((x) => x.id !== id)), 5200); };
   const [audioState, setAudioState] = useState<'none' | 'saving' | 'saved' | 'retry'>('none');   // is this visit's recording safely on the server
   const [genElapsed, setGenElapsed] = useState(0);
 
@@ -630,6 +632,7 @@ export default function Scribe() {
     if (phase === 'recording') { stopRecording(); return; }
     if (starting.current) return;                  // a second click while the microphone prompt is open used to start a second, never-stopped recorder
     starting.current = true;
+    if (phase === 'generating' || note) setPatient('');   // a new recording after a note (or while one is still being written in the background) starts without the previous patient's name
     setError(''); setNote(''); setNoteFlags([]); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
     setPendingSegs(0); setFailedSegs(0);
     emptySegs.current = 0; silenceAbort.current = false; finishing.current = false;
@@ -697,8 +700,9 @@ export default function Scribe() {
       setPanel('note');
       return;
     }
-    if (creating.current) return;   // a double click (three notes were written from one recording in 0.2 s) is ignored
-    creating.current = true;
+    const cid0 = sessionCid.current || (sessionCid.current = newConsultId());
+    if (creating.current.has(cid0)) return;   // a double click (three notes were written from one recording in 0.2 s) is ignored
+    creating.current.add(cid0);
     try {
       // On a long consult the last segments can still be transcribing when the clinician hits Create. Generating now would write the note
       // from a truncated transcript, so wait for them (up to 4 minutes) rather than silently losing the tail.
@@ -711,12 +715,12 @@ export default function Scribe() {
       if (!transcriptRef.current.trim()) { setError('Record or paste a transcript first.'); setPanel('transcript'); return; }
       const cid = sessionCid.current || (sessionCid.current = newConsultId());
       const meds = patientMeds.split(/[\n,;]/).map((s) => s.trim()).filter(Boolean);
-      const job = { consultId: cid, startedAt: Date.now(), transcript: buildTranscript(), specialty, patientMeds: meds };
+      const job = { consultId: cid, startedAt: Date.now(), transcript: buildTranscript(), specialty, patientMeds: meds, title: patient || undefined };
       setError(''); setEditing(false); setPhase('generating'); setGenStep(0); setPanel('note');
       const started = await startJob(job);
       if (!started) return;
       await followJob({ ...job, jobId: started });
-    } finally { creating.current = false; }
+    } finally { creating.current.delete(cid0); }
   }
 
   // Ask the server to write the note. Returns the job id, or null after telling the clinician why it could not start.
@@ -742,9 +746,11 @@ export default function Scribe() {
   // consult id, so it can never be written twice.
   async function followJob(p: PendingNote) {
     const t0 = p.startedAt; let jobId = p.jobId; let restarted = false; let misses = 0;
-    const stepper = setInterval(() => { setGenStep((s) => Math.min(s + 1, 3)); }, 4000);
-    const clock = setInterval(() => setGenElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
-    setPhase('generating'); setPanel('note');
+    // the clinician may start another recording while this note is being written: then this is a BACKGROUND job and it must not touch the screen (it ends with a small message)
+    const live = () => sessionCid.current === p.consultId;
+    const stepper = setInterval(() => { if (live()) setGenStep((s) => Math.min(s + 1, 3)); }, 4000);
+    const clock = setInterval(() => { if (live()) setGenElapsed(Math.round((Date.now() - t0) / 1000)); }, 1000);
+    if (live()) { setPhase('generating'); setPanel('note'); }
     try {
       for (;;) {
         await sleep(2500);
@@ -754,7 +760,7 @@ export default function Scribe() {
         misses = 0;
         if (r.status === 401) throw new Error('unauthenticated');
         const pj = await r.json().catch(() => null);
-        if (pj?.status === 'done' && pj.result) { showNote(pj.result, p.consultId); return; }
+        if (pj?.status === 'done' && pj.result) { if (live()) showNote(pj.result, p.consultId); else backgroundDone(pj.result, p); return; }
         if (pj?.status === 'error') throw new Error(pj.error || 'note failed');
         if (pj?.status === 'lost' || r.status === 404) {
           if (restarted) throw new Error('The server restarted while writing this note. Press Create SOAP again — your transcript is kept.');
@@ -764,10 +770,20 @@ export default function Scribe() {
       }
     } catch (e) {
       const raw = (e as Error).message; const msg = friendly(raw);
-      setError(msg); flash(msg, 'error'); setPhase(transcriptRef.current ? 'done' : 'idle');
+      if (live()) { setError(msg); flash(msg, 'error'); setPhase(transcriptRef.current ? 'done' : 'idle'); }
+      else bgToast(`The note for ${p.title || 'your last recording'} did not finish. ${msg}`, p.consultId, 'error');
       if (raw !== 'unauthenticated' && raw !== 'network') writePending(null);   // signed out / offline: keep it, the next page load picks the note up
       loadHistory();
-    } finally { clearInterval(stepper); clearInterval(clock); setGenElapsed(0); }
+    } finally { clearInterval(stepper); clearInterval(clock); if (live()) setGenElapsed(0); }
+  }
+
+  // A note that finished while the clinician was already on another recording: it is saved by the server under its consult id; here it only gets its History title and a small message.
+  function backgroundDone(d: any, p: PendingNote) {
+    const raw = readPending(); if (raw && raw.consultId === p.consultId) writePending(null);
+    const spec = (specialty === 'auto' ? (d.detectedSpecialty || 'consult') : specialty) as string;
+    const title = p.title || `${spec.replace(/_/g, ' ')} · ${new Date().toLocaleDateString()}`;
+    fetch(`${API}/api/library/consults`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultId: d.consultId || p.consultId, title, specialty: spec, noteType: 'consultation', status: 'ready' }) }).then(() => loadHistory()).catch(() => {});
+    refreshQuota(); bgToast(`Note ready: ${p.title || title}`, d.consultId || p.consultId);
   }
 
   function showNote(d: any, cid: string) {
@@ -887,7 +903,7 @@ export default function Scribe() {
     patient, setPatient, patientMeds, setPatientMeds, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
     note, editing, toggleEdit, copy, saveState, retrySave: () => { void persistNote(); },
     toCheck, review: () => window.dispatchEvent(new Event('notera:review')),
-    toggleRecord, busy: phase === 'transcribing' || phase === 'generating', newSession, dark, setDark,
+    toggleRecord, busy: phase === 'transcribing', newSession, dark, setDark,
     inviteHref: invite.eligible ? invite.url : undefined, railed: !layout.open.sidebar,
   });
   const togglePanels = () => { if (typeof window !== 'undefined' && window.innerWidth <= 1180) setDrawerOpen((v) => !v); else dispatch({ t: 'toggleDock', dock: 'details' }); };
@@ -973,7 +989,7 @@ export default function Scribe() {
               {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
             </button>
             </BorderBeam>
-            <button className={`top-resume-btn glass${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing' || phase === 'generating'}>
+            <button className={`top-resume-btn glass${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing'}>
               {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
             </button>
             <div className={`timer-block${recording ? ' live' : ''}`}>{I.clock}<span className="timer-text">{mmss(elapsed)}</span></div>
@@ -1093,7 +1109,7 @@ export default function Scribe() {
                       <div key={i} className={`gen-step${i < genStep ? ' done' : i === genStep ? ' now' : ''}`}><span className="gd">{i < genStep ? '✓' : ''}</span>{st}</div>
                     ))}
                   </div>
-                  <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can refresh or close this page; the note is kept and shows up here or in History.</p>
+                  <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can start another recording, refresh or close this page; the note is kept and shows up in History.</p>
                 </div>
               ) : note ? (
                 <div className={`note-content${fullNote ? ' full' : ''}`}><label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label><NoteChecks flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
@@ -1172,6 +1188,7 @@ export default function Scribe() {
       )}
 
       {toast && <div className={`toast show ${toast.kind}`}>{toast.msg}</div>}
+      <div className="bg-toasts" aria-live="polite">{bgToasts.map((t) => (<button key={t.id} type="button" className={`bg-toast ${t.kind}`} onClick={() => { setBgToasts((l) => l.filter((x) => x.id !== t.id)); if (phase === 'recording' || phase === 'transcribing') flash('Finish this recording first; the finished note is in History.'); else void openConsult(t.cid); }}>{t.msg}</button>))}</div>
       <Onboarding />
     </div>
   );
