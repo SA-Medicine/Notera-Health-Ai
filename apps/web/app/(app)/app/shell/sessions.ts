@@ -1,5 +1,5 @@
 // Recent sessions grouped by day for the Sessions panel (pure, so it can be tested without React).
-export type SessionItem = { consult_id: string; title: string | null; specialty: string | null; created_at: string; checks?: number };
+export type SessionItem = { consult_id: string; title: string | null; specialty: string | null; created_at: string; checks?: number; audio_uri?: string | null };
 export type Group = { label: string; items: SessionItem[] };
 
 /** Today / Yesterday / Previous 7 days / Earlier, newest first; empty groups are left out. */

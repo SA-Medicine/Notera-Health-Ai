@@ -93,4 +93,4 @@ export function dropIndex(mids: number[], pointerY: number): number {
   return i === -1 ? mids.length : i;
 }
 
-export const STORAGE_KEY = 'notera.layout.v1';
+export const STORAGE_KEY = 'notera.layout.v2';   // v2: the left dock shows Sessions only; a layout saved by v1 (with Workspace and Tools, maybe Sessions collapsed) is not reused

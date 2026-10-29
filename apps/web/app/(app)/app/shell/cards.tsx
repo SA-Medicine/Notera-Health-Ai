@@ -55,10 +55,6 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
   );
   const groups = groupSessions(p.history);
   return {
-    modules: {
-      id: 'modules', title: 'Workspace', icon: SI.lines,
-      body: <nav className="sh-navlist" aria-label="Workspace">{nav('transcript', 'Scribe', SI.mic)}{nav('paste', 'Paste transcript', SI.lines, 'paste')}{nav('context', 'Context', SI.doc)}{nav('history', 'History', SI.clock, undefined, p.loadHistory)}</nav>,
-    },
     sessions: {
       id: 'sessions', title: 'Sessions', icon: SI.clock,
       meta: p.history.length ? <span className="dcard-count">{p.history.length}</span> : undefined,
@@ -112,18 +108,6 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
       body: !p.note ? <p className="sh-empty">Lines the note wants you to look at appear here.</p>
         : p.toCheck > 0 ? <div className="sh-checks"><p>{p.toCheck} line{p.toCheck === 1 ? '' : 's'} to look at before you sign. They are marked in the note.</p><button type="button" className="sh-btn is-primary" onClick={p.review}>Review now</button></div>
         : <p className="sh-ok">Nothing left to check ✓</p>,
-    },
-    tools: {
-      id: 'tools', title: 'Tools', icon: SI.tools,
-      body: (
-        <div className="sh-tools">
-          <button type="button" className={`sh-tool${p.recording ? ' is-rec' : ''}`} data-tour="start" onClick={p.toggleRecord} disabled={p.busy}>{SI.mic}<span>{p.recording ? 'Stop recording' : 'Start recording'}</span></button>
-          <button type="button" className="sh-tool" onClick={() => p.setPanel('paste')}>{SI.lines}<span>Paste a transcript</span></button>
-          <button type="button" className="sh-tool" onClick={p.newSession}>{SI.plus}<span>New session</span></button>
-          {p.inviteHref && <a className="sh-tool" href={p.inviteHref} target="_blank" rel="noopener noreferrer">{SI.doc}<span>Style interview</span></a>}
-          <button type="button" className="sh-tool" onClick={() => p.setDark((v) => !v)}>{SI.moon}<span>{p.dark ? 'Light mode' : 'Dark mode'}</span></button>
-        </div>
-      ),
     },
   };
 }

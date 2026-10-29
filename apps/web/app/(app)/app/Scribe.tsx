@@ -18,6 +18,7 @@ import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
 import { DRUG_FLAG_TYPES, readDrugSuggest, writeDrugSuggest } from './drugPrefs';
+import { groupSessions } from './shell/sessions';
 import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending } from './audioVault';
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
@@ -108,6 +109,8 @@ export default function Scribe() {
   const [lines, setLines] = useState<Line[]>([]);
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);   // the Settings panel: theme, paste a transcript, context, style interview, drug suggestions, log out
+  const [histQ, setHistQ] = useState('');
   const [drugOn, setDrugOn] = useState(true);   // drug suggestions (flags at the top + Medicines box); off by default for some accounts, see drugPrefs.ts
   const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
@@ -920,15 +923,16 @@ export default function Scribe() {
           <button type="button" className="sh-iconbtn" onClick={() => dispatch({ t: 'toggleDock', dock: 'sidebar' })} aria-label={layout.open.sidebar ? 'Collapse the sidebar' : 'Expand the sidebar'} title={layout.open.sidebar ? 'Collapse the sidebar' : 'Expand the sidebar'}>{SI.panelLeft}</button>
         </div>
         <div className="sidebar-section">
-          <button className="new-session-btn glass" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
+          <button className="new-session-btn" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
+          <div className="quick-row" role="group" aria-label="Workspace">
+            <button type="button" className={`quick-btn${panel === 'transcript' ? ' on' : ''}`} onClick={() => setPanel('transcript')} title="Scribe">{SI.mic}<span>Scribe</span></button>
+            <button type="button" className={`quick-btn${recording ? ' rec' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing'} title={recording ? 'Stop recording' : 'Start recording'}>{recording ? SI.close : I.mic}<span>{recording ? 'Stop' : 'Record'}</span></button>
+            <button type="button" className="quick-btn" onClick={newSession} title="New session">{SI.plus}<span>New</span></button>
+          </div>
         </div>
         <DockCards dock="sidebar" layout={layout} dispatch={dispatch} defs={defs} drag={drag} announce={announce} />
         <nav className="sidebar-nav sidebar-nav-lower">
-          {invite.eligible && (
-            <a className="nav-item" href={invite.url} target="_blank" rel="noopener noreferrer" title="Open the Notera Style Interview">{I.doc}<span>Style interview</span>{!inviteInfo.done && <span className="invite-dot" aria-hidden="true" />}</a>
-          )}
-          <div className="nav-item" onClick={() => setDark((v) => !v)}>{I.settings}<span>{dark ? 'Light mode' : 'Dark mode'}</span></div>
-          <div className="nav-item nav-item-logout" onClick={logout} title="Sign out">{I.logout}<span>Log out</span></div>
+          <div className="nav-item" role="button" tabIndex={0} onClick={() => setSettingsOpen(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSettingsOpen(true); } }}>{I.settings}<span>Settings</span>{invite.eligible && !inviteInfo.done && <span className="invite-dot" aria-hidden="true" />}</div>
         </nav>
         <div className="user-profile">
           <div className="user-avatar">{me?.initials || 'DR'}</div>
@@ -980,15 +984,6 @@ export default function Scribe() {
             )}
             <button className="top-icon-btn" title="Toggle theme" onClick={() => setDark((v) => !v)}>{I.moon}</button>
             <button type="button" className="top-icon-btn" title="Show or hide the side panels" aria-label="Show or hide the side panels" aria-pressed={layout.open.details} onClick={togglePanels}>{SI.panelRight}</button>
-            <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 12 }}>
-            <button className="top-create-btn glass" onClick={createSOAP} data-tour="create"
-              disabled={phase === 'generating' || !transcript.trim() || !!note}
-              title={note ? 'Note already generated — start a new session' : ''}
-              style={note ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
-            >
-              {I.bolt}{phase === 'generating' ? 'Creating…' : note ? 'Note Created ✓' : 'Create SOAP'}{!note && I.chevronD}
-            </button>
-            </BorderBeam>
             <button className={`top-resume-btn glass${recording ? ' recording' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing'}>
               {I.mic}<span>{recording ? 'Stop' : phase === 'transcribing' ? 'Finishing…' : 'Start'}</span>
             </button>
@@ -998,14 +993,13 @@ export default function Scribe() {
 
         {/* Tab bar */}
         <nav className="tab-bar">
-          <button className={`main-tab${panel === 'context' ? ' active' : ''}`} onClick={() => setPanel('context')}>{I.doc}Context</button>
           <button className={`main-tab${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.lines}Transcript</button>
           <button className={`main-tab${panel === 'note' ? ' active' : ''}`} onClick={() => setPanel('note')}>{I.doc}Note</button>
           <button className={`main-tab${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}History</button>
+          {audioState !== 'none' && phase !== 'recording' && <span className={`rec-saved tab-bar-end is-${audioState}`} role="status">{audioState === 'saving' ? 'Saving the recording…' : audioState === 'saved' ? 'Recording saved' : 'Recording kept in this browser, saving again soon'}</span>}
         </nav>
 
         {error && <div role="alert" className="scribe-alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
-        {audioState !== 'none' && phase !== 'recording' && <div className={`rec-saved is-${audioState}`} role="status">{audioState === 'saving' ? 'Saving the recording…' : audioState === 'saved' ? 'Recording saved' : 'Recording kept in this browser — saving again automatically'}</div>}
 
         <div className="panels-container">
           {/* Context */}
@@ -1050,7 +1044,6 @@ export default function Scribe() {
                   <div className="t-empty-icon">{I.micStroke}</div>
                   <p className="t-empty-title">Transcript will appear here as you record</p>
                   <p className="t-empty-sub">Press <strong>Start</strong> to record the visit — the transcript builds live as you talk.</p>
-                  <button className="paste-link-btn" onClick={() => setPanel('paste')}>{I.lines}Have a transcript already? Paste it</button>
                 </div>
               ) : (
                 <div id="transcriptLines">
@@ -1087,7 +1080,9 @@ export default function Scribe() {
           <div className={`main-panel${panel === 'note' ? ' active' : ''}`}>
             <div className="editor-toolbar">
               <div className="editor-toolbar-left">
-                <button className="format-btn active">{I.bolt}SOAP</button>
+                <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 10 }}>
+                  <button className="format-btn active soap-btn" data-tour="create" onClick={createSOAP} disabled={phase === 'generating' || !transcript.trim() || !!note} title={note ? 'Note created for this session' : !transcript.trim() ? 'Record or paste a transcript first' : 'Write the SOAP note'}>{I.bolt}{phase === 'generating' ? 'Writing SOAP…' : note ? 'SOAP note' : 'Create SOAP'}</button>
+                </BorderBeam>
               </div>
               <div className="editor-toolbar-right">
                 {note && saveState !== 'idle' && (saveState === 'error'
@@ -1112,7 +1107,7 @@ export default function Scribe() {
                   <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can start another recording, refresh or close this page; the note is kept and shows up in History.</p>
                 </div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label><NoteChecks flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks lead={<label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label>} flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>
@@ -1130,23 +1125,34 @@ export default function Scribe() {
           {/* History */}
           <div className={`main-panel${panel === 'history' ? ' active' : ''}`}>
             <div className="hist-header">
-              <span className="hist-title">Session History</span>
+              <span className="hist-title">History</span>
+              <input className="hist-search" type="search" value={histQ} onChange={(e) => setHistQ(e.target.value)} placeholder="Search patient or specialty" aria-label="Search history" />
               <button className="link-btn" onClick={loadHistory}>Refresh</button>
             </div>
-            <div id="historyList" style={{ overflow: 'auto', padding: '4px 0' }}>
+            <div id="historyList" className="hist-list">
               {history.length === 0 ? (
                 <div className="h-empty">{I.clock}<p>No sessions saved yet</p></div>
-              ) : history.map((h) => (
-                <div key={h.consult_id} className="h-item">
-                  <div className="h-item-main" onClick={() => openConsult(h.consult_id)} style={{ cursor: 'pointer', flex: 1 }}>
-                    <div className="h-item-title">{h.title || 'Consult'}{!!h.checks && <span className="h-checks" title={`${h.checks} line${h.checks === 1 ? '' : 's'} to check against the recording`}>{h.checks} to check</span>}</div>
-                    <div className="h-item-meta">{new Date(h.created_at).toLocaleString()} · {(h.specialty || '').replace(/_/g, ' ')}</div>
+              ) : groupSessions(history.filter((h) => !histQ.trim() || `${h.title || ''} ${h.specialty || ''}`.toLowerCase().includes(histQ.trim().toLowerCase()))).map((g) => (
+                <section key={g.label} className="hc-group">
+                  <h3 className="hc-day">{g.label}</h3>
+                  <div className="hc-grid">
+                    {g.items.map((h) => (
+                      <article key={h.consult_id} className={`hc-card${consultId === h.consult_id ? ' is-active' : ''}`}>
+                        <button type="button" className="hc-main" onClick={() => openConsult(h.consult_id)}>
+                          <span className="hc-avatar" aria-hidden="true">{(h.title || 'C').trim().charAt(0).toUpperCase()}</span>
+                          <span className="hc-text">
+                            <span className="hc-title">{h.title || 'Consult'}</span>
+                            <span className="hc-meta">{new Date(h.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{h.specialty ? <span className="hc-chip">{h.specialty.replace(/_/g, ' ')}</span> : null}{!!h.checks && <span className="hc-chip warn" title={`${h.checks} line${h.checks === 1 ? '' : 's'} to check against the recording`}>{h.checks} to check</span>}</span>
+                          </span>
+                        </button>
+                        <span className="hc-actions">
+                          {h.audio_uri && <button className="h-icon" title="Download audio" aria-label="Download audio" onClick={() => downloadAudio(h.consult_id)}>{I.download}</button>}
+                          <button className="h-icon" title="Delete" aria-label="Delete" onClick={() => deleteConsult(h.consult_id)}>{I.trash}</button>
+                        </span>
+                      </article>
+                    ))}
                   </div>
-                  <div className="h-item-actions">
-                    {h.audio_uri && <button className="h-icon" title="Download audio" onClick={() => downloadAudio(h.consult_id)}>{I.download}</button>}
-                    <button className="h-icon" title="Delete" onClick={() => deleteConsult(h.consult_id)}>{I.trash}</button>
-                  </div>
-                </div>
+                </section>
               ))}
             </div>
           </div>
@@ -1165,6 +1171,34 @@ export default function Scribe() {
         <DockCards dock="details" layout={layout} dispatch={dispatch} defs={defs} drag={drag} announce={announce} />
       </DockFrame>
       <div className="sr-only" aria-live="polite" role="status">{liveMsg}</div>
+
+      {settingsOpen && (
+        <div className="set-scrim" onClick={() => setSettingsOpen(false)}>
+          <div className="set-card" role="dialog" aria-modal="true" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+            <div className="set-head"><h2>Settings</h2><button type="button" className="sh-iconbtn" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>{SI.close}</button></div>
+            <div className="set-group">
+              <div className="set-label">Appearance</div>
+              <div className="set-seg" role="group" aria-label="Theme">
+                <button type="button" className={!dark ? 'on' : ''} aria-pressed={!dark} onClick={() => setDark(() => false)}>Light</button>
+                <button type="button" className={dark ? 'on' : ''} aria-pressed={dark} onClick={() => setDark(() => true)}>Dark</button>
+              </div>
+            </div>
+            <div className="set-group">
+              <div className="set-label">Note</div>
+              <label className="set-row"><span>Drug name and dose suggestions</span><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v; })} /></label>
+            </div>
+            <div className="set-group">
+              <div className="set-label">Tools</div>
+              <button type="button" className="set-link" onClick={() => { setPanel('paste'); setSettingsOpen(false); }}>{SI.lines}<span>Paste a transcript</span></button>
+              <button type="button" className="set-link" onClick={() => { setPanel('context'); setSettingsOpen(false); }}>{SI.doc}<span>Context</span></button>
+              {invite.eligible && <a className="set-link" href={invite.url} target="_blank" rel="noopener noreferrer">{SI.doc}<span>Style interview</span>{!inviteInfo.done && <span className="invite-dot" aria-hidden="true" />}</a>}
+            </div>
+            <div className="set-group">
+              <button type="button" className="set-link set-out" onClick={logout}>{I.logout}<span>Log out</span></button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {paywall && (
         <div className="pw-scrim" onClick={() => setPaywall(false)}>

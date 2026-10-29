@@ -118,10 +118,10 @@ function Fixes({ it, note, apply, keep }: { it: Item; note: string; apply: Apply
 type Props = {
   flags: NoteFlag[]; bodyRef?: RefObject<HTMLElement | null>; note: string; onChange: (md: string) => void; editing?: boolean;
   full?: boolean; onToggleFull?: () => void; endEl?: HTMLElement | null;
-  onCorrection?: (e: Correction) => void; resolved?: string[]; onStats?: (s: { toCheck: number }) => void;   // resolved = flag messages the clinician already dealt with (reopened note)
+  onCorrection?: (e: Correction) => void; resolved?: string[]; onStats?: (s: { toCheck: number }) => void; lead?: import('react').ReactNode;   // resolved = flag messages the clinician already dealt with (reopened note)
 };
 
-export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl, onCorrection, resolved, onStats }: Props) {
+export default function NoteChecks({ flags, bodyRef, note, onChange, editing = false, full = false, onToggleFull, endEl, onCorrection, resolved, onStats, lead }: Props) {
   const items = useMemo(() => (flags || []).map(parse).filter((x): x is Item => !!x), [flags]);
   const [done, setDone] = useState<Set<number>>(new Set());
   const [reviewing, setReviewing] = useState(false);
@@ -230,6 +230,7 @@ export default function NoteChecks({ flags, bodyRef, note, onChange, editing = f
         <span className="draft-bar-ico">{Icon.shield}</span>
         {undo ? <span className="draft-bar-text">{undo.label}. <button type="button" className="chk-link" onClick={undoFix}>Undo</button></span>
           : <span className="draft-bar-text"><strong>Draft.</strong> Read every line before you sign.</span>}
+        {lead}
         {warn.length > 0 ? (
           <>
             <span className="draft-bar-count" aria-label={`${warn.length} to check`}>{warn.length} to check</span>

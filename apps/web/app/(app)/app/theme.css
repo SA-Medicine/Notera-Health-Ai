@@ -129,3 +129,70 @@ body.dark-mode .drug-row { background: var(--card); }
 @keyframes bgToastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes bgToastOut { to { opacity: 0; transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .bg-toast { animation: bgToastOut .3s ease-in 4.8s forwards; } }
+
+/* ── left side: New session, a quick row, Sessions (fills the rest), Settings ── */
+.notera-shell .quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.notera-shell .quick-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 7px 4px; border-radius: 12px; border: 1px solid rgba(221, 227, 232, 0.16); background: rgba(221, 227, 232, 0.07); color: var(--sidebar-text, #fff); font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+.notera-shell .quick-btn:hover { background: rgba(221, 227, 232, 0.14); }
+.notera-shell .quick-btn:active { transform: scale(0.97); }
+.notera-shell .quick-btn.on { background: rgba(221, 227, 232, 0.18); border-color: rgba(221, 227, 232, 0.32); }
+.notera-shell .quick-btn.rec { background: #b42318; border-color: #b42318; color: #fff; }
+.notera-shell .quick-btn:disabled { opacity: .5; cursor: default; }
+.notera-shell .quick-btn svg { width: 16px; height: 16px; }
+.notera-shell .sidebar.collapsed .quick-row { grid-template-columns: 1fr; }
+.notera-shell .sidebar.collapsed .quick-btn span { display: none; }
+.notera-shell .sidebar-nav-lower { margin-top: 4px; }
+
+/* ── Settings panel ── */
+.set-scrim { position: fixed; inset: 0; z-index: 90; background: rgba(20, 10, 18, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.set-card { width: min(420px, 100%); background: var(--card, #fff); color: var(--text-primary, #1d2129); border: 1px solid var(--line, #d9dde3); border-radius: 16px; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .5); padding: 14px 16px 12px; max-height: 90dvh; overflow: auto; }
+.set-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.set-head h2 { font-size: 16px; margin: 0; }
+.set-head .sh-iconbtn { color: var(--text-muted, #667085); }
+.set-group { padding: 10px 0; border-top: 1px solid var(--line, #e6e8ec); display: flex; flex-direction: column; gap: 4px; }
+.set-group:first-of-type { border-top: 0; }
+.set-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted, #667085); margin-bottom: 4px; }
+.set-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-soft, #eef0f3); gap: 2px; width: fit-content; }
+.set-seg button { border: 0; background: transparent; color: inherit; padding: 6px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.set-seg button.on { background: var(--aub, #3A0F34); color: #fff; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 4px 0; cursor: pointer; }
+.set-row input { accent-color: var(--aub, #3A0F34); width: 16px; height: 16px; }
+.set-link { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 8px; border: 0; border-radius: 10px; background: transparent; color: inherit; font-size: 13.5px; font-weight: 500; text-decoration: none; cursor: pointer; }
+.set-link:hover { background: var(--bg-soft, #eef0f3); }
+.set-out { color: #b42318; }
+.set-link svg { flex: none; opacity: .8; }
+
+/* ── a tighter strip above the note: tabs, SOAP button, draft bar in as little height as possible ── */
+.notera-shell .tab-bar { gap: 2px; align-items: center; }
+.notera-shell .tab-bar-end { margin-left: auto; margin-right: 4px; padding: 0; background: none; border: 0; font-size: 11.5px; }
+.notera-shell .editor-toolbar { padding-top: 4px; padding-bottom: 4px; min-height: 0; }
+.notera-shell .draft-bar { padding: 5px 10px; gap: 8px; font-size: 12px; margin-bottom: 6px; flex-wrap: wrap; row-gap: 4px; }
+.notera-shell .draft-bar .drug-toggle-top { margin: 0 4px 0 auto; font-size: 11.5px; white-space: nowrap; }
+.notera-shell .soap-btn { font-weight: 700; }
+.notera-shell .soap-btn:disabled { opacity: .6; cursor: default; }
+.notera-shell .note-body { padding-top: 0; }
+
+/* ── History: grouped cards, searchable ── */
+.notera-shell .hist-header { display: flex; align-items: center; gap: 10px; padding: 8px 4px 10px; }
+.notera-shell .hist-title { font-size: 16px; font-weight: 700; margin-right: auto; }
+.notera-shell .hist-search { flex: 0 1 260px; min-width: 120px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line, #d9dde3); background: var(--card, #fff); color: inherit; font-size: 13px; }
+.notera-shell .hist-list { overflow: auto; padding: 0 4px 24px; }
+.notera-shell .hc-day { margin: 14px 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted, #667085); }
+.notera-shell .hc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.notera-shell .hc-card { display: flex; align-items: center; gap: 4px; background: var(--card, #fff); border: 1px solid var(--line, #e1e4ea); border-radius: 14px; padding: 8px 8px 8px 10px; box-shadow: 0 1px 2px rgba(20, 10, 18, .05); transition: box-shadow .15s, border-color .15s, transform .12s; }
+.notera-shell .hc-card:hover { box-shadow: 0 8px 20px -12px rgba(58, 15, 52, .45); border-color: rgba(58, 15, 52, .35); transform: translateY(-1px); }
+.notera-shell .hc-card.is-active { border-color: var(--aub, #3A0F34); box-shadow: 0 0 0 1px var(--aub, #3A0F34) inset; }
+.notera-shell .hc-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
+.notera-shell .hc-avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #3A0F34, #6b2a62); color: #fff; font-weight: 700; font-size: 14px; }
+.notera-shell .hc-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.notera-shell .hc-title { font-size: 13.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notera-shell .hc-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-muted, #667085); }
+.notera-shell .hc-chip { padding: 1px 8px; border-radius: 999px; background: var(--bg-soft, #eef0f3); color: var(--text-secondary, #475467); font-weight: 600; text-transform: capitalize; }
+.notera-shell .hc-chip.warn { background: #fff4e0; color: #b54708; }
+.notera-shell .hc-actions { display: flex; gap: 2px; flex: none; opacity: .55; transition: opacity .15s; }
+.notera-shell .hc-card:hover .hc-actions, .notera-shell .hc-card:focus-within .hc-actions { opacity: 1; }
+body.dark-mode .notera-shell .hc-card { background: #1f2026; border-color: #2c2f38; }
+body.dark-mode .notera-shell .hc-chip { background: #2a2d36; color: #c9ced8; }
+body.dark-mode .notera-shell .hc-chip.warn { background: #3a2a10; color: #fdb022; }
+body.dark-mode .notera-shell .set-card { background: #1b1e24; border-color: #2c313a; color: #e8eaee; }
+body.dark-mode .notera-shell .hist-search, body.dark-mode .set-card .set-seg { background: #14161a; border-color: #2c313a; }
