@@ -222,3 +222,9 @@ body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording):hove
 .bg-toast { opacity: 1; animation: bgToastIn .18s ease-out; font: inherit; font-weight: 600; font-size: 12.5px; line-height: 1.35; }
 @keyframes bgToastIn { from { transform: translateY(-6px); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .bg-toast { animation: none; } }
+
+/* sidebar: New session and Start recording, same shape, one under the other */
+.notera-shell .start-rec-btn { margin-top: 8px; background: transparent; color: var(--sidebar-text, #fff); border: 1.5px solid rgba(221, 227, 232, 0.55); box-shadow: none; }
+.notera-shell .start-rec-btn:hover:not(:disabled) { background: rgba(221, 227, 232, 0.14); }
+.notera-shell .start-rec-btn.is-rec { background: #d92d20; border-color: #d92d20; color: #fff; }
+.notera-shell .start-rec-btn:disabled { opacity: .55; }

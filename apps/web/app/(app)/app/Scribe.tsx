@@ -935,11 +935,7 @@ export default function Scribe() {
         </div>
         <div className="sidebar-section">
           <button className="new-session-btn" data-tour="new" onClick={newSession}>{I.plus}<span>New session</span></button>
-          <div className="quick-row" role="group" aria-label="Workspace">
-            <button type="button" className={`quick-btn${panel === 'transcript' ? ' on' : ''}`} onClick={() => setPanel('transcript')} title="Scribe">{SI.mic}<span>Scribe</span></button>
-            <button type="button" className={`quick-btn${recording ? ' rec' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing'} title={recording ? 'Stop recording' : 'Start recording'}>{recording ? SI.close : I.mic}<span>{recording ? 'Stop' : 'Record'}</span></button>
-            <button type="button" className="quick-btn" onClick={newSession} title="New session">{SI.plus}<span>New</span></button>
-          </div>
+          <button className={`new-session-btn start-rec-btn${recording ? ' is-rec' : ''}`} data-tour="start" onClick={toggleRecord} disabled={phase === 'transcribing'}>{recording ? SI.close : I.mic}<span>{recording ? 'Stop recording' : phase === 'transcribing' ? 'Finishing…' : 'Start recording'}</span></button>
         </div>
         <DockCards dock="sidebar" layout={layout} dispatch={dispatch} defs={defs} drag={drag} announce={announce} />
         <nav className="sidebar-nav sidebar-nav-lower">
