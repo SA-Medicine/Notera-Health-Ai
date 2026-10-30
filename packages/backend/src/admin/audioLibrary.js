@@ -10,6 +10,7 @@
 
 import express from 'express';
 import { zipWriter } from './zipStream.js';
+import { webmToMp4 } from './audioConvert.js';
 import { query, one } from '../db/pool.js';
 import { measureAudio, audioFlags, countWords, wordsPerMinute, decodeFile, missingWebmHeader } from './audioStats.js';
 import { ensureAccountSchema } from '../auth/quota.js';
@@ -114,6 +115,21 @@ export function mountAudioLibrary(R, { r, audit, ipOf, bucket = defaultBucket })
     res.json({ url, expiresInSec: 600, download });
   }));
 
+  // One recording as a file. MP4 (AAC) by default, ?format=webm for the original. A recording ffmpeg cannot convert is sent as the original WebM.
+  R.get('/audio/:id/file', r(async (req, res) => {
+    if (!ID_RX.test(req.params.id)) return bad(res, 'bad id');
+    if (!BUCKET()) return bad(res, 'audio storage not configured', 501);
+    const row = await one(SQL.one, [req.params.id]);
+    if (!row?.audio_uri) return bad(res, 'no audio for this consult', 404);
+    const [buf] = await (await bucket()).file(nameOf(row.audio_uri)).download();
+    let out = buf; let ext = 'webm'; let type = 'audio/webm';
+    if (req.query.format !== 'webm') { try { out = await webmToMp4(buf); ext = 'mp4'; type = 'audio/mp4'; } catch (e) { console.error('[audio-file] convert failed, sending the original:', req.params.id, e.message); } }
+    await audit(req.user.id, 'admin_download_audio', { consultId: req.params.id, owner: row.clinician_id, format: ext }, ipOf(req));
+    res.setHeader('Content-Type', type); res.setHeader('Content-Length', out.length);
+    res.setHeader('Content-Disposition', `attachment; filename="notera-${req.params.id}.${ext}"`);
+    res.end(out);
+  }));
+
   R.put('/audio/:id/review', json, r(async (req, res) => {
     if (!ID_RX.test(req.params.id)) return bad(res, 'bad id');
     const status = req.body?.status;
@@ -169,11 +185,11 @@ export function mountAudioLibrary(R, { r, audit, ipOf, bucket = defaultBucket })
     res.setHeader('Content-Type', 'application/zip'); res.setHeader('Content-Disposition', `attachment; filename="notera-audio-${who}-${new Date().toISOString().slice(0, 10)}.zip"`);
     const z = zipWriter((buf) => new Promise((ok, no) => { res.write(buf, (e) => (e ? no(e) : ok())); }));
     const stamp = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15); const index = ['consult_id,recorded_at_utc,seconds,specialty,title,file'];
-    let done = 0;
+    let done = 0; const asMp4 = req.query.format !== 'webm';
     try {
       for (const x of rows) {
-        const file = `${stamp(x.created_at)}_${x.consult_id}.webm`;
-        try { await z.add(file, b.file(nameOf(x.audio_uri)).createReadStream(), new Date(x.created_at)); done++; index.push([x.consult_id, new Date(x.created_at).toISOString(), Math.round(x.duration_s || 0), x.specialty || '', String(x.title || '').replace(/[",\r\n]+/g, ' '), file].join(',')); }
+        let file = `${stamp(x.created_at)}_${x.consult_id}.${asMp4 ? 'mp4' : 'webm'}`;
+        try { if (asMp4) { const [raw] = await b.file(nameOf(x.audio_uri)).download(); let data = raw; try { data = await webmToMp4(raw); } catch (e) { file = file.replace(/.mp4$/, '.webm'); console.error('[audio-zip] convert failed, original kept:', x.consult_id, e.message); } await z.add(file, (async function* () { yield data; })(), new Date(x.created_at)); } else { await z.add(file, b.file(nameOf(x.audio_uri)).createReadStream(), new Date(x.created_at)); } done++; index.push([x.consult_id, new Date(x.created_at).toISOString(), Math.round(x.duration_s || 0), x.specialty || '', String(x.title || '').replace(/[",\r\n]+/g, ' '), file].join(',')); }
         catch (e) { console.error('[audio-zip]', x.consult_id, e.message); if (!res.writableEnded && done === 0 && rows.length === 1) throw e; }
       }
       await z.add('index.csv', (async function* () { yield Buffer.from(index.join('\n') + '\n'); })());

@@ -69,7 +69,7 @@ export async function audioView(ctx) {
   async function act(id, what) {
     if (busy) return;
     if (what === 'play') { open = open === id ? null : id; draw(); return; }
-    if (what === 'download') { try { const a = await api(`/api/console/audio/${encodeURIComponent(id)}/url?download=1`); location.href = a.url; toast('Download started'); } catch (e) { toast(e.message, true); } return; }
+    if (what === 'download') { toast('Preparing the MP4 — the download starts in a moment'); location.href = `/backend/api/console/audio/${encodeURIComponent(id)}/file`; return; }
     if (what === 'delete') { if (!confirm('Delete this recording?\n\nThe audio file is removed. The note and transcript stay. The file can be recovered from the bucket for 7 days.')) return; return remove([id]); }
     busy = true; try { await api(`/api/console/audio/${encodeURIComponent(id)}/review`, { method: 'PUT', json: { status: what } }); toast(what === 'real' ? 'Marked real' : 'Marked not real'); await load(); } catch (e) { toast(e.message, true); } busy = false;
   }
