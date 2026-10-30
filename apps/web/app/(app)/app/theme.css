@@ -228,3 +228,11 @@ body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording):hove
 .notera-shell .start-rec-btn:hover:not(:disabled) { background: rgba(221, 227, 232, 0.14); }
 .notera-shell .start-rec-btn.is-rec { background: #d92d20; border-color: #d92d20; color: #fff; }
 .notera-shell .start-rec-btn:disabled { opacity: .55; }
+
+/* ── one Copy button: bigger, solid, copies the note with its formatting ── */
+.notera-shell .copy-main { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border: 0; border-radius: 10px; background: var(--blue); color: #fff; font-family: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 1px 2px rgba(15, 24, 54, 0.18); transition: transform .15s cubic-bezier(.22, 1, .36, 1), box-shadow .2s, filter .2s; }
+.notera-shell .copy-main svg { width: 16px; height: 16px; }
+.notera-shell .copy-main:hover { filter: brightness(1.12); box-shadow: 0 3px 10px rgba(15, 24, 54, 0.22); }
+.notera-shell .copy-main:active { transform: scale(.97); }
+body.dark-mode .notera-shell .copy-main { background: var(--aub-300); color: #2a0b25; }
+@media (prefers-reduced-motion: reduce) { .notera-shell .copy-main { transition: none; } }

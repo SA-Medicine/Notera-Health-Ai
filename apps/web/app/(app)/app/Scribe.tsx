@@ -17,7 +17,8 @@ import { htmlToMd, mdToHtml } from './noteRender';
 import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
-import { DRUG_FLAG_TYPES, readDrugSuggest, writeDrugSuggest } from './drugPrefs';
+import { DRUG_FLAG_TYPES, readDrugSuggest, writeDrugSuggest, suggestionsLocked } from './drugPrefs';
+import { copyNoteToClipboard } from './copyNote';
 import { groupSessions } from './shell/sessions';
 import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending } from './audioVault';
 
@@ -113,7 +114,8 @@ export default function Scribe() {
   const [loadingNote, setLoadingNote] = useState<string | null>(null);   // a saved note is being fetched: the note tab shows it at once instead of staying silent
   const [settingsOpen, setSettingsOpen] = useState(false);   // the Settings panel: theme, paste a transcript, context, style interview, drug suggestions, log out
   const [histQ, setHistQ] = useState('');
-  const [drugOn, setDrugOn] = useState(true);   // drug suggestions (flags at the top + Medicines box); off by default for some accounts, see drugPrefs.ts
+  const [drugOn, setDrugOn] = useState(true);
+  const setDrugPref = (on: boolean) => { setDrugOn(on); writeDrugSuggest(on, me?.email || ''); };   // drug suggestions (flags at the top + Medicines box); off by default for some accounts, see drugPrefs.ts
   const [noteFlags, setNoteFlags] = useState<NoteFlag[]>([]);   // 'read before you sign' checks from the backend, shown above the note
   const [editing, setEditing] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');   // the clinician's version of the note is saved to history as they edit
@@ -152,6 +154,9 @@ export default function Scribe() {
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
   const [ctx, setCtx] = useState({ age: '', sex: '', pmhx: '', meds: '' });
   const [me, setMe] = useState<{ fullName: string; email: string; initials: string; plan?: string; used?: number; limit?: number | null; remaining?: number | null } | null>(null);
+  // suggestions (flags at the top + Medicines box) show only once the account is known, and never for an account with them locked off (drugPrefs.ts)
+  const noSuggest = !me || suggestionsLocked(me.email);
+  const showSug = !noSuggest && drugOn;
   const [micStream, setMicStream] = useState<MediaStream | null>(null);   // drives the audio-reactive glow
   const [paywall, setPaywall] = useState(false);   // free quota used up → show pricing
   const [historyView, setHistoryView] = useState(false);   // true when a saved consult is opened from History
@@ -902,9 +907,11 @@ export default function Scribe() {
     window.addEventListener('pagehide', flush); return () => window.removeEventListener('pagehide', flush);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const copy = (plain: boolean) => {
-    const text = plain ? note.replace(/[#*_`>]/g, '').replace(/\n{3,}/g, '\n\n') : note;
-    navigator.clipboard.writeText(text); flash(plain ? 'Copied for EMR' : 'Copied');
+  // One Copy: the note as it looks on the screen (headings, bold, bullets) with no markdown symbols; see copyNote.ts
+  const copy = async () => {
+    const md = editing && noteBodyRef.current ? htmlToMd(noteBodyRef.current) : note;
+    const ok = await copyNoteToClipboard(md);
+    flash(ok ? 'Copied with formatting' : 'Could not copy. Select the note and press Ctrl+C', ok ? 'success' : 'error');
   };
 
   const genSteps = ['Extracting clinical facts', 'De-identifying & drafting', 'Structuring the SOAP note', 'Grounding & final check'];
@@ -915,8 +922,8 @@ export default function Scribe() {
   const defs = buildCards({
     panel, setPanel: (p) => setPanel(p as Panel), loadHistory, history, activeConsult: consultId, openConsult,
     patient, setPatient, patientMeds, setPatientMeds, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
-    note, editing, toggleEdit, copy, saveState, retrySave: () => { void persistNote(); },
-    toCheck, review: () => window.dispatchEvent(new Event('notera:review')),
+    note, editing, toggleEdit, copy: () => { void copy(); }, saveState, retrySave: () => { void persistNote(); },
+    toCheck, review: () => window.dispatchEvent(new Event('notera:review')), noSuggest,
     toggleRecord, busy: phase === 'transcribing', newSession, dark, setDark,
     inviteHref: invite.eligible ? invite.url : undefined, railed: !layout.open.sidebar,
   });
@@ -1012,10 +1019,7 @@ export default function Scribe() {
                 : <span className={`save-ind ${saveState}`} role="status">{saveState === 'saving' ? 'Saving…' : 'Saved ✓'}</span>)}
               <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>
               <button className="format-btn" onClick={() => setFullNote((v) => !v)} aria-pressed={fullNote}>{fullNote ? 'Exit full screen' : 'Full screen'}</button>
-              <div className="copy-group">
-                <button className="copy-btn" onClick={() => copy(true)}>Copy to EMR</button>
-                <button className="copy-btn" onClick={() => copy(false)} style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>Copy</button>
-              </div>
+              <button type="button" className="copy-main" onClick={() => void copy()} title="Copy the note with its formatting">{SI.copy}Copy note</button>
             </div>
           )}
         </nav>
@@ -1116,7 +1120,7 @@ export default function Scribe() {
                 <div className={`note-content${fullNote ? ' full' : ''}`}>
                   {fullNote && <button type="button" className="fs-exit" onClick={() => setFullNote(false)}>Exit full screen</button>}
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
-                  <NoteChecks lead={<label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label>} flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
+                  <NoteChecks lead={noSuggest ? undefined : <label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugPref(!drugOn)} />Drug suggestions</label>} flags={noSuggest ? [] : drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={showSug} onToggle={() => setDrugPref(!drugOn)} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>
               ) : (
@@ -1191,10 +1195,10 @@ export default function Scribe() {
                 <button type="button" className={dark ? 'on' : ''} aria-pressed={dark} onClick={() => setDark(() => true)}>Dark</button>
               </div>
             </div>
-            <div className="set-group">
+            {!noSuggest && <div className="set-group">
               <div className="set-label">Note</div>
-              <label className="set-row"><span>Drug name and dose suggestions</span><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v; })} /></label>
-            </div>
+              <label className="set-row"><span>Drug name and dose suggestions</span><input type="checkbox" checked={drugOn} onChange={() => setDrugPref(!drugOn)} /></label>
+            </div>}
             <div className="set-group">
               <div className="set-label">Tools</div>
               <button type="button" className="set-link" onClick={() => { setPanel('paste'); setSettingsOpen(false); }}>{SI.lines}<span>Paste a transcript</span></button>

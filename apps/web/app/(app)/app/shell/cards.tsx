@@ -43,8 +43,8 @@ export type CardsProps = {
   history: SessionItem[]; activeConsult: string | null; openConsult: (id: string) => void;
   patient: string; setPatient: (v: string) => void; patientMeds: string; setPatientMeds: (v: string) => void; specialty: string; setSpecialty: (v: string) => void; specialties: string[];
   dateStr: string; timer: string; recording: boolean; phaseLabel: string;
-  note: string; editing: boolean; toggleEdit: () => void; copy: (plain: boolean) => void; saveState: 'idle' | 'saving' | 'saved' | 'error'; retrySave: () => void;
-  toCheck: number; review: () => void;
+  note: string; editing: boolean; toggleEdit: () => void; copy: () => void; saveState: 'idle' | 'saving' | 'saved' | 'error'; retrySave: () => void;
+  toCheck: number; review: () => void; noSuggest?: boolean;   // an account with all suggestions off: no "to check" counts on the session cards
   toggleRecord: () => void; busy: boolean; newSession: () => void; dark: boolean; setDark: (f: (v: boolean) => boolean) => void;
   inviteHref?: string; railed: boolean;
 };
@@ -65,7 +65,7 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
               {g.items.map((s) => (
                 <button key={s.consult_id} type="button" className={`sh-session${p.activeConsult === s.consult_id ? ' is-active' : ''}`} onClick={() => p.openConsult(s.consult_id)}>
                   <span className="sh-session-main"><span className="sh-session-title">{s.title || 'Consult'}</span><span className="sh-session-sub">{g.label === 'Today' || g.label === 'Yesterday' ? clock(s.created_at) : dayShort(s.created_at)}{s.specialty ? ` · ${s.specialty.replace(/_/g, ' ')}` : ''}</span></span>
-                  {!!s.checks && <span className="sh-check-pill" title={`${s.checks} line${s.checks === 1 ? '' : 's'} to check`}>{s.checks}</span>}
+                  {!!s.checks && !p.noSuggest && <span className="sh-check-pill" title={`${s.checks} line${s.checks === 1 ? '' : 's'} to check`}>{s.checks}</span>}
                 </button>
               ))}
             </div>
@@ -96,8 +96,7 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
             <span className={`sh-v sh-save is-${p.saveState}`} role="status">{p.saveState === 'saving' ? 'Saving…' : p.saveState === 'saved' ? 'Saved to history ✓' : p.saveState === 'error' ? <button type="button" className="sh-link" onClick={p.retrySave}>Not saved. Retry</button> : p.note ? 'Up to date' : 'No note yet'}</span></div>
           <div className="sh-actions">
             <button type="button" className="sh-btn" onClick={p.toggleEdit} disabled={!p.note}>{SI.edit}{p.editing ? 'Done' : 'Edit'}</button>
-            <button type="button" className="sh-btn" onClick={() => p.copy(false)} disabled={!p.note}>{SI.copy}Copy</button>
-            <button type="button" className="sh-btn is-primary" onClick={() => p.copy(true)} disabled={!p.note}>Copy to EMR</button>
+            <button type="button" className="sh-btn is-primary" onClick={() => p.copy()} disabled={!p.note}>{SI.copy}Copy note</button>
           </div>
         </div>
       ),
