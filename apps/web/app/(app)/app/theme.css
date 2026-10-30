@@ -209,3 +209,16 @@ body.dark-mode .notera-shell .hist-search, body.dark-mode .set-card .set-seg { b
 body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording) { background: #f1f3f5; color: #3A0F34; border-color: #f1f3f5; box-shadow: 0 0 0 4px rgba(241, 243, 245, .16), 0 8px 18px -8px rgba(0, 0, 0, .7); }
 body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording):hover:not(:disabled) { background: #fff; border-color: #fff; color: #3A0F34; }
 @media (prefers-reduced-motion: reduce) { .notera-shell .top-bar .top-resume-btn.glass.recording { animation: none; } }
+
+/* ── tab row carries the note's actions; the draft bar and Medicines box sit BELOW the note ── */
+.notera-shell .tab-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; padding-right: 4px; }
+.notera-shell .tab-actions .save-ind { font-size: 11.5px; }
+.notera-shell .fs-exit { position: sticky; top: 0; float: right; z-index: 5; margin: 0 0 6px 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-strong, #ccd); background: var(--card, #fff); color: inherit; font-weight: 650; font-size: 12px; cursor: pointer; }
+.notera-shell .note-content .note-checks, .notera-shell .note-content .drug-box { margin-top: 10px; margin-bottom: 0; }
+.notera-shell .note-body { margin-top: 0; }
+.notera-shell .soap-create { font-weight: 700; }
+
+/* the "note ready" message must always be visible: no fade that can leave it at opacity 0 (it is removed by a timer) */
+.bg-toast { opacity: 1; animation: bgToastIn .18s ease-out; font: inherit; font-weight: 600; font-size: 12.5px; line-height: 1.35; }
+@keyframes bgToastIn { from { transform: translateY(-6px); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bg-toast { animation: none; } }

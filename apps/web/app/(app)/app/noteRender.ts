@@ -51,3 +51,41 @@ export function mdToHtml(md: string): string {
   if (inList) out.push('</ul>');
   return out.join('').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
+
+
+/** The edited note body back to the markdown the app stores: the inverse of mdToHtml (headings, bold topic lines, numbered problems, bullets, plan sub-points). */
+export function htmlToMd(root: HTMLElement): string {
+  const inline = (n: Node): string => {
+    if (n.nodeType === 3) return (n.textContent || '').replace(/\u00a0/g, ' ');
+    if (n.nodeType !== 1) return '';
+    const e = n as HTMLElement; const t = e.tagName;
+    if (t === 'BR') return '\n';
+    const inner = Array.from(e.childNodes).map(inline).join('');
+    return t === 'STRONG' || t === 'B' ? (inner.trim() ? '**' + inner + '**' : inner) : inner;
+  };
+  const out: string[] = [];
+  const block = (e: Element) => {
+    const t = e.tagName;
+    if (/^H[1-6]$/.test(t)) { out.push('#'.repeat(Number(t[1])) + ' ' + inline(e).trim()); return; }
+    if (t === 'UL' || t === 'OL') {
+      for (const li of Array.from(e.children)) {
+        const body = inline(li).replace(/\s*\n\s*/g, ' ').trim(); if (!body) continue;
+        const c = (li as HTMLElement).classList;
+        out.push((c.contains('ap-sub') ? '     - ' : c.contains('ap-line') ? '   - ' : '- ') + body);
+      }
+      return;
+    }
+    if (t === 'BR') { out.push(''); return; }
+    if (t === 'P' && (e as HTMLElement).classList.contains('ap-head')) { const raw = inline(e).replace(/\*\*/g, '').trim(); const m = raw.match(/^(\d+)\.\s*(.*)$/); out.push(m ? m[1] + '. **' + m[2] + '**' : raw); return; }
+    if (t === 'P' || t === 'DIV') {
+      if (Array.from(e.children).some((c) => /^(UL|OL|P|H[1-6]|DIV)$/.test(c.tagName))) { Array.from(e.children).forEach(block); return; }
+      const lines = inline(e).split('\n'); for (const l of lines) out.push(l.trim()); return;
+    }
+    const x = inline(e).trim(); if (x) out.push(x);
+  };
+  const kids = Array.from(root.childNodes);
+  for (const n of kids) {
+    if (n.nodeType === 3) { const x = (n.textContent || '').trim(); if (x) out.push(x); } else if (n.nodeType === 1) block(n as Element);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}

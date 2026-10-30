@@ -13,7 +13,7 @@ import { ThinkingOrb } from 'thinking-orbs';
 import { VoiceBeam } from 'voice-glow';
 import { useInvite, inviteSummary } from '../components/useInvite';
 import { countWords, wordsPerMinute, looksIncomplete, worthReplacing } from './transcriptDensity';
-import { mdToHtml } from './noteRender';
+import { htmlToMd, mdToHtml } from './noteRender';
 import { sealRecording } from './recording';
 import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
@@ -109,6 +109,8 @@ export default function Scribe() {
   const [lines, setLines] = useState<Line[]>([]);
   const [transcript, setTranscript] = useState('');
   const [note, setNote] = useState('');
+  const openSeq = useRef(0);
+  const [loadingNote, setLoadingNote] = useState<string | null>(null);   // a saved note is being fetched: the note tab shows it at once instead of staying silent
   const [settingsOpen, setSettingsOpen] = useState(false);   // the Settings panel: theme, paste a transcript, context, style interview, drug suggestions, log out
   const [histQ, setHistQ] = useState('');
   const [drugOn, setDrugOn] = useState(true);   // drug suggestions (flags at the top + Medicines box); off by default for some accounts, see drugPrefs.ts
@@ -813,10 +815,14 @@ export default function Scribe() {
     await followJob(p);
   }
 
-  async function openConsult(id: string) {
+  async function openConsult(id: string, attempt = 0) {
+    if (phase === 'recording' || phase === 'transcribing') { flash('Finish this recording first, then open the note from History.', 'error'); return; }
+    const mine = ++openSeq.current;   // a later click wins: an older, slower answer is ignored
+    if (attempt === 0) { void persistNote(); setNote(''); setLoadingNote(id); setConsultId(id); setPanel('note'); setError(''); }
     try {
       const r = await fetch(`${API}/api/library/consults/${id}`, { credentials: 'include' });
-      const d = await readJson(r); const c = d.consult; if (!c) return;
+      if (mine !== openSeq.current) return;
+      const d = await readJson(r); const c = d.consult; if (!c) throw new Error('empty');
       const draft = (c.drafts || [])[(c.drafts?.length || 1) - 1];
       // the clinician's saved version (edits and fixes) wins over the note as generated
       const fins = (c.finals || []).filter((x: { note?: { rendered?: string } }) => x?.note?.rendered);
@@ -836,8 +842,12 @@ export default function Scribe() {
       setLines(segs.map((s, i) => ({ t: mmss(i * 5), text: s })));
       setConsultId(id); sessionCid.current = id; setPhase('done'); setEditing(false);
       setHistoryView(true);   // read-only saved transcript, not the live paste box
-      setPanel('note');
-    } catch { /* */ }
+      setPanel('note'); setLoadingNote(null);
+    } catch {
+      if (mine !== openSeq.current) return;
+      if (attempt < 1) { await sleep(700); if (mine === openSeq.current) { openSeq.current--; return openConsult(id, attempt + 1); } return; }   // one quiet retry
+      setLoadingNote(null); flash('Could not open this note. Check the connection and click it again.', 'error');
+    }
   }
   async function downloadAudio(id: string) {
     try { const r = await fetch(`${API}/api/library/consults/${id}/audio`, { credentials: 'include' }); const d = await readJson(r); if (d.url) window.open(d.url, '_blank'); else flash('No audio for this consult', 'error'); } catch { /* */ }
@@ -848,6 +858,7 @@ export default function Scribe() {
     loadHistory();
   }
   function newSession() {
+    openSeq.current++; setLoadingNote(null);
     teardownCapture();
     segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
     stopping.current = false; captureLive.current = false; finishing.current = false;
@@ -859,7 +870,7 @@ export default function Scribe() {
   }
 
   function toggleEdit() {
-    if (editing && noteBodyRef.current) setNote(noteBodyRef.current.innerText);
+    if (editing && noteBodyRef.current) setNote(htmlToMd(noteBodyRef.current));
     setEditing((v) => !v);
   }
   // ── save the clinician's version to history ───────────────────────────────────────────────────────────────────
@@ -994,9 +1005,23 @@ export default function Scribe() {
         {/* Tab bar */}
         <nav className="tab-bar">
           <button className={`main-tab${panel === 'transcript' ? ' active' : ''}`} onClick={() => setPanel('transcript')}>{I.lines}Transcript</button>
-          <button className={`main-tab${panel === 'note' ? ' active' : ''}`} onClick={() => setPanel('note')}>{I.doc}Note</button>
+          <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 10 }}><button className={`main-tab${panel === 'note' ? ' active' : ''}`} onClick={() => setPanel('note')}>{I.bolt}SOAP note</button></BorderBeam>
           <button className={`main-tab${panel === 'history' ? ' active' : ''}`} onClick={() => { setPanel('history'); loadHistory(); }}>{I.clock}History</button>
-          {audioState !== 'none' && phase !== 'recording' && <span className={`rec-saved tab-bar-end is-${audioState}`} role="status">{audioState === 'saving' ? 'Saving the recording…' : audioState === 'saved' ? 'Recording saved' : 'Recording kept in this browser, saving again soon'}</span>}
+          {audioState !== 'none' && phase !== 'recording' && panel !== 'note' && <span className={`rec-saved tab-bar-end is-${audioState}`} role="status">{audioState === 'saving' ? 'Saving the recording…' : audioState === 'saved' ? 'Recording saved' : 'Recording kept in this browser, saving again soon'}</span>}
+          {panel === 'note' && note && (
+            <div className="tab-actions">
+              {audioState === 'saving' && <span className="save-ind saving" role="status">Saving the recording…</span>}
+              {saveState !== 'idle' && (saveState === 'error'
+                ? <button className="save-ind error" onClick={() => void persistNote()}>Not saved - retry</button>
+                : <span className={`save-ind ${saveState}`} role="status">{saveState === 'saving' ? 'Saving…' : 'Saved ✓'}</span>)}
+              <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>
+              <button className="format-btn" onClick={() => setFullNote((v) => !v)} aria-pressed={fullNote}>{fullNote ? 'Exit full screen' : 'Full screen'}</button>
+              <div className="copy-group">
+                <button className="copy-btn" onClick={() => copy(true)}>Copy to EMR</button>
+                <button className="copy-btn" onClick={() => copy(false)} style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>Copy</button>
+              </div>
+            </div>
+          )}
         </nav>
 
         {error && <div role="alert" className="scribe-alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
@@ -1078,23 +1103,6 @@ export default function Scribe() {
 
           {/* Note */}
           <div className={`main-panel${panel === 'note' ? ' active' : ''}`}>
-            <div className="editor-toolbar">
-              <div className="editor-toolbar-left">
-                <BorderBeam size="sm" colorVariant="ocean" theme={dark ? 'dark' : 'light'} active={phase === 'generating'} strength={0.9} style={{ display: 'inline-block', borderRadius: 10 }}>
-                  <button className="format-btn active soap-btn" data-tour="create" onClick={createSOAP} disabled={phase === 'generating' || !transcript.trim() || !!note} title={note ? 'Note created for this session' : !transcript.trim() ? 'Record or paste a transcript first' : 'Write the SOAP note'}>{I.bolt}{phase === 'generating' ? 'Writing SOAP…' : note ? 'SOAP note' : 'Create SOAP'}</button>
-                </BorderBeam>
-              </div>
-              <div className="editor-toolbar-right">
-                {note && saveState !== 'idle' && (saveState === 'error'
-                  ? <button className="save-ind error" onClick={() => void persistNote()}>Not saved - retry</button>
-                  : <span className={`save-ind ${saveState}`} role="status">{saveState === 'saving' ? 'Saving…' : 'Saved to history ✓'}</span>)}
-                {note && <button className="format-btn" onClick={toggleEdit} style={editing ? { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' } : undefined}>{editing ? 'Done' : 'Edit'}</button>}
-                <div className="copy-group">
-                  <button className="copy-btn" onClick={() => copy(true)} disabled={!note}>Copy to EMR</button>
-                  <button className="copy-btn" onClick={() => copy(false)} disabled={!note} style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>Copy</button>
-                </div>
-              </div>
-            </div>
             <div className="note-scroll-area">
               {phase === 'generating' ? (
                 <div className="note-empty gen-wait" role="status" aria-live="polite">
@@ -1106,17 +1114,21 @@ export default function Scribe() {
                   </div>
                   <p className="gen-time" aria-live="off">{genElapsed ? `Writing your note · ${genElapsed} s` : 'Writing your note'} — you can start another recording, refresh or close this page; the note is kept and shows up in History.</p>
                 </div>
+              ) : loadingNote && !note ? (
+                <div className="note-empty gen-wait" role="status" aria-live="polite"><ThinkingOrb state="searching" size={64} theme={dark ? 'dark' : 'light'} aria-label="Opening the note" /><p className="gen-time">Opening the note…</p></div>
               ) : note ? (
-                <div className={`note-content${fullNote ? ' full' : ''}`}><NoteChecks lead={<label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label>} flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} onToggleFull={() => setFullNote((v) => !v)} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
+                <div className={`note-content${fullNote ? ' full' : ''}`}>
+                  {fullNote && <button type="button" className="fs-exit" onClick={() => setFullNote(false)}>Exit full screen</button>}
                   <div className="note-body" ref={noteBodyRef} contentEditable={editing} suppressContentEditableWarning spellCheck={false} style={editing ? { outline: '1px dashed var(--border-mid)', borderRadius: 8 } : undefined} />
+                  <NoteChecks lead={<label className="drug-toggle drug-toggle-top" title="Show or hide the drug name and dose suggestions"><input type="checkbox" checked={drugOn} onChange={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} />Drug suggestions</label>} flags={drugOn ? noteFlags : noteFlags.filter((f) => !DRUG_FLAG_TYPES.includes(f.type))} bodyRef={noteBodyRef} note={note} onChange={setNote} editing={editing} full={fullNote} endEl={checksEnd} onCorrection={recordCorrection} resolved={resolvedFlags} onStats={(x) => setToCheck(x.toCheck)} /><DrugBox on={drugOn} onToggle={() => setDrugOn((v) => { writeDrugSuggest(!v); return !v })} flags={noteFlags} note={note} onChange={setNote} onCorrection={recordCorrection} />
                   <div ref={setChecksEnd} className="chk-end-slot" />
                 </div>
               ) : (
                 <div className="note-empty">
                   {I.doc}
                   <p className="empty-note-title">No note generated yet</p>
-                  <p className="empty-note-sub">Record or paste a transcript, then press <strong>Create SOAP</strong></p>
-                  <button className="start-hint-btn" onClick={toggleRecord}>{I.mic}Start recording</button>
+                  <p className="empty-note-sub">{transcript.trim() ? 'The transcript is ready.' : 'Record a visit, or paste a transcript from Settings.'}</p>
+                  {transcript.trim() ? <button className="start-hint-btn soap-create" data-tour="create" onClick={createSOAP}>{I.bolt}Create SOAP note</button> : <button className="start-hint-btn" onClick={toggleRecord}>{I.mic}Start recording</button>}
                 </div>
               )}
             </div>
