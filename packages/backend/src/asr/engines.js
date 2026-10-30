@@ -96,6 +96,21 @@ export function speechLike(pcm, { threshold = 500, minSeconds = 3 } = {}) {
   return n > 0 && sum / n >= threshold;
 }
 
+/**
+ * Is this audio silence or room noise, with no speech in it? A speech model asked to transcribe silence can invent a sentence (a 1.3-second near-silent clip came back as
+ * "Okay, so I'm going to start by asking you a few questions about your general health..."), and the chain only guarded the opposite case (speech in, nothing out).
+ * Measured on 14 real recordings: speech has frames with RMS above 6,000 (99th percentile 6,600 to 16,000); the silent clip peaked at 927. A clip whose loudest 1% of
+ * 20 ms frames stays under 1,500 holds no speech.
+ */
+export function silentAudio(pcm, { p99Max = 1500, frame = 320 } = {}) {
+  if (!pcm || pcm.length < frame * 2) return true;
+  const rms = [];
+  for (let i = 0; i + frame * 2 <= pcm.length; i += frame * 2) { let sum = 0; for (let j = 0; j < frame; j++) { const v = pcm.readInt16LE(i + j * 2); sum += v * v; } rms.push(Math.sqrt(sum / frame)); }
+  if (!rms.length) return true;
+  rms.sort((a, b) => a - b);
+  return rms[Math.min(rms.length - 1, Math.floor(rms.length * 0.99))] < p99Max;
+}
+
 // ── engine runners ──
 function pcmToWav(pcm) {
   const h = Buffer.alloc(44); h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
@@ -152,6 +167,7 @@ const withTimeout = (p, ms, label) => new Promise((resolve, reject) => { const t
  */
 export async function transcribeWithChain(pcm, { log = () => {}, runners = defaultRunners, settings = null, now = Date.now } = {}) {
   const s = settings || await getSettings();
+  if (s.speechCheck !== false && silentAudio(pcm)) { log('asr: the audio is silence or room noise - nothing is sent to a speech engine'); return { text: '', windows: 0, durationSeconds: pcmDurationSeconds(pcm.length), failedWindows: 0, engine: s.primary, fellBack: false, tried: [], silent: true }; }
   const order = [s.primary, ...s.fallbacks]; const tried = []; let emptyResult = null; let lastErr = null;
   // the second opinion is always the OTHER kind of engine: Gemini checks a Google speech engine, Chirp 2 (with the medical vocabulary) checks Gemini
   const CROSS = ENGINES[s.primary].kind === 'gemini' ? 'chirp_2' : 'gemini-2.5-flash'; const crossRun = runners[ENGINES[CROSS].kind];

@@ -36,7 +36,7 @@ test('a timeout counts as a failure', async () => {
 });
 test('a silent failure (speech in, nothing out) falls back; real silence is accepted as empty', async () => {
   resetHealth(); const r = await transcribeWithChain(SPEECH, { settings: S(), runners: runners({ v2: ok('') }) }); assert.equal(r.engine, 'latest_long'); assert.equal(r.tried[0].empty, true);
-  const q = await transcribeWithChain(SILENCE, { settings: S(), runners: runners({ v2: ok(''), v1: ok('') }) }); assert.equal(q.text, ''); assert.equal(q.tried.length, 1, 'no pointless second call on silence');
+  const q = await transcribeWithChain(SILENCE, { settings: S(), runners: runners({ v2: ok(''), v1: ok('') }) }); assert.equal(q.text, ''); assert.equal(q.tried.length, 0, 'silence is not sent to any engine'); assert.equal(q.silent, true);
   const both = await transcribeWithChain(SPEECH, { settings: S(), runners: runners({ v2: ok(''), v1: ok('') }) }); assert.equal(both.text, '', 'when every engine agrees there is nothing, the empty answer stands');
 });
 test('the circuit breaker skips a failing engine until the cooldown ends', async () => {
