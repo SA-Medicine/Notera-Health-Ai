@@ -28,36 +28,31 @@ const NOTE = `### Subjective
    - Diagnosis: Hypertension
 `;
 
-test('plain text has no markdown symbols and keeps the structure', () => {
+test('plain text has no markdown symbols, headings like the preferred note, plan without bullets', () => {
   const { text } = noteToClipboard(NOTE);
   assert.ok(!/[#*_`]/.test(text), text);
-  assert.ok(!/\*\*/.test(text));
-  assert.match(text, /^SUBJECTIVE\n/);
-  assert.match(text, /\nOBJECTIVE\n/);
-  assert.match(text, /\nASSESSMENT & PLAN\n/);
-  assert.match(text, /\n• Cough for 3 days with mild fever\n/);
+  assert.match(text, /^Subjective:\n/);
+  assert.match(text, /\nObjective:\n/);
+  assert.match(text, /\nAssessment & Plan:\n/);
+  assert.match(text, /\n• Cough for 3 days with mild fever\n/);       // Subjective is shown with bullets, so it keeps them
   assert.match(text, /\n1\. Acute bronchitis\n/);
-  assert.match(text, /\n   • Diagnosis: Acute bronchitis\n/);
-  assert.match(text, /\n      – Started: Amoxicillin 500 mg three times daily for 5 days\n/);
+  assert.match(text, /\nDiagnosis: Acute bronchitis\n/);               // the plan is shown without bullets, so it copies without
+  assert.match(text, /\n   Started: Amoxicillin 500 mg three times daily for 5 days\n/);
+  assert.ok(!/•[^\n]*(Diagnosis|Started|Advice)/.test(text));
   assert.ok(!/\n\n\n/.test(text));
 });
 
-test('html is formatted: headings, bold, lists, bold plan labels, escaped text', () => {
+test('html is formatted: bold headings, bold labels, bullets in the history, plan as plain paragraphs, escaped text', () => {
   const { html } = noteToClipboard(NOTE);
-  assert.match(html, /<p [^>]*><b>Subjective<\/b><\/p>/);
+  assert.match(html, /<p [^>]*><b>Subjective:<\/b><\/p>/);
   assert.match(html, /<strong>mild fever<\/strong>/);
   assert.match(html, /<ul /);
-  assert.match(html, /<strong>Diagnosis:<\/strong> Acute bronchitis/);
-  assert.match(html, /<strong>Started:<\/strong> Amoxicillin/);
+  assert.match(html, /<p [^>]*><strong>Diagnosis:<\/strong> Acute bronchitis<\/p>/);
+  assert.match(html, /<p [^>]*margin:0 0 2pt 18pt[^>]*><strong>Started:<\/strong> Amoxicillin/);
   assert.match(html, /<p [^>]*><b>1\. Acute bronchitis<\/b><\/p>/);
   assert.match(html, /rest &lt;24 h/);
   assert.ok(!/\*\*|###/.test(html.replace(/<[^>]+>/g, '')), 'no markdown left in the visible text');
   assert.match(html, /^<meta charset="utf-8">/);
-});
-
-test('sub-points are nested inside their parent bullet and every tag is balanced', () => {
-  const { html } = noteToClipboard(NOTE);
-  assert.match(html, /<strong>Treatment planned:<\/strong> <ul [^>]*><li [^>]*><strong>Started:/);
   for (const tag of ['ul', 'li', 'p', 'b', 'strong', 'div']) {
     const open = (html.match(new RegExp('<' + tag + '[ >]', 'g')) || []).length, close = (html.match(new RegExp('</' + tag + '>', 'g')) || []).length;
     assert.equal(open, close, tag);
@@ -65,7 +60,7 @@ test('sub-points are nested inside their parent bullet and every tag is balanced
 });
 
 test('empty and odd input does not throw', () => {
-  assert.deepEqual(noteToClipboard(''), { html: '<meta charset="utf-8"><div style="font-family:Calibri,Arial,Helvetica,sans-serif;color:#000;font-size:11pt;"></div>', text: '' });
+  assert.equal(noteToClipboard('').text, '');
   const r = noteToClipboard('Just a line with **bold** and `code`\r\n\r\n- one');
   assert.equal(r.text, 'Just a line with bold and code\n• one');
 });

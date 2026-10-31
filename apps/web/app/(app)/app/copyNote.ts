@@ -7,20 +7,21 @@ type Block =
   | { k: 'h'; text: string }                  // "### Subjective"
   | { k: 'sub'; text: string }                // a bold line on its own: "**Vital Signs**"
   | { k: 'num'; n: string; text: string }     // "1. **Problem**"
-  | { k: 'li'; level: number; text: string }  // "- Label: text", indented for the sub-points
+  | { k: 'li'; level: number; text: string; ap?: boolean }  // "- Label: text", indented for the sub-points; ap = a line of the Assessment & Plan (shown without a bullet)
   | { k: 'p'; text: string };
 
 const LABELS = ['diagnosis', 'differential diagnoses', 'investigations planned', 'treatment planned', 'referrals', 'advice', 'follow-up', 'started', 'changed', 'stopped', 'continued', 'given today', 'other'];
 
 function parse(md: string): Block[] {
   const out: Block[] = [];
+  let inAP = false;
   for (const raw of String(md || '').replace(/\r\n?/g, '\n').split('\n')) {
     const ln = raw.replace(/\s+$/, '');
     if (!ln.trim()) continue;
     let m: RegExpMatchArray | null;
-    if ((m = ln.match(/^#{1,6}\s+(.*)$/))) { out.push({ k: 'h', text: m[1].trim() }); continue; }
+    if ((m = ln.match(/^#{1,6}\s+(.*)$/))) { inAP = /assessment/i.test(m[1]); out.push({ k: 'h', text: m[1].trim() }); continue; }
     if ((m = ln.match(/^\s*(\d+)\.\s+\*\*(.+?)\*\*\s*$/))) { out.push({ k: 'num', n: m[1], text: m[2].trim() }); continue; }
-    if ((m = ln.match(/^(\s*)[-*•]\s+(.*)$/))) { const ind = m[1].replace(/\t/g, '    ').length; out.push({ k: 'li', level: ind >= 5 ? 2 : ind >= 2 ? 1 : 0, text: m[2].trim() }); continue; }
+    if ((m = ln.match(/^(\s*)[-*•]\s+(.*)$/))) { const ind = m[1].replace(/\t/g, '    ').length; out.push({ k: 'li', level: ind >= 5 ? 2 : ind >= 2 ? 1 : 0, text: m[2].trim(), ap: inAP }); continue; }
     if ((m = ln.match(/^\s*\*\*(.+?)\*\*\s*$/))) { out.push({ k: 'sub', text: m[1].trim() }); continue; }
     out.push({ k: 'p', text: ln.trim() });
   }
@@ -50,9 +51,10 @@ export function noteToClipboard(md: string): { html: string; text: string } {
   const t: string[] = [];
   const gap = () => { if (t.length && t[t.length - 1] !== '') t.push(''); };
   for (const b of blocks) {
-    if (b.k === 'h') { gap(); t.push(plainInline(b.text).toUpperCase()); }
+    if (b.k === 'h') { gap(); t.push(plainInline(b.text) + ':'); }
     else if (b.k === 'sub') { gap(); t.push(plainInline(b.text)); }
     else if (b.k === 'num') { gap(); t.push(`${b.n}. ${plainInline(b.text)}`); }
+    else if (b.k === 'li' && b.ap) t.push(' '.repeat(Math.max(0, b.level - 1) * 3) + plainInline(b.text));   // the plan is shown without bullets, so it is copied without bullets
     else if (b.k === 'li') t.push(' '.repeat(b.level * 3) + (b.level < 2 ? '• ' : '– ') + plainInline(b.text));
     else t.push(plainInline(b.text));
   }
@@ -69,6 +71,13 @@ export function noteToClipboard(md: string): { html: string; text: string } {
     while (depth > to) { h.push('</li></ul>'); depth--; }
   };
   for (const b of blocks) {
+    if (b.k === 'li' && b.ap) {   // a plan line: a plain paragraph, a sub-point indented
+      closeTo(0);
+      const ls = labelSplit(b.text);
+      const body = ls ? `<strong>${esc(plainInline(ls.lab))}:</strong> ${htmlInline(ls.rest)}` : htmlInline(b.text);
+      h.push(`<p style="margin:0 0 2pt ${b.level >= 2 ? 18 : 0}pt;${FONT}font-size:11pt;line-height:1.4;">${body}</p>`);
+      continue;
+    }
     if (b.k === 'li') {
       const d = b.level === 2 ? 2 : 1;
       const ls = labelSplit(b.text);
@@ -85,7 +94,7 @@ export function noteToClipboard(md: string): { html: string; text: string } {
       continue;
     }
     closeTo(0);
-    if (b.k === 'h') h.push(`<p style="margin:14pt 0 4pt 0;${FONT}font-size:13pt;font-weight:700;"><b>${htmlInline(b.text)}</b></p>`);
+    if (b.k === 'h') h.push(`<p style="margin:14pt 0 4pt 0;${FONT}font-size:13pt;font-weight:700;"><b>${htmlInline(b.text)}:</b></p>`);
     else if (b.k === 'sub') h.push(`<p style="margin:6pt 0 2pt 0;${FONT}font-size:11pt;font-weight:700;"><b>${htmlInline(b.text)}</b></p>`);
     else if (b.k === 'num') h.push(`<p style="margin:8pt 0 2pt 0;${FONT}font-size:11pt;font-weight:700;"><b>${esc(b.n)}. ${htmlInline(b.text)}</b></p>`);
     else h.push(`<p style="margin:0 0 4pt 0;${FONT}font-size:11pt;line-height:1.4;">${htmlInline(b.text)}</p>`);
