@@ -57,6 +57,8 @@ import { askCoverageWindowed } from './coverageWindows.js';
 const askCoverage = (llm, note, tx, o = {}) => (process.env.COVERAGE_WINDOWS === '1' ? askCoverageWindowed(llm, note, tx, o, { makeLlm: o.makeLlm }) : askCoverageWhole(llm, note, tx, o));
 import { issuesOf, remapCoverageRaw, askLedgerEarly, ledgerShim } from './gapEarly.js';
 import { structureTreatment } from './treatmentStructure.js';
+import { finishLayout } from './layoutFinish.js';
+import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
 import { reconcileFacts } from './factLedger.js';
@@ -807,7 +809,7 @@ export async function generateNoteV2(input, opts = {}) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
     const storyModel = opts.storyModel || cfg['story.model']; used.config.story = storyModel;
     const storyLlm = await createGeminiService(null, { model: storyModel });
-    const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text, timeoutMs: cfg['story.timeoutMs'] });
+    const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text || (process.env.STORY_STYLE === 'flat' ? STORY_FLAT_SYS : undefined), timeoutMs: cfg['story.timeoutMs'] });   // STORY_STYLE=flat: storyFlat.js (template layout, local test)
     lap('story', ts);
     if (sr.out) {
       for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim();
@@ -939,7 +941,8 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== '0' && cfg['stage.fidelityGuards'] !== false) { try { const fg = fidelityGuards(note, transcript, { refMeds, log, missing: missingNumbers }); if (opts.trace) opts.trace.fidelity = fg; } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); } }   // Style Spec v2.1: unheard drug/test names, social history nobody said, empty headings, duplicates
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
-  const renderedNote = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  const renderedStructured = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
+  const renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log);   // layoutFinish.js: REPEAT_TRIM=1 and NOTE_FORMAT=template, both off by default
   if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
     try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
   }
