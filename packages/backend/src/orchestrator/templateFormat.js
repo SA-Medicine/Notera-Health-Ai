@@ -79,6 +79,24 @@ export function toTemplateFormat(md) {
   // one drug is one line: "Start Lexapro 10 mg" and "Lexapro (escitalopram) 10 mg" are the same line
   const dkey = (l) => norm(l.replace(/\([^)]*\)/g, '').replace(/^(start|stop|continue|resume|change|increase|reduce|prescribe)\s+/i, ''));
   for (const p of problems) { const seen = new Set(); p.lines = p.lines.filter((l) => { const k = dkey(l); if (!k || seen.has(k)) return false; seen.add(k); return true; }); }
+  // tidy each problem: no empty brackets, a short line that a longer line in the same problem already says goes, "Continue" becomes "Resume" when the problem says the patient had stopped or missed it
+  const STATE = /\b(stopped (due|because)|non-?adheren\w*|not taking|did not take|didn't take|missed|ran out|stopped taking)\b/i;
+  const core = (l) => norm(l.replace(/\([^)]*\)/g, '').replace(/^(start|stop|continue|resume|change|increase|reduce|prescribe|arrange|referral to)\s+/i, ''));
+  for (const p of problems) {
+    p.lines = p.lines.map((l) => l.replace(/\s*\(\s*\)/g, '').replace(/\s{2,}/g, ' ').trim()).filter(Boolean);
+    const keys = p.lines.map(core);
+    p.lines = p.lines.filter((l, a) => !(keys[a].length >= 10 && keys.some((k, b) => b !== a && k.length > keys[a].length && k.includes(keys[a]))));
+    if (p.lines.some((l) => !/^(Stop|Discontinue)[ ]/.test(l) && STATE.test(l))) p.lines = p.lines.map((l) => l.replace(/^Continue\s+/, 'Resume '));
+  }
+  // a problem with no line of its own whose words another problem already has is a duplicate title (e.g. "Hypercholesterolemia" after "Elevated cholesterol")
+  const words = (s) => String(s).toLowerCase().match(/[a-z]{4,}/g) || [];
+  const same = (m, o) => m.length >= 7 && o.length >= 7 && (m.includes(o.slice(0, 7)) || o.includes(m.slice(0, 7)));
+  for (let k = problems.length - 1; k >= 0; k--) {
+    const p = problems[k]; if (p.lines.length) continue;
+    const mine = words(p.title);
+    const other = problems.filter((q, j) => j !== k).flatMap((q) => [q.title, ...q.lines]).flatMap(words);
+    if (mine.some((m) => other.some((o) => same(m, o)))) problems.splice(k, 1);
+  }
   // write the problems
   const apAt = out.findIndex((l) => /^###\s+Assessment/i.test(l));
   if (apAt >= 0) {

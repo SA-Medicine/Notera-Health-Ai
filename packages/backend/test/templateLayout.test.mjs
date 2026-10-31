@@ -66,3 +66,14 @@ test('template layout: empty input and a note without a plan', () => {
   assert.equal(toTemplateFormat(''), '');
   assert.equal(toTemplateFormat('### Subjective\n- One line'), '### Subjective\n- One line');
 });
+
+test('template layout: tidy pass (empty brackets, contained lines, Resume after a stopped drug, duplicate empty problem)', () => {
+  const md = '### Assessment & Plan\n1. **Elevated cholesterol**\n   - Highest ever\n   - Stopped taking it due to leg pain\n   - Continued: Lipitor 20 mg daily\n   - Referrals: ramp clinic ()\n   - Advice: Blood pressure pill; Continue Blood pressure pill every day\n2. **Hypercholesterolemia**\n3. **Anxiety**\n';
+  const t = toTemplateFormat(md);
+  assert.match(t, /- Resume Lipitor 20 mg daily/);
+  assert.ok(!/\(\)/.test(t));
+  assert.ok(!/- Blood pressure pill\n/.test(t) && /Blood pressure pill every day/.test(t));
+  assert.ok(!/Hypercholesterolemia/.test(t));
+  assert.match(t, /\*\*Anxiety\*\*/);
+  assert.match(toTemplateFormat('### Assessment & Plan\n1. **A**\n   - Stopped: aspirin\n   - Continued: Lipitor 20 mg\n'), /Continue Lipitor 20 mg/);
+});
