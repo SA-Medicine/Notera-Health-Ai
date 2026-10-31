@@ -118,6 +118,19 @@ export function strictPlan(md, transcript = '', log = () => {}) {
     p.lines = keep;
   }
 
+  // 4b. the same vaccine written twice in one problem ("Shingrix dose 1 administered today" and "Shingles vaccination (Shingrix) first dose administered (given today)") is one line
+  const GIVEN = /(administered|given today)/i; const VAC_COMMON = new Set('administered vaccine vaccination immunisation immunization given today dose first second left right arm shot'.split(' '));
+  for (const p of problems) {
+    const keep = [];
+    for (const l of p.lines) {
+      const key = GIVEN.test(l) ? words(l).filter((w) => w.length >= 6 && !VAC_COMMON.has(w)) : [];
+      const k = key.length ? keep.findIndex((x) => GIVEN.test(x) && words(x).some((w) => key.includes(w))) : -1;
+      if (k < 0) { keep.push(l); continue; }
+      note(`same vaccine merged: "${keep[k].length >= l.length ? l.slice(0, 40) : keep[k].slice(0, 40)}"`); if (l.length > keep[k].length) keep[k] = l;
+    }
+    p.lines = keep;
+  }
+
   // 2. a problem named only by a drug becomes one "Medication prescriptions" problem
   const allDrugLines = problems.flatMap((p) => p.lines.filter(isDrugLine));
   const isDrugTitle = (p) => {
