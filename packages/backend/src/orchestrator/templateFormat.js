@@ -12,7 +12,7 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // A label that carries a decision is turned into the verb it stood for, so no meaning is lost when the label goes:
 // "Stopped: aspirin" -> "Stop aspirin", "Referrals: ramp clinic" -> "Referral to ramp clinic". Labels that only named the line (Advice, Other, Treatment planned) just go.
-const VERB_START = /^(arrang|order|repeat|check|book|schedul|request|proceed|obtain|do |perform|send|get|recheck|review|follow|refer|start|stop|continue|resume|increase|decrease|change|prescrib|give|take|avoid|discuss)/i;
+const VERB_START = /^(arrang|order|repeat|check|book|schedul|request|proceed|obtain|do |perform|send|get|recheck|review|follow|refer|start|stop|continue|resume|increase|decrease|change|prescrib|give|take|avoid|discuss|note|letter|ask|inform|counsel|advis|bring|keep|protect|monitor|maintain|look|offer|instruct)/i;
 const HAS_ACTION = /\b(order\w*|arrang\w*|schedul\w*|plann\w*|book\w*|request\w*|sent|send|repeat|too early|needed|will)\b/i;
 // A verb (Start / Stop / Continue / Change) goes only in front of a drug or treatment; a diet, a test or a plain statement is left as written.
 const TREATMENT_WORDS = /(\bpills?\b|\btablets?\b|\bcapsules?\b|\bcream\b|\bointment\b|\binhaler\b|\bspray\b|\bdrops\b|\binjections?\b|\binsulin\b|\bpatch\b|\bvaccine\b|\bmedications?\b|\bantibiotics?\b|\bsupplements?\b|\bgel\b|\bmuscle relaxant\b|\bpuffs?\b)/i;
