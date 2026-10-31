@@ -236,3 +236,7 @@ body.dark-mode .notera-shell .top-bar .top-resume-btn.glass:not(.recording):hove
 .notera-shell .copy-main:active { transform: scale(.97); }
 body.dark-mode .notera-shell .copy-main { background: var(--aub-300); color: #2a0b25; }
 @media (prefers-reduced-motion: reduce) { .notera-shell .copy-main { transition: none; } }
+
+/* ── the plan labels (Diagnosis, Treatment planned, Started, Referrals, Advice, Follow-up …) are one colour: the colour of the note text ── */
+.notera-shell .note-body .ap-lbl, .notera-shell .note-body li > .ap-lbl { color: var(--text-primary, #111) !important; font-weight: 650; }
+body.dark-mode .notera-shell .note-body .ap-lbl, body.dark-mode .notera-shell .note-body li > .ap-lbl { color: inherit !important; }
