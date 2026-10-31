@@ -13,6 +13,7 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 // A label that carries a decision is turned into the verb it stood for, so no meaning is lost when the label goes:
 // "Stopped: aspirin" -> "Stop aspirin", "Referrals: ramp clinic" -> "Referral to ramp clinic". Labels that only named the line (Advice, Other, Treatment planned) just go.
 const VERB_START = /^(arrang|order|repeat|check|book|schedul|request|proceed|obtain|do |perform|send|get|recheck|review|follow|refer|start|stop|continue|resume|increase|decrease|change|prescrib|give|take|avoid|discuss)/i;
+const HAS_ACTION = /\b(order\w*|arrang\w*|schedul\w*|plann\w*|book\w*|request\w*|sent|send|repeat|too early|needed|will)\b/i;
 function phrase(label, t) {
   const low = t;   // brand names keep their capital
   switch (label) {
@@ -21,8 +22,8 @@ function phrase(label, t) {
     case 'continued': return /^(continu|resume|refill|renew|keep)/i.test(t) ? t : 'Continue ' + low;
     case 'changed': return /^(chang|increas|decreas|adjust|switch|reduc)/i.test(t) ? t : 'Change ' + low;
     case 'given today': return /today/i.test(t) ? t : t + ' (given today)';
-    case 'referrals': return /referr/i.test(t) ? t : 'Referral to ' + low;
-    case 'investigations planned': return VERB_START.test(t) ? t : 'Arrange ' + low;
+    case 'referrals': return (/referr/i.test(t) || VERB_START.test(t)) ? t : 'Referral to ' + low;
+    case 'investigations planned': return (VERB_START.test(t) || HAS_ACTION.test(t)) ? t : 'Arrange ' + low;
     case 'differential diagnoses': return 'Differential diagnoses: ' + t;
     case 'diagnosis': return 'Diagnosis: ' + t;
     default: return t;
@@ -54,6 +55,7 @@ export function toTemplateFormat(md) {
     if (!/assessment/i.test(section)) {
       if (/^\*\*[^*]+\*\*\s*$/.test(ln.trim())) continue;   // a bold topic or group line
       if (!ln.trim()) continue;                              // blank lines between topics
+      if (/^\s*[-*]\s+[^:]{2,70}:\s*$/.test(ln)) continue;  // a topic heading written as a bullet ("Gastroesophageal Reflux Disease (GERD):")
       out.push(ln); continue;
     }
     // Assessment & Plan

@@ -52,7 +52,7 @@ export function trimRepeats(md, opts = {}) {
 
   // ── 1b. the same line under two problems (or twice under one) ──
   // The copy under a generic heading ("Periodic health examination", "Investigations") goes; otherwise the later copy goes.
-  const GENERIC = /^(periodic|health maintenance|investigations?|administrative|medication|refill|preventive|other|general|screening)/i;
+  const GENERIC = /^(periodic|health maintenance|investigations?\b|administrative|medication|refill|preventive|other|general|screening)/i;
   const ap = info.filter((r) => /assessment/i.test(r.section) && /^\s+[-*]\s/.test(r.ln));
   const seen = [];
   for (const r of ap) {
