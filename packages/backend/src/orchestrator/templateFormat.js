@@ -7,15 +7,21 @@
 'use strict';
 
 const LABELS = ['Diagnosis', 'Differential diagnoses', 'Investigations planned', 'Treatment planned', 'Referrals', 'Advice', 'Follow-up', 'Started', 'Changed', 'Stopped', 'Continued', 'Given today', 'Other'];
-const LABEL_RE = new RegExp('^(' + LABELS.join('|') + '):\s*(.*)$', 'i');
+const LABEL_RE = new RegExp('^(' + LABELS.join('|') + '):[ ]*(.*)$', 'i');   // note: no backslash escapes inside this string
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // A label that carries a decision is turned into the verb it stood for, so no meaning is lost when the label goes:
 // "Stopped: aspirin" -> "Stop aspirin", "Referrals: ramp clinic" -> "Referral to ramp clinic". Labels that only named the line (Advice, Other, Treatment planned) just go.
 const VERB_START = /^(arrang|order|repeat|check|book|schedul|request|proceed|obtain|do |perform|send|get|recheck|review|follow|refer|start|stop|continue|resume|increase|decrease|change|prescrib|give|take|avoid|discuss)/i;
 const HAS_ACTION = /\b(order\w*|arrang\w*|schedul\w*|plann\w*|book\w*|request\w*|sent|send|repeat|too early|needed|will)\b/i;
+// A verb (Start / Stop / Continue / Change) goes only in front of a drug or treatment; a diet, a test or a plain statement is left as written.
+const TREATMENT_WORDS = /(\bpills?\b|\btablets?\b|\bcapsules?\b|\bcream\b|\bointment\b|\binhaler\b|\bspray\b|\bdrops\b|\binjections?\b|\binsulin\b|\bpatch\b|\bvaccine\b|\bmedications?\b|\bantibiotics?\b|\bsupplements?\b|\bgel\b|\bmuscle relaxant\b|\bpuffs?\b)/i;
+const DOSE = /\d\s?(mg|mcg|g|ml|iu|units?|%)(\b|$)/i;
+const DRUG_END = /(pril|sartan|statin|olol|azole|mab|cillin|mycin|cycline|prazole|gliptin|gliflozin|zepam|zolam|profen|oxetine|pram|ipine|dipine|lone|sone|formin|mide|thiazide|xaban|parin|tropin|setron)$/i;
+const isTreatment = (t) => DOSE.test(t) || TREATMENT_WORDS.test(t) || /\([a-z][^)]+\)/i.test(t) || t.split(/[^A-Za-z]+/).some((w) => w.length > 5 && DRUG_END.test(w));
 function phrase(label, t) {
   const low = t;   // brand names keep their capital
+  if (['started', 'continued', 'changed'].includes(label) && !isTreatment(t) && t.trim().split(/ +/).length > 1) return t;   // a single word after these labels is a drug name; "Stopped" always keeps its verb
   switch (label) {
     case 'started': return /^(start|prescrib|begin|initiat)/i.test(t) ? t : 'Start ' + low;
     case 'stopped': return /^(stop|discontinu|hold)/i.test(t) ? t : 'Stop ' + low;
@@ -70,6 +76,9 @@ export function toTemplateFormat(md) {
     const items = splitTop(body);
     for (const it of items) { if (label === 'follow-up') follow.push(it); else cur.lines.push(phrase(label, it)); }
   }
+  // one drug is one line: "Start Lexapro 10 mg" and "Lexapro (escitalopram) 10 mg" are the same line
+  const dkey = (l) => norm(l.replace(/\([^)]*\)/g, '').replace(/^(start|stop|continue|resume|change|increase|reduce|prescribe)\s+/i, ''));
+  for (const p of problems) { const seen = new Set(); p.lines = p.lines.filter((l) => { const k = dkey(l); if (!k || seen.has(k)) return false; seen.add(k); return true; }); }
   // write the problems
   const apAt = out.findIndex((l) => /^###\s+Assessment/i.test(l));
   if (apAt >= 0) {

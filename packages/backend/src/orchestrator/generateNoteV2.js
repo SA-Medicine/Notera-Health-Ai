@@ -64,6 +64,7 @@ import { buildFactGraphPlus } from './factGraphPlus.js';
 import { reconcileFacts } from './factLedger.js';
 import { checkDrugs } from './drugCheck.js';
 import { stripCitations } from './factLedger.js';
+import { templateAddendum } from './writerAddendum.js';
 
 const PIPELINE_VERSION = process.env.PIPELINE_VERSION_V2 || 'notera-pipeline-v2.0';
 
@@ -653,7 +654,7 @@ export async function generateNoteV2(input, opts = {}) {
       const tw = Date.now();
       // Prompt precedence: per-call override (lab experiments) > active promoted version (admin console) > code default.
       const wMeta = opts.writerPrompt ? null : await getActivePromptMeta(WRITER_PROMPT_NAME);
-      const writerPrompt = opts.writerPrompt || wMeta?.text || defaultWriterPrompt();
+      const writerPrompt = (opts.writerPrompt || wMeta?.text || defaultWriterPrompt()) + templateAddendum();
       used.prompts.writer = opts.writerPrompt ? 'experiment' : wMeta ? `v${wMeta.version}` : 'default';
       const cMeta = await getActivePromptMeta(CHECKLIST_PROMPT_NAME); used.prompts.checklist = cMeta ? `v${cMeta.version}` : 'default';
       const vMeta = await getActivePromptMeta(VERIFIER_PROMPT_NAME); used.prompts.verifier = vMeta ? `v${vMeta.version}` : 'default';
