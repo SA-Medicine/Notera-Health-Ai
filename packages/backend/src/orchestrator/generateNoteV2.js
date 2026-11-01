@@ -943,7 +943,9 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && opts.joinPlanLabels !== false && process.env.PLAN_JOIN_LABELS !== '0' && cfg['stage.planJoin'] !== false) { try { joinPlanLines(note, log); } catch (e) { log(`[v2:join] skipped — ${e.message}`); } }   // F2: each label once per problem
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
   const renderedStructured = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
-  const renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log, transcript);   // layoutFinish.js: REPEAT_TRIM=1 and NOTE_FORMAT=template, both off by default
+  const layoutFlags = [];
+  const renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log, transcript, layoutFlags);   // layoutFinish.js: REPEAT_TRIM=1, NOTE_FORMAT=template, NOTE_STRICT=1, all off by default
+  if (layoutFlags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...layoutFlags]; }
   if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
     try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
   }

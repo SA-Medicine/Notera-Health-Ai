@@ -74,7 +74,7 @@ const rank = (s) => {
   if (/^Start/.test(s)) { const w = windowAround(_tr, candidates(s)); return NEWRX.test(w) && !CONT.test(w) ? 2 : 0.5; }
   return /^Continue/.test(s) ? 1 : 0;
 };
-const PROBLEM_STATE = /\b(off (treatment|medication|therapy)|stopped (due|because|taking)|non-?adheren\w*|not taking)\b/i;
+const PROBLEM_STATE = /\b(off (treatment|medication|therapy)|stopped (due|because|taking)|non-?adheren\w*|non-?complian\w*|not complian\w*|not taking|not been taking|didn'?t take)\b/i;
 
 export function strictPlan(md, transcript = '', log = () => {}) {
   if (!md) return md;

@@ -44,7 +44,7 @@ const SOCIAL = [
   { name: 'smoking', claim: /\b(non[- ]?smoker|ex[- ]?smoker|smok(?:es?|ing|er)|tobacco|cigarettes?|vap(?:es?|ing))\b/i,
     own: /\bnon[- ]?smoker\b|\bex[- ]?smoker\b|\bcigarettes?\b|\bpacks? (?:a|per) day\b|\bquit smoking\b|\bnever smoked\b|\b(?:do|did|have|are|were) you\b[^.?!]{0,30}\b(?:smok\w*|vap\w*|tobacco)|\bi\b[^.?!]{0,25}\b(?:smok\w*|vap\w*)\b|\bsmok\w*[^.?!]{0,30}\?/i },
   { name: 'alcohol', claim: /\b(alcohol(?:ic)?|etoh|wine|beer|liquor|spirits|drinks? (?:alcohol|wine|beer)|drinking (?:alcohol|wine|beer))\b/i,
-    own: /\b(?:do|did|have|are|how much|how many|how often)\b[^.?!]{0,30}\b(?:alcohol|wine|beer)\b|\b(?:do|did) you (?:\w+ )?drink\b(?! (?:water|coffee|tea|enough|any water))|\bi\b[^.?!]{0,25}\b(?:wine|beer|alcohol)\b|\bi (?:don'?t |do not |never |rarely |occasionally )?drink (?:alcohol|wine|beer|socially)|\b(?:glass(?:es)? of (?:wine|beer)|socially|teetotal)\b/i },
+    own: /\b(?:do|did|have|are|how much|how many|how often)\b[^.?!]{0,30}\b(?:alcohol|wine|beer)\b|\bdrink\w*[^.?!]{0,30}\balco\w*|\b(?:do|did) you (?:\w+ )?drink\b(?! (?:water|coffee|tea|enough|any water))|\bi\b[^.?!]{0,25}\b(?:wine|beer|alcohol)\b|\bi (?:don'?t |do not |never |rarely |occasionally )?drink (?:alcohol|wine|beer|socially)|\b(?:glass(?:es)? of (?:wine|beer)|socially|teetotal)\b/i },
   { name: 'drugs', claim: /\b(cannabis|marijuana|weed|recreational drugs?|illicit drugs?|street drugs?)\b/i,
     own: /\b(?:cannabis|marijuana|weed|recreational|street drugs?)\b[^.?!]{0,40}\b(?:i|you|use|smoke|take)\b|\b(?:do|did|have) you\b[^.?!]{0,30}\b(?:drugs|cannabis|marijuana)\b/i },
   { name: 'living', claim: /\b(?:lives? (?:alone|with [a-z ]+?)|living (?:alone|with [a-z ]+?)|lives at home)\b/i, own: /\b(?:do you|where do you|who do you|i|we) live\b|\blives? (?:alone|with|at home|in (?:a|an|the))\b|\bliving (?:alone|with|at home)\b|\bby myself\b|\bon my own\b/i },
@@ -53,6 +53,7 @@ const SOCIAL = [
 ];
 const ADVICE = /\b(avoid|advis\w*|counsel\w*|triggers?|worsen\w*|aggravat\w*|can make|reduce|limit|cut (?:down|out)|recommend\w*|stop|quit)\b/i;
 const CLAUSE = /(,\s+|;\s+|\s+and\s+|\s+but\s+)/;
+const LEAD = /^\s*(?:denies|denied|no|nil|negative for|does not (?:smoke|drink|use)|doesn'?t (?:smoke|drink|use)|never|non-?)\s*(?=\S)/i;   // the negating word that opens a list of social-history items
 
 export function socialGuard(note, transcript) {
   const T = String(transcript || ''); const removed = [];
@@ -70,6 +71,9 @@ export function socialGuard(note, transcript) {
       }
       if (!dropped) return line;
       if (!keep.length) return null;
+      // "Denies alcohol use and smoking": the verb belongs to the whole list. Dropping the first clause must not leave a bare "Smoking" (it reads as a positive).
+      const lead = (parts[0].match(LEAD) || [''])[0];
+      if (lead && !LEAD.test(keep[0]) && keep[0] !== parts[0]) keep[0] = lead + keep[0];
       return pre + cap(keep.join(', ').trim());
     });
     if (out.some((x, i) => x !== pieces(f)[i])) setPieces(f, out);

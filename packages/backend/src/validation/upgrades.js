@@ -390,6 +390,16 @@ function groundedNumbers(transcript) {
     const lead = ones[words[i - 1]];
     if (lead !== undefined) set.add(String(lead) + String(two).padStart(2, '0')); // "one thirty-seven" → 137
   }
+  // "hundred and sixty" → 160, "one hundred and forty-nine" → 149, "two hundred twelve" → 212 (a blood pressure said in full words)
+  for (let i = 0; i < words.length; i++) {
+    if (words[i] !== 'hundred') continue;
+    const mult = ones[words[i - 1]] !== undefined ? ones[words[i - 1]] : 1;
+    let j = i + 1; if (words[j] === 'and') j++;
+    let add = 0;
+    if (tens[words[j]] !== undefined) { add = tens[words[j]]; if (ones[words[j + 1]] !== undefined) add += ones[words[j + 1]]; }
+    else if (W2N[words[j]] !== undefined && W2N[words[j]] < 20) add = W2N[words[j]];
+    if (add) set.add(String(mult * 100 + add));
+  }
   return set;
 }
 export function flagUngroundedNumbers(note, transcript = '', log = () => {}) {
