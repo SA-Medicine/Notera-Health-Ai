@@ -71,3 +71,12 @@ test('a drug the patient is not taking is resumed, not continued, even when the 
   assert.match(r.md, /Resume Lipitor 20 mg daily/);
   assert.match(r.md, /Lipitor 20 mg daily \(not currently taking\)/);
 });
+
+test('a test nobody named is also taken out of the Follow-up item', () => {
+  const T = 'x'.repeat(220) + ' We will check your sugar again in three months.';
+  const md = '### Subjective\n- Sugar\n\n### Past Medical History\n- None\n\n### Objective\n- Deferred\n\n### Assessment & Plan\n1. **Sugar**\n   - Diet advice\n2. **Follow-up**\n   - Recheck blood glucose / HbA1c in 3 months\n';
+  const r = safetyPass(md, T, () => {});
+  assert.ok(!/HbA1c/.test(r.md), r.md);
+  assert.match(r.md, /Recheck blood glucose in 3 months/);
+  assert.ok(r.flags.some((f) => f.type === 'test_not_said'));
+});

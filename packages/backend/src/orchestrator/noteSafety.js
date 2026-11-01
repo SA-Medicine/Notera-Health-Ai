@@ -169,7 +169,7 @@ const TESTS = [
 const REFERRAL_DONE = /\b(sent|submitted|faxed|placed|put in|made the referral|referred you|i('| ha)ve referred)\b/i;
 function fixUnsupported(P, T, flags, note) {
   const monitorOnlyMaybe = (() => { const s = sentencesOf(T).filter((x) => /monitor/i.test(x)); return s.length > 0 && s.every((x) => /\b(if|whether|or not|anything)\b/i.test(x)); })();
-  for (const p of P.problems) {
+  for (const p of [...P.problems, ...(P.follow ? [P.follow] : [])]) {   // the Follow-up item too
     const keep = [];
     for (const l of p.lines) {
       let line = l;
@@ -178,7 +178,7 @@ function fixUnsupported(P, T, flags, note) {
       if (missing.length) {
         const sibling = p.lines.find((x) => x !== l && /^(repeat|arrange|order)/i.test(x) && toks(x).filter((w) => toks(l).includes(w)).length >= 2 && !missing.some(([, r]) => r.test(x)));
         if (sibling) { note(`unsupported test line dropped (${missing.map((x) => x[0]).join(', ')}): "${l.slice(0, 50)}"`); flags.push({ type: 'test_not_said', field: 'assessment_and_plan', severity: 'warning', message: `"${l}" named ${missing.map((x) => x[0]).join(' and ')}, which the recording never says. Dropped; "${sibling}" stays.` }); continue; }
-        let n = line; for (const [, r] of missing) n = n.replace(new RegExp('\\s*(,|and|&)?\\s*' + r.source.replace(/\\b/g, ''), 'ig'), '');
+        let n = line; for (const [, r] of missing) n = n.replace(new RegExp('\\s*(,|and|&|/)?\\s*' + r.source.replace(/\\b/g, ''), 'ig'), '');
         n = n.replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
         flags.push({ type: 'test_not_said', field: 'assessment_and_plan', severity: 'warning', message: `"${l}" named ${missing.map((x) => x[0]).join(' and ')}, which the recording never says. Taken out of the line.` });
         note(`unsupported test word removed: "${l.slice(0, 50)}"`); line = n;
