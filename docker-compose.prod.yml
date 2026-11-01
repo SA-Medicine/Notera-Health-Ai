@@ -42,10 +42,14 @@ services:
       # NOTE: do NOT set DATABASE_URL here — a compose `environment:` value overrides env_file,
       # which would drop the password. DATABASE_URL comes from .env.production (with password).
       DATA_DIR: /app/.data
+      # Note layout layer (2026-11-01, owner-approved): the doctor's preferred layout on the finished note. Set a value to 0 (or remove the line) to go back to the previous layout.
+      REPEAT_TRIM: "1"          # exact repeats inside a line / between problems
+      NOTE_FORMAT: template     # flat lists, plain plan lines, Follow-up as the last numbered item
+      NOTE_STRICT: "1"          # drug verbs checked against the transcript, drug-named problems folded, empty problems dropped
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
-      - backend_data:/app/.data         # persists the HMAC session secret across restarts
+      - backend_data:/app/.data        # persists the HMAC session secret across restarts
       - ./secrets/sa-key.json:/app/secrets/sa-key.json:ro   # Vertex/Speech service-account key
     networks: [notera_net]
 
