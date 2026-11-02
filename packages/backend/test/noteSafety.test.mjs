@@ -80,3 +80,10 @@ test('a test nobody named is also taken out of the Follow-up item', () => {
   assert.match(r.md, /Recheck blood glucose in 3 months/);
   assert.ok(r.flags.some((f) => f.type === 'test_not_said'));
 });
+
+test('a patient who missed her medicines on a trip but took them again is not marked "not currently taking"', () => {
+  const T = 'x'.repeat(220) + ' The luggage got lost and I had no meds for the whole trip. I am back on the medicine for a week.';
+  const md = '### Subjective\n- Missed all medications for 18 to 20 days during a trip due to lost luggage\n- Resumed medications for 1 week upon returning home\n\n### Past Medical History\n- Medications: medication (name unclear), second antihypertensive, Boniva, sleeping pill.\n\n### Objective\n- BP 120/60 mmHg\n\n### Assessment & Plan\n1. **Hypertension**\n   - Stop calcium channel blocker\n';
+  const r = safetyPass(md, T, () => {});
+  assert.ok(!/not currently taking/.test(r.md), r.md);
+});

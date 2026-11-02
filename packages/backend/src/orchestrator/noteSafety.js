@@ -218,9 +218,12 @@ function markNotTaking(P, note) {
     const tagged = items.map((it) => {
       if (/not (currently )?taking/i.test(it)) return it;
       const w = it.match(/^[A-Za-z]{4,}/); const first = w ? w[0].toLowerCase() : '';
+      if (/^(medication|medications|medicine|medicines|pill|pills|tablet|tablets|second|other|my|the|name)$/.test(first)) return it;   // too generic to match a line about "missed medications"
       const key = /^(blood|high|water|heart)$/.test(first) ? it.toLowerCase().split(/\s+/).slice(0, 2).join(' ') : first;
       if (!key) return it;
-      const hit = others.some((o) => o.toLowerCase().includes(key) && NOT_TAKING.test(o));
+      const RESUMED = /\b(resum\w*|back on|restart\w*|(taking|taken) (them|it) again)\b/i;   // the patient is taking it again: not "not taking"
+      const resumed = P.head.some((o, j) => j !== i && RESUMED.test(o) && (o.toLowerCase().includes(key) || /\b(medications?|meds|medicines?)\b/i.test(o)));
+      const hit = !resumed && others.some((o) => o.toLowerCase().includes(key) && NOT_TAKING.test(o));
       if (hit) {
         note(`medication marked not taking: "${it.slice(0, 40)}"`);
         // a drug the patient is not taking is resumed, not continued
