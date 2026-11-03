@@ -58,6 +58,7 @@ const askCoverage = (llm, note, tx, o = {}) => (process.env.COVERAGE_WINDOWS ===
 import { issuesOf, remapCoverageRaw, askLedgerEarly, ledgerShim } from './gapEarly.js';
 import { structureTreatment } from './treatmentStructure.js';
 import { finishLayout } from './layoutFinish.js';
+import { relevanceFilter, applyDrops } from './relevanceFilter.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
@@ -944,8 +945,11 @@ export async function generateNoteV2(input, opts = {}) {
   const renderedRaw = (!blank && (opts.adviceLines !== false && process.env.ADVICE_LINES !== '0' && cfg['stage.adviceLines'] !== false)) ? splitAdviceLines(noteToMarkdown(note)) : noteToMarkdown(note);
   const renderedStructured = (!blank && opts.treatmentStructure !== false && process.env.TREATMENT_STRUCTURE !== '0' && cfg['stage.treatmentStructure'] !== false) ? structureTreatment(renderedRaw) : renderedRaw;   // Style Spec v2.2: Treatment planned as Started / Changed / Stopped / Continued / Given today sub-points (TREATMENT_STRUCTURE=0 switches off)   // Style Spec v2: Advice and Follow-up as their own lines (ADVICE_LINES=0 switches off)
   const layoutFlags = [];
-  const renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log, transcript, layoutFlags);   // layoutFinish.js: REPEAT_TRIM=1, NOTE_FORMAT=template, NOTE_STRICT=1, all off by default
+  let renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log, transcript, layoutFlags);   // layoutFinish.js: REPEAT_TRIM=1, NOTE_FORMAT=template, NOTE_STRICT=1, all off by default
   if (layoutFlags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...layoutFlags]; }
+  // relevanceFilter.js: lines nobody needs (personal stories, other people's lives). RELEVANCE_FILTER=shadow stores the proposal in note.metadata.relevance and changes nothing; =1 removes the lines. Off by default. Runs beside the drug check.
+  let relP = null; const relMode = process.env.RELEVANCE_FILTER;
+  if (!blank && (relMode === 'shadow' || relMode === '1')) { try { const rllm = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); rllm._agent = 'v2-relevance'; relP = relevanceFilter(rllm, renderedNote, log); } catch (e) { log(`[v2:relevance] not started — ${e.message}`); } }
   if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
     try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
   }
@@ -957,6 +961,14 @@ export async function generateNoteV2(input, opts = {}) {
     const td = Date.now();
     try { const dc = await checkDrugs(renderedNote, transcript, { log, patientMeds: input.patientMeds || opts.patientMeds || [] }); drugReview = dc.review; note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...dc.flags, ...dc.review.map((r) => ({ type: 'drug_review', field: 'medications', severity: 'info', message: JSON.stringify(r) }))]; if (opts.trace) opts.trace.drugs = dc.review; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); }
     lap('drugs', td);
+  }
+
+  if (relP) {
+    try {
+      const rel = await relP; note.metadata ||= {};
+      note.metadata.relevance = { mode: relMode, checked: rel.checked, ms: rel.ms, error: rel.error, drops: rel.drops.map(({ idx, ...d }) => d), vetoed: rel.vetoed.map(({ idx, ...d }) => d) };
+      if (relMode === '1' && rel.drops.length) { renderedNote = applyDrops(renderedNote, rel.drops); log(`[v2:relevance] removed ${rel.drops.length} line(s)`); }
+    } catch (e) { log(`[v2:relevance] skipped — ${e.message}`); }
   }
 
   // 5) persist -------------------------------------------------------------------
