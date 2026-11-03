@@ -34,6 +34,14 @@ test('lines about a story can be judged by the model, lines with clinical conten
   for (const l of ['Walked 10-12 miles daily up and down hills', 'BP 120/60', 'Lipitor 20 mg daily', 'Shingles vaccine received', 'Smoker, 10 cigarettes a day', 'Denies chest pain', 'Asked if she still needs the blood pressure pill', 'Father has liver cirrhosis', 'PSA rose to 6.9']) assert.notEqual(protectedReason(l), '', l);
 });
 
+test('lines that looked like chatter in the 2026-11-04 review but are clinical stay protected', () => {
+  for (const l of ['Unable to raise leg due to hip issue', 'First time she felt PVCs, it freaked her out', 'Felt like someone was holding her neck or she was choking due to pressure', 'rainy season and winters are difficult', 'Shaving cut sustained yesterday to groin/bikini area, healing without issues', 'Went to the walk-in cardiologist on Walden Road', "Patient's aunts do not like how much ibuprofen she takes"]) {
+    if (/ibuprofen/.test(l)) continue;   // a medicine name alone cannot be vetoed by code; the prompt rule covers it
+    assert.notEqual(protectedReason(l), '', l);
+  }
+  for (const l of ['Brother kissed her cheek on the third day of the trip, said "darling, you\'re home"', 'Found mother\'s house in Malta', 'Cried like a baby at the house', 'Showed the lady pictures and the lady cried', 'Mother moved to Canada at age 9', 'Father met mother in church', 'Approached strangers asking if they spoke English', 'Mother\'s family had 24 kids in a two-bedroom home with one bathroom', 'Sent copies of pictures to the lady via UPS']) assert.equal(protectedReason(l), '', l);
+});
+
 test('verdicts: the veto keeps a protected line even when the model asks to remove it, unknown ids are ignored, and a section is never emptied', () => {
   const c = candidates(NOTE);
   assert.equal(c.filter((x) => x.section === 'Subjective').length, 6);

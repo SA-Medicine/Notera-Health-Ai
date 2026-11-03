@@ -19,6 +19,11 @@ KEEP these (when in doubt, KEEP):
 - family history of a disease; occupation, who the patient lives with, smoking, alcohol, drugs
 - what the patient asked for or worries about
 - a trip or activity detail ONLY when it bears on health: missed medicines during travel, exertion tolerance ("walked 10-12 miles a day, hard at first"), a long flight, exposure to illness, a new symptom
+- weather, season or temperature when it is what brings on or eases a symptom ("pain worse in rainy season and winter")
+- a feeling or sensation the patient describes about a symptom ("it freaked her out when she first felt the palpitations", "felt like choking from the pressure")
+- any injury, wound, limitation of movement or function ("unable to raise leg due to hip issue", "shaving cut healing")
+- which doctor, clinic, hospital or specialist the patient saw, and what was done there
+- what a relative or companion says about the patient's medicines, habits or health when it bears on care (an aunt objecting to how much ibuprofen she takes)
 - the clinical consequence of a story, even when the story itself goes ("Walking 10-12 miles daily" stays; "touched the wall of her mother's house and cried" goes)
 Do not remove a line because it repeats another line or is badly worded: other steps handle that. Only judge relevance.
 You get the PROBLEMS the plan covers and the numbered LINES. Return ONLY JSON: {"remove":[{"id":"S3","category":"personal_story|family_anecdote|other_person|non_clinical_history|social_chat","why":"at most 8 words"}]}. If every line is needed return {"remove":[]}.`;
@@ -47,6 +52,9 @@ const VACCINE = /\b(vaccin\w*|immuni[sz]\w*|shot|booster|rsv|flu|influenza|shing
 const CLINICAL = /\b(pain|ache|fever|cough|rash|bleed\w*|nausea|vomit\w*|diarrh\w*|constipat\w*|dizz\w*|faint\w*|fatigue|tired\w*|breath\w*|chest|palpitat\w*|swell\w*|swollen|infect\w*|diagnos\w*|history of|surgery|surgical|operation|allerg\w*|cancer|tumou?r|diabet\w*|hypertens\w*|asthma|copd|arthritis|depress\w*|anxi\w*|insomnia|sleep\w*|migraine|headache|stroke|heart|cardiac|kidney|renal|liver|thyroid|osteopor\w*|bone|cholesterol|seizure|epilep\w*|asthma|symptom\w*|denies|no (history|known|pain|fever)|negative|positive|stool|bowel|urin\w*|menstr\w*|period|pregnan\w*|breast|weight|appetite|memory|forget\w*|mood|stress\w*|worr\w*|concern\w*|scared|afraid|heart attack)\b/i;
 const PLAN = /\b(refill|renew\w*|prescri\w*|referr\w*|follow[- ]?up|requisition|start\w*|stop\w*|continue\w*|resume\w*|recheck|review|asks?|asked|request\w*|inquir\w*|wants?|medication\w*|medicine\w*|pills?|tablet\w*|capsule\w*|cream|inhaler|insulin|dose\w*|supplement\w*)\b/i;
 const SOCIAL = /\b(smok\w*|tobacco|cigarette\w*|vap\w*|alcohol|drink\w*|drug use|cannabis|marijuana|lives (alone|with)|living (alone|with)|occupation|works?\b|working|retired|unemployed|student|grade \d+|school|married|single|widow\w*|divorced|caregiver)\b/i;
+const BODY = /\b(head|neck|back|hip|knee|leg|legs|arm|arms|shoulder|foot|feet|toe|toes|ankle|wrist|hand|hands|finger|fingers|eye|eyes|ear|ears|nose|throat|skin|wound|cut|laceration|injur\w*|sore|lump|mass|cyst|groin|abdom\w*|stomach|belly|chest|jaw|tooth|teeth|pvcs?|choking|pressure|numb(?:ness|ing|ed)?|tingl\w*|unable|cannot|can'?t|difficulty|trouble|struggl\w*|limp\w*|stiff\w*|flare\w*|trigger\w*|worse|worsen\w*|better|improv\w*)\b/i;
+const VISIT = /\b(doctor|dr\.?|physician|specialist|cardiolog\w*|neurolog\w*|rheumatolog\w*|oncolog\w*|surgeon|clinic|hospital|emergency|er|ed|walk-?in|physio\w*|chiropract\w*|therap\w*|counsell?or|nurse|pharmac\w*)\b/i;
+const WEATHER = /\b(weather|winter|summer|rainy|climate|humid\w*|cold|damp|season\w*)\b/i;
 const DRUGISH = /\b[A-Z][a-z]{3,}(?:\s*\([a-z]+\))?\s+\d/;   // "Lipitor 20" / "Metformin (metformin) 500"
 
 /** Why a line can never be removed, or '' when the model may judge it. */
@@ -60,6 +68,9 @@ export function protectedReason(line) {
   if (PLAN.test(l)) return 'medicine or plan word';
   if (DRUGISH.test(l)) return 'drug and dose';
   if (CLINICAL.test(l)) return 'clinical word';
+  if (BODY.test(l)) return 'body part or symptom word';
+  if (VISIT.test(l)) return 'doctor or health visit';
+  if (WEATHER.test(l)) return 'weather may be a trigger';
   return '';
 }
 
