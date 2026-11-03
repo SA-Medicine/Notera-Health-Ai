@@ -46,6 +46,7 @@ services:
       REPEAT_TRIM: "1"          # exact repeats inside a line / between problems
       NOTE_FORMAT: template     # flat lists, plain plan lines, Follow-up as the last numbered item
       NOTE_STRICT: "1"          # drug verbs checked against the transcript, drug-named problems folded, empty problems dropped
+      RELEVANCE_FILTER: "shadow" # 2026-11-04: proposes removing story/chatter lines, stored in note.metadata.relevance, the note is NOT changed. "1" = remove them, unset = off
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
