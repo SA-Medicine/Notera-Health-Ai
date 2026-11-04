@@ -33,6 +33,11 @@ import { trendsView } from './trends.js';
 import { guideView } from './guide.js';
 import { resultsView } from './results.js';
 import { insightsView } from './insights.js';
+// The same note copy as the app (generated from apps/web by scripts/sync-admin-copy.mjs): the Copy button and Ctrl+C on a hand-selected note both keep the formatting.
+import { copyNoteToClipboard } from './noteclip/copyNote.js';
+import { mdToHtml as noteHtml } from './noteclip/noteRender.js';
+import { installNoteCopy } from './noteclip/selectionCopy.js';
+let removeNoteCopy = null;
 const S = { user: null, view: 'guide', toastT: 0 };
 
 function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.className = ''; }, 2800); }
@@ -170,7 +175,7 @@ async function consultDrawer(id) {
   openDrawer('<div class="drawer-body"><div class="empty">Loading…</div></div>');
   const d = await api('/api/console/consults/' + encodeURIComponent(id)); const c = d.consult; const dr = d.drafts[0];
   const body = (tab) => ({
-    note: dr?.rendered_note ? `<div class="note">${mdToHtml(dr.rendered_note)}</div>` : '<div class="empty">No generated note.</div>',
+    note: dr?.rendered_note ? `<div class="note">${noteHtml(dr.rendered_note)}</div>` : '<div class="empty">No generated note.</div>',
     transcript: `<div style="white-space:pre-wrap;line-height:1.6">${esc(c.transcript || 'No transcript saved.')}</div>`,
     json: `<pre class="raw">${esc(JSON.stringify({ note: dr?.note, flags: dr?.flags, finals: d.finals }, null, 2))}</pre>`,
     runs: (() => { const tr = dr?.note?.metadata?.pipeline_trace; return tr ? `<div class="card" style="margin-bottom:12px"><b>Produced with</b><div class="kv" style="margin-top:6px"><span>Writer</span><code>${esc(tr.config?.writer)}</code><span>Helper</span><code>${esc(tr.config?.helper)}</code><span>Temperature</span><code>${esc(tr.config?.temperature)}</code><span>Top-p</span><code>${esc(tr.config?.topP)}</code></div><div class="kv"><span>Writer prompt</span><code>${esc(tr.prompts?.writer)}</code><span>Checklist prompt</span><code>${esc(tr.prompts?.checklist)}</code><span>Verifier prompt</span><code>${esc(tr.prompts?.verifier)}</code></div></div>` : ''; })() + (d.runs.length ? table([{ h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Model', f: (x) => esc(x.model) }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ok' ? 'ok' : 'bad'}">${esc(x.status)}</span>` }, { h: 'Time', num: 1, f: (x) => (x.duration_ms / 1000).toFixed(1) + 's' }, { h: 'Tokens', num: 1, f: (x) => (x.total_tokens || 0).toLocaleString() }, { h: 'Cost', num: 1, f: (x) => '$' + Number(x.est_cost_usd || 0).toFixed(4) }], d.runs) : '<div class="empty">No pipeline run recorded.</div>'),
@@ -181,13 +186,14 @@ async function consultDrawer(id) {
       <div class="tabs">${[['note', 'SOAP note'], ['transcript', 'Transcript'], ['audio', 'Audio'], ['runs', 'Pipeline'], ['json', 'Raw']].map(([k, l]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
       <div class="drawer-body" style="padding-top:16px">${body(tab)}</div>`);
     document.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => draw(b.dataset.tab); });
-    $('#cp').onclick = () => { navigator.clipboard.writeText(dr?.rendered_note || ''); toast('Note copied'); };
+    $('#cp').onclick = async () => { const ok = await copyNoteToClipboard(dr?.rendered_note || ''); toast(ok ? 'Note copied with formatting' : 'Could not copy. Select the note and press Ctrl+C', !ok); };
+    removeNoteCopy = installNoteCopy(() => $('#drawer .note'));   // Ctrl+C on a hand-selected note keeps the formatting (openDrawer above removed the old listener)
     const l = $('#lau'); if (l) l.onclick = async () => { l.disabled = true; try { const a = await api(`/api/console/consults/${encodeURIComponent(id)}/audio`); $('#au').innerHTML = `<audio controls autoplay src="${esc(a.url)}" style="width:100%"></audio><p style="color:var(--ink-3)">Link expires in ${Math.round(a.expiresInSec / 60)} min. This play is recorded in the audit log.</p><button class="btn" id="dla">Download recording</button>`; const d = $('#dla'); if (d) d.onclick = async () => { toast('Preparing the MP4 — the download starts in a moment'); location.href = `/backend/api/console/audio/${encodeURIComponent(id)}/file`; }; } catch (e) { toast(e.message, true); l.disabled = false; } };
   };
   draw('note');
 }
 function openDrawer(html) { closeDrawer(); const s = document.createElement('div'); s.className = 'scrim'; s.id = 'scrim'; s.onclick = closeDrawer; const d = document.createElement('div'); d.className = 'drawer'; d.id = 'drawer'; d.innerHTML = html; document.body.append(s, d); d.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeDrawer; }); }
-function closeDrawer() { $('#scrim')?.remove(); $('#drawer')?.remove(); }
+function closeDrawer() { removeNoteCopy?.(); removeNoteCopy = null; $('#scrim')?.remove(); $('#drawer')?.remove(); }
 // re-bind close buttons after a drawer redraw
 new MutationObserver(() => { document.querySelectorAll('#drawer [data-close]').forEach((b) => { b.onclick = closeDrawer; }); }).observe(document.body, { childList: true, subtree: true });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });

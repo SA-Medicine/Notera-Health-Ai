@@ -19,6 +19,7 @@ import NoteChecks, { type NoteFlag, type Correction } from './NoteChecks';
 import DrugBox from './DrugBox';
 import { DRUG_FLAG_TYPES, readDrugSuggest, writeDrugSuggest, suggestionsLocked } from './drugPrefs';
 import { copyNoteToClipboard } from './copyNote';
+import { installNoteCopy } from './selectionCopy';
 import { groupSessions } from './shell/sessions';
 import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending } from './audioVault';
 
@@ -217,6 +218,9 @@ export default function Scribe() {
   useEffect(() => {
     if (!editing && noteBodyRef.current) noteBodyRef.current.innerHTML = mdToHtml(note);
   }, [note, editing]);
+
+  // Ctrl+C on a hand-selected note keeps the formatting, like the Copy button (see selectionCopy.ts)
+  useEffect(() => installNoteCopy(() => noteBodyRef.current), []);
 
   // recording timer
   useEffect(() => {

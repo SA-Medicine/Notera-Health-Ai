@@ -340,3 +340,5 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--surface-2); 
 .q-bar { position: relative; height: 20px; min-width: 110px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
 .q-bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); border-radius: 6px; } .q-bar i.warn { background: var(--warn-soft); }
 .q-bar span { position: relative; padding-left: 8px; font-size: 12px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* the note in the drawer uses the same markup as the app (noteclip/noteRender.js) */
+.note h1, .note h2 { font-size: 13px; margin: 14px 0 4px; } .note .ap-head { font-weight: 650; margin: 12px 0 2px; } .note .ap-lbl { font-weight: 650; } .note li.ap-sub { margin-left: 14px; } .note br { display: block; content: ''; margin: 2px 0; }
