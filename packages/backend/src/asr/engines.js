@@ -119,7 +119,7 @@ function pcmToWav(pcm) {
 import { collapseLoops } from './loops.js';
 import { stripPromptLeak } from './promptLeak.js';
 import { hedgedRequest, hedgeAfterMs } from './hedge.js';
-import { isEnglish, englishPromptFor, originalPromptFor, settingsForLang } from './language.js';
+import { isEnglish, englishPromptFor, originalSource, settingsForLang } from './language.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
 async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT } = {}) {
   const { createGeminiService } = await import('../services/LLMService.js');
@@ -158,7 +158,7 @@ async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT } = {}) {
   return { text, windows: windows.length, durationSeconds, failedWindows: failed, loopedWindows: loops };
 }
 export const defaultRunners = {
-  v2: (pcm, engine, log) => transcribeChirpPcm(pcm, { model: engine, location: engine === 'chirp_3' ? (process.env.ASR_V3_LOCATION || 'us') : (process.env.ASR_V2_LOCATION || 'us-central1'), log }),
+  v2: (pcm, engine, log, opts) => transcribeChirpPcm(pcm, { ...(opts?.languageCode ? { languageCode: opts.languageCode } : {}), model: engine, location: engine === 'chirp_3' ? (process.env.ASR_V3_LOCATION || 'us') : (process.env.ASR_V2_LOCATION || 'us-central1'), log }),
   v1: (pcm, engine, log) => transcribePcm(pcm, { model: 'latest_long', languageCode: process.env.ASR_LANGUAGE || 'en-US', log }),
   gemini: (pcm, engine, log, opts) => geminiRunner(pcm, engine, log, opts || {}),
 };
@@ -174,7 +174,8 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
   const runOpts = isEnglish(language) ? undefined : { prompt: englishPromptFor(language) };
   if (s.speechCheck !== false && silentAudio(pcm)) { log('asr: the audio is silence or room noise - nothing is sent to a speech engine'); return { text: '', windows: 0, durationSeconds: pcmDurationSeconds(pcm.length), failedWindows: 0, engine: s.primary, fellBack: false, tried: [], silent: true }; }
   let origP = null;   // the same audio written in its own language (Devanagari / Gurmukhi), kept for the doctor to check; if it fails the visit is simply English-only
-  if (!isEnglish(language) && runners.gemini) origP = withTimeout(Promise.resolve(runners.gemini(pcm, 'gemini-2.5-flash', log, { prompt: originalPromptFor(language) })), s.timeoutMs, 'original-language transcript').then((r) => String(r?.text || '').trim(), (e) => { log(`asr: original-language transcript skipped (${String(e.message).slice(0, 100)})`); return ''; });
+  const origSrc = isEnglish(language) ? null : originalSource(language);
+  if (origSrc && runners.v2) origP = withTimeout(Promise.resolve(runners.v2(pcm, origSrc.engine, log, { languageCode: origSrc.languageCode })), s.timeoutMs, 'original-language transcript').then((r) => String(r?.text || '').trim(), (e) => { log(`asr: original-language transcript skipped (${String(e.message).slice(0, 100)})`); return ''; });
   const order = [s.primary, ...s.fallbacks]; const tried = []; let emptyResult = null; let lastErr = null;
   // the second opinion is always the OTHER kind of engine: Gemini checks a Google speech engine, Chirp 2 (with the medical vocabulary) checks Gemini
   const CROSS = ENGINES[s.primary].kind === 'gemini' ? 'chirp_2' : 'gemini-2.5-flash'; const crossRun = runners[ENGINES[CROSS].kind];
