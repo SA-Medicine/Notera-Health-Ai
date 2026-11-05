@@ -59,6 +59,7 @@ import { issuesOf, remapCoverageRaw, askLedgerEarly, ledgerShim } from './gapEar
 import { structureTreatment } from './treatmentStructure.js';
 import { finishLayout } from './layoutFinish.js';
 import { relevanceFilter, applyDrops } from './relevanceFilter.js';
+import { soGuard } from './soGuard.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
@@ -975,13 +976,27 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:relevance] skipped — ${e.message}`); }
   }
 
+  // soGuard.js: what the patient said belongs in Subjective, what the doctor found in Objective. Pure code, no model call, lines are only moved, never lost.
+  // SO_GUARD=shadow stores the proposal in note.metadata.soGuard and changes nothing; =1 applies the moves. Off by default.
+  const soMode = process.env.SO_GUARD;
+  if (!blank && (soMode === 'shadow' || soMode === '1')) {
+    try {
+      const so = soGuard(renderedNote); note.metadata ||= {};
+      note.metadata.soGuard = { mode: soMode, moves: so.moves.map(({ idx, ...m }) => m), review: so.review.map(({ idx, ...m }) => m) };
+      if (soMode === '1' && so.moves.length && so.md !== renderedNote) { renderedNote = so.md; log(`[v2:so] moved ${so.moves.length} line(s) between Subjective and Objective`); }
+      else if (so.moves.length) log(`[v2:so] shadow: would move ${so.moves.length} line(s)`);
+    } catch (e) { log(`[v2:so] skipped — ${e.message}`); }
+  }
+
   // 5) persist -------------------------------------------------------------------
   // what the admin Quality page reads for every production note: fact ledger, medicines, checks, time per stage
   note.metadata ||= {}; note.metadata.quality = { groundGap, usage: usageSummary(currentUsage()), ledger: ledgerSummary, drugs: { total: drugReview.length, unknown: drugReview.filter((d) => !d.verified).length, suggested: drugReview.filter((d) => d.suggestion).length, doseChecks: drugReview.filter((d) => !d.doseOk).length }, timings: { ...stage, total: Date.now() - t0 }, mode: lean ? 'lean' : 'v2', at: new Date().toISOString() };
   const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {
-    await store.updateConsult(consultId, { status: 'ready', specialty: specialtyResolved, transcript: { text: transcript }, entities: [] });
+    // the consult may carry the visit language, the translated flag and the original-script text saved at record time (Hindi / Punjabi visits): keep them
+    let keepLang = {}; try { const prevT = (await store.getConsult(consultId))?.transcript; if (prevT && typeof prevT === 'object' && prevT.language) keepLang = { language: prevT.language, translated: prevT.translated !== false, ...(prevT.original ? { original: prevT.original } : {}) }; } catch { /* a missing row is fine */ }
+    await store.updateConsult(consultId, { status: 'ready', specialty: specialtyResolved, transcript: { text: transcript, ...keepLang }, entities: [] });
     await store.addDraft(consultId, { draftId, modelVersion: PIPELINE_VERSION, schemaVersion: note.schema_version, note, renderedNote, rawRenderedNote: renderedNote, flags: allFlags, confidence: note.metadata.confidence || {}, status: gr.status, createdAt: new Date().toISOString() });
     await audit({ consultId, actor: 'system', action: 'draft.created', target: draftId, meta: { status: gr.status, flags: gr.flags.length, pipeline: 'v2' } });
   }

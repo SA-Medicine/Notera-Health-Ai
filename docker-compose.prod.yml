@@ -47,6 +47,7 @@ services:
       NOTE_FORMAT: template     # flat lists, plain plan lines, Follow-up as the last numbered item
       NOTE_STRICT: "1"          # drug verbs checked against the transcript, drug-named problems folded, empty problems dropped
       RELEVANCE_FILTER: "1"      # 2026-11-04: removes story/chatter lines from Subjective and PMH (code veto keeps clinical lines). "shadow" = propose only, unset = off
+      SO_GUARD: "shadow"         # 2026-11-05: Subjective/Objective leakage guard, PROPOSES moves in note.metadata.soGuard and changes nothing. "1" applies them (needs the owner go).
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
