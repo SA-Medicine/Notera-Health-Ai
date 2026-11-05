@@ -2442,6 +2442,8 @@ body.dark-mode .notera-shell .note-body { background: #202022; border-color: rgb
 .notera-shell .note-body li { margin-bottom: 4px; line-height: 1.55; }
 /* kill the blank-line <br> gaps — spacing now comes from element margins, so no double gaps */
 .notera-shell .note-body br { display: none; }
+/* a blank line between two groups of bullets (topic groups in Subjective) is kept as a visible gap, the <br> itself stays hidden */
+.notera-shell .note-body br + ul { margin-top: 14px; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    PHASE-1 POLISH — clean-clinical upgrade (CSS-only, no logic changes).

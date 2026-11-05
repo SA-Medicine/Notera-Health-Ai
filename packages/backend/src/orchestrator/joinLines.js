@@ -15,7 +15,7 @@
 
 export const JOIN_SYS = `You organise the Subjective section of a clinic note. The input is a numbered list of bullet lines. You do NOT rewrite anything. You only label and group.
 1. TOPICS: group the lines so that every line about ONE problem or subject is in the same topic (for example "Weight and Wegovy", "Bowels", "Fluid intake", "Sleep", "Chest rash", "Toes"). The first lines that only list the reasons for the visit ("Weight check", "Medication refill", "Rash on chest") are one topic called "Reasons for visit". Put a line in the topic it is about even when it is far from the others in the list. Use 2 to 8 topics; a line that fits nowhere gets its own topic. EVERY id appears in exactly one topic.
-2. JOIN: inside a topic, a line that only continues the line before it (course, trigger, effect, what helped or did not, how long, severity) can be joined to it with a semicolon, for example "Walking 10-12 miles daily during trip" + "Initially difficult" + "Improved by end of week". Join only when it clearly reads better, about one line in four at most, only lines of the SAME topic that are neighbours in your topic list, never a denial ("No ...", "Denies ...") with a finding, never medicine and dose lines, never a long line (over 18 words).
+2. JOIN: inside a topic, a line that only continues the line before it (course, trigger, effect, what helped or did not, how long, severity) can be joined to it with a semicolon, for example "Walking 10-12 miles daily during trip" + "Initially difficult" + "Improved by end of week", or "Constipation ongoing" + "Managed with daily stool softener, fibre and probiotics" + "Able to pass stool without suppositories for the last 1.5 weeks". Write it the way a physician writes a compact note: a topic usually ends up as 1 to 3 lines, each line one complete point of up to about 30 words, so join wherever a line only continues the one before it. Join only lines of the SAME topic that are neighbours in your topic list, in groups of 2 to 4 ids; never a denial ("No ...", "Denies ...") with a finding, never medicine and dose lines, never a line that is already long (over 22 words).
 Return ONLY JSON: {"topics":[{"topic":"Weight and Wegovy","ids":["S6","S7","S8"]},{"topic":"Bowels","ids":["S9","S10"]}],"join":[["S7","S8"]]}. The join lists use ids that are neighbours inside one topic list, in that order. If nothing should be joined return "join":[].`;
 
 /** The Subjective bullets: id, text, line index and topic group as written (a blank line between bullets starts a new group). */
@@ -44,15 +44,15 @@ export const lowerFirst = (s) => { const w = String(s).match(/^[A-Za-z]+/); retu
 
 /** Why two or three neighbouring lines {line, idx, group} may not be joined, or '' when they may. */
 export function vetoReason(lines) {
-  if (lines.length < 2 || lines.length > 3) return 'size';
+  if (lines.length < 2 || lines.length > 4) return 'size';
   if (new Set(lines.map((l) => l.group)).size > 1) return 'different topic';
   for (let i = 1; i < lines.length; i++) if (lines[i].idx !== lines[i - 1].idx + 1) return 'not neighbours';
   const negs = lines.map((l) => NEG.test(l.line)); if (negs.some(Boolean) && !negs.every(Boolean)) return 'denial with a finding';
-  if (lines.some((l) => DOSE.test(l.line) || LABEL.test(l.line))) return 'dose or label line';
+  if (lines.some((l) => /^(medications?|preventive care|allerg\w*)\s*:/i.test(l.line))) return 'medication list line';   // a dose inside a story line is fine (the words are kept); only the list lines stay alone
   if (lines.some((l) => ACTION.test(l.line))) return 'doctor action line';
   if (words(lines[0].line) < 3) return 'first line is only a label';   // "Acne" / "Chart update" + a symptom line is not one point
-  if (lines.some((l) => words(l.line) > 18)) return 'line already long';
-  if (words(lines.map((l) => l.line).join(' ')) > 32) return 'too long when joined';
+  if (lines.some((l) => words(l.line) > 22)) return 'line already long';
+  if (words(lines.map((l) => l.line).join(' ')) > 40) return 'too long when joined';
   return '';
 }
 export const joinText = (lines) => lines.map((l, i) => { let t = l.line.trim(); if (i < lines.length - 1) t = t.replace(/[.;,\s]+$/, ''); return i ? lowerFirst(t) : t; }).join('; ');
@@ -126,6 +126,52 @@ export function applyPlan(md, plan, { gaps = true } = {}) {
   // whatever the original blank lines were, the new block carries the groups; keep the lines around it
   const rebuilt = [...lines.slice(0, s0 + 1), ...body.slice(0, first), ...out, ...body.slice(last + 1), ...lines.slice(s1)];
   return { md: rebuilt.join('\n'), applied, moved, regrouped, ok: true };
+}
+
+/**
+ * Objective, the Heidi way: a labelled line ("Bloods (August): Hb normal") followed by its own continuation fragments, which the note stores as separate
+ * lines that start in lower case ("fasting glucose 4.6 mmol/L", "sodium normal"), becomes ONE line with the pieces separated by "; ".
+ * Pure text, no model: only lower-case-start lines that follow a "Label: ..." line (or a line already joined) are joined; the words are untouched. A line
+ * is never joined past maxWords words, and a new line starts after that. OBJ_JOIN=0 switches it off.
+ */
+export function joinObjective(md, { maxWords = 100 } = {}) {
+  const lines = String(md || '').split('\n'); const out = []; let inO = false, head = -1, headWords = 0, joined = 0;
+  for (const ln of lines) {
+    const h = ln.match(/^###\s+(.*)$/); if (h) { inO = /^objective/i.test(h[1].trim()); head = -1; out.push(ln); continue; }
+    const b = inO ? ln.match(/^(\s*[-•*]\s+)(.*\S)\s*$/) : null;
+    if (!b) { if (ln.trim()) head = -1; out.push(ln); continue; }
+    const text = b[2];
+    // a fragment starts in lower case ("sodium normal") or is a lab abbreviation with its value ("A1c 5.5%", "LDL 2.5 (increased from 2.2)")
+    if (head >= 0 && (/^[a-z]/.test(text) || /^[A-Z][A-Za-z0-9]{1,6}\s+[<>]?\d/.test(text)) && !/^[^:]{2,60}:\s*\S/.test(text) && headWords + words(text) <= maxWords) {
+      out[head] = out[head].replace(/[.;,\s]+$/, '') + '; ' + text; headWords += words(text); joined++; continue;
+    }
+    if (/^[^:]{2,60}:\s*\S/.test(text)) { head = out.length; headWords = words(text); } else head = -1;
+    out.push(ln);
+  }
+  return { md: out.join('\n'), joined };
+}
+
+/**
+ * The owner's rule (2026-11-05): a bullet in Subjective or Objective is at most two lines on screen, never three. A joined bullet longer than maxChars is cut at its
+ * own "; " boundaries into two or more bullets, each as full as possible; the pieces keep their order and every word, only the first letter of a piece that was
+ * lower-cased for the join comes back as a capital. A single piece that is long on its own is left alone. LINE_CAP=0 switches it off.
+ */
+const upperFirst = (s) => (/^[a-z]+\b/.test(s) && !/^[a-z]+[A-Z]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
+export function capLines(md, { maxChars = 140 } = {}) {
+  const out = []; let inSO = false, split = 0;
+  for (const ln of String(md || '').split('\n')) {
+    const h = ln.match(/^###\s+(.*)$/); if (h) { inSO = /^(subjective|objective|past medical)/i.test(h[1].trim()); out.push(ln); continue; }
+    const b = inSO ? ln.match(/^(\s*[-•*]\s+)(.*\S)\s*$/) : null;
+    if (!b || b[2].length <= maxChars || !b[2].includes('; ')) { out.push(ln); continue; }
+    const pieces = b[2].split('; '); const chunks = []; let cur = '';
+    for (const p of pieces) {
+      if (cur && (cur + '; ' + p).length > maxChars) { chunks.push(cur); cur = p; } else cur = cur ? cur + '; ' + p : p;
+    }
+    if (cur) chunks.push(cur);
+    if (chunks.length < 2) { out.push(ln); continue; }
+    chunks.forEach((c, i) => out.push(b[1] + (i ? upperFirst(c) : c))); split += chunks.length - 1;
+  }
+  return { md: out.join('\n'), split };
 }
 
 /** @returns {Promise<{plan: object|null, checked: number, ms: number, error?: string}>} */

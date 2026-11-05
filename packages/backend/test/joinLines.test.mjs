@@ -51,7 +51,7 @@ test('the veto: other topic, denial with a finding, dose or label line, label-on
   assert.ok(p.vetoed.length >= 1);
   assert.equal(vetoReason([{ line: 'Acne', idx: 1, group: 0 }, { line: 'Began two weeks ago', idx: 2, group: 0 }]), 'first line is only a label');
   assert.equal(vetoReason([{ line: 'Cough for 3 days', idx: 1, group: 0 }, { line: 'No fever', idx: 2, group: 0 }]), 'denial with a finding');
-  assert.equal(vetoReason([{ line: 'Taking Lexapro 10 mg daily', idx: 1, group: 0 }, { line: 'Feels calmer', idx: 2, group: 0 }]), 'dose or label line');
+  assert.equal(vetoReason([{ line: 'Medications: Metformin 500 mg', idx: 1, group: 0 }, { line: 'Feels calmer', idx: 2, group: 0 }]), 'medication list line'); assert.equal(vetoReason([{ line: 'Taking Lexapro 10 mg daily', idx: 1, group: 0 }, { line: 'Feels calmer', idx: 2, group: 0 }]), '');
   assert.equal(vetoReason([{ line: 'Pain on stairs', idx: 1, group: 0 }, { line: 'Worse at night', idx: 2, group: 1 }]), 'different topic');
   assert.equal(lowerFirst('Metformin 500 mg'), 'Metformin 500 mg'); assert.equal(lowerFirst('CT scan normal'), 'CT scan normal');
   assert.equal(lowerFirst('Appeared two weeks ago'), 'appeared two weeks ago'); assert.equal(joinText([{ line: 'No fever.' }, { line: 'Denies nausea' }]), 'No fever; denies nausea');
@@ -73,4 +73,29 @@ test('it finds the lines by text after earlier steps changed the note, and fails
   assert.equal(applyPlan(odd, p).md, odd);
   const added = MD.replace('- No fever\n', '- No fever\n- A line the plan never saw\n');
   assert.match(applyPlan(added, p).md, /No fever\n- A line the plan never saw\n- Denies nausea/);
+});
+
+import { joinObjective, capLines } from '../src/orchestrator/joinLines.js';
+test('line cap: a bullet longer than 140 characters is cut at its semicolons, every word and the order kept, other sections untouched', () => {
+  const long = 'Walking 10-12 miles daily during trip; initially difficult with sore feet; improved by end of week; stopped using the cream; weight down 5 lb since last visit; feels more energetic';
+  const md = `### Subjective\n- Short line; second part\n- ${long}\n\n### Assessment & Plan\n1. **X**\n   - ${long}\n`;
+  const r = capLines(md);
+  assert.equal(r.split, 1);
+  const sub = r.md.split('\n### ')[0].split('\n').filter((l) => l.startsWith('- '));
+  assert.equal(sub.length, 3); assert.ok(sub.every((l) => l.length - 2 <= 140));
+  assert.match(r.md, /\n- Weight down 5 lb since last visit; feels more energetic\n/);
+  assert.ok(r.md.includes('   - ' + long));   // the plan is not touched
+  const toks = (s) => s.toLowerCase().replace(/[;.,]/g, '').split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
+  assert.equal(toks(r.md), toks(md));
+  assert.equal(capLines('### Subjective\n- ' + 'x'.repeat(200) + '\n').split, 0);   // nothing to cut at
+});
+test('Objective: a labelled line takes its lower-case fragments with semicolons, nothing else is joined, words untouched', () => {
+  const md = '### Objective\n- BP 120/80 mmHg\n- Weight 185 lbs\n- Bloods (August): Hb normal\n- fasting glucose 4.6 mmol/L\n- HbA1c 5.5%\n- sodium normal\n- Chest: rash present\n- Abdominal ultrasound: mild aortic plaque\n- normal pancreas\n- no hydronephrosis\n- total 50 lbs weight loss\n\n### Assessment & Plan\n1. **X**\n   - a\n';
+  const r = joinObjective(md);
+  assert.equal(r.joined, 6);
+  assert.match(r.md, /- Bloods \(August\): Hb normal; fasting glucose 4\.6 mmol\/L; HbA1c 5\.5%; sodium normal\n- Chest: rash present\n- Abdominal ultrasound: mild aortic plaque; normal pancreas; no hydronephrosis; total 50 lbs weight loss\n/);
+  assert.match(r.md, /- BP 120\/80 mmHg\n- Weight 185 lbs\n/);
+  const toks = (s) => s.toLowerCase().replace(/[;.,]/g, '').split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
+  assert.equal(toks(r.md), toks(md));
+  assert.equal(joinObjective('### Subjective\n- Cough\n- better\n').joined, 0);   // only Objective
 });

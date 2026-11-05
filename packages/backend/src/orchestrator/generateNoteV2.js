@@ -60,8 +60,9 @@ import { structureTreatment } from './treatmentStructure.js';
 import { finishLayout } from './layoutFinish.js';
 import { relevanceFilter, applyDrops } from './relevanceFilter.js';
 import { soGuard } from './soGuard.js';
-import { proposePlan, applyPlan } from './joinLines.js';
+import { proposePlan, applyPlan, joinObjective, capLines } from './joinLines.js';
 import { unclearPlan } from './unclearPlan.js';
+import { planTidy } from './planTidy.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
@@ -1003,6 +1004,18 @@ export async function generateNoteV2(input, opts = {}) {
       if (joinMode === '1' && jn.plan) { const r = applyPlan(renderedNote, jn.plan, { gaps: process.env.TOPIC_GAPS !== '0' }); if (r.ok && (r.applied || r.moved || r.regrouped)) { renderedNote = r.md; applied = r.applied; moved = r.moved; log(`[v2:join] ${r.moved} line(s) placed with their topic, ${r.applied} join(s) made`); } }
       note.metadata.joinLines = { mode: joinMode, checked: jn.checked, ms: jn.ms, error: jn.error, applied, moved, topics: (jn.plan?.topics || []).map((t) => ({ name: t.name, lines: t.lines })), joins: jn.plan?.joins || [], vetoed: jn.plan?.vetoed || [] };
     } catch (e) { log(`[v2:join] skipped — ${e.message}`); }
+  }
+
+  if (!blank && joinMode === '1' && process.env.OBJ_JOIN !== '0') {   // joinLines.js: "Bloods (August): Hb normal" + its lower-case fragments become one line with semicolons (words untouched)
+    try { const oj = joinObjective(renderedNote); if (oj.joined) { renderedNote = oj.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), objectiveJoined: oj.joined }; log(`[v2:join] ${oj.joined} Objective fragment(s) joined to their labelled line`); } } catch (e) { log(`[v2:join] objective skipped — ${e.message}`); }
+  }
+
+  if (!blank && joinMode === '1' && process.env.PLAN_TIDY !== '0') {   // planTidy.js: plan titles without a closing full stop, bullets start with a capital, word-for-word repeats inside one problem dropped
+    try { const pt = planTidy(renderedNote); if (pt.titles || pt.caps || pt.dupes || pt.splitO) { renderedNote = pt.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), planTidy: { titles: pt.titles, caps: pt.caps, dupes: pt.dupes, splitO: pt.splitO } }; log(`[v2:join] plan tidy: ${pt.titles} title(s), ${pt.caps} capital(s), ${pt.dupes} repeat(s) dropped, ${pt.splitO} Objective line(s) split`); } } catch (e) { log(`[v2:join] plan tidy skipped — ${e.message}`); }
+  }
+
+  if (!blank && joinMode === '1' && process.env.LINE_CAP !== '0') {   // joinLines.js: no Subjective/Objective bullet runs to a third line; a long joined bullet is cut at its own semicolons
+    try { const cl = capLines(renderedNote, { maxChars: Number(process.env.LINE_CAP_CHARS) || 140 }); if (cl.split) { renderedNote = cl.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), lineCapSplit: cl.split }; log(`[v2:join] ${cl.split} long line(s) cut at a semicolon so no bullet runs past two lines`); } } catch (e) { log(`[v2:join] line cap skipped — ${e.message}`); }
   }
 
   // 5) persist -------------------------------------------------------------------
