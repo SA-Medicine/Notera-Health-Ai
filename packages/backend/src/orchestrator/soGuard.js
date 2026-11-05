@@ -45,6 +45,7 @@ const HISTORY = /\b(history of|completed|performed|was done|done during|previous
 // a story of how it started or got worse is the patient's, even when it names a sign the doctor would also look for ("worsened with erythema by Sunday")
 const NARRATIVE = /\b(worsen\w*|progressed|as the day|couple of days|few days|yesterday|last (night|week)|post-?injury|got worse|started|began|woke)\b/i;
 const DOCTOR_ACTION = /^\s*(review|recheck|repeat|continue|monitor|refer|order|consider|schedule|asked|inquire|inquiry|discussion|awaiting|pending|advised|discussed|explained|recommended|told|offered|suggested|counsel\w*|reviewed with|plan:?|will (start|order|refer|check)|(blood pressure|bp)( check| today| taken)?\.?)\b/i;
+const PLAN_IN_O = /^\s*(reassess|rule out|arrange|consider|follow[- ]?up|return (if|to)|recheck|repeat|refer(ral)? to|order|start|stop|discuss)\b/i;   // a plan item that landed in Objective
 const HOME = /\b(at home|home scale|on (the |her |his |their )?home|home (bp|blood pressure|glucose|sugars?|readings?|monitoring|weights?))\b|\(patient[- ]reported\)/i;
 
 /** 'patient' | 'clinician' | 'action' | 'neutral' for one note line. */
@@ -79,7 +80,11 @@ export function findMoves(md) {
   const lines = String(md || '').split('\n'); const sec = sections(lines); const moves = [], review = [];
   // a number that is not a duration is a measurement: it does not move on a soft patient word such as "improved"
   const measured = (t) => /\d/.test(t.replace(/\d+(\.\d+)?\s*(-|to)?\s*\d*\s*(day|week|month|year|hour|time)s?/gi, ''));
-  if (sec.O) for (const i of sec.O.bullets) { const t = bulletText(lines[i]); if (sideOf(t) === 'patient' && (HOME.test(t) || !measured(t))) moves.push({ dir: 'O->S', idx: i, line: t, why: HOME.test(t) ? 'the patient\'s own reading or report' : 'the patient\'s own account' }); }
+  if (sec.O) for (const i of sec.O.bullets) {
+    const t = bulletText(lines[i]);
+    if (sideOf(t) === 'patient' && (HOME.test(t) || !measured(t))) moves.push({ dir: 'O->S', idx: i, line: t, why: HOME.test(t) ? 'the patient\'s own reading or report' : 'the patient\'s own account' });
+    else if (PLAN_IN_O.test(t) && t.length < 100) review.push({ dir: 'review', idx: i, line: t, why: 'a plan item in Objective, not a finding' });   // listed, never moved (the structured plan has no safe slot)
+  }
   if (sec.S) for (const i of sec.S.bullets) {
     const t = bulletText(lines[i]); const s = sideOf(t);
     if (s === 'clinician' && t.length <= 150 && !HISTORY.test(t) && !NARRATIVE.test(t)) moves.push({ dir: 'S->O', idx: i, line: t, why: 'an examination finding, clinic measurement or test result' });

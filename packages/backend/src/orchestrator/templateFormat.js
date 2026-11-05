@@ -59,9 +59,12 @@ export function toTemplateFormat(md) {
     const h = ln.match(/^###\s+(.*)$/);
     if (h) { section = h[1].trim(); if (!/assessment/i.test(section)) { if (out.length && out[out.length - 1] !== '') out.push(''); out.push(ln); } else { if (out.length && out[out.length - 1] !== '') out.push(''); out.push(ln); } continue; }
     if (!/assessment/i.test(section)) {
-      if (/^\*\*[^*]+\*\*\s*$/.test(ln.trim())) continue;   // a bold topic or group line
-      if (!ln.trim()) continue;                              // blank lines between topics
-      if (/^\s*[-*]\s+[^:]{2,70}:\s*$/.test(ln)) continue;  // a topic heading written as a bullet ("Gastroesophageal Reflux Disease (GERD):")
+      // Topic gaps (2026-11-05): the topic headings still go, but where one topic ends and the next begins in the Subjective a marker is left, which becomes ONE blank line below,
+      // so related lines sit together as a visible group without a heading (TOPIC_GAPS=0 switches off).
+      const mark = () => { if (TOPIC_GAPS && /^subjective/i.test(section) && out.length && out[out.length - 1] !== GAP && !/^###/.test(out[out.length - 1])) out.push(GAP); };
+      if (/^\*\*[^*]+\*\*\s*$/.test(ln.trim())) { mark(); continue; }   // a bold topic or group line
+      if (!ln.trim()) { mark(); continue; }                              // blank lines between topics
+      if (/^\s*[-*]\s+[^:]{2,70}:\s*$/.test(ln)) { mark(); continue; }  // a topic heading written as a bullet ("Gastroesophageal Reflux Disease (GERD):")
       out.push(ln); continue;
     }
     // Assessment & Plan
@@ -103,5 +106,20 @@ export function toTemplateFormat(md) {
     problems.forEach((p, k) => { out.push(`${k + 1}. **${p.title}**`); for (const l of p.lines) out.push(`   - ${l.replace(/^[-*]\s+/, '')}`); });
     if (follow.length) { out.push(`${problems.length + 1}. **Follow-up**`); for (const f of follow) out.push(`   - ${f}`); }
   }
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return resolveGaps(out).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const TOPIC_GAPS = process.env.TOPIC_GAPS !== '0';
+const GAP = '\u0001GAP';
+/** A topic marker becomes one blank line, unless the topic before it and the topic after it are both a single line (two lone lines in a row stay together, so the Subjective is not chopped into pieces). */
+function resolveGaps(out) {
+  const isBullet = (l) => /^\s*[-*]\s+\S/.test(l);
+  const res = [];
+  for (let k = 0; k < out.length; k++) {
+    if (out[k] !== GAP) { res.push(out[k]); continue; }
+    let prev = 0; for (let j = k - 1; j >= 0 && out[j] !== GAP && !/^###/.test(out[j]); j--) if (isBullet(out[j])) prev++;
+    let next = 0; for (let j = k + 1; j < out.length && out[j] !== GAP && !/^###/.test(out[j]) && out[j] !== ''; j++) if (isBullet(out[j])) next++;
+    if (next > 0 && !(prev <= 1 && next <= 1)) res.push('');
+  }
+  return res;
 }

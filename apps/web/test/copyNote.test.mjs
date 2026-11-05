@@ -72,3 +72,13 @@ test('a blank line and a real spacer paragraph separate the problems of the plan
   assert.match(html, /&nbsp;<\/p><p [^>]*><b>Objective:<\/b><\/p>/);
   assert.ok(!/^<meta charset="utf-8"><div [^>]*><p [^>]*>&nbsp;/.test(html), 'no spacer before the first heading');
 });
+
+test('a blank line between two groups of Subjective bullets stays as one gap (plain text and html), the plan is unchanged', () => {
+  const md = '### Subjective\n- Cough for 3 days\n- No fever\n\n- Weight 190 lb, wants to lose 20 lb\n- Walks 30 minutes daily\n\n### Assessment & Plan\n1. **Cough**\n   - Rest\n';
+  const { text, html } = noteToClipboard(md);
+  assert.match(text, /• No fever\n\n• Weight 190 lb/);
+  assert.doesNotMatch(text, /\n\n\n/);
+  assert.match(html, /<\/ul><p style="margin:0;[^"]*font-size:6pt[^"]*">&nbsp;<\/p><ul/);
+  // no gap when the bullets are in one run
+  assert.doesNotMatch(noteToClipboard('### Subjective\n- A\n- B\n').text, /\n\n•/);
+});

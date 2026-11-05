@@ -60,6 +60,8 @@ import { structureTreatment } from './treatmentStructure.js';
 import { finishLayout } from './layoutFinish.js';
 import { relevanceFilter, applyDrops } from './relevanceFilter.js';
 import { soGuard } from './soGuard.js';
+import { proposePlan, applyPlan } from './joinLines.js';
+import { unclearPlan } from './unclearPlan.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
@@ -955,8 +957,14 @@ export async function generateNoteV2(input, opts = {}) {
   // relevanceFilter.js: lines nobody needs (personal stories, other people's lives). RELEVANCE_FILTER=shadow stores the proposal in note.metadata.relevance and changes nothing; =1 removes the lines. Off by default. Runs beside the drug check.
   let relP = null; const relMode = process.env.RELEVANCE_FILTER;
   if (!blank && (relMode === 'shadow' || relMode === '1')) { try { const rllm = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); rllm._agent = 'v2-relevance'; relP = relevanceFilter(rllm, renderedNote, log); } catch (e) { log(`[v2:relevance] not started — ${e.message}`); } }
+  // joinLines.js: neighbouring Subjective lines that tell one point become one line with a semicolon. JOIN_LINES=shadow stores the proposal in note.metadata.joinLines and changes nothing; =1 makes the joins. Runs beside the drug check.
+  let joinP = null; const joinMode = process.env.JOIN_LINES;
+  if (!blank && (joinMode === 'shadow' || joinMode === '1')) { try { const jllm = await createGeminiService(null, { model: process.env.JOIN_MODEL || process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); jllm._agent = 'v2-join'; joinP = proposePlan(jllm, renderedNote, log); } catch (e) { log(`[v2:join] not started — ${e.message}`); } }
   if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
     try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
+  }
+  if (!blank && process.env.UNCLEAR_PLAN !== '0') {   // flags only (unclearPlan.js): a plan line that is a question, speaks to the patient or breaks off is shown under "Before you sign"; the line itself is never changed
+    try { const up = unclearPlan(renderedNote); if (up.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...up.flags]; } if (opts.trace) opts.trace.unclearPlan = { flags: up.flags.length, checked: up.checked }; } catch (e) { log(`[v2:unclear] skipped — ${e.message}`); }
   }
   if (!blank && process.env.NEG_GUARD === '1') {   // flags only (negationGuard.js): a negated line the recording does not support is shown under "Before you sign"
     try { const ng = negationGuard(renderedNote, transcript, log); if (ng.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...ng.flags.map(({ kind, section, ...fl }) => fl)]; } if (opts.trace) opts.trace.negation = { flags: ng.flags.length, checked: ng.checked, negated: ng.negated }; } catch (e) { log(`[v2:negation] skipped — ${e.message}`); }
@@ -986,6 +994,15 @@ export async function generateNoteV2(input, opts = {}) {
       if (soMode === '1' && so.moves.length && so.md !== renderedNote) { renderedNote = so.md; log(`[v2:so] moved ${so.moves.length} line(s) between Subjective and Objective`); }
       else if (so.moves.length) log(`[v2:so] shadow: would move ${so.moves.length} line(s)`);
     } catch (e) { log(`[v2:so] skipped — ${e.message}`); }
+  }
+
+  if (joinP) {
+    try {
+      const jn = await joinP; note.metadata ||= {};
+      let applied = 0, moved = 0;
+      if (joinMode === '1' && jn.plan) { const r = applyPlan(renderedNote, jn.plan, { gaps: process.env.TOPIC_GAPS !== '0' }); if (r.ok && (r.applied || r.moved || r.regrouped)) { renderedNote = r.md; applied = r.applied; moved = r.moved; log(`[v2:join] ${r.moved} line(s) placed with their topic, ${r.applied} join(s) made`); } }
+      note.metadata.joinLines = { mode: joinMode, checked: jn.checked, ms: jn.ms, error: jn.error, applied, moved, topics: (jn.plan?.topics || []).map((t) => ({ name: t.name, lines: t.lines })), joins: jn.plan?.joins || [], vetoed: jn.plan?.vetoed || [] };
+    } catch (e) { log(`[v2:join] skipped — ${e.message}`); }
   }
 
   // 5) persist -------------------------------------------------------------------

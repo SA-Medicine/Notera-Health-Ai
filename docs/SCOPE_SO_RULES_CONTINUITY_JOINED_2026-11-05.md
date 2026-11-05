@@ -55,3 +55,17 @@ Risk if skipped: none. Risk if rushed: joined lines hide a denial or a number; h
 | Joiner post-pass in shadow | build next |
 | Topic gaps in the rendered note and copy | needs **UNLOCK STYLE SPEC v1** for `renderMarkdown.js` |
 | Writer / story prompt rule "exam findings never in Subjective" | needs **UNLOCK STYLE SPEC v1** |
+
+## 5. Built and switched on (2026-11-05 evening, owner: "UNLOCK STYLE SPEC v1")
+
+The unlock was given, but nothing locked had to change: `node scripts/spec-lock.mjs` is still "unchanged". A story-prompt rule and a stricter story check were tried and taken out again (the A/B on 3 notes was inconclusive and the check added rejections); the code layers below do the job without touching the writer or story prompts.
+
+| Item | Where | Switch (compose) |
+|---|---|---|
+| S/O guard applies its moves (exam findings and results to Objective, the patient's own account to Subjective); plan items in Objective are listed for review | `soGuard.js` | `SO_GUARD=1` |
+| Topic groups without headings: one short model call labels each Subjective line with a topic, code only reorders the lines (words never touched), one blank line between groups (two lone lines in a row stay together); web, copy and admin copy keep the gap | `joinLines.js`, `templateFormat.js`, `copyNote.ts`, `noteRender.ts` | `JOIN_LINES=1`, `TOPIC_GAPS=1` |
+| Joined lines with a semicolon: same call, concatenation only, vetoes (other topic, denial with a finding, dose/label/doctor-action line, label-only first line, long lines) | `joinLines.js` | `JOIN_LINES=1` |
+| Plan lines that look mis-heard (question, spoken to the patient, broken off, doubled words) are flagged under "Before you sign"; the line is never changed | `unclearPlan.js` | `UNCLEAR_PLAN=1` |
+
+Test (real pipeline, the biggest and eight other recent notes): every run lossless (same words before and after), one extra 1.2 to 2.6 s call in parallel with the last checks, biggest note 36 to 74 s depending on Gemini load (writer retry and story rejections, not these steps). Measured on 150 stored notes: unclear-plan flags on 14 % of notes, nearly all true (the lines in the owner review).
+Left as it was: writer and story prompts (locked, unchanged), the writer's own plan-line quality on long visits.

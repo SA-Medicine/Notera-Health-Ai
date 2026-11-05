@@ -9,6 +9,7 @@
                                                                                           
                                                                  
                                                                                                                                                                           
+                                                                                                                                                  
                              
 
 const LABELS = ['diagnosis', 'differential diagnoses', 'investigations planned', 'treatment planned', 'referrals', 'advice', 'follow-up', 'started', 'changed', 'stopped', 'continued', 'given today', 'other'];
@@ -16,9 +17,13 @@ const LABELS = ['diagnosis', 'differential diagnoses', 'investigations planned',
 function parse(md        )          {
   const out          = [];
   let inAP = false;
+  let blank = false;   // a blank line was seen since the last block
   for (const raw of String(md || '').replace(/\r\n?/g, '\n').split('\n')) {
     const ln = raw.replace(/\s+$/, '');
-    if (!ln.trim()) continue;
+    if (!ln.trim()) { blank = true; continue; }
+    // a blank line between two bullets outside the plan is a group gap (the topics of the Subjective, shown without headings)
+    if (blank && !inAP && /^\s*[-*•]\s+/.test(ln)) { const last = out[out.length - 1]; if (last && last.k === 'li' && !last.ap) out.push({ k: 'gap' }); }
+    blank = false;
     let m                         ;
     if ((m = ln.match(/^#{1,6}\s+(.*)$/))) { inAP = /assessment/i.test(m[1]); out.push({ k: 'h', text: m[1].trim() }); continue; }
     if ((m = ln.match(/^\s*(\d+)\.\s+\*\*(.+?)\*\*\s*$/))) { out.push({ k: 'num', n: m[1], text: m[2].trim() }); continue; }
@@ -54,6 +59,7 @@ export function noteToClipboard(md        )                                 {
   for (const b of blocks) {
     if (b.k === 'h') { gap(); t.push(plainInline(b.text) + ':'); }
     else if (b.k === 'sub') { gap(); t.push(plainInline(b.text)); }
+    else if (b.k === 'gap') gap();
     else if (b.k === 'num') { gap(); t.push(`${b.n}. ${plainInline(b.text)}`); }
     else if (b.k === 'li' && b.ap) t.push(' '.repeat(b.level * 3) + plainInline(b.text));   // the plan is shown without bullets, so it is copied without bullets; its lines sit indented under the problem so each problem reads as a block
     else if (b.k === 'li') t.push(' '.repeat(b.level * 3) + (b.level < 2 ? '• ' : '– ') + plainInline(b.text));
@@ -74,6 +80,7 @@ export function noteToClipboard(md        )                                 {
     while (depth > to) { h.push('</li></ul>'); depth--; }
   };
   for (const b of blocks) {
+    if (b.k === 'gap') { closeTo(0); h.push(spacer(6)); continue; }
     if (b.k === 'li' && b.ap) {   // a plan line: a plain paragraph, a sub-point indented
       closeTo(0);
       const ls = labelSplit(b.text);

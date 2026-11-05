@@ -72,3 +72,11 @@ test('a section is never emptied, and a note without the sections is returned un
 test('fails closed: if the moved note would not hold the same lines, nothing moves', () => {
   const bad = applyMoves(NOTE, [{ dir: 'O->S', idx: 9999, line: 'invented' }]); assert.equal(bad, NOTE);
 });
+
+test('a plan item that landed in Objective is listed for review and never moved', async () => {
+  const { findMoves } = await import('../src/orchestrator/soGuard.js');
+  const md = '### Subjective\n- Cough for 3 days\n\n### Objective\n- BP 120/80 mmHg\n- Reassess weight and dose in 1 month\n- Rule out ventral hernia\n- Chest clear\n';
+  const r = findMoves(md);
+  assert.equal(r.moves.length, 0);
+  assert.deepEqual(r.review.map((x) => x.line), ['Reassess weight and dose in 1 month', 'Rule out ventral hernia']);
+});
