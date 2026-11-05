@@ -119,9 +119,9 @@ function pcmToWav(pcm) {
 import { collapseLoops } from './loops.js';
 import { stripPromptLeak } from './promptLeak.js';
 import { hedgedRequest, hedgeAfterMs } from './hedge.js';
-import { isEnglish, englishPromptFor, originalSource, settingsForLang } from './language.js';
+import { isEnglish, englishPromptFor, originalSource, settingsForLang, looksRomanisedIndic } from './language.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
-async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT } = {}) {
+async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT, checkRoman = false } = {}) {
   const { createGeminiService } = await import('../services/LLMService.js');
   const svc = await createGeminiService(null, { model }); const url = svc._endpoint(false, model); const durationSeconds = pcmDurationSeconds(pcm.length);
   const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = new Array(windows.length).fill(''); let failed = 0; let next = 0;
@@ -140,7 +140,9 @@ async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT } = {}) {
   // The model can fall into a loop (the same word written thousands of times). Ask that window once more, a little less strictly; if it loops again, keep two copies of the loop.
   let loops = 0;
   const one = async (i) => {
-    const w = windows[i]; let text = await ask(w, 0); let c = collapseLoops(text);
+    const w = windows[i]; let text = await ask(w, 0);
+    if (checkRoman && looksRomanisedIndic(text)) { log(`gemini-asr window ${i + 1}/${windows.length} came back as Hindi/Punjabi in Roman letters, not English - asking again`); text = await ask(w, 0.3); }
+    let c = collapseLoops(text);
     if (!c.collapsed.length) return text;
     log(`gemini-asr window ${i + 1}/${windows.length} looped (${c.collapsed.map((x) => `"${x.unit.slice(0, 30)}" x${x.reps}`).join(', ')}) - asking again`);
     text = await ask(w, 0.3); c = collapseLoops(text); if (!c.collapsed.length) return text;
@@ -171,7 +173,7 @@ const withTimeout = (p, ms, label) => new Promise((resolve, reject) => { const t
  */
 export async function transcribeWithChain(pcm, { log = () => {}, runners = defaultRunners, settings = null, now = Date.now, language = 'en' } = {}) {
   const s = settingsForLang(settings || await getSettings(), language);   // Hindi / Punjabi / auto: Gemini only, English transcript + original-script copy (language.js); English: unchanged
-  const runOpts = isEnglish(language) ? undefined : { prompt: englishPromptFor(language) };
+  const runOpts = isEnglish(language) ? undefined : { prompt: englishPromptFor(language), checkRoman: true };
   if (s.speechCheck !== false && silentAudio(pcm)) { log('asr: the audio is silence or room noise - nothing is sent to a speech engine'); return { text: '', windows: 0, durationSeconds: pcmDurationSeconds(pcm.length), failedWindows: 0, engine: s.primary, fellBack: false, tried: [], silent: true }; }
   let origP = null;   // the same audio written in its own language (Devanagari / Gurmukhi), kept for the doctor to check; if it fails the visit is simply English-only
   const origSrc = isEnglish(language) ? null : originalSource(language);
@@ -195,6 +197,7 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
       const run = runners[ENGINES[engine].kind]; if (!run) throw new Error(`no runner for ${engine}`);
       const r = await withTimeout(Promise.resolve(run(pcm, engine, log, runOpts)), s.timeoutMs, engine); const ms = now() - t0; const text = String(r.text || '').trim();
       const odd = implausible(text, pcmDurationSeconds(pcm.length)); if (odd) throw new Error(`implausible output (${odd})`);
+      if (!isEnglish(language) && looksRomanisedIndic(text)) throw new Error('implausible output (Hindi/Punjabi in Roman letters, not translated to English)');   // falls back to the next engine
       if (!text && s.speechCheck && i < attempts.length - 1 && speechLike(pcm)) {   // silent failure: speech in, nothing out
         note(engine, 'empty'); tried.push({ engine, ok: false, empty: true, ms }); emptyResult = { ...r, engine }; log(`asr: ${engine} returned nothing for audio that contains speech — trying ${attempts[i + 1]}`); continue;
       }

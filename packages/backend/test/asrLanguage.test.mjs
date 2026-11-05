@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { transcribeWithChain, validateSettings, resetHealth } from '../src/asr/engines.js';
-import { normalizeLang, isEnglish, englishPromptFor, originalSource, settingsForLang, languageMeta } from '../src/asr/language.js';
+import { normalizeLang, isEnglish, englishPromptFor, originalSource, settingsForLang, languageMeta, looksRomanisedIndic } from '../src/asr/language.js';
 import { stripPromptLeak } from '../src/asr/promptLeak.js';
 
 const pcm = (seconds, amp) => { const b = Buffer.alloc(seconds * 32000); for (let i = 0; i < b.length; i += 2) b.writeInt16LE(Math.round(Math.sin(i / 8) * amp), i); return b; };
@@ -48,4 +48,19 @@ test('non-English chain settings: Gemini first, a second Gemini model as fallbac
 
 test('the new prompts are cleaned too if the engine ever echoes them back', () => {
   for (const p of [englishPromptFor('hi'), englishPromptFor('pa'), englishPromptFor('auto')]) assert.equal(stripPromptLeak('I have a cough. ' + p).replace(/\s+/g, ' ').includes('word for word'), false);
+});
+
+test('transliterated Hindi is told apart from English (and from English with a Hindi word or a name in it)', async () => {
+  assert.equal(looksRomanisedIndic('Doctor, aapko kya takleef hai? Mareez, mujhe pichle teen din se seene mein dard hai aur saans foolti hai. Bukhar nahi hai. Main Metformin 500 mg din mein do baar leta hoon.'), true);
+  assert.equal(looksRomanisedIndic('Doctor, what is your problem? Patient, I have had chest pain for the last three days and shortness of breath. I take Metformin 500 mg twice a day.'), false);
+  assert.equal(looksRomanisedIndic('The patient is called Hardeep Singh and takes Metformin; her mother makes roti and dal every day, and she has no pain at all today.'), false);
+  assert.equal(looksRomanisedIndic('short text'), false);
+  // the chain refuses a romanised answer from the first Gemini model and uses the second one
+  resetHealth(); let n = 0;
+  const gemini = async () => ({ text: ++n === 1 ? 'Doctor aapko kya takleef hai. Mujhe teen din se seene mein dard hai aur bukhar nahi hai. Main Metformin leta hoon din mein do baar.' : 'Doctor, what is the problem? I have had chest pain for three days and no fever. I take Metformin twice a day.', windows: 1, durationSeconds: 20, failedWindows: 0 });
+  const r = await transcribeWithChain(SPEECH, { language: 'hi', settings: S(), runners: { v2: async () => ({ text: '' }), v1: async () => ({ text: 'x' }), gemini } });
+  assert.equal(r.engine, 'gemini-3.7-flash'); assert.match(r.text, /chest pain for three days/); assert.equal(r.fellBack, true);
+  // English visits are never judged this way
+  const en = await transcribeWithChain(SPEECH, { language: 'en', settings: S(), runners: { v2: async () => ({ text: 'Doctor aapko kya takleef hai. Mujhe teen din se seene mein dard hai aur bukhar nahi hai. Main Metformin leta hoon din mein do baar.' }), v1: async () => ({ text: 'x' }), gemini } });
+  assert.equal(en.engine, 'chirp_2');
 });

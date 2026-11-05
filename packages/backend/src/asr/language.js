@@ -18,7 +18,7 @@ const NAMES = { hi: 'Hindi', pa: 'Punjabi', auto: 'Hindi or Punjabi' };
 /** Prompt for the working (English) transcript of a Hindi / Punjabi / mixed visit. */
 export function englishPromptFor(lang) {
   const n = NAMES[normalizeLang(lang)]; if (!n) return null;
-  return `Transcribe this recorded medical consultation word for word and write all of it in English as plain text without speaker labels. The speakers talk in ${n} mixed with English and may switch between them inside one sentence: translate the ${n} parts into plain English and keep the English parts as spoken. Write numbers, doses and drug names exactly as spoken. Keep every symptom, denial, instruction and detail. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.`;
+  return `Transcribe this recorded medical consultation word for word and write all of it in English as plain text without speaker labels. The speakers talk in ${n} mixed with English and may switch between them inside one sentence: translate the ${n} parts into plain English and keep the English parts as spoken. Every word you write must be an English word: never write ${n} in Roman letters (no transliteration) and never leave a ${n} word in the text. Write numbers, doses and drug names exactly as spoken. Keep every symptom, denial, instruction and detail. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.`;
 }
 /**
  * Which Google speech model writes the ORIGINAL-script copy (kept next to the English transcript so the doctor can check what was said).
@@ -27,6 +27,17 @@ export function englishPromptFor(lang) {
  * tried (2026-11-05), so a copy that silently leaves things out is not offered: Punjabi and mixed visits keep the English transcript only.
  */
 export function originalSource(lang) { return normalizeLang(lang) === 'hi' ? { engine: 'chirp_3', languageCode: 'hi-IN' } : null; }
+
+// Hindi / Punjabi written in Roman letters ("mujhe pichle teen din se seene mein dard hai"): the model sometimes transliterates instead of translating (seen live 2026-11-05).
+// Only words that are not English words are listed; the test is a count of them, so a stray name or one borrowed word never trips it.
+const ROMAN = new Set(('hai hain hoon hu tha thi raha rahi rahe nahi nahin mujhe mujhko mera meri mere aap aapko aapka aapki kya kyun kaise kab kahan mein se ko ka ki ke liye bhi toh lekin aur yeh woh '
+  + 'karta karti karte karna kiya hua hui hue lena leta leti dena deta dard bukhar pichle pichhle teen din dobara abhi thoda bahut accha acha theek sakta sakti chahiye hoga hogi ho gaya gayi '
+  + 'saans seene seena pet sir sardi khansi dawai goli roz subah shaam raat khana peena paani hafte mahine saal dekho batao bataiye nai haan ji tumhe tumhara hamara unko inko').split(' '));
+/** Is this "English" transcript really transliterated Hindi / Punjabi? True when 4 or more words (and at least 10% of the text) are Roman-script Hindi/Punjabi words. */
+export function looksRomanisedIndic(text) {
+  const w = String(text || '').toLowerCase().match(/[a-z']+/g) || []; if (w.length < 8) return false;
+  const hits = w.filter((x) => ROMAN.has(x)).length; return hits >= 4 && hits / w.length >= 0.1;
+}
 
 /** Chain settings for a non-English visit: Gemini only (a second Gemini model as the fallback), no English-pinned second opinion. */
 export function settingsForLang(base, lang) {
