@@ -48,7 +48,7 @@ test('lines that look like the wrong section but are not: nothing moves', () => 
     ['Home blood pressure readings: 131/56, 123/51', 'patient'],
     ['no swelling', 'neutral'], ['no acute fractures seen', 'clinician'], ['Oral cavity: ulcers improved, granulation tissue present', 'neutral'],
     ['triglycerides 3.5 (high, improved from 3.6)', 'clinician'], ['Magnesium dose reduced from 1000 mg to 500 mg daily', 'neutral'],
-    ['Awaiting biopsy results from Dr. Deck on November 20th', 'action'], ['Patient asked what the normal iron level is', 'neutral'],
+    ['Awaiting biopsy results from Dr. Deck on November 20th', 'action'], ['Patient asked what the normal iron level is', 'patient'],
     ['Resolved, follow-up lung CT scan planned in 3 months.', 'neutral'], ['Gait improves after initiating ambulation', 'neutral'],
     ['Clinic weight 2 weeks ago was 140 pounds; today patient was 141 pounds on home scale.', 'patient'],
     ['Worsened with erythema and inflammation by Sunday', 'neutral'], ['Weight loss of 10 pounds since January', 'patient'],

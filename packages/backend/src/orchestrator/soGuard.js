@@ -24,17 +24,18 @@ const PATIENT = [
   /\bsince (returning|coming|moving|starting|stopping|last|then|january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
   /\b(tried|trying|drinks?|smokes?|smoking|chews?|snores?|exercis\w+|acknowledges?|admits?|mentions?|confirms?)\b/i,
   /^\s*(had|has had|have had|having)\b/i,
+  /\b(reported|reports|states|stated|complain\w*|concerns?|worr\w+|cravings?|difficulty|struggl\w+|thought to be|bothering|history)\b/i,
   /\b(wants?|would like|worried|worries|concerned|afraid|fears?|asked|requests?|requested)\b/i,
 ];
 const CLINICIAN = [
   /\b(on|at|during) (exam|examination|palpation|auscultation|inspection)\b/i,
-  /\b(auscultat\w*|palpat\w*|percussion|tender to|tender on|non-?tender|erythema|crepitus|range of motion|reflexes?|abnormal gait|antalgic|murmurs?|rales|wheez\w*|crackles|bowel sounds|distended|lungs? (are )?clear|clear to auscultation|heart sounds?|jvp|pedal edema|edema noted|mass palpable|rash noted|swelling noted)\b/i,
+  /\b(auscultat\w*|palpat\w*|percussion|tender to|tender on|non-?tender|erythema|crepitus|range of motion|reflexes?|abnormal gait|antalgic|(no|grade \d|systolic|diastolic) murmurs?|(expiratory|inspiratory|audible|bilateral|diffuse|scattered) (wheez\w*|crackles|rales)|(wheez\w*|crackles|rales) (heard|noted|present|bilaterally)|bowel sounds|abdomen (is )?(soft|distended|non-?distended)|lungs? (are )?clear|clear to auscultation|heart sounds?|jvp|pedal edema|edema noted|mass palpable|rash noted|swelling noted)\b/i,
   /\b(well[- ]appearing|in no (acute )?distress|alert and oriented|oriented to|non-?toxic|appears? (well|comfortable|anxious|tired|unwell))\b/i,
   /\b(bp|blood pressure)\b\s*(is|was|:|of|today|in clinic)?\s*\d{2,3}\s*\/\s*\d{2,3}/i,
   /\b(pulse|heart rate|hr|resp(iratory)? rate|rr|temp(erature)?|spo2|o2 sat\w*|oxygen sat\w*)\b\s*(is|was|:|of|today)?\s*\d/i,
-  /\b(weight|wt|height|bmi)\b\s*(is|was|:|of|today)?\s*\d{1,3}(\.\d)?\s*(lbs?|pounds|kg|cm|inches|in)?\b(?!\s*(loss|gain))/i,
+  /^\W*(current |clinic |today'?s? )?(weight|wt|height|bmi)\b\s*(is|was|:|of|today)?\s*\d{1,3}(\.\d)?\s*(lbs?|pounds|kg|cm|inches|in)?\b(?!\s*(loss|gain))[^,;]{0,25}$/i,   // only a short measurement line, not a story that mentions a weight
   /\b(labs?|blood ?work|results?|ultrasound|x-?ray|mri|ct scan|ecg|ekg|a1c|hba1c|creatinine|egfr|ferritin|hemoglobin|haemoglobin|cholesterol|ldl|tsh|psa)\b[^.]{0,30}\b(show\w*|normal|elevated|low|high|within|\d)/i,
-  /\b\w+ levels?\b/i,
+  /\b\w+ levels? (is|are|was|were|:)? ?(\d|normal|high|low|elevated|within|stable|abnormal)/i,
   /\b(triglycerides?|glucose|sodium|potassium|calcium|vitamin [a-d]\d?|b12|folate|platelets?|wbc|rbc|urea|bilirubin|alt|ast|crp|esr|inr|troponin|lipids?|hdl|uric acid|albumin|magnesium|phosph\w+)\b[^.]{0,25}\d/i,
   /\b\d+(\.\d+)?\s*\((high|low|elevated|normal|abnormal)/i,
   /\b(no|without) (acute |new |displaced )?(fractures?|effusion|infiltrates?|abnormalit\w+|free fluid)\b/i,
@@ -43,7 +44,7 @@ const CLINICIAN = [
 const HISTORY = /\b(history of|completed|performed|was done|done during|previously|formerly|in (19|20)\d\d|\bsince (19|20)\d\d|years? ago|months? ago|family history|mother|father|sister|brother|grand\w+|underwent|surgery|surgical|diagnosed (with|in)|was diagnosed|never formally)\b/i;
 // a story of how it started or got worse is the patient's, even when it names a sign the doctor would also look for ("worsened with erythema by Sunday")
 const NARRATIVE = /\b(worsen\w*|progressed|as the day|couple of days|few days|yesterday|last (night|week)|post-?injury|got worse|started|began|woke)\b/i;
-const DOCTOR_ACTION =/^\s*(asked|inquire|inquiry|discussion|awaiting|pending|advised|discussed|explained|recommended|told|offered|suggested|counsel\w*|reviewed with|plan:?|will (start|order|refer|check)|(blood pressure|bp)( check| today| taken)?\.?)\b/i;
+const DOCTOR_ACTION = /^\s*(review|recheck|repeat|continue|monitor|refer|order|consider|schedule|asked|inquire|inquiry|discussion|awaiting|pending|advised|discussed|explained|recommended|told|offered|suggested|counsel\w*|reviewed with|plan:?|will (start|order|refer|check)|(blood pressure|bp)( check| today| taken)?\.?)\b/i;
 const HOME = /\b(at home|home scale|on (the |her |his |their )?home|home (bp|blood pressure|glucose|sugars?|readings?|monitoring|weights?))\b|\(patient[- ]reported\)/i;
 
 /** 'patient' | 'clinician' | 'action' | 'neutral' for one note line. */
@@ -81,7 +82,7 @@ export function findMoves(md) {
   if (sec.O) for (const i of sec.O.bullets) { const t = bulletText(lines[i]); if (sideOf(t) === 'patient' && (HOME.test(t) || !measured(t))) moves.push({ dir: 'O->S', idx: i, line: t, why: HOME.test(t) ? 'the patient\'s own reading or report' : 'the patient\'s own account' }); }
   if (sec.S) for (const i of sec.S.bullets) {
     const t = bulletText(lines[i]); const s = sideOf(t);
-    if (s === 'clinician' && !HISTORY.test(t) && !NARRATIVE.test(t)) moves.push({ dir: 'S->O', idx: i, line: t, why: 'an examination finding, clinic measurement or test result' });
+    if (s === 'clinician' && t.length <= 150 && !HISTORY.test(t) && !NARRATIVE.test(t)) moves.push({ dir: 'S->O', idx: i, line: t, why: 'an examination finding, clinic measurement or test result' });
     else if (s === 'action') review.push({ dir: 'review', idx: i, line: t, why: 'the doctor\'s own action, not what the patient said' });
   }
   // a section is never emptied
