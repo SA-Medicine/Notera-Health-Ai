@@ -118,6 +118,7 @@ function pcmToWav(pcm) {
 }
 import { collapseLoops } from './loops.js';
 import { stripPromptLeak } from './promptLeak.js';
+import { hedgedRequest, hedgeAfterMs } from './hedge.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
 async function geminiRunner(pcm, model, log) {
   const { createGeminiService } = await import('../services/LLMService.js');
@@ -126,7 +127,9 @@ async function geminiRunner(pcm, model, log) {
   const ask = async (range, temperature) => {
     const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(range.start, range.end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
     for (let attempt = 0; attempt < 3; attempt++) {
-      const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(80000) }); const j = await r.json();
+      // a request that hangs (58-63 s on 3 of 17 chunks, 2026-11-04) is covered by one identical second request after 5x the normal time; the first good answer wins. ASR_HEDGE=0 turns it off.
+      const post = async (signal) => { const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }); const j = await r.json(); if (r.status >= 500) throw new Error(`gemini ${r.status}: ${JSON.stringify(j).slice(0, 140)}`); return { r, j }; };
+      const { r, j } = process.env.ASR_HEDGE === '0' ? await post(AbortSignal.timeout(80000)) : await hedgedRequest(post, { hedgeMs: hedgeAfterMs((range.end - range.start) / 32000), timeoutMs: 80000, onHedge: (w) => log(`gemini-asr: second request sent (${w})`) });
       if (r.status === 429 && attempt < 2) { await new Promise((res) => setTimeout(res, 3000 * (attempt + 1))); continue; }   // quota: wait and retry
       if (!r.ok) throw new Error(`gemini ${r.status}: ${JSON.stringify(j).slice(0, 140)}`);
       return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(' ').replace(/\s+/g, ' ').trim();

@@ -536,7 +536,10 @@ export function usageSummary(calls = []) {
   for (const c of calls) { const m = (byModel[c.model] ||= { calls: 0, prompt: 0, output: 0, thoughts: 0 }); m.calls++; m.prompt += c.prompt; m.output += c.output; m.thoughts += c.thoughts || 0; prompt += c.prompt; output += c.output; thoughts += c.thoughts || 0; }
   return { calls: calls.length, prompt, output, thoughts, byModel };
 }
-export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs, added = [] }) {
+// Time guard: a story RETRY is not started once the note has been running for STORY_BUDGET_MS (default 50 s). The first attempt always runs, and a rejected story falls back to the
+// grouped Subjective exactly as after three rejections. On 2026-11-04 a 22-minute visit spent 34 s on three rejected attempts (89 s in all); notes that are on time are untouched.
+export const storyBudgetMs = () => { const n = Number(process.env.STORY_BUDGET_MS); return Number.isFinite(n) && n > 0 ? n : 50000; };
+export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs, added = [], budgetUntil = 0 }) {
   if (process.env.STORY_COMPACT !== '0' && !/\nLENGTH:/.test(prompt || '')) prompt = (prompt || STORY_SYS) + STORY_COMPACT;
   const t0 = Date.now(); const draft = { subjective: note.subjective, past_medical_history: note.past_medical_history };
   if (!Object.values(note.subjective || {}).some((v) => String(v || '').trim())) { log('[v2:story] skipped — nothing in Subjective'); return { out: null, why: 'empty', ms: 0 }; }
@@ -590,6 +593,7 @@ export async function storyPass(llm, note, transcript, log, { prompt, timeoutMs,
       const all = await Promise.all(att); const last = all[all.length - 1]; why = last.why || why; rejected = last.rejected || rejected; startAt = 2;
     }
     for (let attempt = startAt; attempt < 3; attempt++) {   // 3rd try only after two rejections (30% of newer test notes lost their topic headings after two)
+      if (attempt > 0 && budgetUntil && Date.now() > budgetUntil) { log(`[v2:story] no retry ${attempt + 1}: the note is already past its time budget (${why})`); break; }
       const r = await runAttempt(attempt, attempt > 0); if (r.ok) return accept(r, attempt);
     }
     return { out: null, why, rejected, ms: Date.now() - t0 };
@@ -811,7 +815,7 @@ export async function generateNoteV2(input, opts = {}) {
     const ts = Date.now(); const sMeta = await getActivePromptMeta(STORY_PROMPT_NAME); used.prompts.story = sMeta ? `v${sMeta.version}` : 'default';
     const storyModel = opts.storyModel || cfg['story.model']; used.config.story = storyModel;
     const storyLlm = await createGeminiService(null, { model: storyModel });
-    const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text || (process.env.STORY_STYLE === 'flat' ? STORY_FLAT_SYS : undefined), timeoutMs: cfg['story.timeoutMs'] });   // STORY_STYLE=flat: storyFlat.js (template layout, local test)
+    const sr = await storyPass(storyLlm, note, transcript, log, { prompt: sMeta?.text || (process.env.STORY_STYLE === 'flat' ? STORY_FLAT_SYS : undefined), timeoutMs: cfg['story.timeoutMs'], budgetUntil: t0 + storyBudgetMs() });   // STORY_STYLE=flat: storyFlat.js (template layout, local test)
     lap('story', ts);
     if (sr.out) {
       for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr.out[sec] && k in sr.out[sec]) note[sec][k] = String(sr.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim();
@@ -892,7 +896,7 @@ export async function generateNoteV2(input, opts = {}) {
       // the lines that arrived after the story, so the second pass merges them into the bullets they belong to instead of keeping them as one-fact bullets
       const linesOf = (v) => (typeof v === 'string' ? v.split('\n') : v && typeof v === 'object' ? Object.values(v).flatMap(linesOf) : []).map((x) => String(x).replace(/^\s*[-•*]\s*/, '').trim()).filter((x) => x.length > 3 && !/:\s*$/.test(x));
       const before = new Set(linesOf(JSON.parse(storyDone.snapshot))); const added = linesOf([note.subjective, note.past_medical_history]).filter((x) => !before.has(x));
-      const llm2 = await createGeminiService(null, { model: storyDone.model }); const sr2 = await storyPass(llm2, note, transcript, log, { prompt: storyDone.prompt, timeoutMs: cfg['story.timeoutMs'], added });
+      const llm2 = await createGeminiService(null, { model: storyDone.model }); const sr2 = await storyPass(llm2, note, transcript, log, { prompt: storyDone.prompt, timeoutMs: cfg['story.timeoutMs'], added, budgetUntil: t0 + storyBudgetMs() });
       if (sr2.out) { for (const [sec, keys] of SEC_FIELDS.slice(0, 2)) for (const k of keys) if (sr2.out[sec] && k in sr2.out[sec]) note[sec][k] = String(sr2.out[sec][k] ?? '').split('\n').map((l) => l.replace(/^\s*[-•*]\s+/, '').trimEnd()).join('\n').trim(); log('[v2:story] added facts woven into the story'); }
       else log(`[v2:story] second pass kept the note as it is (${sr2.why || 'rejected'})`);
     } catch (e) { log(`[v2:story] second pass skipped — ${e.message}`); }

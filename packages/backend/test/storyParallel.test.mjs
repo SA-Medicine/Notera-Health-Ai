@@ -19,3 +19,13 @@ test('STORY_PARALLEL=1: the first two attempts start together and the first vali
     const both = fake([[BAD], [BAD], [GOOD]]); const r2 = await storyPass(both, note(), TX, () => {}, {}); assert.ok(r2.out, 'a third attempt still runs when both are rejected'); assert.equal(both.calls.length, 3);
   } finally { delete process.env.STORY_PARALLEL; }
 });
+
+test('time guard: past the budget no retry starts (the first attempt always runs); on time, the retry still runs', async () => {
+  delete process.env.STORY_PARALLEL;
+  const late = fake([[BAD], [GOOD]]); const logs = [];
+  const r = await storyPass(late, note(), TX, (m) => logs.push(m), { budgetUntil: Date.now() - 1 });
+  assert.equal(r.out, null); assert.equal(late.calls.length, 1, 'only the first attempt'); assert.ok(logs.some((l) => /no retry 2/.test(l)));
+  const onTime = fake([[BAD], [GOOD]]);
+  const r2 = await storyPass(onTime, note(), TX, () => {}, { budgetUntil: Date.now() + 60000 }); assert.ok(r2.out); assert.equal(onTime.calls.length, 2);
+  const firstOk = fake([[GOOD]]); const r3 = await storyPass(firstOk, note(), TX, () => {}, { budgetUntil: Date.now() - 1 }); assert.ok(r3.out, 'a late note still gets its first story attempt');
+});
