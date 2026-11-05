@@ -50,6 +50,7 @@ export function vetoReason(lines) {
   const negs = lines.map((l) => NEG.test(l.line)); if (negs.some(Boolean) && !negs.every(Boolean)) return 'denial with a finding';
   if (lines.some((l) => /^(medications?|preventive care|allerg\w*)\s*:/i.test(l.line))) return 'medication list line';   // a dose inside a story line is fine (the words are kept); only the list lines stay alone
   if (lines.some((l) => ACTION.test(l.line))) return 'doctor action line';
+  if (lines.slice(1).some((l) => /^[A-Z][^:;]{2,40}:\s+\S/.test(l.line))) return 'labelled line';   // "Hernia: a; Hernia: b" is not one point
   if (words(lines[0].line) < 3) return 'first line is only a label';   // "Acne" / "Chart update" + a symptom line is not one point
   if (lines.some((l) => words(l.line) > 22)) return 'line already long';
   if (words(lines.map((l) => l.line).join(' ')) > 40) return 'too long when joined';
@@ -156,16 +157,23 @@ export function joinObjective(md, { maxWords = 100 } = {}) {
  * own "; " boundaries into two or more bullets, each as full as possible; the pieces keep their order and every word, only the first letter of a piece that was
  * lower-cased for the join comes back as a capital. A single piece that is long on its own is left alone. LINE_CAP=0 switches it off.
  */
-const upperFirst = (s) => (/^[a-z]+\b/.test(s) && !/^[a-z]+[A-Z]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
+function splitTop(s, sep) {   // split at sep only outside (...) brackets
+  const out = []; let depth = 0, from = 0;
+  for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '(') depth++; else if (c === ')') depth = Math.max(0, depth - 1); else if (!depth && s.startsWith(sep, i)) { out.push(s.slice(from, i)); from = i + sep.length; i = from - 1; } }
+  out.push(s.slice(from)); return out;
+}
+const upperFirst =(s) => (/^[a-z]+\b/.test(s) && !/^[a-z]+[A-Z]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s);
 export function capLines(md, { maxChars = 140 } = {}) {
   const out = []; let inSO = false, split = 0;
   for (const ln of String(md || '').split('\n')) {
     const h = ln.match(/^###\s+(.*)$/); if (h) { inSO = /^(subjective|objective|past medical)/i.test(h[1].trim()); out.push(ln); continue; }
     const b = inSO ? ln.match(/^(\s*[-•*]\s+)(.*\S)\s*$/) : null;
-    if (!b || b[2].length <= maxChars || !b[2].includes('; ')) { out.push(ln); continue; }
-    const pieces = b[2].split('; '); const chunks = []; let cur = '';
-    for (const p of pieces) {
-      if (cur && (cur + '; ' + p).length > maxChars) { chunks.push(cur); cur = p; } else cur = cur ? cur + '; ' + p : p;
+    if (!b || b[2].length <= maxChars || !/[;,] /.test(b[2])) { out.push(ln); continue; }
+    // pieces: split at "; " first; a piece that is still too long is split at its own ", " (never inside brackets); separators are kept
+    const segs = []; for (const [i, p] of splitTop(b[2], '; ').entries()) { const sep = i ? '; ' : ''; if (p.length > maxChars) splitTop(p, ', ').forEach((q, k) => segs.push({ sep: k ? ', ' : sep, t: q })); else segs.push({ sep, t: p }); }
+    const chunks = []; let cur = '';
+    for (const s of segs) {
+      if (cur && (cur + s.sep + s.t).length > maxChars) { chunks.push(cur); cur = s.t; } else cur = cur ? cur + s.sep + s.t : s.t;
     }
     if (cur) chunks.push(cur);
     if (chunks.length < 2) { out.push(ln); continue; }

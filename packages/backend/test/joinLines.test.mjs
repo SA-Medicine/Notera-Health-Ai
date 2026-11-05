@@ -99,3 +99,12 @@ test('Objective: a labelled line takes its lower-case fragments with semicolons,
   assert.equal(toks(r.md), toks(md));
   assert.equal(joinObjective('### Subjective\n- Cough\n- better\n').joined, 0);   // only Objective
 });
+
+test('line cap: a long comma list is cut at its own commas outside brackets, order and words kept', () => {
+  const md = '### Objective\n- Abdominal ultrasound: mild plaque in aorta, normal pancreas, normal liver, multiple gallbladder stones up to 5 mm, small cyst in right kidney, multiple small stones in right kidney (largest 1.2 cm, upper pole), no hydronephrosis, normal spleen\n';
+  const r = capLines(md); const ls = r.md.split('\n').filter((l) => l.startsWith('- '));
+  assert.ok(ls.length >= 2 && ls.every((l) => l.length - 2 <= 140)); assert.ok(ls[0].startsWith('- Abdominal ultrasound: mild plaque'));
+  assert.ok(r.md.includes('(largest 1.2 cm, upper pole)'));
+  const toks = (s) => s.toLowerCase().replace(/[;.,]/g, '').split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
+  assert.equal(toks(r.md), toks(md));
+});

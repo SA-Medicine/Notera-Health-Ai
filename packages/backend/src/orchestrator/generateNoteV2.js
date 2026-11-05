@@ -63,6 +63,7 @@ import { soGuard } from './soGuard.js';
 import { proposePlan, applyPlan, joinObjective, capLines } from './joinLines.js';
 import { unclearPlan } from './unclearPlan.js';
 import { planTidy } from './planTidy.js';
+import { proposeMoves, applyMoves } from './planOrganise.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
@@ -960,6 +961,8 @@ export async function generateNoteV2(input, opts = {}) {
   if (!blank && (relMode === 'shadow' || relMode === '1')) { try { const rllm = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); rllm._agent = 'v2-relevance'; relP = relevanceFilter(rllm, renderedNote, log); } catch (e) { log(`[v2:relevance] not started — ${e.message}`); } }
   // joinLines.js: neighbouring Subjective lines that tell one point become one line with a semicolon. JOIN_LINES=shadow stores the proposal in note.metadata.joinLines and changes nothing; =1 makes the joins. Runs beside the drug check.
   let joinP = null; const joinMode = process.env.JOIN_LINES;
+  let planP = null; const planMode = process.env.PLAN_ORGANISE;
+  if (!blank && (planMode === 'shadow' || planMode === '1')) { try { const pllm = await createGeminiService(null, { model: process.env.JOIN_MODEL || process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); pllm._agent = 'v2-plan-organise'; planP = proposeMoves(pllm, renderedNote, log); } catch (e) { log(`[v2:plan] not started — ${e.message}`); } }
   if (!blank && (joinMode === 'shadow' || joinMode === '1')) { try { const jllm = await createGeminiService(null, { model: process.env.JOIN_MODEL || process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); jllm._agent = 'v2-join'; joinP = proposePlan(jllm, renderedNote, log); } catch (e) { log(`[v2:join] not started — ${e.message}`); } }
   if (planCheckP) {   // planActionCheck.js: flags only, shown under "Before you sign"
     try { const pc = await planCheckP; if (pc.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...pc.flags.map(({ kind, ...fl }) => fl)]; } if (opts.trace) opts.trace.planCheck = { flags: pc.flags.length, checked: pc.checked, ms: pc.ms, error: pc.error, kinds: pc.flags.map((x) => x.kind) }; } catch (e) { log(`[v2:plan-check] skipped — ${e.message}`); }
@@ -1006,12 +1009,20 @@ export async function generateNoteV2(input, opts = {}) {
     } catch (e) { log(`[v2:join] skipped — ${e.message}`); }
   }
 
+  if (planP) {   // planOrganise.js: a plan line under the wrong problem is moved under the right one (model says which, code moves it; words untouched)
+    try {
+      const po = await planP; note.metadata ||= {}; let moved = 0, dropped = [];
+      if (planMode === '1' && po.moves.length) { const r = applyMoves(renderedNote, { moves: po.moves }); if (r.ok && r.moved) { renderedNote = r.md; moved = r.moved; dropped = r.dropped; log(`[v2:plan] ${moved} plan line(s) moved under their own problem${dropped.length ? `, emptied heading(s) dropped: ${dropped.join(', ')}` : ''}`); } }
+      note.metadata.planOrganise = { mode: planMode, checked: po.checked, ms: po.ms, error: po.error, moved, dropped, proposed: po.moves, vetoed: po.vetoed };
+    } catch (e) { log(`[v2:plan] skipped — ${e.message}`); }
+  }
+
   if (!blank && joinMode === '1' && process.env.OBJ_JOIN !== '0') {   // joinLines.js: "Bloods (August): Hb normal" + its lower-case fragments become one line with semicolons (words untouched)
     try { const oj = joinObjective(renderedNote); if (oj.joined) { renderedNote = oj.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), objectiveJoined: oj.joined }; log(`[v2:join] ${oj.joined} Objective fragment(s) joined to their labelled line`); } } catch (e) { log(`[v2:join] objective skipped — ${e.message}`); }
   }
 
   if (!blank && joinMode === '1' && process.env.PLAN_TIDY !== '0') {   // planTidy.js: plan titles without a closing full stop, bullets start with a capital, word-for-word repeats inside one problem dropped
-    try { const pt = planTidy(renderedNote); if (pt.titles || pt.caps || pt.dupes || pt.splitO) { renderedNote = pt.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), planTidy: { titles: pt.titles, caps: pt.caps, dupes: pt.dupes, splitO: pt.splitO } }; log(`[v2:join] plan tidy: ${pt.titles} title(s), ${pt.caps} capital(s), ${pt.dupes} repeat(s) dropped, ${pt.splitO} Objective line(s) split`); } } catch (e) { log(`[v2:join] plan tidy skipped — ${e.message}`); }
+    try { const pt = planTidy(renderedNote); if (pt.md !== renderedNote) { renderedNote = pt.md; note.metadata ||= {}; const { md: _m, ...pstat } = pt; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), planTidy: pstat }; log(`[v2:join] plan tidy: ${JSON.stringify(pstat)}`); } } catch (e) { log(`[v2:join] plan tidy skipped — ${e.message}`); }
   }
 
   if (!blank && joinMode === '1' && process.env.LINE_CAP !== '0') {   // joinLines.js: no Subjective/Objective bullet runs to a third line; a long joined bullet is cut at its own semicolons
