@@ -58,6 +58,25 @@ export function vetoReason(lines) {
 }
 export const joinText = (lines) => lines.map((l, i) => { let t = l.line.trim(); if (i < lines.length - 1) t = t.replace(/[.;,\s]+$/, ''); return i ? lowerFirst(t) : t; }).join('; ');
 
+const WORDS_STOP = new Set('with that this from have been will were they them then than into over about after before while visit review follow'.split(' '));
+const stems = (s) => new Set((String(s).toLowerCase().match(/[a-z]{4,}/g) || []).filter((w) => !WORDS_STOP.has(w)).map((w) => w.replace(/(ing|ed|es|s)$/, '')));
+/**
+ * The owner's note (2026-11-05, migraine + knee visit): the lines that only list the reasons for the visit ("Refill of migraine medication", "Left knee pain and swelling")
+ * must not sit in a group of their own at the top while the rest of that problem comes later. A reason line whose words match the NAME of another topic goes first inside
+ * that topic (lines only move, no word changes); a reason line that matches no topic stays in the reasons group, which disappears when it is empty.
+ */
+export function foldReasons(groups) {
+  const ri = groups.findIndex((g) => /reason|chief|presenting|visit/i.test(g.name)); if (ri < 0 || groups.length < 2) return groups;
+  const keep = [];
+  for (const l of groups[ri].lines) {
+    const w = stems(l.line); let best = null, bs = 0;
+    groups.forEach((g, gi) => { if (gi === ri) return; const s = [...stems(g.name)].filter((x) => w.has(x)).length; if (s > bs) { bs = s; best = gi; } });
+    if (best == null) keep.push(l); else groups[best].lines = [...groups[best].lines, l].sort((a, b) => a.idx - b.idx);
+  }
+  groups[ri].lines = keep;
+  return groups.filter((g) => g.lines.length);
+}
+
 /**
  * The model's answer -> { topics: [{ name, lines: [{id, line, idx, group}] }], joins, vetoed, moved }.
  * Topics are ordered by their first line in the note and keep the order of the lines inside; a line the model forgot stays with the topic of the line before it.
@@ -73,7 +92,7 @@ export function parsePlan(raw, cands) {
   }
   if (!names.length) return null;
   let prev = 0; for (const c of cands) { if (topicOf.has(c.id)) prev = topicOf.get(c.id); else topicOf.set(c.id, prev); }
-  const groups = names.map((name, ti) => ({ name, lines: cands.filter((c) => topicOf.get(c.id) === ti) })).filter((g) => g.lines.length).sort((a, b) => a.lines[0].idx - b.lines[0].idx);
+  const groups = foldReasons(names.map((name, ti) => ({ name, lines: cands.filter((c) => topicOf.get(c.id) === ti) })).filter((g) => g.lines.length)).sort((a, b) => a.lines[0].idx - b.lines[0].idx);
   // positions in the NEW order: a join must be neighbours there
   let pos = 0; const virt = new Map();
   groups.forEach((g, gi) => g.lines.forEach((l) => virt.set(l.id, { ...l, idx: pos++, group: gi })));

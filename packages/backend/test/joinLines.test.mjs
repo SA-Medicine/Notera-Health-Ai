@@ -33,7 +33,7 @@ test('lines are read with ids and only the Subjective', () => {
 });
 test('the plan puts the lines of one problem together, in their own order, topics in the order they first appear', () => {
   const p = parsePlan(RAW, c);
-  assert.deepEqual(p.topics.map((t) => t.ids), [['S1', 'S2'], ['S3', 'S5', 'S6', 'S7', 'S9'], ['S4', 'S8', 'S10', 'S11']]);
+  assert.deepEqual(p.topics.map((t) => t.ids), [['S1', 'S3', 'S5', 'S6', 'S7', 'S9'], ['S2'], ['S4', 'S8', 'S10', 'S11']]);
   assert.equal(p.moved > 0, true);
   assert.equal(p.joins.length, 2);
   assert.equal(p.joins[0].to, 'Walking 10-12 miles daily during trip; initially difficult; improved by end of week.');
@@ -42,7 +42,7 @@ test('the plan puts the lines of one problem together, in their own order, topic
 test('applying it: every word survives, one blank line between groups, no gap between two lone lines, the rest of the note is untouched', () => {
   const r = applyPlan(MD, parsePlan(RAW, c));
   assert.equal(r.ok, true); assert.equal(r.applied, 2);
-  assert.match(r.md, /### Subjective\n- Weight check\n- Medication refill\n\n- Weight 190 lb, wants to lose 20 lb\n- Walking 10-12 miles daily during trip; initially difficult; improved by end of week\.\n- Cut out sugary drinks\n\n- Itching and mild pain on the chest when dry; temporarily relieved by moisturizing lotion\n- No fever\n- Denies nausea\n\n### Past Medical History\n- Hypertension/);
+  assert.match(r.md, /### Subjective\n- Weight check\n- Weight 190 lb, wants to lose 20 lb\n- Walking 10-12 miles daily during trip; initially difficult; improved by end of week\.\n- Cut out sugary drinks\n\n- Medication refill\n\n- Itching and mild pain on the chest when dry; temporarily relieved by moisturizing lotion\n- No fever\n- Denies nausea\n\n### Past Medical History\n- Hypertension/);
   const toks = (s) => s.toLowerCase().replace(/[;.,]/g, '').split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
   assert.equal(toks(r.md), toks(MD));
 });
@@ -107,4 +107,17 @@ test('line cap: a long comma list is cut at its own commas outside brackets, ord
   assert.ok(r.md.includes('(largest 1.2 cm, upper pole)'));
   const toks = (s) => s.toLowerCase().replace(/[;.,]/g, '').split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
   assert.equal(toks(r.md), toks(md));
+});
+
+import { foldReasons } from '../src/orchestrator/joinLines.js';
+test('reason-for-visit lines go first inside the topic they name; a reason that names no topic stays; the migraine visit reads in two groups', () => {
+  const MIG = '### Subjective\n- Refill of migraine medication\n- Left knee pain and swelling\n- Review of results\n- Pain for 1 year after squatting\n- Swelling all the time\n- Taking No deck for migraines, works well\n- Takes medication when migraine occurs, every 2 months\n\n### Objective\n- BP 120/80\n';
+  const cc = subjectiveLines(MIG);
+  const raw = JSON.stringify({ topics: [{ topic: 'Reasons for visit', ids: ['S1', 'S2', 'S3'] }, { topic: 'Left knee pain and swelling', ids: ['S4', 'S5'] }, { topic: 'Migraine medication', ids: ['S6', 'S7'] }], join: [] });
+  const r = applyPlan(MIG, parsePlan(raw, cc));
+  assert.equal(r.ok, true);
+  assert.match(r.md, /### Subjective\n- Refill of migraine medication\n- Taking No deck for migraines, works well\n- Takes medication when migraine occurs, every 2 months\n\n- Left knee pain and swelling\n- Pain for 1 year after squatting\n- Swelling all the time\n\n- Review of results\n\n### Objective/);
+  const toks = (s) => s.toLowerCase().split(/\s+/).filter((w) => w && w !== '-').sort().join(' ');
+  assert.equal(toks(r.md), toks(MIG));
+  assert.equal(foldReasons([{ name: 'Weight', lines: [{ line: 'x', idx: 0 }] }]).length, 1);   // nothing to fold
 });
