@@ -54,7 +54,7 @@ export function noteToClipboard(md: string): { html: string; text: string } {
     if (b.k === 'h') { gap(); t.push(plainInline(b.text) + ':'); }
     else if (b.k === 'sub') { gap(); t.push(plainInline(b.text)); }
     else if (b.k === 'num') { gap(); t.push(`${b.n}. ${plainInline(b.text)}`); }
-    else if (b.k === 'li' && b.ap) t.push(' '.repeat(Math.max(0, b.level - 1) * 3) + plainInline(b.text));   // the plan is shown without bullets, so it is copied without bullets
+    else if (b.k === 'li' && b.ap) t.push(' '.repeat(b.level * 3) + plainInline(b.text));   // the plan is shown without bullets, so it is copied without bullets; its lines sit indented under the problem so each problem reads as a block
     else if (b.k === 'li') t.push(' '.repeat(b.level * 3) + (b.level < 2 ? '• ' : '– ') + plainInline(b.text));
     else t.push(plainInline(b.text));
   }
@@ -67,6 +67,8 @@ export function noteToClipboard(md: string): { html: string; text: string } {
   let depth = 0;   // 0 = no list open, 1 = a list, 2 = a list inside a list item
   const liStyle = `margin:0 0 2pt 0;${FONT}font-size:11pt;line-height:1.4;`;
   const ulStyle = (d: number) => `margin:0 0 ${d === 1 ? 4 : 2}pt 0;padding:0 0 0 ${d === 1 ? 20 : 18}pt;list-style-type:${d === 1 ? 'disc' : 'circle'};`;
+  // Real spacing, not margins: many EMR editors and Word-to-web paste filters drop CSS margins, so a gap between blocks is a small empty paragraph.
+  const spacer = (pt = 8) => `<p style="margin:0;${FONT}font-size:${pt}pt;line-height:${pt}pt;">&nbsp;</p>`;
   const closeTo = (to: number) => {
     while (depth > to) { h.push('</li></ul>'); depth--; }
   };
@@ -75,7 +77,7 @@ export function noteToClipboard(md: string): { html: string; text: string } {
       closeTo(0);
       const ls = labelSplit(b.text);
       const body = ls ? `<strong>${esc(plainInline(ls.lab))}:</strong> ${htmlInline(ls.rest)}` : htmlInline(b.text);
-      h.push(`<p style="margin:0 0 2pt ${b.level >= 2 ? 18 : 0}pt;${FONT}font-size:11pt;line-height:1.4;">${body}</p>`);
+      h.push(`<p style="margin:0 0 2pt ${b.level >= 2 ? 28 : b.level === 1 ? 12 : 0}pt;${FONT}font-size:11pt;line-height:1.4;">${body}</p>`);
       continue;
     }
     if (b.k === 'li') {
@@ -94,6 +96,7 @@ export function noteToClipboard(md: string): { html: string; text: string } {
       continue;
     }
     closeTo(0);
+    if (h.length && (b.k === 'h' || b.k === 'num')) h.push(spacer(b.k === 'h' ? 10 : 8));
     if (b.k === 'h') h.push(`<p style="margin:14pt 0 4pt 0;${FONT}font-size:13pt;font-weight:700;"><b>${htmlInline(b.text)}:</b></p>`);
     else if (b.k === 'sub') h.push(`<p style="margin:6pt 0 2pt 0;${FONT}font-size:11pt;font-weight:700;"><b>${htmlInline(b.text)}</b></p>`);
     else if (b.k === 'num') h.push(`<p style="margin:8pt 0 2pt 0;${FONT}font-size:11pt;font-weight:700;"><b>${esc(b.n)}. ${htmlInline(b.text)}</b></p>`);

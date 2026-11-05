@@ -36,8 +36,8 @@ test('plain text has no markdown symbols, headings like the preferred note, plan
   assert.match(text, /\nAssessment & Plan:\n/);
   assert.match(text, /\n• Cough for 3 days with mild fever\n/);       // Subjective is shown with bullets, so it keeps them
   assert.match(text, /\n1\. Acute bronchitis\n/);
-  assert.match(text, /\nDiagnosis: Acute bronchitis\n/);               // the plan is shown without bullets, so it copies without
-  assert.match(text, /\n   Started: Amoxicillin 500 mg three times daily for 5 days\n/);
+  assert.match(text, /\n   Diagnosis: Acute bronchitis\n/);            // the plan is shown without bullets, so it copies without; each problem's lines sit indented under it
+  assert.match(text, /\n      Started: Amoxicillin 500 mg three times daily for 5 days\n/);
   assert.ok(!/•[^\n]*(Diagnosis|Started|Advice)/.test(text));
   assert.ok(!/\n\n\n/.test(text));
 });
@@ -48,7 +48,7 @@ test('html is formatted: bold headings, bold labels, bullets in the history, pla
   assert.match(html, /<strong>mild fever<\/strong>/);
   assert.match(html, /<ul /);
   assert.match(html, /<p [^>]*><strong>Diagnosis:<\/strong> Acute bronchitis<\/p>/);
-  assert.match(html, /<p [^>]*margin:0 0 2pt 18pt[^>]*><strong>Started:<\/strong> Amoxicillin/);
+  assert.match(html, /<p [^>]*margin:0 0 2pt 28pt[^>]*><strong>Started:<\/strong> Amoxicillin/);
   assert.match(html, /<p [^>]*><b>1\. Acute bronchitis<\/b><\/p>/);
   assert.match(html, /rest &lt;24 h/);
   assert.ok(!/\*\*|###/.test(html.replace(/<[^>]+>/g, '')), 'no markdown left in the visible text');
@@ -63,4 +63,12 @@ test('empty and odd input does not throw', () => {
   assert.equal(noteToClipboard('').text, '');
   const r = noteToClipboard('Just a line with **bold** and `code`\r\n\r\n- one');
   assert.equal(r.text, 'Just a line with bold and code\n• one');
+});
+
+test('a blank line and a real spacer paragraph separate the problems of the plan (EMR editors drop margins)', () => {
+  const { text, html } = noteToClipboard(NOTE);
+  assert.ok(text.includes('Follow-up: Review in 1 week\n\n2. Hypertension\n'), text);
+  assert.match(html, /&nbsp;<\/p><p [^>]*><b>2\. Hypertension<\/b><\/p>/);
+  assert.match(html, /&nbsp;<\/p><p [^>]*><b>Objective:<\/b><\/p>/);
+  assert.ok(!/^<meta charset="utf-8"><div [^>]*><p [^>]*>&nbsp;/.test(html), 'no spacer before the first heading');
 });
