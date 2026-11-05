@@ -21,6 +21,7 @@ import { query, one } from '../db/pool.js';
 import { cleanEvents, mergeFeedback, diffLines, resolvedMessages } from './corrections.js';
 import { analyseBatch } from '../admin/audioLibrary.js';
 import { repairWebm } from '../admin/audioStats.js';
+import { normalizeLang } from '../asr/language.js';
 
 const BUCKET = () => process.env.GCS_AUDIO_BUCKET || '';
 
@@ -35,12 +36,13 @@ export function mountLibrary(app, requireAuthMw) {
   // Save (or update) a consult produced by the client — tied to the logged-in user.
   app.post('/api/library/consults', requireAuthMw, json, async (req, res) => {
     try {
-      const { consultId, transcript, note, renderedNote, title, specialty, noteType, status } = req.body || {};
+      const { consultId, transcript, note, renderedNote, title, specialty, noteType, status, language, originalTranscript } = req.body || {};
+      const lang = normalizeLang(language);   // Hindi / Punjabi / auto visits keep the original-script text beside the English working transcript (same retention, same owner)
       const id = consultId || 'c_' + crypto.randomBytes(9).toString('hex');
       await store.createConsult({
         consultId: id, clinicianId: req.user.id, specialty, noteType,
         status: status || 'ready', title: title || null,
-        transcript: transcript ? { text: transcript } : null,
+        transcript: transcript ? { text: transcript, ...(lang !== 'en' ? { language: lang, translated: true, ...(originalTranscript ? { original: String(originalTranscript).slice(0, 400000) } : {}) } : {}) } : null,
         createdAt: new Date().toISOString(),
       });
       if (note || renderedNote) {

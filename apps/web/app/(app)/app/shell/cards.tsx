@@ -42,6 +42,7 @@ export type CardsProps = {
   panel: string; setPanel: (p: string) => void; loadHistory: () => void;
   history: SessionItem[]; activeConsult: string | null; openConsult: (id: string) => void;
   patient: string; setPatient: (v: string) => void; patientMeds: string; setPatientMeds: (v: string) => void; specialty: string; setSpecialty: (v: string) => void; specialties: string[];
+  visitLang?: string; setVisitLang?: (v: string) => void;   // en | hi | pa | auto: the language spoken in the visit (the note is always written in English)
   dateStr: string; timer: string; recording: boolean; phaseLabel: string;
   note: string; editing: boolean; toggleEdit: () => void; copy: () => void; saveState: 'idle' | 'saving' | 'saved' | 'error'; retrySave: () => void;
   toCheck: number; review: () => void; noSuggest?: boolean;   // an account with all suggestions off: no "to check" counts on the session cards
@@ -83,7 +84,15 @@ export function buildCards(p: CardsProps): Partial<Record<'modules' | 'sessions'
           <label className="sh-field"><span>Specialty</span>
             <select value={p.specialty} onChange={(e) => p.setSpecialty(e.target.value)}><option value="auto">Auto-detect</option>{p.specialties.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select>
           </label>
-          <dl className="sh-facts"><div><dt>{SI.cal}Date</dt><dd>{p.dateStr}</dd></div><div><dt>{SI.clock}Recorded</dt><dd className="tnum">{p.timer}</dd></div><div><dt>{SI.globe}Language</dt><dd>English</dd></div></dl>
+          {p.setVisitLang && (
+            <label className="sh-field"><span>Visit language</span>
+              <select value={p.visitLang || 'en'} disabled={p.recording} onChange={(e) => p.setVisitLang?.(e.target.value)} title={p.recording ? 'Set before you start recording' : undefined}>
+                <option value="en">English</option><option value="hi">हिन्दी (Hindi)</option><option value="pa">ਪੰਜਾਬੀ (Punjabi)</option><option value="auto">Mixed: Hindi, Punjabi, English</option>
+              </select>
+            </label>
+          )}
+          {p.visitLang && p.visitLang !== 'en' && <p className="sh-empty">The note is written in English. What was said in the original language is kept with the visit.</p>}
+          <dl className="sh-facts"><div><dt>{SI.cal}Date</dt><dd>{p.dateStr}</dd></div><div><dt>{SI.clock}Recorded</dt><dd className="tnum">{p.timer}</dd></div><div><dt>{SI.globe}Language</dt><dd>{({ en: 'English', hi: 'Hindi', pa: 'Punjabi', auto: 'Mixed' } as Record<string, string>)[p.visitLang || 'en'] || 'English'}</dd></div></dl>
         </div>
       ),
     },

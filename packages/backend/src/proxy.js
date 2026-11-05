@@ -13,6 +13,7 @@ import express from 'express';
 import { extractMultipartFile, transcodePcm16k } from './asr/audio.js';
 import { billableModel } from './asr/googleSpeech.js';
 import { transcribeWithChain, getSettings as getAsrSettings, rerunSettings } from './asr/engines.js';
+import { normalizeLang, languageMeta } from './asr/language.js';
 import { collapseRepetitions } from './validation/textSimilarity.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -224,7 +225,8 @@ export function mountProxy(app) {
         // production always did: ASR_MODEL (chirp_2) first, then latest_long. The cost guard in googleSpeech.js still applies to every V1 request.
         const rerun = req.query.rerun === '1';
         if (rerun && !rerunAllowed(req)) return res.status(429).json({ error: 'rerun_limit', message: 'Daily re-transcription limit reached.', requestId: id });
-        const r = await transcribeWithChain(pcm, { log: (l) => console.log(`[proxy ${id}] ${rerun ? '(re-transcribe) ' : ''}${l}`), ...(rerun ? { settings: rerunSettings(await getAsrSettings()) } : {}) });
+        const lang = normalizeLang(req.query.lang);   // visit language: en (default, nothing changes) | hi | pa | auto -> English working transcript + original-script copy (asr/language.js)
+        const r = await transcribeWithChain(pcm, { language: lang, log: (l) => console.log(`[proxy ${id}] ${rerun ? '(re-transcribe) ' : ''}${lang !== 'en' ? `(lang=${lang}) ` : ''}${l}`), ...(rerun ? { settings: rerunSettings(await getAsrSettings()) } : {}) });
         // A decoder can repeat a phrase over and over; collapse those runs so the artefact never reaches the note as duplicated content.
         const text = collapseRepetitions(r.text);
         const totalMs = Date.now() - t0;
@@ -234,6 +236,7 @@ export function mountProxy(app) {
         return res.json({
           text, transcript: text, requestId: id, latencyMs: totalMs,
           durationSeconds: r.durationSeconds, windows: r.windows, failedWindows: r.failedWindows, engine: r.engine,
+          ...languageMeta(lang, r.original ? collapseRepetitions(r.original) : ''),
         });
       }
 

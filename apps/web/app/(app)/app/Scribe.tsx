@@ -39,6 +39,7 @@ const MAX_INFLIGHT = 3;                        // concurrent ASR requests (the b
 type Segment = {
   status: 'pending' | 'done' | 'failed';
   text: string;
+  original?: string;    // Hindi / Punjabi visits: the same words in their own script (the working text above is English)
   offsetMs: number;     // start offset within the session, for the transcript timestamp
   attempts: number;
   blob: Blob | null;    // retained only while the segment still needs transcribing
@@ -133,6 +134,12 @@ export default function Scribe() {
   const [fullNote, setFullNote] = useState(false);   // the note fills the whole window
   const [checksEnd, setChecksEnd] = useState<HTMLElement | null>(null);   // where the "Before you sign" checklist is drawn: the end of the note
   const [specialty, setSpecialty] = useState('auto');
+  // Visit language: en (default, the path that always existed) | hi | pa | auto. The speech engine writes the English working transcript and, for hi/pa/auto, the original-script copy.
+  const [visitLang, setVisitLangState] = useState('en'); const langRef = useRef('en');
+  const wholeOriginal = useRef('');   // original-script text when the whole recording was transcribed in one piece (recovery / re-transcribe)
+  const originalRef = useRef('');
+  useEffect(() => { try { const v = localStorage.getItem('notera.visitLang'); if (v === 'hi' || v === 'pa' || v === 'auto') { langRef.current = v; setVisitLangState(v); } } catch { /* private window */ } }, []);
+  const setVisitLang = (v: string) => { const x = v === 'hi' || v === 'pa' || v === 'auto' ? v : 'en'; langRef.current = x; setVisitLangState(x); try { localStorage.setItem('notera.visitLang', x); } catch { /* private window */ } };
   const [patient, setPatient] = useState('');
   const [patientMeds, setPatientMeds] = useState('');   // optional: the patient's medication list from the EHR, sent with the transcript to check drug names
   const [error, setError] = useState('');
@@ -298,12 +305,14 @@ export default function Scribe() {
   // appended whatever finished first, scrambling the transcript the note is written
   // from. Segments are therefore keyed by their INDEX and the transcript is always
   // rendered in index order.
-  async function transcribeBlob(blob: Blob, rerun = false): Promise<string> {
+  async function transcribeBlob(blob: Blob, rerun = false, out?: { original?: string }): Promise<string> {
     if (!blob.size) return '';
-    const r = await fetch(`${API}/api/asr${rerun ? '?rerun=1' : ''}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(rerun ? 100_000 : ASR_REQUEST_TIMEOUT_MS) });
+    const q = [rerun ? 'rerun=1' : '', langRef.current !== 'en' ? `lang=${langRef.current}` : ''].filter(Boolean).join('&');
+    const r = await fetch(`${API}/api/asr${q ? `?${q}` : ''}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type }, body: blob, signal: AbortSignal.timeout(rerun ? 100_000 : ASR_REQUEST_TIMEOUT_MS) });
     if (r.status === 402) { setPaywall(true); throw new Error('free_limit_reached'); }
     if (!r.ok) { const d = await readJson(r).catch(() => ({} as any)); throw new Error(d?.hint || d?.error || 'Transcription failed'); }
     const d = await readJson(r);
+    if (out && typeof d.original === 'string' && d.original.trim()) out.original = d.original.trim();
     return (d.text || d.transcript || '').trim();
   }
 
@@ -315,6 +324,7 @@ export default function Scribe() {
       if (seg.status !== 'done' || !seg.text) continue;
       rows.push({ t: mmss(seg.offsetMs / 1000), text: seg.text });
     }
+    originalRef.current = wholeOriginal.current || ordered.map(([, s]) => s.original || '').filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     setLines(rows);
     setTx(rows.map((r) => r.text).join(' ').replace(/\s+/g, ' ').trim());
     setPendingSegs([...segments.current.values()].filter((s) => s.status === 'pending').length);
@@ -329,9 +339,11 @@ export default function Scribe() {
     if (!seg || !seg.blob) return;
     const blob = seg.blob;
     try {
-      const text = await transcribeBlob(blob);
+      const o: { original?: string } = {};
+      const text = await transcribeBlob(blob, false, o);
       seg.status = 'done';
       seg.text = text;
+      if (o.original) seg.original = o.original;
       seg.blob = null;                      // free the audio once it is transcribed
       if (text) emptySegs.current = 0;
       else countEmptySegment();
@@ -465,7 +477,7 @@ export default function Scribe() {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         const s = await fetch(`${API}/api/library/consults`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultId: cid, transcript: text || undefined, title: title || undefined, specialty: specialty === 'auto' ? undefined : specialty, noteType: 'consultation', status: 'processing' }) });
+          body: JSON.stringify({ consultId: cid, transcript: text || undefined, title: title || undefined, specialty: specialty === 'auto' ? undefined : specialty, noteType: 'consultation', status: 'processing', ...(langRef.current !== 'en' ? { language: langRef.current, originalTranscript: originalRef.current || undefined } : {}) }) });
         if (s.status === 401) return false;
         if (!s.ok) throw new Error(String(s.status));
         const u = await fetch(`${API}/api/library/consults/${cid}/audio`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob });
@@ -499,9 +511,11 @@ export default function Scribe() {
     setRerunning(true);
     try {
       const oldWords = countWords(transcriptRef.current);
-      const whole = await transcribeBlob(fullBlob.current, true);
+      const wo: { original?: string } = {};
+      const whole = await transcribeBlob(fullBlob.current, true, wo);
       const newWords = countWords(whole);
       if (whole && worthReplacing(oldWords, newWords)) {
+        wholeOriginal.current = wo.original || '';
         const sentences = whole.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
         const totalMs = Math.max(1, Date.now() - startTs.current);
         segments.current.clear();
@@ -527,9 +541,11 @@ export default function Scribe() {
     setPhase('transcribing');
     flash(`Recovering ${failed.length} segment${failed.length > 1 ? 's' : ''} from the full recording…`);
     try {
-      const whole = await transcribeBlob(fullBlob.current);
+      const wo: { original?: string } = {};
+      const whole = await transcribeBlob(fullBlob.current, false, wo);
       const partial = transcriptRef.current.trim();
       if (whole && whole.length > partial.length) {
+        wholeOriginal.current = wo.original || '';
         // Spread the recovered text back over sentences so the transcript keeps its
         // readable, roughly-timestamped shape instead of collapsing to one block. The
         // offsets are evenly spaced across the known recording length — approximate, and
@@ -650,7 +666,7 @@ export default function Scribe() {
     setError(''); setNote(''); setNoteFlags([]); setConsultId(null); setLines([]); setTx(''); setElapsed(0); setHistoryView(false);
     setPendingSegs(0); setFailedSegs(0);
     emptySegs.current = 0; silenceAbort.current = false; finishing.current = false;
-    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
+    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0; wholeOriginal.current = ''; originalRef.current = '';
     segMime.current = 'audio/webm';
     setPanel('transcript');
     try {
@@ -869,7 +885,7 @@ export default function Scribe() {
   function newSession() {
     openSeq.current++; setLoadingNote(null);
     teardownCapture();
-    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0;
+    segments.current.clear(); segQueue.current = []; inFlight.current = 0; segSeq.current = 0; wholeOriginal.current = ''; originalRef.current = '';
     stopping.current = false; captureLive.current = false; finishing.current = false;
     emptySegs.current = 0; silenceAbort.current = false;
     fullChunks.current = []; fullBlob.current = null; setDensity(null);
@@ -925,7 +941,7 @@ export default function Scribe() {
   const phaseLabel = recording ? 'Recording' : phase === 'transcribing' ? 'Transcribing' : phase === 'generating' ? 'Writing note' : phase === 'done' ? 'Ready' : 'New';
   const defs = buildCards({
     panel, setPanel: (p) => setPanel(p as Panel), loadHistory, history, activeConsult: consultId, openConsult,
-    patient, setPatient, patientMeds, setPatientMeds, specialty, setSpecialty, specialties: SPECIALTIES, dateStr, timer: mmss(elapsed), recording, phaseLabel,
+    patient, setPatient, patientMeds, setPatientMeds, specialty, setSpecialty, specialties: SPECIALTIES, visitLang, setVisitLang, dateStr, timer: mmss(elapsed), recording, phaseLabel,
     note, editing, toggleEdit, copy: () => { void copy(); }, saveState, retrySave: () => { void persistNote(); },
     toCheck, review: () => window.dispatchEvent(new Event('notera:review')), noSuggest,
     toggleRecord, busy: phase === 'transcribing', newSession, dark, setDark,

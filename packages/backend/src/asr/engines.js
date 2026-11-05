@@ -119,13 +119,14 @@ function pcmToWav(pcm) {
 import { collapseLoops } from './loops.js';
 import { stripPromptLeak } from './promptLeak.js';
 import { hedgedRequest, hedgeAfterMs } from './hedge.js';
+import { isEnglish, englishPromptFor, originalPromptFor, settingsForLang } from './language.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
-async function geminiRunner(pcm, model, log) {
+async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT } = {}) {
   const { createGeminiService } = await import('../services/LLMService.js');
   const svc = await createGeminiService(null, { model }); const url = svc._endpoint(false, model); const durationSeconds = pcmDurationSeconds(pcm.length);
   const windows = planWindows(pcm, { windowSeconds: 120 }); const parts = new Array(windows.length).fill(''); let failed = 0; let next = 0;
   const ask = async (range, temperature) => {
-    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(range.start, range.end)).toString('base64') } }, { text: GEMINI_PROMPT }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
+    const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: pcmToWav(pcm.subarray(range.start, range.end)).toString('base64') } }, { text: prompt }] }], generationConfig: { temperature, maxOutputTokens: 16000, thinkingConfig: { thinkingBudget: 0 } } };
     for (let attempt = 0; attempt < 3; attempt++) {
       // a request that hangs (58-63 s on 3 of 17 chunks, 2026-11-04) is covered by one identical second request after 5x the normal time; the first good answer wins. ASR_HEDGE=0 turns it off.
       const post = async (signal) => { const headers = await svc._authHeaders(); const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }); const j = await r.json(); if (r.status >= 500) throw new Error(`gemini ${r.status}: ${JSON.stringify(j).slice(0, 140)}`); return { r, j }; };
@@ -159,7 +160,7 @@ async function geminiRunner(pcm, model, log) {
 export const defaultRunners = {
   v2: (pcm, engine, log) => transcribeChirpPcm(pcm, { model: engine, location: engine === 'chirp_3' ? (process.env.ASR_V3_LOCATION || 'us') : (process.env.ASR_V2_LOCATION || 'us-central1'), log }),
   v1: (pcm, engine, log) => transcribePcm(pcm, { model: 'latest_long', languageCode: process.env.ASR_LANGUAGE || 'en-US', log }),
-  gemini: (pcm, engine, log) => geminiRunner(pcm, engine, log),
+  gemini: (pcm, engine, log, opts) => geminiRunner(pcm, engine, log, opts || {}),
 };
 const withTimeout = (p, ms, label) => new Promise((resolve, reject) => { const t = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms); p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); }); });
 
@@ -168,9 +169,12 @@ const withTimeout = (p, ms, label) => new Promise((resolve, reject) => { const t
  * → { text, windows, durationSeconds, failedWindows, engine, fellBack, tried:[{engine, ok, ms, error?, empty?}] }
  * `runners` and `settings` are injectable for tests.
  */
-export async function transcribeWithChain(pcm, { log = () => {}, runners = defaultRunners, settings = null, now = Date.now } = {}) {
-  const s = settings || await getSettings();
+export async function transcribeWithChain(pcm, { log = () => {}, runners = defaultRunners, settings = null, now = Date.now, language = 'en' } = {}) {
+  const s = settingsForLang(settings || await getSettings(), language);   // Hindi / Punjabi / auto: Gemini only, English transcript + original-script copy (language.js); English: unchanged
+  const runOpts = isEnglish(language) ? undefined : { prompt: englishPromptFor(language) };
   if (s.speechCheck !== false && silentAudio(pcm)) { log('asr: the audio is silence or room noise - nothing is sent to a speech engine'); return { text: '', windows: 0, durationSeconds: pcmDurationSeconds(pcm.length), failedWindows: 0, engine: s.primary, fellBack: false, tried: [], silent: true }; }
+  let origP = null;   // the same audio written in its own language (Devanagari / Gurmukhi), kept for the doctor to check; if it fails the visit is simply English-only
+  if (!isEnglish(language) && runners.gemini) origP = withTimeout(Promise.resolve(runners.gemini(pcm, 'gemini-2.5-flash', log, { prompt: originalPromptFor(language) })), s.timeoutMs, 'original-language transcript').then((r) => String(r?.text || '').trim(), (e) => { log(`asr: original-language transcript skipped (${String(e.message).slice(0, 100)})`); return ''; });
   const order = [s.primary, ...s.fallbacks]; const tried = []; let emptyResult = null; let lastErr = null;
   // the second opinion is always the OTHER kind of engine: Gemini checks a Google speech engine, Chirp 2 (with the medical vocabulary) checks Gemini
   const CROSS = ENGINES[s.primary].kind === 'gemini' ? 'chirp_2' : 'gemini-2.5-flash'; const crossRun = runners[ENGINES[CROSS].kind];
@@ -188,7 +192,7 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
     const engine = attempts[i]; const t0 = now();
     try {
       const run = runners[ENGINES[engine].kind]; if (!run) throw new Error(`no runner for ${engine}`);
-      const r = await withTimeout(Promise.resolve(run(pcm, engine, log)), s.timeoutMs, engine); const ms = now() - t0; const text = String(r.text || '').trim();
+      const r = await withTimeout(Promise.resolve(run(pcm, engine, log, runOpts)), s.timeoutMs, engine); const ms = now() - t0; const text = String(r.text || '').trim();
       const odd = implausible(text, pcmDurationSeconds(pcm.length)); if (odd) throw new Error(`implausible output (${odd})`);
       if (!text && s.speechCheck && i < attempts.length - 1 && speechLike(pcm)) {   // silent failure: speech in, nothing out
         note(engine, 'empty'); tried.push({ engine, ok: false, empty: true, ms }); emptyResult = { ...r, engine }; log(`asr: ${engine} returned nothing for audio that contains speech — trying ${attempts[i + 1]}`); continue;
@@ -201,7 +205,8 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
           if (other && !implausible(other, pcmDurationSeconds(pcm.length))) { const c = reconcile(text, other); final = c.text || text; consensus = { engine: CROSS, swaps: c.swaps.length, fills: c.fills.length, fillWords: c.fills.reduce((a, b) => a + b, 0), words: other.split(/\s+/).length }; log(`asr: cross-check with ${CROSS}: ${c.swaps.length} medical word(s) swapped, ${c.fills.length} missing passage(s) added`); }
         } catch { /* never fail a transcription because of the second opinion */ }
       }
-      return { ...r, text: final, engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}) };
+      const original = origP ? await origP : '';
+      return { ...r, text: final, ...(original ? { original } : {}), engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}) };
     } catch (e) {
       lastErr = e; note(engine, 'fail', { error: e.message, s, now: now() }); tried.push({ engine, ok: false, ms: now() - t0, error: String(e.message).slice(0, 160) });
       log(`asr: ${engine} failed (${String(e.message).slice(0, 140)})${i < attempts.length - 1 ? ` — falling back to ${attempts[i + 1]}` : ''}`);
