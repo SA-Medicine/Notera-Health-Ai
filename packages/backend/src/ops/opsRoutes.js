@@ -8,6 +8,7 @@
 import express from 'express';
 import { query, one } from '../db/pool.js';
 import { recordError, recordAudioEvent, ensureOpsSchema } from './opsLog.js';
+import { startStuckSweeper } from './stuckConsults.js';
 
 // range token → Postgres interval string (whitelisted; never interpolate user text raw)
 const RANGES = { '1h': '1 hour', '24h': '24 hours', '7d': '7 days', '30d': '30 days', '90d': '90 days' };
@@ -20,6 +21,7 @@ export function mountOps(app, requireAuthMw) {
     (req.user && req.user.role === 'admin') ? next() : res.status(404).json({ error: 'not found' });
 
   ensureOpsSchema().catch(() => {});
+  startStuckSweeper();   // closes consults stuck in 'processing' for over an hour (stuckConsults.js)
 
   // ── intake (any authenticated user) ────────────────────────────────────────
   app.post('/api/ops/client-error', requireAuthMw, json, async (req, res) => {

@@ -12,12 +12,12 @@
 
 // disease word -> what in the recording counts as saying it (the name itself or a drug that is only given for it)
 const ALIASES = [
-  [/hypertens|\bblood pressure\b/i, /hypertens|high blood pressure|\b(candesartan|amlodipine|ramipril|perindopril|valsartan|losartan|metoprolol|bisoprolol|hydrochlorothiazide|lisinopril|irbesartan|telmisartan|olmesartan)\b/i],
-  [/diabet|\bglyc/i, /diabet|\b(metformin|insulin|glipizide|gliclazide|jardiance|empagliflozin|ozempic|semaglutide|forxiga|dapagliflozin|januvia|sitagliptin)\b/i],
-  [/cholesterol|lipid/i, /(high|elevated|bad) cholesterol|cholesterol (management|medication|treatment|problem|program)|hypercholesterol|hyperlipid|dyslipid|\b(statin|rosuvastatin|atorvastatin|simvastatin|crestor|lipitor|ezetimibe)\b/i],
-  [/thyroid/i, /hypothyroid|hyperthyroid|underactive thyroid|overactive thyroid|\b(levothyroxine|synthroid|eltroxin)\b|thyroid (medication|pill|dose)/i],
+  [/hypertens|\bblood pressure\b/i, /hypertens|high blood pressure|\b(candesartan|amlodipine|ramipril|perindopril|valsartan|losartan|metoprolol|bisoprolol|hydrochlorothiazide|lisinopril|irbesartan|telmisartan|olmesartan|atacand|norvasc|lodipine|amlopin\w*|coversyl|cardace|altace|diovan|cozaar|micardis|exforge|twynsta|zestril|prinivil|lasix|furosemide|spironolactone|nifedipine|diltiazem|labetalol|clonidine|hydralazine)\b/i],
+  [/diabet|\bglyc/i, /diabet|\b(metformin|insulin|glipizide|gliclazide|jardiance|empagliflozin|ozempic|semaglutide|forxiga|dapagliflozin|januvia|sitagliptin|janumet|glucophage|trajenta|linagliptin|glimepiride|amaryl|lantus|levemir|humalog|novorapid|tresiba|victoza|trulicity|mounjaro|tirzepatide)\b/i],
+  [/cholesterol|lipid/i, /(high|elevated|bad) cholesterol|cholesterol (management|medication|treatment|problem|program)|hypercholesterol|hyperlipid|dyslipid|\b(statin|rosuvastatin|atorvastatin|simvastatin|crestor|lipitor|ezetimibe|zocor|pravastatin|lovastatin|fenofibrate|lipidil|pravachol)\b/i],
+  [/thyroid/i, /hypothyroid|hyperthyroid|underactive thyroid|overactive thyroid|\b(levothyroxine|synthroid|eltroxin|euthyrox)\b|thyroid (medication|pill|dose)/i],
   [/asthma|copd|emphysema/i, /asthma|copd|emphysema|\b(ventolin|salbutamol|symbicort|advair|flovent|puffer|inhaler)\b/i],
-  [/depress|anxiety/i, /depress|anxiety|anxious|\b(cipralex|escitalopram|sertraline|zoloft|venlafaxine|effexor|fluoxetine|prozac|citalopram|lorazepam|ativan)\b/i],
+  [/depress|anxiety/i, /depress|anxiety|anxious|\b(cipralex|escitalopram|sertraline|zoloft|venlafaxine|effexor|fluoxetine|prozac|citalopram|lorazepam|ativan|wellbutrin|bupropion|mirtazapine|remeron|paxil|paroxetine|duloxetine|cymbalta|abilify|trazodone|clonazepam|rivotril)\b/i],
 ];
 // when the disease is not said but its measurement is, the title names the measurement ("Diabetes" -> "Blood sugar" when sugars were discussed)
 const OBSERVABLE = [
@@ -44,13 +44,14 @@ export function conditionSaid(text, transcript) {
 
 const isConditionLine = (l) => { const s = String(l).trim(); return s.length >= 4 && s.split(/\s+/).length <= 9 && !/\d/.test(s) && !/^(medications?|allergies|preventive|occupation|social|family|lives|travel|no |never|denies)/i.test(s); };
 
-export function conditionGuard(note, transcript, log = () => {}) {
-  const out = { pmhRemoved: [], titlesChanged: [], titlesFlagged: [] };
+export function conditionGuard(note, transcript, log = () => {}, { flagOnly = false } = {}) {
+  // flagOnly (CONDITION_GUARD=flag, 2026-11-12): nothing is removed or renamed; every condition the recording does not say is shown under "Before you sign" so the doctor decides.
+  const out = { pmhRemoved: [], titlesChanged: [], titlesFlagged: [], pmhFlagged: [] };
   const pmh = note?.past_medical_history; const f = 'medical_surgical';
   if (pmh && typeof pmh[f] === 'string') {
     const keep = [];
     for (const l of pmh[f].split('\n')) { if (l.trim() && isConditionLine(l) && ALIASES.some(([name]) => name.test(l)) && !conditionSaid(l, transcript)) out.pmhRemoved.push(l.trim()); else keep.push(l); }
-    if (out.pmhRemoved.length) pmh[f] = keep.join('\n');
+    if (flagOnly) { out.pmhFlagged = out.pmhRemoved; out.pmhRemoved = []; } else if (out.pmhRemoved.length) pmh[f] = keep.join('\n');
   }
   for (const it of note?.assessment_and_plan || []) {
     const title = String(it?.issue || '').trim(); if (!title) continue;
@@ -63,7 +64,13 @@ export function conditionGuard(note, transcript, log = () => {}) {
       for (const [re, label, seen] of OBSERVABLE) if (re.test(p) && seen.test(transcript)) return p.replace(re, label);
       return null;
     }).filter(Boolean);
-    if (fixed.length) { it.issue = fixed.join(' and ').replace(/^./, (c) => c.toUpperCase()); out.titlesChanged.push(title + ' -> ' + it.issue); } else out.titlesFlagged.push(title);
+    if (flagOnly) out.titlesFlagged.push(title);
+    else if (fixed.length) { it.issue = fixed.join(' and ').replace(/^./, (c) => c.toUpperCase()); out.titlesChanged.push(title + ' -> ' + it.issue); } else out.titlesFlagged.push(title);
+  }
+  if (out.pmhFlagged.length) {
+    note.metadata = note.metadata || {};
+    note.metadata.flags = [...(note.metadata.flags || []), ...out.pmhFlagged.map((l) => ({ type: 'condition_not_said', field: 'past_medical_history', message: `Please check "${l}" in Past Medical History against the recording: it was not said.`, severity: 'warning' }))];
+    log(`[v2:quality] flagged ${out.pmhFlagged.length} Past Medical History condition(s) the recording does not say`);
   }
   if (out.pmhRemoved.length || out.titlesChanged.length || out.titlesFlagged.length) {
     const bits = [];

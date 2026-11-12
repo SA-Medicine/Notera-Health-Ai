@@ -12,6 +12,8 @@ const RULES = [
   ['the same word twice in a row', /\b([a-z]{3,})\s+\1\b/i],
   ['breaks off at the end', new RegExp('\\b' + FUNC + '\\s*[.…-]*\\s*$', 'i')],
   ['starts in the middle', /^(?:and|or|but|so|then|because|which|of|for the|to the)\s/i],
+  // a bare medicine phrase ("Sleeping pills", "Cortisone cream") says nothing about start, stop or continue: the doctor must check the recording (owner, 2026-11-12)
+  ['a medicine with no action word (start, stop or continue?)', /^(?!(?:start|stop|continue|take|use|apply|prescri\w*|arrange|order\w*|refill|renew\w*|avoid|increase|decrease|switch\w*|change\w*|add|give\w*|provide\w*|trial|try|discuss\w*|declin\w*|no|current)\b)(?:[A-Za-z'-]+\s+){0,2}(?:pills?|tablets?|capsules?|creams?|ointments?|drops|sprays?|inhalers?|patch(?:es)?|injections?|gels?|lotions?|supplements?|vitamins?|medicines?|antibiotics?|syrup|suppositor(?:y|ies))\s*\.?$/i],
 ];
 
 /** The plan lines of the finished markdown: [{ problem, line }]. */

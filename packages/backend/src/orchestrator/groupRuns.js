@@ -77,15 +77,37 @@ function subjectiveRuns(lines, stats, maxChars = 135) {
   return out;
 }
 
+// PAST MEDICAL HISTORY: two or more lifestyle lines ("Works as a teacher", "Attends yoga regularly", "Lives with husband", "Occasionally smoked, now stopped") become one labelled line
+// "Social: works as a teacher; attends yoga regularly", in the place of the first of them, the way "Medications:" is one labelled line. Wording is kept, only the first letter goes lower case.
+const SOCIAL = /^(?:lives?|living|works?|working|worked|retired|married|single|divorced|widowed|attends|exercises?|walks|smokes?|smoker|non-?smoker|drinks?|alcohol|vapes?|occasionally smoked|former (?:occasional )?(?:smoker|smoking)|never (?:smoked|consumed|drank|drinks?)|cannabis|has (?:\w+ )?(?:children|kids))\b/i;
+function pmhSocial(lines, stats, maxChars = 135) {
+  const idx = lines.map((l, i) => (SOCIAL.test(l.text) && wc(l.text) <= 20 && !/^[^:]{2,30}:\s/.test(l.text) ? i : -1)).filter((i) => i >= 0);
+  if (idx.length < 2) return lines;
+  const items = idx.map((i) => lines[i].text.replace(/[.;,\s]+$/, '').replace(/^./, (c) => c.toLowerCase()));
+  const chunks = []; let cur = [];
+  for (const it of items) { if (cur.length && ('Social: ' + cur.join('; ') + '; ' + it).length > maxChars) { chunks.push(cur); cur = []; } cur.push(it); }
+  chunks.push(cur);
+  const out = []; const first = idx[0];
+  lines.forEach((l, i) => { if (i === first) chunks.forEach((c) => out.push({ pre: l.pre, text: 'Social: ' + c.join('; ') })); else if (!idx.includes(i)) out.push(l); });
+  stats.socialGrouped += idx.length - chunks.length; return out;
+}
+
 export function groupRuns(md) {
-  const L = String(md || '').split('\n'); const out = []; const stats = { planMerged: 0, planDupes: 0, subjMerged: 0 };
+  const L = String(md || '').split('\n'); const out = []; const stats = { planMerged: 0, planDupes: 0, subjMerged: 0, socialGrouped: 0 };
+  let hGroup = [];
+  const flushPmh = () => { if (!hGroup.length) return; pmhSocial(hGroup, stats).forEach((g) => out.push(g.pre + g.text)); hGroup = []; };
   let sec = '', group = null; let blockStart = -1;
   const flushPlan = () => { if (!group) return; planProblem(group, stats).forEach((g) => out.push(g.raw ? g.pre + g.text : g.text)); group = null; };
   let sGroup = [];
   const flushSubj = () => { if (!sGroup.length) return; subjectiveRuns(sGroup, stats).forEach((g) => out.push(g.pre + g.text)); sGroup = []; };
   for (const ln of L) {
     const h = ln.match(/^###\s+(.*)$/);
-    if (h) { flushPlan(); flushSubj(); sec = /assessment/i.test(h[1]) ? 'ap' : /^subjective/i.test(h[1].trim()) ? 's' : ''; out.push(ln); continue; }
+    if (h) { flushPlan(); flushSubj(); flushPmh(); sec = /assessment/i.test(h[1]) ? 'ap' : /^subjective/i.test(h[1].trim()) ? 's' : /^past medical/i.test(h[1].trim()) ? 'h' : ''; out.push(ln); continue; }
+    if (sec === 'h') {
+      const b = bullet(ln);
+      if (b) { hGroup.push(b); continue; }
+      flushPmh(); out.push(ln); continue;
+    }
     if (sec === 's') {
       const b = bullet(ln);
       if (b) { sGroup.push(b); continue; }
@@ -99,6 +121,6 @@ export function groupRuns(md) {
     }
     out.push(ln);
   }
-  flushPlan(); flushSubj();
+  flushPlan(); flushSubj(); flushPmh();
   return { md: out.join('\n'), ...stats };
 }

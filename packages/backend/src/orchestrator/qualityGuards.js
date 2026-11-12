@@ -65,7 +65,7 @@ export function qualityGuards(note, transcript, log = () => {}, o = {}) {
     }
   }
   if (o.thirdParty !== false) out.thirdParty = dropThirdParty(note, log);
-  if (o.conditions !== false) out.conditions = conditionGuard(note, transcript, log);   // o.conditions=false (opts.conditionGuard=false / CONDITION_GUARD=0) lets the lab compare with and without it
+  if (o.conditions !== false) out.conditions = conditionGuard(note, transcript, log, { flagOnly: o.conditions === 'flag' });   // o.conditions=false (opts.conditionGuard=false / CONDITION_GUARD=0) lets the lab compare with and without it
   out.laterality = checkLaterality(note, transcript);
   if (out.laterality.length) {
     const seen = new Set(); const msg = out.laterality.filter((x) => !seen.has(x.part + x.noteSide) && seen.add(x.part + x.noteSide)).map((x) => 'the note says ' + x.noteSide + ' ' + x.part + ', the recording names the ' + x.transcriptSide + ' ' + x.part).join('; ');
