@@ -104,8 +104,9 @@ function go(v) {
   fn().catch((e) => { if (e.message !== 'Signed out') $('#view').innerHTML = `<div class="card empty">Could not load: ${esc(e.message)}</div>`; });
 }
 const head = (t, sub, tools = '') => `<div class="head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="tools">${tools}</div></div>`;
-const table = (cols, rows, rowAttr = () => '') => rows.length
-  ? `<div class="tbl-wrap"><table><thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ''}>${c.h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr class="${rowAttr(r) ? 'click' : ''}" ${rowAttr(r)}>${cols.map((c) => `<td${c.num ? ' class="num"' : ''}>${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+const colCls = (c) => { const k = [c.num ? 'num' : '', c.cls || ''].filter(Boolean).join(' '); return k ? ` class="${k}"` : ''; };
+const table = (cols, rows, rowAttr = () => '', tblCls = '') => rows.length
+  ? `<div class="tbl-wrap"><table${tblCls ? ` class="${tblCls}"` : ''}><thead><tr>${cols.map((c) => `<th${colCls(c)}>${c.h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr class="${rowAttr(r) ? 'click' : ''}" ${rowAttr(r)}>${cols.map((c) => `<td${colCls(c)}>${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
   : '<div class="card empty">Nothing here yet.</div>';
 
 /* ───────────── overview ───────────── */
@@ -150,7 +151,7 @@ async function userDrawer(id, onChange) {
   openDrawer(`<div class="drawer-head"><div><h2>${esc(u.full_name || u.email)}</h2><div class="sub" style="color:var(--ink-3)">${esc(u.email)}</div></div><button class="btn sm" data-close>Close</button></div>
     <div class="drawer-body"><dl class="kv"><dt>Role</dt><dd>${esc(u.role)}</dd><dt>Plan</dt><dd>${u.plan === 'free' ? `free (${u.free_notes_used} notes used)` : 'full (unlimited)'}</dd><dt>Joined</dt><dd>${fmtDate(u.created_at)}</dd><dt>Last login</dt><dd>${fmtDate(u.last_login_at)}</dd><dt>Failed logins</dt><dd>${u.failed_logins}</dd></dl>
     <div class="tools" style="margin-bottom:16px">${u.plan === 'free' ? '<button class="btn primary sm" data-plan="full">Upgrade to full</button><button class="btn sm" data-plan="free" data-reset="1">Reset free quota</button>' : '<button class="btn sm danger" data-plan="free">Move to free plan</button>'}</div>
-    <div class="tools" style="justify-content:space-between;margin:8px 0"><h3 style="margin:0">Notes (${d.consults.length})</h3>${reviewBtn}</div>${consultTable(d.consults)}</div>`);
+    <div class="tools" style="justify-content:space-between;margin:8px 0"><h3 style="margin:0">Notes (${d.consults.length})</h3>${reviewBtn}</div>${consultTable(d.consults, { user: false })}</div>`);
   document.querySelectorAll('[data-plan]').forEach((b) => { b.onclick = async () => {
     if (!confirm(`Change ${u.email} to ${b.dataset.plan}${b.dataset.reset ? ' and reset the free quota' : ''}?`)) return;
     try { await api('/api/auth/users/plan', { method: 'POST', json: { email: u.email, plan: b.dataset.plan, reset: !!b.dataset.reset } }); toast('Plan updated'); closeDrawer(); onChange && onChange(); } catch (e) { toast(e.message, true); }
@@ -159,12 +160,16 @@ async function userDrawer(id, onChange) {
 }
 
 /* ───────────── notes / audio ───────────── */
-const consultTable = (rows) => table([
-  { h: '<input type="checkbox" class="rvall" aria-label="Select all notes">', f: (x) => `<input type="checkbox" class="rvsel" data-id="${esc(x.consult_id)}" aria-label="Select this note">` },
-  { h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Note', f: (x) => `<b>${esc(x.title || x.specialty || 'Consult')}</b><div class="sub">${esc((x.specialty || '').replace(/_/g, ' '))}</div>` },
-  { h: 'User', f: (x) => esc(x.email || x.clinician_id || '—') }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ready' || x.status === 'approved' ? 'ok' : x.status === 'error' ? 'bad' : ''}">${esc(x.status)}</span>` },
-  { h: 'Audio', f: (x) => x.has_audio ? '<span class="pill acc">audio</span>' : '<span class="sub">—</span>' }, { h: 'Transcript', num: 1, f: (x) => x.transcript_chars ? x.transcript_chars.toLocaleString() : '—' },
-], rows, (x) => `data-consult="${x.consult_id}"`);
+// Compact on purpose (owner, 2026-11-12): small padding, one line per note (title and specialty side by side, long text cut with "..."), status and audio in one cell,
+// and no User column inside a user's own drawer, so the whole table fits the width it is given.
+const consultTable = (rows, { user = true } = {}) => table([
+  { h: '<input type="checkbox" class="rvall" aria-label="Select all notes">', cls: 'ck', f: (x) => `<input type="checkbox" class="rvsel" data-id="${esc(x.consult_id)}" aria-label="Select this note">` },
+  { h: 'When', cls: 'nw', f: (x) => fmtDate(x.created_at) },
+  { h: 'Note', cls: 'grow', f: (x) => { const sp = (x.specialty || '').replace(/_/g, ' '); const t = x.title || sp || 'Consult'; return `<span class="cut" title="${esc(t)}"><b>${esc(t)}</b>${sp && sp !== t ? ` <span class="sub">${esc(sp)}</span>` : ''}</span>`; } },
+  ...(user ? [{ h: 'User', cls: 'cut-col', f: (x) => `<span class="cut" title="${esc(x.email || '')}">${esc(x.email || x.clinician_id || '—')}</span>` }] : []),
+  { h: 'Status', cls: 'nw', f: (x) => `<span class="pill ${x.status === 'ready' || x.status === 'approved' ? 'ok' : x.status === 'error' ? 'bad' : ''}">${esc(x.status)}</span>${x.has_audio ? ' <span class="pill acc" title="has audio">♪</span>' : ''}` },
+  { h: 'Chars', num: 1, cls: 'nw', f: (x) => x.transcript_chars ? x.transcript_chars.toLocaleString() : '—' },
+], rows, (x) => `data-consult="${x.consult_id}"`, 'compact');
 // helpers for the note viewer and the AI review (noteview.js): the same functions the old drawer used, now on a full screen
 const NV = { api, esc, toast, fmtDate, noteHtml, copyNote: copyNoteToClipboard, installNoteCopy, table };
 const REVIEW_MAX = 10;   // a click can start at most this many model calls

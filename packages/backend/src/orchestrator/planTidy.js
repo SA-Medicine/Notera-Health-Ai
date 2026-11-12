@@ -12,6 +12,7 @@
 
 const norm = (s) => String(s).toLowerCase().replace(/[.\s]+$/, '').replace(/\s+/g, ' ').trim();
 const PLAIN = new Set(('current,sleeping,blood,monitoring,medication,medications,regimen,pressure,check,checks,test,tests,scan,therapy,treatment,dose,doses,cream,tablets,tablet,pain,exam,exams,review,appointment,referral,lifestyle,diet,exercise,weight,physical,activity,regular,daily,weekly,monthly,twice,once,symptoms,symptom,management,measures,fluid,intake,eye,foot,annual,supportive,shoes,pills,pill,course,plan,visit,results,result,levels,level,monitor,discussed,advised,deferred,stable,unchanged,further,repeat,urgent,routine,home,care,support,options,option').split(','));
+const FILLER = new Set(['current management', 'management as discussed', 'as discussed', 'plan as discussed', 'discussed with patient', 'discussed']);   // lines that carry no clinical content
 const KEEP_DOT = /(?:\b(?:dr|mr|mrs|ms|vs|etc|approx|no|e\.g|i\.e)|\d)\.$/i;
 const WARN = /^(return|go to|seek|call|present|attend|come back|contact)\b/i;
 const FU = /^(follow-?\s?up|recheck|re-?check|review in|see (?:you|again)|next (?:visit|appointment))\b/i;
@@ -23,7 +24,7 @@ function lowerPlain(t) {
 const stripDot = (t) => (/\.$/.test(t) && !/\.\s/.test(t.slice(0, -1)) && !KEEP_DOT.test(t) ? t.slice(0, -1) : t);
 
 export function planTidy(md) {
-  const L = String(md || '').split('\n'); const out = []; let sec = '', seen = new Set(), titles = 0, caps = 0, dupes = 0, splitO = 0, dots = 0, lowered = 0, reordered = 0;
+  const L = String(md || '').split('\n'); const out = []; let sec = '', seen = new Set(), titles = 0, caps = 0, dupes = 0, splitO = 0, dots = 0, lowered = 0, reordered = 0, echoes = 0, titleKey = '';
   let group = null;   // the bullets of the current plan problem, flushed in a stable re-order
   const flush = () => { if (!group) return; const r = group.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g.text) - rank(b.g.text) || a.i - b.i); if (r.some((x, i) => x.i !== i)) reordered++; r.forEach((x) => out.push(x.g.raw)); group = null; };
   let notes = 0;
@@ -40,10 +41,11 @@ export function planTidy(md) {
     if (sec === 's' && ob) { const q = stripDot(ob[2]); if (q !== ob[2]) dots++; out.push(ob[1] + q); continue; }
     if (sec !== 'ap') { out.push(ln); continue; }
     const t = ln.match(/^(\s*\d+\.\s+\*\*)(.+?)(\*\*\s*)$/);
-    if (t) { flush(); seen = new Set(); const title = t[2].replace(/\.+\s*$/, ''); if (title !== t[2]) titles++; out.push(t[1] + title + t[3]); group = []; continue; }
+    if (t) { flush(); seen = new Set(); const title = t[2].replace(/\.+\s*$/, ''); titleKey = norm(title); if (title !== t[2]) titles++; out.push(t[1] + title + t[3]); group = []; continue; }
     const b = ln.match(/^(\s*[-*]\s+)(.*\S)\s*$/);
     if (!b) { if (!ln.trim()) flush(); out.push(ln); continue; }
     const key = norm(b[2]); if (key && seen.has(key)) { dupes++; continue; } seen.add(key);
+    if (key && (key === titleKey || FILLER.has(key))) { echoes++; continue; }   // "Medication renewals" under the problem "Medication renewals", or a line that says nothing ("Current management")
     let x = b[2]; const w = x.match(/^[a-z]+(?=[\s,;:]|$)/);
     if (w && (w[0].length >= 3 || w[0] === 'no')) { caps++; x = x[0].toUpperCase() + x.slice(1); }
     const lo = lowerPlain(x); if (lo !== x) { lowered++; x = lo; }
@@ -52,5 +54,5 @@ export function planTidy(md) {
     if (group) group.push(rec); else out.push(rec.raw);
   }
   flush();
-  return { md: out.join('\n'), titles, caps, dupes, splitO, dots, lowered, reordered, notes };
+  return { md: out.join('\n'), titles, caps, dupes, splitO, dots, lowered, reordered, notes, echoes };
 }

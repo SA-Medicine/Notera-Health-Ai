@@ -395,3 +395,16 @@ body.nv-open { overflow: hidden; }
 .rvi:hover { background: var(--surface-2); } .rvi.on { background: var(--accent-soft); color: var(--ink); }
 .rvpop-main { overflow: auto; padding: 18px 22px 26px; } .rvpop-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; }
 @media (max-width: 800px) { .rvpop-body { grid-template-columns: 1fr; } .rvpop-list { max-height: 140px; border-right: 0; border-bottom: 1px solid var(--line); } }
+
+/* compact note tables (owner, 2026-11-12): fit the drawer and the Notes page without sideways scrolling */
+table.compact { table-layout: auto; font-size: 12.5px; }
+table.compact th { padding: 6px 8px; font-size: 10.5px; }
+table.compact td { padding: 5px 8px; line-height: 1.25; }
+table.compact td.ck, table.compact th.ck { width: 26px; padding-right: 2px; }
+table.compact .nw { white-space: nowrap; }
+table.compact td.grow { width: 100%; max-width: 0; }
+table.compact .cut { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.compact td.cut-col { max-width: 190px; }
+table.compact .pill { padding: 1px 7px; font-size: 11px; }
+table.compact input[type="checkbox"] { margin: 0; vertical-align: middle; }
+.drawer-body .tbl-wrap { border-radius: 12px; }

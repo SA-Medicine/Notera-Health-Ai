@@ -30,7 +30,7 @@ export function planBlocks(md) {
 }
 
 export function candidates(md) {
-  const pb = planBlocks(md); if (!pb || pb.problems.length < 3) return null;
+  const pb = planBlocks(md); if (!pb || pb.problems.length < 2) return null;   // 2 problems is enough: a line can sit under the wrong one of two (owner, 2026-11-12)
   let n = 0; return pb.problems.map((p, pi) => ({ no: pi + 1, title: p.title, items: p.items.map((it) => ({ id: 'L' + (++n), text: it.text })) }));
 }
 

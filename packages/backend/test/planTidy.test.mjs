@@ -73,3 +73,21 @@ test('plan tidy: the writer\'s own "(Note: ...)" remark is removed from a bullet
   const r = planTidy('### Past Medical History\n- Bowel burst in 2012 (9 surgeries total). (Note: concise synthesis of reported history)\n- Fine (note the dose)\n');
   assert.equal(r.md, '### Past Medical History\n- Bowel burst in 2012 (9 surgeries total)\n- Fine (note the dose)\n'); assert.equal(r.notes, 1);
 });
+
+test('plan tidy drops a bullet that only repeats its problem title and empty filler lines, nothing else', async () => {
+  const { planTidy } = await import('../src/orchestrator/planTidy.js');
+  const md = '### Assessment & Plan\n1. **Medication renewals**\n   - Medication renewals\n   - Continue Tamoxifen\n2. **Finger arthritis**\n   - Current management\n   - Reassurance given\n   - Current management of pain with ibuprofen\n';
+  const r = planTidy(md);
+  assert.equal(r.echoes, 2);
+  assert.ok(!/^\s*- Medication renewals$/m.test(r.md) && !/^\s*- Current management$/m.test(r.md));
+  assert.ok(r.md.includes('- Continue Tamoxifen') && r.md.includes('- Reassurance given') && r.md.includes('Current management of pain with ibuprofen'));
+});
+
+test('plan organiser now works on a note with only two problems: a line is moved to the right one, an unrelated move is still vetoed', () => {
+  const md = '### Assessment & Plan\n1. **Migraines**\n   - Start sumatriptan 50 mg\n   - Hormonal therapy stopped last year\n2. **Menopause**\n   - Hormonal therapy options discussed\n';
+  const c = candidates(md); assert.ok(c && c.length === 2);
+  const ok = parseMoves('{"moves":[{"line":"L2","to":2}]}', c); assert.equal(ok.moves.length, 1);
+  const r = applyMoves(md, ok); assert.equal(r.moved, 1);
+  assert.match(r.md, /\*\*Menopause\*\*\n\s+- Hormonal therapy options discussed\n\s+- Hormonal therapy stopped last year/);
+  assert.equal(parseMoves('{"moves":[{"line":"L1","to":2}]}', c).moves.length, 0);   // nothing in common with Menopause
+});
