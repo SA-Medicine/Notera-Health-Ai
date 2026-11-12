@@ -37,8 +37,9 @@ import { insightsView } from './insights.js';
 import { copyNoteToClipboard } from './noteclip/copyNote.js';
 import { mdToHtml as noteHtml } from './noteclip/noteRender.js';
 import { installNoteCopy } from './noteclip/selectionCopy.js';
+import { openNoteScreen, openReviewBatch, closeNoteScreen } from './noteview.js';
 let removeNoteCopy = null;
-const S = { user: null, view: 'guide', toastT: 0 };
+const S ={ user: null, view: 'guide', toastT: 0 };
 
 function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.className = ''; }, 2800); }
 
@@ -149,7 +150,7 @@ async function userDrawer(id, onChange) {
   openDrawer(`<div class="drawer-head"><div><h2>${esc(u.full_name || u.email)}</h2><div class="sub" style="color:var(--ink-3)">${esc(u.email)}</div></div><button class="btn sm" data-close>Close</button></div>
     <div class="drawer-body"><dl class="kv"><dt>Role</dt><dd>${esc(u.role)}</dd><dt>Plan</dt><dd>${u.plan === 'free' ? `free (${u.free_notes_used} notes used)` : 'full (unlimited)'}</dd><dt>Joined</dt><dd>${fmtDate(u.created_at)}</dd><dt>Last login</dt><dd>${fmtDate(u.last_login_at)}</dd><dt>Failed logins</dt><dd>${u.failed_logins}</dd></dl>
     <div class="tools" style="margin-bottom:16px">${u.plan === 'free' ? '<button class="btn primary sm" data-plan="full">Upgrade to full</button><button class="btn sm" data-plan="free" data-reset="1">Reset free quota</button>' : '<button class="btn sm danger" data-plan="free">Move to free plan</button>'}</div>
-    <h3 style="margin:8px 0">Notes (${d.consults.length})</h3>${consultTable(d.consults)}</div>`);
+    <div class="tools" style="justify-content:space-between;margin:8px 0"><h3 style="margin:0">Notes (${d.consults.length})</h3>${reviewBtn}</div>${consultTable(d.consults)}</div>`);
   document.querySelectorAll('[data-plan]').forEach((b) => { b.onclick = async () => {
     if (!confirm(`Change ${u.email} to ${b.dataset.plan}${b.dataset.reset ? ' and reset the free quota' : ''}?`)) return;
     try { await api('/api/auth/users/plan', { method: 'POST', json: { email: u.email, plan: b.dataset.plan, reset: !!b.dataset.reset } }); toast('Plan updated'); closeDrawer(); onChange && onChange(); } catch (e) { toast(e.message, true); }
@@ -159,38 +160,31 @@ async function userDrawer(id, onChange) {
 
 /* ───────────── notes / audio ───────────── */
 const consultTable = (rows) => table([
+  { h: '<input type="checkbox" class="rvall" aria-label="Select all notes">', f: (x) => `<input type="checkbox" class="rvsel" data-id="${esc(x.consult_id)}" aria-label="Select this note">` },
   { h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Note', f: (x) => `<b>${esc(x.title || x.specialty || 'Consult')}</b><div class="sub">${esc((x.specialty || '').replace(/_/g, ' '))}</div>` },
   { h: 'User', f: (x) => esc(x.email || x.clinician_id || '—') }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ready' || x.status === 'approved' ? 'ok' : x.status === 'error' ? 'bad' : ''}">${esc(x.status)}</span>` },
   { h: 'Audio', f: (x) => x.has_audio ? '<span class="pill acc">audio</span>' : '<span class="sub">—</span>' }, { h: 'Transcript', num: 1, f: (x) => x.transcript_chars ? x.transcript_chars.toLocaleString() : '—' },
 ], rows, (x) => `data-consult="${x.consult_id}"`);
-function wireConsultRows() { document.querySelectorAll('[data-consult]').forEach((tr) => { tr.onclick = () => consultDrawer(tr.dataset.consult); }); }
+// helpers for the note viewer and the AI review (noteview.js): the same functions the old drawer used, now on a full screen
+const NV = { api, esc, toast, fmtDate, noteHtml, copyNote: copyNoteToClipboard, installNoteCopy, table };
+const REVIEW_MAX = 10;   // a click can start at most this many model calls
+function wireConsultRows(root = document) {
+  const rows = [...root.querySelectorAll('[data-consult]')]; const ids = rows.map((tr) => tr.dataset.consult);
+  const titles = Object.fromEntries(rows.map((tr) => [tr.dataset.consult, (tr.children[2]?.textContent || '').trim() + ' · ' + (tr.children[1]?.textContent || '').trim()]));
+  rows.forEach((tr) => { tr.onclick = (e) => { if (e.target.closest('input')) return; openNoteScreen(NV, ids, tr.dataset.consult, null); }; });
+  const btn = document.getElementById('rvsel'); const boxes = [...root.querySelectorAll('.rvsel')]; const all = root.querySelector('.rvall');
+  const sync = () => { const n = boxes.filter((b) => b.checked).length; if (btn) { btn.disabled = !n; btn.textContent = `AI review (${n})`; } if (all) all.checked = n > 0 && n === boxes.length; };
+  boxes.forEach((b) => { b.onchange = sync; }); if (all) all.onchange = () => { boxes.forEach((b) => { b.checked = all.checked; }); sync(); };
+  if (btn) btn.onclick = () => { const sel = boxes.filter((b) => b.checked).map((b) => b.dataset.id); if (!sel.length) return; if (sel.length > REVIEW_MAX) return toast(`Select at most ${REVIEW_MAX} notes at a time`, true); openReviewBatch(NV, sel, titles); };
+  sync();
+}
+const reviewBtn = '<button class="btn primary sm" id="rvsel" disabled title="Runs the AI review only for the notes you tick, only when you press this">AI review (0)</button>';
 async function consults(audioOnly = false) {
   let q = '';
   const draw = async () => { const d = await api(`/api/console/consults?limit=200&audio=${audioOnly ? 1 : 0}&q=${encodeURIComponent(q)}`); $('#tb').innerHTML = consultTable(d.consults); wireConsultRows(); };
-  $('#view').innerHTML = head(audioOnly ? 'Audio' : 'Notes', audioOnly ? 'Every stored recording — open a note to play it' : 'Every generated SOAP note across all users — opening one is written to the audit log', `<input class="input" id="q" placeholder="Search title, user, specialty" style="width:240px">`) + '<div id="tb"></div>';
+  $('#view').innerHTML = head(audioOnly ? 'Audio' : 'Notes', audioOnly ? 'Every stored recording — open a note to play it' : 'Every generated SOAP note across all users — opening one is written to the audit log', `<input class="input" id="q" placeholder="Search title, user, specialty" style="width:240px">${audioOnly ? '' : reviewBtn}`) + '<div id="tb"></div>';
   let t; $('#q').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { q = e.target.value.trim(); draw(); }, 250); };
   await draw();
-}
-async function consultDrawer(id) {
-  openDrawer('<div class="drawer-body"><div class="empty">Loading…</div></div>');
-  const d = await api('/api/console/consults/' + encodeURIComponent(id)); const c = d.consult; const dr = d.drafts[0];
-  const body = (tab) => ({
-    note: dr?.rendered_note ? `<div class="note">${noteHtml(dr.rendered_note)}</div>` : '<div class="empty">No generated note.</div>',
-    transcript: `<div style="white-space:pre-wrap;line-height:1.6">${esc(c.transcript || 'No transcript saved.')}</div>`,
-    json: `<pre class="raw">${esc(JSON.stringify({ note: dr?.note, flags: dr?.flags, finals: d.finals }, null, 2))}</pre>`,
-    runs: (() => { const tr = dr?.note?.metadata?.pipeline_trace; return tr ? `<div class="card" style="margin-bottom:12px"><b>Produced with</b><div class="kv" style="margin-top:6px"><span>Writer</span><code>${esc(tr.config?.writer)}</code><span>Helper</span><code>${esc(tr.config?.helper)}</code><span>Temperature</span><code>${esc(tr.config?.temperature)}</code><span>Top-p</span><code>${esc(tr.config?.topP)}</code></div><div class="kv"><span>Writer prompt</span><code>${esc(tr.prompts?.writer)}</code><span>Checklist prompt</span><code>${esc(tr.prompts?.checklist)}</code><span>Verifier prompt</span><code>${esc(tr.prompts?.verifier)}</code></div></div>` : ''; })() + (d.runs.length ? table([{ h: 'When', f: (x) => fmtDate(x.created_at) }, { h: 'Model', f: (x) => esc(x.model) }, { h: 'Status', f: (x) => `<span class="pill ${x.status === 'ok' ? 'ok' : 'bad'}">${esc(x.status)}</span>` }, { h: 'Time', num: 1, f: (x) => (x.duration_ms / 1000).toFixed(1) + 's' }, { h: 'Tokens', num: 1, f: (x) => (x.total_tokens || 0).toLocaleString() }, { h: 'Cost', num: 1, f: (x) => '$' + Number(x.est_cost_usd || 0).toFixed(4) }], d.runs) : '<div class="empty">No pipeline run recorded.</div>'),
-    audio: c.has_audio ? '<div id="au"><button class="btn primary" id="lau">Load recording</button></div>' : '<div class="empty">No audio stored for this note.</div>',
-  }[tab]);
-  const draw = (tab) => {
-    openDrawer(`<div class="drawer-head"><div><h2>${esc(c.title || c.specialty || 'Consult')}</h2><div style="color:var(--ink-3)">${esc(c.email || c.clinician_id || '')} · ${fmtDate(c.created_at)} · ${esc(c.pipeline_version || 'pipeline n/a')}</div></div><div class="tools"><button class="btn sm" id="cp">Copy note</button><button class="btn sm" data-close>Close</button></div></div>
-      <div class="tabs">${[['note', 'SOAP note'], ['transcript', 'Transcript'], ['audio', 'Audio'], ['runs', 'Pipeline'], ['json', 'Raw']].map(([k, l]) => `<button class="tab${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
-      <div class="drawer-body" style="padding-top:16px">${body(tab)}</div>`);
-    document.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => draw(b.dataset.tab); });
-    $('#cp').onclick = async () => { const ok = await copyNoteToClipboard(dr?.rendered_note || ''); toast(ok ? 'Note copied with formatting' : 'Could not copy. Select the note and press Ctrl+C', !ok); };
-    removeNoteCopy = installNoteCopy(() => $('#drawer .note'));   // Ctrl+C on a hand-selected note keeps the formatting (openDrawer above removed the old listener)
-    const l = $('#lau'); if (l) l.onclick = async () => { l.disabled = true; try { const a = await api(`/api/console/consults/${encodeURIComponent(id)}/audio`); $('#au').innerHTML = `<audio controls autoplay src="${esc(a.url)}" style="width:100%"></audio><p style="color:var(--ink-3)">Link expires in ${Math.round(a.expiresInSec / 60)} min. This play is recorded in the audit log.</p><button class="btn" id="dla">Download recording</button>`; const d = $('#dla'); if (d) d.onclick = async () => { toast('Preparing the MP4 — the download starts in a moment'); location.href = `/backend/api/console/audio/${encodeURIComponent(id)}/file`; }; } catch (e) { toast(e.message, true); l.disabled = false; } };
-  };
-  draw('note');
 }
 function openDrawer(html) { closeDrawer(); const s = document.createElement('div'); s.className = 'scrim'; s.id = 'scrim'; s.onclick = closeDrawer; const d = document.createElement('div'); d.className = 'drawer'; d.id = 'drawer'; d.innerHTML = html; document.body.append(s, d); d.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeDrawer; }); }
 function closeDrawer() { removeNoteCopy?.(); removeNoteCopy = null; $('#scrim')?.remove(); $('#drawer')?.remove(); }

@@ -17,6 +17,7 @@ import { query, one } from '../db/pool.js';
 import { audit } from '../auth/users.js';
 import { mountAudioLibrary } from './audioLibrary.js';
 import { mountQuality } from './quality.js';
+import { mountNoteReview } from './noteReview.js';
 import { ensureAccountSchema, FREE_NOTE_LIMIT } from '../auth/quota.js';
 import { listVersions, getVersion, promote, activate, resetToDefault, getActivePromptMeta } from '../orchestrator/promptStore.js';
 import { WRITER_PROMPT_NAME, PROMPT_REGISTRY } from '../orchestrator/generateNoteV2.js';
@@ -254,6 +255,7 @@ export function mountPanel(app, requireAuthMw) {
   }));
 
   mountAudioLibrary(R, { r, audit, ipOf });
+  mountNoteReview(R, { r, jsonBody, audit, ipOf });   // on-demand AI review of one note (button only, never automatic)
   mountQuality(R, { r });   // production quality: per-day numbers and the latest notes that need a look   // audio library: listen, download, review, delete, training export
   app.use('/api/console', R);
 }

@@ -63,6 +63,7 @@ import { soGuard } from './soGuard.js';
 import { proposePlan, applyPlan, joinObjective, capLines } from './joinLines.js';
 import { unclearPlan } from './unclearPlan.js';
 import { planTidy } from './planTidy.js';
+import { groupRuns } from './groupRuns.js';
 import { proposeMoves, applyMoves } from './planOrganise.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
@@ -1023,6 +1024,10 @@ export async function generateNoteV2(input, opts = {}) {
 
   if (!blank && joinMode === '1' && process.env.PLAN_TIDY !== '0') {   // planTidy.js: plan titles without a closing full stop, bullets start with a capital, word-for-word repeats inside one problem dropped
     try { const pt = planTidy(renderedNote); if (pt.md !== renderedNote) { renderedNote = pt.md; note.metadata ||= {}; const { md: _m, ...pstat } = pt; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), planTidy: pstat }; log(`[v2:join] plan tidy: ${JSON.stringify(pstat)}`); } } catch (e) { log(`[v2:join] plan tidy skipped — ${e.message}`); }
+  }
+
+  if (!blank && joinMode === '1' && process.env.GROUP_RUNS !== '0') {   // groupRuns.js: "Continue A / Continue B" -> "Continue A, B"; twelve "Often ..." lines -> a few bullets of 2-3 points; near-identical plan lines folded
+    try { const gr = groupRuns(renderedNote); if (gr.md !== renderedNote) { renderedNote = gr.md; note.metadata ||= {}; const { md: _g, ...gstat } = gr; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), groupRuns: gstat }; log(`[v2:join] grouped runs: ${JSON.stringify(gstat)}`); } } catch (e) { log(`[v2:join] group runs skipped — ${e.message}`); }
   }
 
   if (!blank && joinMode === '1' && process.env.LINE_CAP !== '0') {   // joinLines.js: no Subjective/Objective bullet runs to a third line; a long joined bullet is cut at its own semicolons
