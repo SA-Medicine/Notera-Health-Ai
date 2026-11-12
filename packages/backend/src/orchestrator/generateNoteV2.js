@@ -70,7 +70,8 @@ import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
 import { buildFactGraphPlus } from './factGraphPlus.js';
 import { reconcileFacts } from './factLedger.js';
-import { checkDrugs } from './drugCheck.js';
+import { checkDrugs, loadLexicon } from './drugCheck.js';
+import { repairWords } from './wordRepair.js';
 import { stripCitations } from './factLedger.js';
 import { templateAddendum } from './writerAddendum.js';
 
@@ -959,6 +960,17 @@ export async function generateNoteV2(input, opts = {}) {
   const layoutFlags = [];
   let renderedNote = blank ? renderedStructured : finishLayout(renderedStructured, log, transcript, layoutFlags);   // layoutFinish.js: REPEAT_TRIM=1, NOTE_FORMAT=template, NOTE_STRICT=1, all off by default
   if (layoutFlags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...layoutFlags]; }
+  // wordRepair.js (WORD_REPAIR=1, 2026-11-12): drug names the speech engine garbled by a letter or two are set to the one common drug they clearly are; a serious word (cancer, chemotherapy, stroke ...)
+  // the recording never says is removed, and one it says in a way that looks like a mis-hearing is flagged (removed for clean-note accounts). Runs before the drug check so RxNorm sees the corrected names. Fails closed.
+  if (!blank && process.env.WORD_REPAIR === '1') {
+    try {
+      const lexicon = await loadLexicon({ log });
+      const wr = await repairWords({ md: renderedNote, note, transcript, lexicon, patientMeds: input.patientMeds || opts.patientMeds || [], clean: cleanAccount, log,
+        getLlm: async () => { const wl = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); wl._agent = 'v2-word-check'; return wl; } });
+      renderedNote = wr.md; note.metadata ||= {}; note.metadata.wordRepair = wr.meta;
+      if (wr.flags.length) note.metadata.flags = [...(note.metadata.flags || []), ...wr.flags];
+    } catch (e) { log(`[v2:words] skipped — ${e.message}`); }
+  }
   // relevanceFilter.js: lines nobody needs (personal stories, other people's lives). RELEVANCE_FILTER=shadow stores the proposal in note.metadata.relevance and changes nothing; =1 removes the lines. Off by default. Runs beside the drug check.
   let relP = null; const relMode = process.env.RELEVANCE_FILTER;
   if (!blank && (relMode === 'shadow' || relMode === '1')) { try { const rllm = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); rllm._agent = 'v2-relevance'; relP = relevanceFilter(rllm, renderedNote, log); } catch (e) { log(`[v2:relevance] not started — ${e.message}`); } }
