@@ -64,6 +64,7 @@ import { proposePlan, applyPlan, joinObjective, capLines } from './joinLines.js'
 import { unclearPlan } from './unclearPlan.js';
 import { planTidy } from './planTidy.js';
 import { groupRuns } from './groupRuns.js';
+import { isCleanNoteClinician, keepCriticalFlags } from './cleanAccounts.js';
 import { proposeMoves, applyMoves } from './planOrganise.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
 import { fixPlacementV2 } from './placementRules.js';
@@ -610,6 +611,7 @@ export async function generateNoteV2(input, opts = {}) {
   const t0 = Date.now();
   const { specialty = 'general_primary_care', noteType = 'consultation', clinicianId = 'unknown' } = input;
   const persist = opts.persist !== false;
+  const cleanAccount = await isCleanNoteClinician(clinicianId);   // CLEAN_NOTE_EMAILS: that account gets only the note, no flags and no markers in the text (cleanAccounts.js)
   const lean = opts.lean ?? process.env.LEAN === '1';      // v3 experiment: the fact graph feeds a writer that cites fact ids per line; the model stages that patch the draft (editor, verifier, story, sweep, attribution, coverage, grounding) are skipped
   const leanKeep = new Set(String(opts.leanKeep ?? process.env.LEAN_KEEP ?? '').split(',').map((s) => s.trim()).filter(Boolean));   // stages kept on in lean mode, e.g. coverage,story
   const skip = (stageName) => lean && !leanKeep.has(stageName);
@@ -748,7 +750,7 @@ export async function generateNoteV2(input, opts = {}) {
 
       // 2) deterministic merge of anything the writer dropped ----------------------
       mergeChecklist(note, check, transcript, log);
-      if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log, { rewriteUnclear: opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== "0" && cfg["stage.fidelityGuards"] !== false }); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
+      if (cfg['drugs.guardEnabled']) { try { const dg = guardDrugNames(note, transcript, check, log, { rewriteUnclear: !cleanAccount && opts.fidelityGuards !== false && process.env.FIDELITY_GUARDS !== "0" && cfg["stage.fidelityGuards"] !== false }); if (opts.trace) opts.trace.drugs = dg; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); } }
       // 2a) guardrails built from the diagnosis reports (each has its own switch in Settings)
       if (gOn('guards.template', opts.guardTemplate)) { try { const r = enforceTemplate(note, log); if (opts.trace) opts.trace.template = r; } catch (e) { log(`[v2:template] skipped — ${e.message}`); } }
       if (gOn('guards.template', opts.guardTemplate)) { try { ensureChronicInPMH(note, log); } catch (e) { log(`[v2:tidy] skipped — ${e.message}`); } }
@@ -975,7 +977,7 @@ export async function generateNoteV2(input, opts = {}) {
     try { const ng = negationGuard(renderedNote, transcript, log); if (ng.flags.length) { note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...ng.flags.map(({ kind, section, ...fl }) => fl)]; } if (opts.trace) opts.trace.negation = { flags: ng.flags.length, checked: ng.checked, negated: ng.negated }; } catch (e) { log(`[v2:negation] skipped — ${e.message}`); }
   }
   let drugReview = [];   // the medicines box under the note: every drug, checked against RxNorm (name and dose), with a one-click fix
-  if (!blank && process.env.DRUG_CHECK !== '0' && opts.drugCheck !== false && cfg['stage.drugCheck'] !== false) {
+  if (!blank && !cleanAccount && process.env.DRUG_CHECK !== '0' && opts.drugCheck !== false && cfg['stage.drugCheck'] !== false) {   // clean-note accounts get no Medicines box (cleanAccounts.js)
     const td = Date.now();
     try { const dc = await checkDrugs(renderedNote, transcript, { log, patientMeds: input.patientMeds || opts.patientMeds || [] }); drugReview = dc.review; note.metadata ||= {}; note.metadata.flags = [...(note.metadata.flags || []), ...dc.flags, ...dc.review.map((r) => ({ type: 'drug_review', field: 'medications', severity: 'info', message: JSON.stringify(r) }))]; if (opts.trace) opts.trace.drugs = dc.review; } catch (e) { log(`[v2:drugs] skipped — ${e.message}`); }
     lap('drugs', td);
@@ -1037,7 +1039,8 @@ export async function generateNoteV2(input, opts = {}) {
   // 5) persist -------------------------------------------------------------------
   // what the admin Quality page reads for every production note: fact ledger, medicines, checks, time per stage
   note.metadata ||= {}; note.metadata.quality = { groundGap, usage: usageSummary(currentUsage()), ledger: ledgerSummary, drugs: { total: drugReview.length, unknown: drugReview.filter((d) => !d.verified).length, suggested: drugReview.filter((d) => d.suggestion).length, doseChecks: drugReview.filter((d) => !d.doseOk).length }, timings: { ...stage, total: Date.now() - t0 }, mode: lean ? 'lean' : 'v2', at: new Date().toISOString() };
-  const allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
+  let allFlags = [...gr.flags]; for (const f of (note.metadata?.flags || [])) if (f && !allFlags.some((g) => g.type === f.type && g.message === f.message)) allFlags.push(f);   // the web app shows these above the note
+  if (cleanAccount) { allFlags = keepCriticalFlags(allFlags); note.metadata.flags = keepCriticalFlags(note.metadata.flags); }   // clean-note account: only the note, no flags stored or returned
   const draftId = `DRAFT-${Date.now()}`;
   if (persist) {
     // the consult may carry the visit language, the translated flag and the original-script text saved at record time (Hindi / Punjabi visits): keep them

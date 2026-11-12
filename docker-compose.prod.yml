@@ -51,7 +51,8 @@ services:
       JOIN_LINES: "1"            # 2026-11-05: lines of one problem sit together as a group without a heading, neighbouring lines of one point are joined with a semicolon (code-only reordering, vetoes). "shadow" = propose only, unset = off
       TOPIC_GAPS: "1"            # 2026-11-05: one blank line between topic groups of the Subjective in the template layout (0 = flat list)
       UNCLEAR_PLAN: "1"          # 2026-11-05: flags plan lines that look mis-heard (question, spoken to the patient, broken off); flags only
-      CONDITION_GUARD: "flag"    # 2026-11-12: flags-only. A condition in Past Medical History or a problem title that the recording does not say is shown under "Before you sign"; nothing is removed or renamed
+      CLEAN_NOTE_EMAILS: "seema.aggarwal@agilepartners-ai.com"   # 2026-11-12: this account gets only the note, no "Before you sign" flags, no Medicines box checks, no "(name unclear)" marker in the text (cleanAccounts.js)
+      CONDITION_GUARD: "flag"   # 2026-11-12: flags-only. A condition in Past Medical History or a problem title that the recording does not say is shown under "Before you sign"; nothing is removed or renamed
       PLAN_ORGANISE: "1"       # 2026-11-05: planOrganise.js moves a plan line under the problem it is about (model names it, code moves it, words untouched); PLAN_TIDY=0 / LINE_CAP=0 / OBJ_JOIN=0 switch the other new steps off
     depends_on:
       postgres: { condition: service_healthy }
