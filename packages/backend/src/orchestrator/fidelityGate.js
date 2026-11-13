@@ -173,6 +173,39 @@ const DOUBLE_VERB = new RegExp(`(^|[;:]\\s*)(?:${V1})\\s+(${V2})\\s+(?=[a-z0-9])
 /** "Arrange Provide new prescriptions" -> "Provide new prescriptions": the verb next to its object stays. Only at the start of a line or of a ';' part. */
 export function fixDoubleVerb(line) { const m = line.match(BULLET); if (!m) return line; const body = m[2].replace(DOUBLE_VERB, (all, lead, v2) => `${lead}${v2} `); return body === m[2] ? line : m[1] + body; }
 
+// ── H: the same fact written twice in Subjective / Objective ─────────────────────────────────────────────────────────────────────────────────────
+// Seema's note 4x15c: "B12 low-normal" and "B12: lower side of normal", "Thyroid: fine" beside "Bloods: hemoglobin normal; thyroid normal", the ultrasound result twice, the 6-week follow-up in both
+// sections. A line whose every content word is already in another line of those two sections is dropped (the shorter one; equal ones keep the longer text). Words are compared by their first five
+// letters with a few synonyms (fine/ok/normal, low/lower), numbers and left/right/no/not are never ignored, and a negated line never absorbs a positive one (or the reverse).
+const REP_STOP = new Set('the of on in at to a an and or with for from is are was were has have had that this it as by be showed shows show described describes noted note reported reports states stated appearance appears seems side end level range today patient pt been also about'.split(' '));
+const REP_NEG = new Set(['no', 'not', 'denies', 'denied', 'without', 'negative', 'never', 'nil', 'none']);
+const REP_SYN = { fine: 'normal', ok: 'normal', okay: 'normal', unremarkable: 'normal', lower: 'low', lowest: 'low', higher: 'high' };
+export function lineTokens(text) {
+  const out = new Set();
+  for (const raw of norm(text).split(' ')) { if (!raw) continue; const w = REP_SYN[raw] || raw; if (REP_STOP.has(w)) continue; out.add(/^\d/.test(w) || w.length <= 5 ? w : w.slice(0, 5)); }
+  return out;
+}
+export function repeatedLines(md, { cap = 6 } = {}) {
+  const lines = String(md || '').split('\n'); const cands = []; let sec = '';
+  lines.forEach((ln, idx) => {
+    const h = ln.match(/^###\s+(.*)$/); if (h) { sec = h[1].trim().toLowerCase(); return; }
+    if (sec !== 'subjective' && sec !== 'objective') return;
+    const b = ln.match(BULLET); if (!b) return; const tok = lineTokens(b[2]); if (tok.size < 2) return;
+    // the first line of a group is its title ("Rash across stomach" above its details): it can absorb others but is never dropped itself
+    const prev = lines[idx - 1] ?? ''; const next = lines[idx + 1] ?? ''; const title = (prev.trim() === '' || /^###/.test(prev)) && BULLET.test(next);
+    cands.push({ idx, text: b[2], tok, title, neg: [...tok].some((w) => REP_NEG.has(w)) });
+  });
+  const dropped = new Set(); const out = [];
+  const order = [...cands].sort((a, b) => a.tok.size - b.tok.size || b.idx - a.idx);   // smallest first; of equal size the later line goes first
+  for (const a of order) {
+    if (a.title || dropped.has(a.idx) || out.length >= cap) continue;
+    const home = cands.find((b) => b !== a && !dropped.has(b.idx) && b.neg === a.neg && b.tok.size >= a.tok.size && [...a.tok].every((w) => b.tok.has(w))
+      && !(b.tok.size === a.tok.size && (b.text.length < a.text.length || (b.text.length === a.text.length && b.idx > a.idx))));   // equal sets: keep the longer text, else the earlier line
+    if (home) { dropped.add(a.idx); out.push({ idx: a.idx, text: a.text, keptIdx: home.idx, kept: home.text }); }
+  }
+  return out;
+}
+
 // ── D: claim judge ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const ACTION = /\b(provided|arranged|signed|administered|faxed|printed|handed|booked|completed|performed|given|ordered|issued|sent|refilled|renewed|injected|applied)\b/i;
 const NEGATIVE = /^(?:denies|denied|no|nil|negative for|not)\b/i;
@@ -232,7 +265,7 @@ export function parseClaims(raw, cands, transcript) {
  * `getLlm` is called at most once, only when a candidate line exists.
  */
 export async function fidelityGate({ md, transcript, patientMeds = [], lexicon = null, clean = false, claimMode = 'shadow', getLlm = null, log = () => {}, cap = 4 }) {
-  const meta = { drugs: [], values: [], years: [], pmh: [], labs: [], verbs: 0, claims: { checked: 0, removed: [], flagged: [] }, capped: false };
+  const meta = { drugs: [], values: [], years: [], pmh: [], labs: [], verbs: 0, repeats: [], claims: { checked: 0, removed: [], flagged: [] }, capped: false };
   const flags = []; let lines = String(md || '').split('\n'); const t = String(transcript || '');
   const flag = (type, field, message) => { if (!clean) flags.push({ type, field, severity: 'warning', message }); };
   const apply = (idx, rx) => { const next = cutPart(lines[idx], rx); lines[idx] = next; };   // null = line removed
@@ -278,6 +311,13 @@ export async function fidelityGate({ md, transcript, patientMeds = [], lexicon =
       log(`[v2:fidelity] ${c.lab}: ${c.drop} dropped, ${c.keep.join('/')} kept`);
     }
     lines = lines.filter((l) => l !== null).map((l) => { const f = fixDoubleVerb(l); if (f !== l) meta.verbs++; return f; });
+    const reps = repeatedLines(lines.join('\n'));   // H
+    if (reps.length) {
+      const gone = new Set(reps.map((r) => r.idx)); const kept = lines.filter((_, i) => !gone.has(i));
+      lines = kept.filter((l, i) => !(l.trim() === '' && i > 0 && kept[i - 1].trim() === ''));   // a group of one line that goes leaves no double gap
+      meta.repeats = reps.map((r) => ({ dropped: r.text.slice(0, 100), keptAs: r.kept.slice(0, 100) }));
+      log(`[v2:fidelity] ${reps.length} repeated line(s) merged`);
+    }
   } catch (e) { log(`[v2:fidelity] diagnosis, lab and verb checks skipped - ${String(e.message).slice(0, 80)}`); }
 
   try {   // D

@@ -156,3 +156,54 @@ test('fidelityGate on the real note: clean account loses the three problems; oth
   assert.deepEqual(o.flags.map((f) => f.type).sort(), ['lab_conflict', 'pmh_unsupported']);
   assert.ok(!/158/.test(o.md) && !/Arrange Provide/.test(o.md));
 });
+
+// ── repeated lines, from Seema's note 4x15c ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+import { repeatedLines, lineTokens } from '../src/orchestrator/fidelityGate.js';
+const REP_MD = `### Subjective
+- Follow-up axillary ultrasound results
+- Follow-up ultrasound recommended in 6 weeks, booked for December 3rd
+
+- Hair thinning
+- Clumps of hair coming out daily
+
+### Objective
+- Ultrasound bilateral axillae (14th): mild cortical thickening of bilateral axillary lymph nodes, benign/reactive/inflammatory appearance
+- Follow-up ultrasound recommended in 6 weeks
+- Bloods: hemoglobin normal; thyroid normal
+- B12 low-normal
+- Inflammatory markers mildly elevated
+- B12: lower side of normal
+- Thyroid: fine
+- Ultrasound on the 14th showed mild cortical thickening of lymph nodes bilaterally, described as reactive or inflamed
+
+### Assessment & Plan
+2. **Hair thinning**
+   - B12 on lower end of normal, thyroid normal`;
+
+test('repeatedLines merges the four repeats of the real note and keeps everything else', () => {
+  const r = repeatedLines(REP_MD).map((x) => x.text).sort();
+  assert.deepEqual(r, ['B12 low-normal', 'Follow-up ultrasound recommended in 6 weeks', 'Thyroid: fine', 'Ultrasound on the 14th showed mild cortical thickening of lymph nodes bilaterally, described as reactive or inflamed'].sort());
+});
+
+test('repeatedLines never drops a group title, never mixes a negated line with a positive one, never ignores a number or a side', () => {
+  const title = '### Subjective\n- Rash across stomach\n- Onset in March\n\n### Objective\n- Abdomen: rash across stomach and upper torso';
+  assert.equal(repeatedLines(title).length, 0, 'the first line of a group is its title');
+  assert.equal(repeatedLines('### Objective\n- Chest pain radiating to arm\n- No chest pain or shortness of breath').length, 0);
+  assert.equal(repeatedLines('### Objective\n- BP 128/82\n- Pulse regular\n- Pulse regular 72 bpm').length, 1, 'the shorter pulse line goes');
+  assert.equal(repeatedLines('### Objective\n- Pain in left knee\n- Pain in right knee, swollen').length, 0, 'left and right are different');
+  assert.equal(repeatedLines('### Objective\n- A1C 6.9\n- A1C 6.1 and cholesterol normal').length, 0, 'different numbers');
+});
+
+test('repeatedLines: equal lines keep the longer text and never both go; Assessment & Plan is not touched', () => {
+  const md = '### Objective\n- Blood pressure\n- Weight 200 lbs\n- Weight: 200 lbs\n\n### Assessment & Plan\n1. **Weight**\n   - Weight 200 lbs';
+  const r = repeatedLines(md); assert.equal(r.length, 1); assert.equal(r[0].text, 'Weight 200 lbs');
+  assert.ok(lineTokens('Thyroid: fine').has('norma'));
+});
+
+test('fidelityGate applies the merge, collapses the gap and records it', async () => {
+  const g = await fidelityGate({ md: REP_MD, transcript: 'x'.repeat(10), clean: true });
+  assert.equal(g.meta.repeats.length, 4);
+  assert.ok(!/Thyroid: fine/.test(g.md) && !/B12 low-normal/.test(g.md));
+  assert.match(g.md, /Bloods: hemoglobin normal; thyroid normal/); assert.match(g.md, /B12: lower side of normal/); assert.match(g.md, /\n   - B12 on lower end of normal, thyroid normal/);
+  assert.ok(!/\n\n\n/.test(g.md));
+});

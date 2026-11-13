@@ -812,15 +812,23 @@ const ENCOUNTER_TYPE_RX = [
   ['weight_loss', /\b(wegovy|zepbound|saxenda|obesity|weight loss|weight management|bariatric)\b/i],
   ['lipids', /\b(cholesterol|lipid panel|\bstatin\b|\bldl\b|\bhdl\b|triglycerid|atorvastatin|rosuvastatin)\b/i],
   ['hypertension', /\b(blood pressure|hypertension|amlodipine|perindopril|ramipril|antihypertensive)\b/i],
-  ['anemia', /\b(anaemia|anemia|iron deficien|ferritin|\bb12\b|hemoglobin (?:low|of))\b/i],
+  ['anemia', /\b(anaemia|anemia|iron deficien|ferritin|\bb12 (?:shot|injection|deficien\w*)|hemoglobin (?:low|of))\b/i],   // a bare "B12 is fine" in a lab review is not an anemia visit (2026-11-13)
   ['musculoskeletal', /\b(back pain|knee pain|shoulder pain|osteoarthritis|arthritis|joint pain|tendonitis|bursitis)\b/i],
 ];
+/**
+ * Is this visit really about a pregnancy? 2026-11-13: a patient asking whether "prenatal" vitamins would help her thinning hair was filed as a pregnancy visit.
+ * Needs a pregnancy word that is not negated ("not pregnant", "if I get pregnant"), or "prenatal" with a visit word beside it; "prenatal vitamins" or a bare "prenatal" is not enough.
+ */
+export function pregnancyEvidence(transcript) {
+  const x = String(transcript || '').replace(/\b(?:not|never|no|isn't|aren't|wasn't|can't|cannot|unless|if|until|trying not to)\s+(?:\w+\s+){0,2}pregnan\w*/gi, ' ');
+  return /\b(?:pregnan\w*|antenatal|obstetric\w*|gestation\w*|trimester)\b/i.test(x) || /\bprenatal (?:visit|care|appointment|clinic|class|screening|bloods?|ultrasound|check-?up)\b/i.test(x);
+}
 export function classifyEncounterDeterministic(transcript, log = () => {}) {
   const t = String(transcript || '');
   const systems = Object.entries(SYSTEM_RX).filter(([, rx]) => rx.test(t)).map(([k]) => k);
   let type = 'general_primary_care';
   if (systems.length < 3) {                       // ≥3 systems → comprehensive template
-    for (const [name, rx] of ENCOUNTER_TYPE_RX) { if (rx.test(t)) { type = name; break; } }
+    for (const [name, rx] of ENCOUNTER_TYPE_RX) { if (rx.test(t) && (name !== 'pregnancy' || pregnancyEvidence(t))) { type = name; break; } }
     if (type === 'general_primary_care' && /\b(refill|renew(?:al)?|re-?fill|prescription renewal)\b/i.test(t)) type = 'medication_refill';
   }
   type = adminRefillFailsafe(type, t, log);
