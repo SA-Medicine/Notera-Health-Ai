@@ -94,6 +94,85 @@ export function yearSaid(year, transcript) {
 }
 const YEAR_RX = /(\s*(?:\b(?:since|in|from|during|dated|diagnosed in|started in|around)\s+)?)\b((?:19|20)\d\d)\b/g;
 
+// ── E: a diagnosis in Past Medical History that nobody says ─────────────────────────────────────────────────────────────────────────────────────
+// "Dysglycemia" written from "your sugar is better too": no diabetes, no sugar medicine, no test for it. A bare diagnosis in PMH stays only when the recording says it, or says
+// something that only a patient WITH it would say (a drug, a test, the name of the condition in plain words). A family that matches the diagnosis decides; with no family, a medical-sounding
+// word (-emia, -osis, -itis, -pathy ...) none of whose letters appear in the recording is removed. Plain symptoms and anything else are left alone.
+const FAMILIES_PMH = [
+  { key: /hypertens|high blood pressure/i, proof: /hypertens|blood pressure|bp|\w*(?:sartan|pril|dipine|olol|thiazide)\b|diltiazem|verapamil|spironolactone|indapamide|coversyl|diovan|norvasc|lisinopril/i },
+  { key: /dysglyc|hyperglyc|prediab|diabet|glucose intoler|insulin resist/i, proof: /diabet|prediab|dysglyc|hyperglyc|\ba1c\b|metformin|insulin|ozempic|semaglutide|jardiance|farxiga|januvia|gliclazide|glyburide|glimepiride|glucometer|lantus|sugar (?:pill|medic)|high sugar/i },
+  { key: /lipid|cholesterol|triglycerid/i, proof: /cholesterol|lipid|triglycerid|\w*statin\b|crestor|lipitor|ezetimibe|fenofibrate/i },
+  { key: /hypothyroid|thyroid/i, proof: /thyroid|levothyrox|synthroid|eltroxin|\btsh\b/i },
+  { key: /uric|gout/i, proof: /uric|gout|allopurinol|colchicine|febuxostat/i },
+  { key: /an(?:a)?emi|iron defic/i, proof: /an(?:a)?emi|iron|ferritin|hemoglobin|haemoglobin|\bhb\b|b12/i },
+  { key: /depress|anxi/i, proof: /depress|anxi|mood|panic|sertraline|escitalopram|fluoxetine|venlafaxine|duloxetine|therap(?:y|ist)/i },
+  { key: /asthma|copd|emphysema/i, proof: /asthma|copd|emphysema|puffer|inhaler|ventolin|salbutamol|symbicort|wheez/i },
+  { key: /reflux|gerd/i, proof: /reflux|gerd|heartburn|omeprazole|pantoprazole|esomeprazole|antacid/i },
+  { key: /kidney|renal|\bckd\b/i, proof: /kidney|renal|creatinine|egfr|nephrolog/i },
+  { key: /osteopor|osteopen/i, proof: /osteopor|osteopen|bone density|fosamax|alendronate|calcium|dexa/i },
+  { key: /arthrit/i, proof: /arthrit|joint|finger|knuckle|knee|stiff|swollen/i },
+  { key: /migraine/i, proof: /migraine|headache/i },
+  { key: /obes|overweight/i, proof: /obes|overweight|weight/i },
+  { key: /sleep apn|apn(?:o)?ea/i, proof: /apn(?:o)?ea|cpap|snor/i },
+  { key: /atrial fib|a-?fib|heart failure|coronary|\bcad\b/i, proof: /heart|cardi|atrial|fibrillation|stent|bypass|angina|eliquis|apixaban|warfarin|xarelto/i },
+];
+const DX_SUFFIX = /(?:a?emia|osis|itis|pathy|plasia|algia|penia|uria|oma|trophy|sclerosis)$/i;
+const PMH_SKIP = /^(?:medications?|allerg|social|family|surgical|surgeries|smok|alcohol|occupation|no\b|nil|denies|not\b)/i;
+export function unsupportedDiagnoses(md, transcript) {
+  const lines = String(md || '').split('\n'); const out = []; let sec = ''; const t = String(transcript || ''); const tw = norm(t).split(' ').filter((w) => w.length >= 4);
+  lines.forEach((ln, idx) => {
+    const h = ln.match(/^###\s+(.*)$/); if (h) { sec = h[1].trim().toLowerCase(); return; }
+    if (!/past medical|medical history|\bpmh\b/.test(sec)) return;
+    const b = ln.match(BULLET); if (!b) return; const text = b[2].replace(/[.;]+$/, '').trim();
+    if (PMH_SKIP.test(text) || text.split(/\s+/).length > 5) return;   // a bare diagnosis only
+    const fam = FAMILIES_PMH.find((f) => f.key.test(text));
+    if (fam) { if (!fam.proof.test(t)) out.push({ idx, text, why: 'nobody in the recording says it, takes a medicine for it or has it tested' }); return; }
+    const dx = text.split(/\s+/).find((w) => DX_SUFFIX.test(w)); if (!dx) return;
+    const root = letters(dx).slice(0, 6);
+    if (!tw.some((w) => w.slice(0, 6) === root || (w.length >= 6 && (lev(w, letters(dx)) <= 2 || letters(dx).includes(w) || w.includes(letters(dx)))))) out.push({ idx, text, why: 'the diagnosis is never mentioned in the recording' });
+  });
+  return out;
+}
+
+// ── F: the same lab with two values: the one said once, next to filler, is a mis-hearing ─────────────────────────────────────────────────────────
+// "Hb 128" and "Hemoglobin: 158" in one note; the recording opens "Yeah, the hemoglobin is 158. I don't know. what I do..." and later says 128 twice ("it was 128 ... today it's 128").
+const LABS = { hemoglobin: 'hb|hgb|hemoglobin|haemoglobin', a1c: 'a1c|hba1c', 'uric acid': 'uric acid', glucose: 'glucose|blood sugar', creatinine: 'creatinine', ldl: 'ldl', hdl: 'hdl', triglycerides: 'triglycerides?', cholesterol: 'total cholesterol|cholesterol', tsh: 'tsh', ferritin: 'ferritin', egfr: 'egfr', potassium: 'potassium', sodium: 'sodium', 'vitamin d': 'vitamin d', b12: 'b12|vitamin b12', inr: 'inr', psa: 'psa' };
+const LAB_RXS = Object.entries(LABS).map(([lab, alt]) => [lab, new RegExp(String.raw`\b(?:${alt})\b[^0-9;]{0,18}?(?<![\d.])(\d+(?:\.\d+)?)(?!\d)`, 'ig')]);
+const TREND_CUE = /\b(?:from|to|was|were|prior|previous|previously|last|before|earlier|baseline|improved|decreased|increased|dropped|rose|up|down|vs|versus|goal|target|today|now|currently)\b/i;
+const FILLER = new Set('um uh uhm hmm huh yeah okay ok so like know don t oh well right mhm mm what'.split(' '));
+const countNum = (t, v) => (String(t).match(new RegExp(`(?<![\\d.])${escRx(v)}(?![\\d]|\\.\\d)`, 'g')) || []).length;
+function fillerAround(t, v, span = 8) {
+  const words = norm(t).split(' '); const i = words.indexOf(norm(v)); if (i < 0) return 0;
+  const win = words.slice(Math.max(0, i - span), i).concat(words.slice(i + 1, i + 1 + span)); return win.length ? win.filter((w) => FILLER.has(w)).length / win.length : 0;
+}
+export function labConflicts(md, transcript) {
+  const t = String(transcript || ''); const seen = [];
+  String(md || '').split('\n').forEach((ln, idx) => {
+    const b = ln.match(BULLET); if (!b) return;
+    b[2].split(/;\s*/).forEach((seg, si) => { for (const [lab, rx] of LAB_RXS) { rx.lastIndex = 0; let m; while ((m = rx.exec(seg))) seen.push({ lab, value: m[1], idx, si, seg }); } });
+  });
+  const byLab = new Map(); for (const s of seen) { if (!byLab.has(s.lab)) byLab.set(s.lab, []); byLab.get(s.lab).push(s); }
+  const out = [];
+  for (const [lab, arr] of byLab) {
+    const vals = [...new Set(arr.map((s) => s.value))]; if (vals.length < 2) continue;
+    const cnt = Object.fromEntries(vals.map((v) => [v, countNum(t, v)]));
+    for (const v of vals) {
+      const others = vals.filter((o) => o !== v);
+      if (cnt[v] !== 1 || !others.some((o) => cnt[o] >= 2) || fillerAround(t, v) < 0.15) continue;
+      const all = arr.filter((s) => s.value === v); const segs = all.filter((s) => !TREND_CUE.test(s.seg));   // a segment with a time or trend word ("last year ... was") is a different fact, never dropped
+      if (segs.length && segs.length === all.length) out.push({ lab, drop: v, keep: others.filter((o) => cnt[o] >= 2), segs: segs.map((s) => ({ idx: s.idx, si: s.si })) });
+    }
+  }
+  return out;
+}
+
+// ── G: two verbs stuck together ("Arrange Provide new prescriptions") ────────────────────────────────────────────────────────────────────────────
+const V1 = 'Arrange|Provide|Request|Send|Start|Stop|Continue|Increase|Decrease|Order|Refer|Schedule|Book|Obtain|Review|Discuss|Monitor|Check|Change|Prescribe|Advise|Recommend|Counsel|Organize|Organise';
+const V2 = 'Provide|Arrange|Send|Obtain|Prescribe|Advise|Recommend|Organize|Organise';
+const DOUBLE_VERB = new RegExp(`(^|[;:]\\s*)(?:${V1})\\s+(${V2})\\s+(?=[a-z0-9])`, 'g');
+/** "Arrange Provide new prescriptions" -> "Provide new prescriptions": the verb next to its object stays. Only at the start of a line or of a ';' part. */
+export function fixDoubleVerb(line) { const m = line.match(BULLET); if (!m) return line; const body = m[2].replace(DOUBLE_VERB, (all, lead, v2) => `${lead}${v2} `); return body === m[2] ? line : m[1] + body; }
+
 // ── D: claim judge ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const ACTION = /\b(provided|arranged|signed|administered|faxed|printed|handed|booked|completed|performed|given|ordered|issued|sent|refilled|renewed|injected|applied)\b/i;
 const NEGATIVE = /^(?:denies|denied|no|nil|negative for|not)\b/i;
@@ -153,7 +232,7 @@ export function parseClaims(raw, cands, transcript) {
  * `getLlm` is called at most once, only when a candidate line exists.
  */
 export async function fidelityGate({ md, transcript, patientMeds = [], lexicon = null, clean = false, claimMode = 'shadow', getLlm = null, log = () => {}, cap = 4 }) {
-  const meta = { drugs: [], values: [], years: [], claims: { checked: 0, removed: [], flagged: [] }, capped: false };
+  const meta = { drugs: [], values: [], years: [], pmh: [], labs: [], verbs: 0, claims: { checked: 0, removed: [], flagged: [] }, capped: false };
   const flags = []; let lines = String(md || '').split('\n'); const t = String(transcript || '');
   const flag = (type, field, message) => { if (!clean) flags.push({ type, field, severity: 'warning', message }); };
   const apply = (idx, rx) => { const next = cutPart(lines[idx], rx); lines[idx] = next; };   // null = line removed
@@ -181,6 +260,25 @@ export async function fidelityGate({ md, transcript, patientMeds = [], lexicon =
     });
     if (meta.years.length) { for (const y of meta.years) flag('year_not_said', 'subjective', `The year ${y} is not said in the recording; it was removed.`); log(`[v2:fidelity] year(s) not said removed: ${meta.years.join(', ')}`); }
   } catch (e) { log(`[v2:fidelity] year check skipped - ${String(e.message).slice(0, 80)}`); }
+
+  try {   // E, F, G (added 2026-11-13 after Seema's note km7o4: "Dysglycemia", Hb 128 and 158, "Arrange Provide")
+    const joined = lines.join('\n'); const badDx = unsupportedDiagnoses(joined, t); const labFix = labConflicts(joined, t);
+    for (const d of badDx) {
+      meta.pmh.push({ line: d.text, why: d.why });
+      if (clean) lines[d.idx] = null; else flag('pmh_unsupported', 'past_medical_history', `"${d.text}" is in Past Medical History but ${d.why}. Please check it.`);
+      log(`[v2:fidelity] PMH "${d.text.slice(0, 30)}" not supported by the recording${clean ? ' - removed' : ' - flagged'}`);
+    }
+    for (const c of labFix) {
+      meta.labs.push({ lab: c.lab, dropped: c.drop, kept: c.keep });
+      for (const { idx, si } of c.segs) {
+        if (lines[idx] == null) continue; const m = lines[idx].match(BULLET); if (!m) continue; const parts = m[2].split(/;\s*/); parts.splice(si, 1);
+        lines[idx] = parts.length ? m[1] + parts.join('; ').replace(/^./, (c) => c.toUpperCase()) : null;
+      }
+      flag('lab_conflict', 'objective', `${c.lab} was written as ${c.drop} and as ${c.keep.join(' / ')}; ${c.drop} is said once, in the middle of unclear speech, so it was removed. Please check the value.`);
+      log(`[v2:fidelity] ${c.lab}: ${c.drop} dropped, ${c.keep.join('/')} kept`);
+    }
+    lines = lines.filter((l) => l !== null).map((l) => { const f = fixDoubleVerb(l); if (f !== l) meta.verbs++; return f; });
+  } catch (e) { log(`[v2:fidelity] diagnosis, lab and verb checks skipped - ${String(e.message).slice(0, 80)}`); }
 
   try {   // D
     const text = lines.filter((l) => l !== null).join('\n'); const cands = claimLines(text); meta.claims.checked = cands.length;

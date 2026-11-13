@@ -63,7 +63,7 @@ test('years: kept when said in digits or words, current year kept, others cut', 
   assert.equal(yearSaid(2008, 'back in two thousand and eight'), true);
   assert.equal(yearSaid(2017, 'about five years ago'), false);
   const md = '### Past Medical History\n- Hypertension since 2017\n- Knee surgery in 2019\n   - Sub point here';
-  const g = await fidelityGate({ md, transcript: 'I had my knee done in twenty nineteen and the pressure about five years ago', clean: true });
+  const g = await fidelityGate({ md, transcript: 'I had my knee done in twenty nineteen and the blood pressure started about five years ago', clean: true });
   assert.match(g.md, /Hypertension$/m); assert.match(g.md, /Knee surgery in 2019/); assert.match(g.md, /^   - Sub point here$/m);
   assert.deepEqual(g.meta.years, ['2017']);
 });
@@ -101,4 +101,58 @@ test('a model that fails or answers nonsense leaves the note unchanged', async (
     const g = await fidelityGate({ md, transcript: TR, clean: true, claimMode: 'act', getLlm });
     assert.equal(g.md, md);
   }
+});
+
+// ── 2026-11-13, Seema's note km7o4: Dysglycemia from "your sugar is better", Hb 128 and 158, "Arrange Provide" ─────────────────────────────────────────────────────
+import { unsupportedDiagnoses, labConflicts, fixDoubleVerb } from '../src/orchestrator/fidelityGate.js';
+const KM_T = "Yeah, the hemoglobin is 158. I don't know. what I do. I like to work and see the big craft in the um um in question. before I took my first shot it was 128 my blood and today it's 128 with that uh iron I take. Blood pressure is good. You get a chocolate. Your sugar is better too. I take the Valsartan. And uric acid went down. 644 to 581 581 and then all new prescriptions for wig. It's arthritis.";
+const KM_MD = `### Past Medical History
+- Hypertension
+- Elevated uric acid, now improved from 644 to 581.
+- Dysglycemia
+- Osteoarthritis
+- Medications: iron every day, Valsartan
+
+### Objective
+- Bloods: Hb 128; uric acid decreased from 644 to 581
+- Hemoglobin: 158; currently taking iron supplement daily, last year hemoglobin was 128 prior to first shot and is 128 today with iron
+
+### Assessment & Plan
+6. **Administrative**
+   - Arrange Provide new prescriptions for wigs for tax purposes`;
+
+test('unsupportedDiagnoses: a sugar remark does not make "Dysglycemia"; a treated, mentioned or named condition stays', () => {
+  const bad = unsupportedDiagnoses(KM_MD, KM_T).map((d) => d.text);
+  assert.deepEqual(bad, ['Dysglycemia']);   // Hypertension (blood pressure + Valsartan), uric acid (said), Osteoarthritis (arthritis said), Medications line: all kept
+  assert.deepEqual(unsupportedDiagnoses('### Past Medical History\n- History of depression', 'we talked about your knee').map((d) => d.text), ['History of depression']);
+  assert.equal(unsupportedDiagnoses('### Past Medical History\n- Type 2 diabetes', 'you take metformin twice a day').length, 0);
+  assert.equal(unsupportedDiagnoses('### Subjective\n- Dysglycemia', KM_T).length, 0, 'only Past Medical History is judged');
+});
+
+test('labConflicts: 158 (said once, in filler) loses to 128 (said twice); a real change 644 -> 581 is untouched', () => {
+  const c = labConflicts(KM_MD, KM_T);
+  assert.equal(c.length, 1); assert.equal(c[0].lab, 'hemoglobin'); assert.equal(c[0].drop, '158'); assert.deepEqual(c[0].keep, ['128']);
+  assert.equal(labConflicts('- Uric acid 644; uric acid 581', 'uric acid went down. 644 to 581').length, 0, 'both said once: no winner, nothing dropped');
+  assert.equal(labConflicts('- Hb 128', KM_T).length, 0);
+  // a value in a segment that carries a time or trend word is never dropped
+  assert.equal(labConflicts('- Hemoglobin was 158 last year; Hb 128 today', "the hemoglobin is 158 I don't know um uh. it was 128 and it's 128").length, 0);
+});
+
+test('fixDoubleVerb keeps the verb next to its object and leaves real wording alone', () => {
+  assert.equal(fixDoubleVerb('   - Arrange Provide new prescriptions for wigs'), '   - Provide new prescriptions for wigs');
+  assert.equal(fixDoubleVerb('- Request Send referral to cardiology; Continue Metformin'), '- Send referral to cardiology; Continue Metformin');
+  assert.equal(fixDoubleVerb('- Request Refill of metformin'), '- Request Refill of metformin');
+  assert.equal(fixDoubleVerb('- Continue Metformin 1000 mg'), '- Continue Metformin 1000 mg');
+  assert.equal(fixDoubleVerb('Arrange Provide x'), 'Arrange Provide x', 'only bullet lines');
+});
+
+test('fidelityGate on the real note: clean account loses the three problems; others keep PMH with a flag', async () => {
+  const g = await fidelityGate({ md: KM_MD, transcript: KM_T, clean: true });
+  assert.ok(!/Dysglycemia/.test(g.md)); assert.ok(!/158/.test(g.md)); assert.ok(!/Arrange Provide/.test(g.md));
+  assert.match(g.md, /- Currently taking iron supplement daily, last year hemoglobin was 128/); assert.match(g.md, /- Bloods: Hb 128; uric acid decreased from 644 to 581/); assert.match(g.md, /^   - Provide new prescriptions/m);
+  assert.equal(g.flags.length, 0);
+  const o = await fidelityGate({ md: KM_MD, transcript: KM_T, clean: false });
+  assert.match(o.md, /Dysglycemia/, 'not removed for accounts that see flags');
+  assert.deepEqual(o.flags.map((f) => f.type).sort(), ['lab_conflict', 'pmh_unsupported']);
+  assert.ok(!/158/.test(o.md) && !/Arrange Provide/.test(o.md));
 });
