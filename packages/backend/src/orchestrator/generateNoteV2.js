@@ -72,6 +72,7 @@ import { buildFactGraphPlus } from './factGraphPlus.js';
 import { reconcileFacts } from './factLedger.js';
 import { checkDrugs, loadLexicon } from './drugCheck.js';
 import { repairWords } from './wordRepair.js';
+import { fidelityGate } from './fidelityGate.js';
 import { stripCitations } from './factLedger.js';
 import { templateAddendum } from './writerAddendum.js';
 
@@ -970,6 +971,17 @@ export async function generateNoteV2(input, opts = {}) {
       renderedNote = wr.md; note.metadata ||= {}; note.metadata.wordRepair = wr.meta;
       if (wr.flags.length) note.metadata.flags = [...(note.metadata.flags || []), ...wr.flags];
     } catch (e) { log(`[v2:words] skipped — ${e.message}`); }
+  }
+  // fidelityGate.js (FIDELITY_GATE=1, 2026-11-13): a medicine the recording never says, a value no human has (A1C 2.9), a year nobody said are removed by code; plan actions written as done
+  // are judged by one model call whose quote code verifies (FIDELITY_CLAIMS=act to act on it, otherwise it only records in metadata). Runs after the word repair. Fails closed.
+  if (!blank && process.env.FIDELITY_GATE === '1') {
+    try {
+      const lexicon = await loadLexicon({ log });
+      const fg = await fidelityGate({ md: renderedNote, transcript, patientMeds: input.patientMeds || opts.patientMeds || [], lexicon, clean: cleanAccount, claimMode: process.env.FIDELITY_CLAIMS === 'act' ? 'act' : 'shadow', log,
+        getLlm: async () => { const fl = await createGeminiService(null, { model: process.env.RELEVANCE_MODEL || opts.storyModel || cfg['story.model'] }); fl._agent = 'v2-fidelity'; return fl; } });
+      renderedNote = fg.md; note.metadata ||= {}; note.metadata.fidelityGate = fg.meta;
+      if (fg.flags.length) note.metadata.flags = [...(note.metadata.flags || []), ...fg.flags];
+    } catch (e) { log(`[v2:fidelity] skipped — ${e.message}`); }
   }
   // relevanceFilter.js: lines nobody needs (personal stories, other people's lives). RELEVANCE_FILTER=shadow stores the proposal in note.metadata.relevance and changes nothing; =1 removes the lines. Off by default. Runs beside the drug check.
   let relP = null; const relMode = process.env.RELEVANCE_FILTER;

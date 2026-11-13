@@ -25,7 +25,7 @@ export const COMMON = new Set(COMMON_TEXT.split(/\s+/).filter(Boolean));
 const DISPLAY = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 
 const letters = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
-function lev(a, b) {
+export function lev(a, b) {
   const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
   let prev = Array.from({ length: n + 1 }, (_, j) => j);
   for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }

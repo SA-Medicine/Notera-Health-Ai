@@ -15,6 +15,7 @@
 
 import { query, one } from '../db/pool.js';
 import { reconcile } from './consensus.js';
+import { trimSilentTail, verifyTail, cleanAsrText } from './asrGate.js';
 import { transcribeChirpPcm, transcribePcm, planWindows, pcmDurationSeconds, _BYTES_PER_SECOND } from './googleSpeech.js';
 
 export const ENGINES = {
@@ -22,6 +23,7 @@ export const ENGINES = {
   chirp_2:            { label: 'Chirp 2', provider: 'Google Speech-to-Text V2', kind: 'v2', price_per_min: 0.016, note: 'Google’s previous flagship; production default.' },
   latest_long:        { label: 'Latest Long', provider: 'Google Speech-to-Text V1', kind: 'v1', price_per_min: 0.016, note: 'Cheapest standard Google model.' },
   'gemini-2.5-flash': { label: 'Gemini 2.5 Flash (audio)', provider: 'Vertex AI Gemini', kind: 'gemini', price_per_min: 0.002, note: 'General multimodal model used for transcription; about 8× cheaper than Google STT.' },
+  'gemini-3.5-flash': { label: 'Gemini 3.5 Flash (audio)', provider: 'Vertex AI Gemini', kind: 'gemini', price_per_min: 0.002, note: 'Tested 2026-11-13 on real visits: same price tier as 2.5, 3-8 s per visit, hears drug names better, does not invent text on quiet clips (answers "00:00", removed by cleanAsrText).' },
   'gemini-3.7-flash': { label: 'Gemini 3.7 Flash (audio)', provider: 'Vertex AI Gemini', kind: 'gemini', price_per_min: 0.002, note: 'Newest Gemini Flash; transcription by prompt.' },
 };
 export const isEngine = (n) => Object.prototype.hasOwnProperty.call(ENGINES, n);
@@ -153,7 +155,7 @@ async function geminiRunner(pcm, model, log, { prompt = GEMINI_PROMPT, checkRoma
     return pieces.join(' ');
   };
   await Promise.all(Array.from({ length: Math.min(3, windows.length) }, async () => {
-    while (next < windows.length) { const i = next++; try { parts[i] = stripPromptLeak(await one(i)); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
+    while (next < windows.length) { const i = next++; try { parts[i] = cleanAsrText(stripPromptLeak(await one(i))); } catch (e) { failed++; log(`gemini-asr window ${i + 1}/${windows.length} failed (${String(e.message).slice(0, 120)})`); } }
   }));
   const text = parts.filter(Boolean).join(' ').trim();
   if (!text && failed === windows.length) throw new Error(`Gemini transcription failed for all ${windows.length} window(s)`);
@@ -175,6 +177,9 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
   const s = settingsForLang(settings || await getSettings(), language);   // Hindi / Punjabi / auto: Gemini only, English transcript + original-script copy (language.js); English: unchanged
   const runOpts = isEnglish(language) ? undefined : { prompt: englishPromptFor(language), checkRoman: true };
   if (s.speechCheck !== false && silentAudio(pcm)) { log('asr: the audio is silence or room noise - nothing is sent to a speech engine'); return { text: '', windows: 0, durationSeconds: pcmDurationSeconds(pcm.length), failedWindows: 0, engine: s.primary, fellBack: false, tried: [], silent: true }; }
+  // Several seconds of empty room at the end of a recording invite a generative engine to write words nobody said (asrGate.js). Cut a moment after the last speech; nothing is amplified.
+  let trim = null; const fullPcm = pcm;
+  if (process.env.ASR_TRIM_TAIL !== '0') { try { const t = trimSilentTail(pcm); if (t.trimmedS > 0) { trim = { trimmedS: t.trimmedS, thresholdDb: t.thresholdDb }; pcm = t.pcm; log(`asr: ${t.trimmedS}s of silence at the end of the recording not sent to the speech engine`); } } catch { /* never fail a transcription because of the trimmer */ } }
   let origP = null;   // the same audio written in its own language (Devanagari / Gurmukhi), kept for the doctor to check; if it fails the visit is simply English-only
   const origSrc = isEnglish(language) ? null : originalSource(language);
   if (origSrc && runners.v2) origP = withTimeout(Promise.resolve(runners.v2(pcm, origSrc.engine, log, { languageCode: origSrc.languageCode })), s.timeoutMs, 'original-language transcript').then((r) => String(r?.text || '').trim(), (e) => { log(`asr: original-language transcript skipped (${String(e.message).slice(0, 100)})`); return ''; });
@@ -209,8 +214,11 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
           if (other && !implausible(other, pcmDurationSeconds(pcm.length))) { const c = reconcile(text, other); final = c.text || text; consensus = { engine: CROSS, swaps: c.swaps.length, fills: c.fills.length, fillWords: c.fills.reduce((a, b) => a + b, 0), words: other.split(/\s+/).length }; log(`asr: cross-check with ${CROSS}: ${c.swaps.length} medical word(s) swapped, ${c.fills.length} missing passage(s) added`); }
         } catch { /* never fail a transcription because of the second opinion */ }
       }
+      // a generative engine can finish with a prescription sentence the doctor never said; a second engine hears only the last 75 s before it is allowed to stay (asrGate.js)
+      let tailGate = null;
+      if (final && ENGINES[engine].kind === 'gemini' && process.env.ASR_TAIL_GATE !== '0') { const g = await verifyTail({ text: final, pcm, runners, log }); final = g.text; if (g.meta.checked) tailGate = g.meta; }
       const original = origP ? await origP : '';
-      return { ...r, text: final, ...(original ? { original } : {}), engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}) };
+      return { ...r, text: final, ...(original ? { original } : {}), engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}), ...(trim ? { trim } : {}), ...(tailGate ? { tailGate } : {}) };
     } catch (e) {
       lastErr = e; note(engine, 'fail', { error: e.message, s, now: now() }); tried.push({ engine, ok: false, ms: now() - t0, error: String(e.message).slice(0, 160) });
       log(`asr: ${engine} failed (${String(e.message).slice(0, 140)})${i < attempts.length - 1 ? ` — falling back to ${attempts[i + 1]}` : ''}`);
