@@ -53,9 +53,70 @@ const SOUND = 'cough|coughing|cough cough|laughter|laughs|laughing|music|silence
 export function cleanAsrText(text) {
   let t = String(text || '');
   t = t.replace(/\[(?:[^\]]{1,30})\]|\((?:[^)]{1,30})\)/g, (m) => (new RegExp(`^[\\[(]\\s*(?:${SOUND})\\s*[\\])]$`, 'i').test(m) ? ' ' : m));
-  t = t.replace(/\b00:\d{2}(?::\d{2})?\b/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/\b00:\d{2}(?::\d{2})?\b/g, ' ');
+  // a timestamp the model writes at the very start ("0:00 my friend ...") or as its own token after a finished sentence ("... in a day or so. 10:57"); a time inside a sentence ("at 10:30") stays
+  t = t.replace(/^\s*0?0:\d{2}(?::\d{2})?\s+/, '').replace(/([.?!])\s+\d{1,2}:[0-5]\d(?::[0-5]\d)?\s*$/, '$1').replace(/^\s*\d{1,2}:[0-5]\d(?::[0-5]\d)?\s*$/, '');
+  t = t.replace(/\s{2,}/g, ' ').trim();
   if (new RegExp(`^(?:${SOUND})[.!?]*$`, 'i').test(t)) return '';
   return t;
+}
+
+// ── typing and other clicks (2026-11-18) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Why: Seema types her notes while the recording runs. A speech model hears the keyboard as faint speech and writes words nobody said ("Hello.", "has history of COVID",
+// a string of digits, "31.") into the visit. Measured on her real 16 Nov recordings (20 s segments): typing gives 0.65 to 1.6 sharp clicks a second; 113 of 121 segments of
+// real speech give under 0.5. A segment that looks like typing is not dropped on that alone: a second engine (Chirp 2) hears the same audio, and the text is removed
+// only when it does not hear it (fail open if the second engine fails). Long speech is never touched (more than `maxWords` words stays).
+// ASR_NOISE_GATE=0 switches it off.
+
+/** Sharp clicks per second: a 2 ms frame at least 15 dB above the 6 ms before it and louder than rms 700, at most one every 12 ms. */
+export function clickRate(pcm, { frMs = 2, riseDb = 15, win = 3, absMin = 700, refractory = 6 } = {}) {
+  const n = Math.floor(SR * frMs / 1000); const k = Math.floor(pcm.length / 2 / n); if (k < win + 3) return 0;
+  const e = new Float64Array(k);
+  for (let f = 0; f < k; f++) { let s = 0; const o = f * n * 2; for (let j = 0; j < n; j++) { const v = pcm.readInt16LE(o + j * 2); s += v * v; } e[f] = s / n + 1; }
+  const ratio = Math.pow(10, riseDb / 10); const minE = absMin * absMin; let ev = 0, last = -99;
+  for (let i = win + 1; i < k; i++) {
+    const base = (e[i - 4] + e[i - 3] + e[i - 2]) / 3;
+    if (e[i] >= minE && e[i] / base >= ratio && i - last >= refractory) { ev++; last = i; }
+  }
+  return ev / (pcm.length / BPS);
+}
+
+/** Does this audio sound like typing / clicking? (3 s or more, 0.5 clicks a second or more) */
+export function typingLikely(pcm, { minRate = 0.5, minSeconds = 3, maxSeconds = 90 } = {}) {
+  if (!pcm || pcm.length < minSeconds * BPS || pcm.length > maxSeconds * BPS) return { likely: false, rate: 0 };
+  const rate = clickRate(pcm); return { likely: rate >= minRate, rate: +rate.toFixed(2) };
+}
+
+const words = (t) => String(t || '').toLowerCase().match(/[a-z0-9']+/g) || [];
+
+/** Did the second engine hear the first engine's words? Share of the first text's words found (exactly, or by the first 4 letters) in the second text. */
+export function overlapShare(primary, other) {
+  const a = words(primary); if (!a.length) return 1;
+  const b = words(other); const set = new Set(b); const pre = new Set(b.filter((w) => w.length >= 4).map((w) => w.slice(0, 4)));
+  const hit = a.filter((w) => set.has(w) || (w.length >= 4 && pre.has(w.slice(0, 4)))).length;
+  return hit / a.length;
+}
+
+/**
+ * Typing gate. `text` is the first engine's text for `pcm`; `runners.v2(pcm, 'chirp_2', log)` is the second engine.
+ * → { text, meta }. meta is {} when nothing was checked; { checked:true, rate, words, result } otherwise.
+ */
+export async function noiseGate({ text, pcm, runners, log = () => {}, maxWords = 20, minOverlap = 0.35, timeoutMs = 25000 }) {
+  const meta = {};
+  try {
+    if (process.env.ASR_NOISE_GATE === '0') return { text, meta };
+    const nw = words(text).length; if (!nw || nw > maxWords) return { text, meta };
+    const ty = typingLikely(pcm); if (!ty.likely) return { text, meta };
+    meta.checked = true; meta.rate = ty.rate; meta.words = nw;
+    const run = runners?.v2; if (!run) { meta.result = 'unverified (no second engine)'; return { text, meta }; }
+    let other = '';
+    try { const r = await Promise.race([Promise.resolve(run(pcm, 'chirp_2', log)), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))]); other = String(r?.text || ''); }
+    catch (e) { meta.result = `unverified (${String(e.message).slice(0, 60)})`; return { text, meta }; }
+    const share = overlapShare(text, other); meta.overlap = +share.toFixed(2); meta.otherWords = words(other).length;
+    if (meta.otherWords >= 3 && share >= minOverlap) { meta.result = 'heard by a second engine'; return { text, meta }; }
+    meta.result = 'removed'; meta.removedWords = nw; log(`[asr] typing noise: ${nw} word(s) in a segment with ${ty.rate} clicks/s, not heard by a second engine - removed`);
+    return { text: '', meta };
+  } catch (e) { meta.result = `skipped (${String(e.message).slice(0, 60)})`; return { text, meta }; }
 }
 
 // ── invented prescription ending ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

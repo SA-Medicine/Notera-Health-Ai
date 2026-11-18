@@ -15,7 +15,7 @@
 
 import { query, one } from '../db/pool.js';
 import { reconcile } from './consensus.js';
-import { trimSilentTail, verifyTail, cleanAsrText } from './asrGate.js';
+import { trimSilentTail, verifyTail, cleanAsrText, noiseGate, typingLikely } from './asrGate.js';
 import { transcribeChirpPcm, transcribePcm, planWindows, pcmDurationSeconds, _BYTES_PER_SECOND } from './googleSpeech.js';
 
 export const ENGINES = {
@@ -119,7 +119,7 @@ function pcmToWav(pcm) {
   h.writeUInt32LE(16000, 24); h.writeUInt32LE(32000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40); return Buffer.concat([h, pcm]);
 }
 import { collapseLoops } from './loops.js';
-import { stripPromptLeak } from './promptLeak.js';
+import { stripPromptLeak, stripVocabLeak } from './promptLeak.js';
 import { hedgedRequest, hedgeAfterMs } from './hedge.js';
 import { isEnglish, englishPromptFor, originalSource, settingsForLang, looksRomanisedIndic } from './language.js';
 const GEMINI_PROMPT = 'Transcribe this recorded medical consultation word for word, in English, as plain text without speaker labels. Write numbers, doses and drug names exactly as spoken. Do not summarise, correct, explain or add anything. If there is no speech, output nothing.';
@@ -200,10 +200,10 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
     const engine = attempts[i]; const t0 = now();
     try {
       const run = runners[ENGINES[engine].kind]; if (!run) throw new Error(`no runner for ${engine}`);
-      const r = await withTimeout(Promise.resolve(run(pcm, engine, log, runOpts)), s.timeoutMs, engine); const ms = now() - t0; const text = String(r.text || '').trim();
+      const r = await withTimeout(Promise.resolve(run(pcm, engine, log, runOpts)), s.timeoutMs, engine); const ms = now() - t0; const text = stripVocabLeak(String(r.text || '')).trim();
       const odd = implausible(text, pcmDurationSeconds(pcm.length)); if (odd) throw new Error(`implausible output (${odd})`);
       if (!isEnglish(language) && looksRomanisedIndic(text)) throw new Error('implausible output (Hindi/Punjabi in Roman letters, not translated to English)');   // falls back to the next engine
-      if (!text && s.speechCheck && i < attempts.length - 1 && speechLike(pcm)) {   // silent failure: speech in, nothing out
+      if (!text && s.speechCheck && i < attempts.length - 1 && speechLike(pcm) && !typingLikely(pcm).likely) {   // loud typing is not speech: a primary that heard nothing in it is right, and a fallback engine would only invent words   // silent failure: speech in, nothing out
         note(engine, 'empty'); tried.push({ engine, ok: false, empty: true, ms }); emptyResult = { ...r, engine }; log(`asr: ${engine} returned nothing for audio that contains speech — trying ${attempts[i + 1]}`); continue;
       }
       note(engine, 'ok', { ms }); tried.push({ engine, ok: true, ms }); if (i > 0) H(engine).fallbackServed += 1;
@@ -217,8 +217,11 @@ export async function transcribeWithChain(pcm, { log = () => {}, runners = defau
       // a generative engine can finish with a prescription sentence the doctor never said; a second engine hears only the last 75 s before it is allowed to stay (asrGate.js)
       let tailGate = null;
       if (final && ENGINES[engine].kind === 'gemini' && process.env.ASR_TAIL_GATE !== '0') { const g = await verifyTail({ text: final, pcm, runners, log }); final = g.text; if (g.meta.checked) tailGate = g.meta; }
+      // typing on a keyboard is heard as faint speech by a generative engine; a short text from a segment that sounds like typing must be heard by a second engine too (asrGate.js)
+      let noise = null;
+      if (final && ENGINES[engine].kind === 'gemini') { const g = await noiseGate({ text: final, pcm, runners, log }); final = g.text; if (g.meta.checked) noise = g.meta; }
       const original = origP ? await origP : '';
-      return { ...r, text: final, ...(original ? { original } : {}), engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}), ...(trim ? { trim } : {}), ...(tailGate ? { tailGate } : {}) };
+      return { ...r, text: final, ...(original ? { original } : {}), engine, fellBack: i > 0 || usable.length < order.length && engine !== s.primary, tried, ...(consensus ? { consensus } : {}), ...(trim ? { trim } : {}), ...(tailGate ? { tailGate } : {}), ...(noise ? { noise } : {}) };
     } catch (e) {
       lastErr = e; note(engine, 'fail', { error: e.message, s, now: now() }); tried.push({ engine, ok: false, ms: now() - t0, error: String(e.message).slice(0, 160) });
       log(`asr: ${engine} failed (${String(e.message).slice(0, 140)})${i < attempts.length - 1 ? ` — falling back to ${attempts[i + 1]}` : ''}`);
