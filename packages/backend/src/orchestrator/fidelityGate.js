@@ -173,7 +173,33 @@ const DOUBLE_VERB = new RegExp(`(^|[;:]\\s*)(?:${V1})\\s+(${V2})\\s+(?=[a-z0-9])
 /** "Arrange Provide new prescriptions" -> "Provide new prescriptions": the verb next to its object stays. Only at the start of a line or of a ';' part. */
 export function fixDoubleVerb(line) { const m = line.match(BULLET); if (!m) return line; const body = m[2].replace(DOUBLE_VERB, (all, lead, v2) => `${lead}${v2} `); return body === m[2] ? line : m[1] + body; }
 
-// ── H: the same fact written twice in Subjective / Objective ─────────────────────────────────────────────────────────────────────────────────────
+// ── G2: glued "No"+word and clause-shaped referrals (found in 241 real notes: "Nocaffeine use"; "Referral to Has undergone 4 hearing tests") ─────────
+const GLUED_NO = /\bNo(?=(?:caffeine|alcohol|tobacco|smoking|known|drug|drugs|recreational|significant|fever|cough|pain)\b)/g;
+/** "Nocaffeine use" -> "No caffeine use". A short fixed word list so real words (Nocturia, Normal, Nothing) are never touched. */
+export function fixGluedNo(line) { const out = String(line).replace(GLUED_NO, 'No '); return out; }
+const CLAUSE_REFERRAL = /^(\s*(?:[-•*]|\d+\.)\s+)Referral to\s+(?:has|have|had|is|are|was|were|calling|persistent|ringing|ongoing|recurrent|complains?|reports?)\b/i;
+/** A plan line "Referral to Has undergone 4 hearing tests..." is a sentence mis-filed as a destination; it names no service, so the line is removed. */
+export function isGarbledReferral(line) { return CLAUSE_REFERRAL.test(String(line)); }
+
+/** "Administer tetanus shot expires Friday, 12 September 2025" mixes the vial's expiry into the patient's own action: the word becomes "vial expires". */
+export function fixVaccineExpiry(line) {
+  const m = String(line).match(BULLET); if (!m) return line;
+  if (!/\b(?:administer|administered|give|given|vaccin\w*|shot|injection)\b/i.test(m[2]) || /\bvial\s+(?:expires?|expiry|expiration)\b/i.test(m[2])) return line;
+  const body = m[2].replace(/(?<![A-Za-z])(expires|expiry|expiration)(?=\s+(?:on\s+)?(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)))/i, (a, w) => `vial ${w.toLowerCase()}`);
+  return body === m[2] ? line : m[1] + body;
+}
+/** Plan lines "Referral to ENT ..." written twice: the shorter one is dropped when every content word of it is already in the longer one (same first destination word). */
+export function dupReferrals(lines) {
+  const info = lines.map((l, i) => { const m = typeof l === 'string' ? l.match(BULLET) : null; const r = m && m[2].match(/^(?:referral|refer(?:red)?)\s+to\s+([A-Za-z]+)/i); return r ? { i, dest: r[1].toLowerCase(), tok: lineTokens(m[2]), len: m[2].length } : null; }).filter(Boolean);
+  const drop = new Set();
+  for (const a of info) for (const b of info) {
+    if (a.i === b.i || drop.has(a.i) || drop.has(b.i) || a.dest !== b.dest) continue;
+    if ([...a.tok].every((t) => b.tok.has(t)) && (a.len < b.len || (a.len === b.len && a.i > b.i))) drop.add(a.i);
+  }
+  return [...drop];
+}
+
+// ── H: the same fact written twice in Subjective / Objective─────────────────────────────────────────────────────────────────────────────────────
 // Seema's note 4x15c: "B12 low-normal" and "B12: lower side of normal", "Thyroid: fine" beside "Bloods: hemoglobin normal; thyroid normal", the ultrasound result twice, the 6-week follow-up in both
 // sections. A line whose every content word is already in another line of those two sections is dropped (the shorter one; equal ones keep the longer text). Words are compared by their first five
 // letters with a few synonyms (fine/ok/normal, low/lower), numbers and left/right/no/not are never ignored, and a negated line never absorbs a positive one (or the reverse).
@@ -265,7 +291,7 @@ export function parseClaims(raw, cands, transcript) {
  * `getLlm` is called at most once, only when a candidate line exists.
  */
 export async function fidelityGate({ md, transcript, patientMeds = [], lexicon = null, clean = false, claimMode = 'shadow', getLlm = null, log = () => {}, cap = 4 }) {
-  const meta = { drugs: [], values: [], years: [], pmh: [], labs: [], verbs: 0, repeats: [], claims: { checked: 0, removed: [], flagged: [] }, capped: false };
+  const meta = { drugs: [], values: [], years: [], pmh: [], labs: [], verbs: 0, glued: 0, garbled: [], repeats: [], claims: { checked: 0, removed: [], flagged: [] }, capped: false };
   const flags = []; let lines = String(md || '').split('\n'); const t = String(transcript || '');
   const flag = (type, field, message) => { if (!clean) flags.push({ type, field, severity: 'warning', message }); };
   const apply = (idx, rx) => { const next = cutPart(lines[idx], rx); lines[idx] = next; };   // null = line removed
@@ -311,6 +337,9 @@ export async function fidelityGate({ md, transcript, patientMeds = [], lexicon =
       log(`[v2:fidelity] ${c.lab}: ${c.drop} dropped, ${c.keep.join('/')} kept`);
     }
     lines = lines.filter((l) => l !== null).map((l) => { const f = fixDoubleVerb(l); if (f !== l) meta.verbs++; return f; });
+    lines = lines.filter((l) => { if (!isGarbledReferral(l)) return true; meta.garbled.push(l.trim().slice(0, 100)); return false; })
+      .map((l) => { const f = fixVaccineExpiry(fixGluedNo(l)); if (f !== l) meta.glued++; return f; });
+    { const dups = new Set(dupReferrals(lines)); if (dups.size) { meta.dupRefs = [...dups].map((i) => lines[i].trim().slice(0, 100)); lines = lines.filter((_, i) => !dups.has(i)); } }
     const reps = repeatedLines(lines.join('\n'));   // H
     if (reps.length) {
       const gone = new Set(reps.map((r) => r.idx)); const kept = lines.filter((_, i) => !gone.has(i));

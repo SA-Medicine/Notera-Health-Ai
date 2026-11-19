@@ -146,6 +146,30 @@ test('fixDoubleVerb keeps the verb next to its object and leaves real wording al
   assert.equal(fixDoubleVerb('Arrange Provide x'), 'Arrange Provide x', 'only bullet lines');
 });
 
+test('fixGluedNo splits only the listed glued words; isGarbledReferral catches clause-shaped referrals only', async () => {
+  const { fixGluedNo, isGarbledReferral, fidelityGate } = await import('../src/orchestrator/fidelityGate.js');
+  assert.equal(fixGluedNo('- Nocaffeine use; Noalcohol'), '- No caffeine use; No alcohol');
+  for (const ok of ['- Nocturia at night', '- Normal exam', '- Nothing else', '- No caffeine use', '- Nonsmoker']) assert.equal(fixGluedNo(ok), ok);
+  assert.equal(isGarbledReferral('- Referral to Has undergone 4 hearing tests'), true);
+  assert.equal(isGarbledReferral('- Referral to Persistent ringing in the left ear'), true);
+  assert.equal(isGarbledReferral('- Referral to ENT for tinnitus'), false);
+  assert.equal(isGarbledReferral('- Referral to cardiology'), false);
+  const md = '## Plan\n- Referral to Calling for review of results\n- Referral to ENT\n\n## PMH\n- Nocaffeine use';
+  const r = await fidelityGate({ md, transcript: 'x', clean: true });
+  assert.ok(!/Calling for review/.test(r.md)); assert.ok(/Referral to ENT/.test(r.md)); assert.ok(/No caffeine use/.test(r.md));
+  assert.equal(r.meta.garbled.length, 1); assert.equal(r.meta.glued, 1);
+});
+
+test('vaccine expiry wording and duplicate referral lines', async () => {
+  const { fixVaccineExpiry, dupReferrals } = await import('../src/orchestrator/fidelityGate.js');
+  assert.equal(fixVaccineExpiry('- Administer tetanus shot expires Friday, 12 September 2025 (given today)'), '- Administer tetanus shot vial expires Friday, 12 September 2025 (given today)');
+  assert.equal(fixVaccineExpiry('- Passport expires 2027'), '- Passport expires 2027');
+  assert.equal(fixVaccineExpiry('- Administer tetanus shot vial expires Friday'), '- Administer tetanus shot vial expires Friday');
+  const L = ['## Plan', '- Referral to ENT for ringing in the ears', '- Referral to ENT', '- Referral to cardiology', '- Referral to ENT for ringing in the ears and hearing tests'];
+  assert.deepEqual(dupReferrals(L).sort(), [1, 2]);
+  assert.deepEqual(dupReferrals(['- Referral to ENT for ringing', '- Referral to ENT for dizziness']), []);
+});
+
 test('fidelityGate on the real note: clean account loses the three problems; others keep PMH with a flag', async () => {
   const g = await fidelityGate({ md: KM_MD, transcript: KM_T, clean: true });
   assert.ok(!/Dysglycemia/.test(g.md)); assert.ok(!/158/.test(g.md)); assert.ok(!/Arrange Provide/.test(g.md));

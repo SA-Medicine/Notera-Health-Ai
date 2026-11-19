@@ -25,14 +25,14 @@ import { vaultStart, vaultUpdate, vaultChunk, vaultBlob, vaultDrop, vaultPending
 
 // All backend calls go through the same-origin /backend proxy (cookies stay first-party).
 const API = '/backend';
-const SEGMENT_MS = 20_000;   // 20s chunks: well under Google's 60s sync cap even with WebM/Opus
+const SEGMENT_MS = 40_000;   // 40s chunks (was 20s): on 7 real visits 40s chunks hear 98.6% of the words a whole-recording pass hears, 20s chunks only 91%; the server splits long audio itself
 const EMPTY_SEG_LIMIT = 9;   // audio safety: 9 consecutive SILENT 20s chunks (~3 min). Only counts
                              // chunks that transcribed successfully with no speech — a failed
                              // request is a failure, not silence — and only discards the session
                              // when no speech was ever captured (mic left on by mistake).
 const CHUNK_RETRIES = 3;                       // per-segment ASR retries before giving up on it
 const CHUNK_RETRY_MS = [1_000, 4_000, 10_000]; // backoff between those retries
-const ASR_REQUEST_TIMEOUT_MS = 30_000;          // a 20s chunk answers in ~1-3s; a hung request must not hold a slot
+const ASR_REQUEST_TIMEOUT_MS = 45_000;          // a 40s chunk answers in ~3-10s; a hung request must not hold a slot
 const MAX_INFLIGHT = 3;                        // concurrent ASR requests (the backend queues too)
 
 // One recorded 20s window and what came back for it.
