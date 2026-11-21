@@ -64,6 +64,7 @@ import { proposePlan, applyPlan, joinObjective, capLines } from './joinLines.js'
 import { unclearPlan } from './unclearPlan.js';
 import { planTidy } from './planTidy.js';
 import { groupRuns } from './groupRuns.js';
+import { noteTidy } from './noteTidy.js';
 import { isCleanNoteClinician, keepCriticalFlags } from './cleanAccounts.js';
 import { proposeMoves, applyMoves } from './planOrganise.js';
 import { STORY_FLAT_SYS } from './storyFlat.js';
@@ -1058,6 +1059,10 @@ export async function generateNoteV2(input, opts = {}) {
 
   if (!blank && joinMode === '1' && process.env.LINE_CAP !== '0') {   // joinLines.js: no Subjective/Objective bullet runs to a third line; a long joined bullet is cut at its own semicolons
     try { const cl = capLines(renderedNote, { maxChars: Number(process.env.LINE_CAP_CHARS) || 140 }); if (cl.split) { renderedNote = cl.md; note.metadata ||= {}; note.metadata.joinLines = { ...(note.metadata.joinLines || {}), lineCapSplit: cl.split }; log(`[v2:join] ${cl.split} long line(s) cut at a semicolon so no bullet runs past two lines`); } } catch (e) { log(`[v2:join] line cap skipped — ${e.message}`); }
+  }
+
+  if (!blank && process.env.NOTE_TIDY !== '0') {   // noteTidy.js (unlocked layer, doctor feedback 2026-11-21): same-intent referral lines folded, a "Dr." split from its name rejoined, ear-wax / medicine lines gathered in one Subjective group. No word is added or reworded; NOTE_TIDY=0 switches it off
+    try { const nt = noteTidy(renderedNote, { meds: note.metadata?.medications_mentioned || [] }); if (nt.md !== renderedNote) { renderedNote = nt.md; note.metadata ||= {}; note.metadata.noteTidy = nt.meta; log(`[v2:tidy] ${JSON.stringify(nt.meta).slice(0, 300)}`); } } catch (e) { log(`[v2:tidy] skipped - ${String(e.message).slice(0, 80)}`); }
   }
 
   // 5) persist -------------------------------------------------------------------
